@@ -1,0 +1,457 @@
+from unittest import TestCase
+
+import torch
+from torch import nn
+
+from afa_rl.afa_env import AFAMDP
+from afa_rl.custom_types import (
+    DatasetFn,
+    Embedder,
+    Embedding,
+    Feature,
+    FeatureMask,
+    TaskModel,
+    TaskModelOutput,
+)
+from afa_rl.datasets import get_dataset_fn
+from afa_rl.utils import FloatWrapFn
+
+
+def get_dummy_data_fn() -> DatasetFn:
+    """
+    A very simple dataset for debugging
+    """
+    features = torch.tensor(
+        [
+            [1, 2, 3, 4, 5],
+            [2, 3, 4, 5, 6],
+            [3, 4, 5, 6, 7],
+            [4, 5, 6, 7, 8],
+        ],
+        dtype=torch.float32,
+    )
+    labels = torch.tensor(
+        [
+            [1, 0, 0, 0],
+            [0, 1, 0, 0],
+            [0, 0, 1, 0],
+            [0, 0, 0, 1],
+        ],
+        dtype=torch.int64,
+    )
+
+    return get_dataset_fn(features, labels)
+
+
+class LinearEncoder(Embedder):
+    def __init__(self, input_size, output_size):
+        super().__init__()
+        self.net = nn.Linear(input_size, output_size)
+
+    def forward(self, feature_values: Feature, feature_mask: FeatureMask) -> Embedding:
+        return self.net(torch.cat([feature_values, feature_mask], dim=-1))
+
+
+class LinearTaskModel(TaskModel):
+    def __init__(self, input_size, output_size):
+        super().__init__()
+        self.net = nn.Linear(input_size, output_size)
+
+    def forward(self, embedding: Embedding) -> TaskModelOutput:
+        return self.net(embedding)
+
+
+class TestAFAMDP(TestCase):
+    def setUp(self):
+        self.device = torch.device("cpu")
+        self.env = AFAMDP(
+            dataset_fn=get_dummy_data_fn(),
+            embedder=LinearEncoder(10, 5),
+            task_model=LinearTaskModel(5, 4),
+            loss_fn=FloatWrapFn(nn.CrossEntropyLoss(reduction="none")),
+            acquisition_costs=torch.tensor([10, 11, 12, 13, 14], dtype=torch.float32),
+            device=self.device,
+            batch_size=torch.Size((2,)),
+        )
+        self.td = self.env.reset()
+
+    def test_initial_state(self):
+        assert self.td.batch_size == torch.Size((2,))
+        torch.testing.assert_close(
+            self.td["feature_mask"],
+            torch.tensor(
+                [
+                    [0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0],
+                ],
+                dtype=torch.bool,
+                device=self.device,
+            ),
+        )
+        torch.testing.assert_close(
+            self.td["action_mask"],
+            torch.tensor(
+                [
+                    [1, 1, 1, 1, 1, 1],
+                    [1, 1, 1, 1, 1, 1],
+                ],
+                dtype=torch.bool,
+                device=self.device,
+            ),
+        )
+        torch.testing.assert_close(
+            self.td["feature_values"],
+            torch.tensor(
+                [
+                    [0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0],
+                ],
+                dtype=torch.float32,
+                device=self.device,
+            ),
+        )
+        torch.testing.assert_close(
+            self.td["fa_reward"],
+            torch.tensor(
+                [
+                    [0],
+                    [0],
+                ],
+                dtype=torch.float32,
+                device=self.device,
+            ),
+        )
+        torch.testing.assert_close(
+            self.td["model_reward"],
+            torch.tensor(
+                [
+                    [0],
+                    [0],
+                ],
+                dtype=torch.float32,
+                device=self.device,
+            ),
+        )
+        torch.testing.assert_close(
+            self.td["all_features"],
+            torch.tensor(
+                [
+                    [1, 2, 3, 4, 5],
+                    [2, 3, 4, 5, 6],
+                ],
+                dtype=torch.float32,
+                device=self.device,
+            ),
+        )
+        torch.testing.assert_close(
+            self.td["label"],
+            torch.tensor(
+                [
+                    [1, 0, 0, 0],
+                    [0, 1, 0, 0],
+                ],
+                dtype=self.td["label"].dtype,
+                device=self.device,
+            ),
+        )
+
+    def get_state1(self):
+        td = self.td.clone()
+        td["action"] = torch.tensor([1, 2], dtype=torch.int64, device=self.device)
+        td = self.env.step(td)
+        return td["next"]
+
+    def get_state2(self):
+        td = self.get_state1()
+        # pick last feature for first sample, stop for second sample
+        td["action"] = torch.tensor([5, 0], dtype=torch.int64, device=self.device)
+        td = self.env.step(td)
+        return td["next"]
+
+    def get_state2_with_reset(self):
+        td = self.get_state1()
+        td["action"] = torch.tensor([5, 0], dtype=torch.int64, device=self.device)
+        _, td = self.env.step_and_maybe_reset(td)
+        return td
+
+    def test_first_step(self):
+        td = self.get_state1()
+        assert td.batch_size == torch.Size((2,))
+        torch.testing.assert_close(
+            td["feature_mask"],
+            torch.tensor(
+                [
+                    [1, 0, 0, 0, 0],
+                    [0, 1, 0, 0, 0],
+                ],
+                dtype=torch.bool,
+                device=self.device,
+            ),
+        )
+        torch.testing.assert_close(
+            td["action_mask"],
+            torch.tensor(
+                [
+                    [1, 0, 1, 1, 1, 1],
+                    [1, 1, 0, 1, 1, 1],
+                ],
+                dtype=torch.bool,
+                device=self.device,
+            ),
+        )
+        torch.testing.assert_close(
+            td["feature_values"],
+            torch.tensor(
+                [
+                    [1, 0, 0, 0, 0],
+                    [0, 3, 0, 0, 0],
+                ],
+                dtype=torch.float32,
+                device=self.device,
+            ),
+        )
+        torch.testing.assert_close(
+            td["fa_reward"],
+            torch.tensor(
+                [
+                    [10],
+                    [11],
+                ],
+                dtype=torch.float32,
+                device=self.device,
+            ),
+        )
+        torch.testing.assert_close(
+            td["model_reward"],
+            torch.tensor(
+                [
+                    [0],
+                    [0],
+                ],
+                dtype=torch.float32,
+                device=self.device,
+            ),
+        )
+        torch.testing.assert_close(
+            td["all_features"],
+            torch.tensor(
+                [
+                    [1, 2, 3, 4, 5],
+                    [2, 3, 4, 5, 6],
+                ],
+                dtype=torch.float32,
+                device=self.device,
+            ),
+        )
+        torch.testing.assert_close(
+            td["label"],
+            torch.tensor(
+                [
+                    [1, 0, 0, 0],
+                    [0, 1, 0, 0],
+                ],
+                dtype=self.td["label"].dtype,
+                device=self.device,
+            ),
+        )
+        torch.testing.assert_close(
+            td["done"],
+            torch.tensor(
+                [
+                    [0],
+                    [0],
+                ],
+                dtype=torch.bool,
+                device=self.device,
+            ),
+        )
+
+    def test_second_step(self):
+        td = self.get_state2()
+        assert td.batch_size == torch.Size((2,))
+        torch.testing.assert_close(
+            td["feature_mask"],
+            torch.tensor(
+                [
+                    [1, 0, 0, 0, 1],
+                    [0, 1, 0, 0, 0],
+                ],
+                dtype=torch.bool,
+                device=self.device,
+            ),
+        )
+        torch.testing.assert_close(
+            td["action_mask"],
+            torch.tensor(
+                [
+                    [1, 0, 1, 1, 1, 0],
+                    [0, 1, 0, 1, 1, 1],
+                ],
+                dtype=torch.bool,
+                device=self.device,
+            ),
+        )
+        torch.testing.assert_close(
+            td["feature_values"],
+            torch.tensor(
+                [
+                    [1, 0, 0, 0, 5],
+                    [0, 3, 0, 0, 0],
+                ],
+                dtype=torch.float32,
+                device=self.device,
+            ),
+        )
+        torch.testing.assert_close(
+            td["fa_reward"],
+            torch.tensor(
+                [
+                    [14],
+                    [0],
+                ],
+                dtype=torch.float32,
+                device=self.device,
+            ),
+        )
+        # only check that the first sample does not have a model reward
+        torch.testing.assert_close(
+            td["model_reward"][0],
+            torch.tensor(
+                [0],
+                dtype=torch.float32,
+                device=self.device,
+            ),
+        )
+        torch.testing.assert_close(
+            td["all_features"],
+            torch.tensor(
+                [
+                    [1, 2, 3, 4, 5],
+                    [2, 3, 4, 5, 6],
+                ],
+                dtype=torch.float32,
+                device=self.device,
+            ),
+        )
+        torch.testing.assert_close(
+            td["label"],
+            torch.tensor(
+                [
+                    [1, 0, 0, 0],
+                    [0, 1, 0, 0],
+                ],
+                dtype=self.td["label"].dtype,
+                device=self.device,
+            ),
+        )
+        torch.testing.assert_close(
+            td["done"],
+            torch.tensor(
+                [
+                    [0],
+                    [1],
+                ],
+                dtype=torch.bool,
+                device=self.device,
+            ),
+        )
+
+    def test_second_step_with_reset(self):
+        td = self.get_state2_with_reset()
+        assert td.batch_size == torch.Size((2,))
+        torch.testing.assert_close(
+            td["feature_mask"],
+            torch.tensor(
+                [
+                    [1, 0, 0, 0, 1],
+                    [0, 0, 0, 0, 0],
+                ],
+                dtype=torch.bool,
+                device=self.device,
+            ),
+        )
+        torch.testing.assert_close(
+            td["action_mask"],
+            torch.tensor(
+                [
+                    [1, 0, 1, 1, 1, 0],
+                    [1, 1, 1, 1, 1, 1],
+                ],
+                dtype=torch.bool,
+                device=self.device,
+            ),
+        )
+        torch.testing.assert_close(
+            td["feature_values"],
+            torch.tensor(
+                [
+                    [1, 0, 0, 0, 5],
+                    [0, 0, 0, 0, 0],
+                ],
+                dtype=torch.float32,
+                device=self.device,
+            ),
+        )
+        torch.testing.assert_close(
+            td["fa_reward"],
+            torch.tensor(
+                [
+                    [14],
+                    [0],
+                ],
+                dtype=torch.float32,
+                device=self.device,
+            ),
+        )
+        # only check that the first sample does not have a model reward
+        torch.testing.assert_close(
+            td["model_reward"][0],
+            torch.tensor(
+                [0],
+                dtype=torch.float32,
+                device=self.device,
+            ),
+        )
+        # NOTE: this is a bit weird, but as soon as a single batch element is done, a complete new data batch
+        # (from dataset_fn) is loaded, and only some of the elements are used. This is why the all_features tensor skips over the sample [3, 4, 5, 6, 7]
+        torch.testing.assert_close(
+            td["all_features"],
+            torch.tensor(
+                [
+                    [1, 2, 3, 4, 5],
+                    [4, 5, 6, 7, 8],
+                ],
+                dtype=torch.float32,
+                device=self.device,
+            ),
+        )
+        torch.testing.assert_close(
+            td["label"],
+            torch.tensor(
+                [
+                    [1, 0, 0, 0],
+                    [0, 0, 0, 1],
+                ],
+                dtype=self.td["label"].dtype,
+                device=self.device,
+            ),
+        )
+        torch.testing.assert_close(
+            td["done"],
+            torch.tensor(
+                [
+                    [0],
+                    [0],
+                ],
+                dtype=torch.bool,
+                device=self.device,
+            ),
+        )
+        #         [
+        #             [0],
+        #             [0],
+        #         ],
+        #         dtype=torch.bool,
+        #         device=self.device,
+        #     ),
+        # )
