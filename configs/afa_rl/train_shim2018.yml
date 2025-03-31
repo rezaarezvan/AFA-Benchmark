@@ -9,8 +9,11 @@ dataset:
 mdp:
   acquisition_cost: 0.05
 
+embedder_classifier:
+  lr: 1
+
 agent:
-  lr: 0.01
+  lr: 0.1
   update_tau: 0.01
   eps_init: 1.0
   eps_end: 0.1
@@ -23,6 +26,7 @@ device: "cuda"
 eval_every_n_batches: 500
 eval_episodes: 100
 eval_max_steps: 100
+
 
 wandb:
   entity: "valterschutz-chalmers-university-of-technology"

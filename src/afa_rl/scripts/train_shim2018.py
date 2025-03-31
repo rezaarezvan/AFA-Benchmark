@@ -1,6 +1,7 @@
 import argparse
 
 import torch
+from torch import optim
 from torchrl.collectors import SyncDataCollector
 from torchrl.envs import ExplorationType, set_exploration_type
 import yaml
@@ -70,13 +71,16 @@ def main():
     )
     embedder_and_classifier = embedder_and_classifier.to(config.device)
     embedder = embedder_and_classifier.embedder
-    # Freeze embedder weights
-    embedder.requires_grad_(False)
-    embedder.eval()
-    # Freeze classifier weights
     classifier = embedder_and_classifier.classifier
-    classifier.requires_grad_(False)
-    classifier.eval()
+    # Freeze embedder weights
+    # embedder.requires_grad_(False)
+    # embedder.eval()
+    # Freeze classifier weights
+    # classifier.requires_grad_(False)
+    # classifier.eval()
+    embedder_classifier_optim = optim.Adam(
+        embedder_and_classifier.parameters(), lr=config.embedder_classifier.lr
+    )
 
     # Prepare cube dataset for the format that AFAMDP expects
     dataset = CubeDataset(
@@ -149,21 +153,29 @@ def main():
     )
 
     collector = SyncDataCollector(
-        train_env, agent.policy, frames_per_batch=config.batch_size
+        train_env, agent.policy, frames_per_batch=config.batch_size, total_frames=config.n_batches*config.batch_size
     )
 
     # Training loop
     try:
         for batch_idx, td in tqdm(enumerate(collector), total=config.n_batches):
+            embedder_classifier_optim.zero_grad()
             agent.optim.zero_grad()
 
             agent_loss = agent.loss_module(td)
             agent_loss_value = agent_loss["loss"]
             agent_loss_value.backward()
 
+            # Debugging
+            for name, param in embedder_and_classifier.named_parameters():
+                if param.grad is None:
+                    print(f"{name} has no gradient!")
+
             # Clip gradients?
 
+            embedder_classifier_optim.step()
             agent.optim.step()
+
 
             # Update target network
             agent.updater.step()
