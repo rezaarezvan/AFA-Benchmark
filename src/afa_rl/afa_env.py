@@ -20,6 +20,8 @@ from afa_rl.custom_types import (
 
 
 class AFAMDP(EnvBase):
+    batch_locked = False
+
     def __init__(
         self,
         dataset_fn: DatasetFn,  # a function that returns data in batches when called
@@ -30,6 +32,8 @@ class AFAMDP(EnvBase):
         device: torch.device,
         batch_size: torch.Size,
     ):
+        # Do not allow empty batch sizes
+        assert batch_size != torch.Size(()), "Batch size must be non-empty"
         super().__init__(device=device, batch_size=batch_size)
 
         self.dataset_fn = dataset_fn
@@ -63,44 +67,45 @@ class AFAMDP(EnvBase):
     def _make_spec(self):
         self.observation_spec = Composite(
             feature_mask=Binary(
-                shape=self.batch_size + (self.feature_size,),
+                shape=self.batch_size + torch.Size((self.feature_size,)),
                 dtype=torch.bool,
             ),
             # Which actions the agent is allowed to take
             action_mask=Binary(
-                shape=self.batch_size + (self.feature_size + 1,),
+                shape=self.batch_size + torch.Size((self.feature_size + 1,)),
                 dtype=torch.bool,
             ),
             feature_values=Unbounded(
-                shape=self.batch_size + (self.feature_size,),
+                shape=self.batch_size + torch.Size((self.feature_size,)),
                 dtype=torch.float32,
             ),
             embedding=Unbounded(
-                shape=self.batch_size + (self.embedding_size,),
+                shape=self.batch_size + torch.Size((self.embedding_size,)),
                 dtype=torch.float32,
             ),
             model_reward=Unbounded(
-                shape=self.batch_size + (1,),
+                shape=self.batch_size + torch.Size((1,)),
                 dtype=torch.float32,
             ),
             fa_reward=Unbounded(
-                shape=self.batch_size + (1,),
+                shape=self.batch_size + torch.Size((1,)),
                 dtype=torch.float32,
             ),
             # hidden from the agent
             all_features=Unbounded(
-                shape=self.batch_size + (self.feature_size,),
+                shape=self.batch_size + torch.Size((self.feature_size,)),
                 dtype=torch.float32,
             ),
             label=Unbounded(
-                shape=self.batch_size + (self.label_size,), dtype=self.label_dtype
+                shape=self.batch_size + torch.Size((self.label_size,)),
+                dtype=self.label_dtype,
             ),
             batch_size=self.batch_size,
         )
         # action = 0 means stop, action = i means choose feature i
         self.action_spec = Categorical(
             n=self.feature_size + 1,
-            shape=self.batch_size,
+            shape=self.batch_size + torch.Size(()),
             dtype=torch.int64,
         )
         self.reward_spec = Unbounded(
@@ -108,61 +113,57 @@ class AFAMDP(EnvBase):
         )
 
     def _reset(self, tensordict: TensorDictBase, **_):
-        if tensordict is not None:
-            reset_batch_size = tensordict.shape
+        if tensordict is None:
+            tensordict = TensorDict({}, batch_size=self.batch_size, device=self.device)
 
-        else:
-            reset_batch_size = self.batch_size
         # Get a sample from the dataset
-        sample = self.dataset_fn(reset_batch_size)
-        all_features: Feature = sample.feature.to(self.device)
-        label: TaskLabel = sample.label.to(self.device)
+        sample = self.dataset_fn(tensordict.batch_size)
+        all_features: Feature = sample.feature.to(tensordict.device)
+        label: TaskLabel = sample.label.to(tensordict.device)
         # the indices of chosen features so far, start with no features
         feature_mask: FeatureMask = torch.zeros_like(
-            all_features, dtype=torch.bool, device=self.device
+            all_features, dtype=torch.bool, device=tensordict.device
         )
         # the values of chosen features so far, start with no features
         feature_values: Feature = torch.zeros_like(
-            all_features, dtype=torch.float32, device=self.device
+            all_features, dtype=torch.float32, device=tensordict.device
         )
         embedding = self.embedder(feature_values, feature_mask)
         model_reward = torch.zeros(
-            reset_batch_size + (1,), dtype=torch.float32, device=self.device
+            tensordict.batch_size + (1,), dtype=torch.float32, device=tensordict.device
         )
         fa_reward = torch.zeros(
-            reset_batch_size + (1,), dtype=torch.float32, device=self.device
+            tensordict.batch_size + (1,), dtype=torch.float32, device=tensordict.device
         )
         # Agent is allowed to choose any feature at the beginning
         action_mask = torch.ones(
-            reset_batch_size + (self.feature_size + 1,),
+            tensordict.batch_size + (self.feature_size + 1,),
             dtype=torch.bool,
-            device=self.device,
+            device=tensordict.device,
         )
 
-        if tensordict is not None:
-            tensordict["feature_mask"] = feature_mask
-            tensordict["feature_values"] = feature_values
-            tensordict["embedding"] = embedding
-            tensordict["model_reward"] = model_reward
-            tensordict["fa_reward"] = fa_reward
-            tensordict["all_features"] = all_features
-            tensordict["label"] = label
-            tensordict["action_mask"] = action_mask
-            return tensordict
-        else:
-            return TensorDict(
-                {
-                    "feature_mask": feature_mask,
-                    "feature_values": feature_values,
-                    "embedding": embedding,
-                    "model_reward": model_reward,
-                    "fa_reward": fa_reward,
-                    "all_features": all_features,
-                    "label": label,
-                    "action_mask": action_mask,
-                },
-                batch_size=self.batch_size,
-            )
+        # If batch size was empty, squeeze batch dimension for some tensors
+        # all_features = all_features.squeeze(0)
+        # embedding = embedding.squeeze(0)
+        # feature_mask = feature_mask.squeeze(0)
+        # feature_values = feature_values.squeeze(0)
+        # label = label.squeeze(0)
+
+        td = TensorDict(
+            {
+                "feature_mask": feature_mask,
+                "feature_values": feature_values,
+                "embedding": embedding,
+                "model_reward": model_reward,
+                "fa_reward": fa_reward,
+                "all_features": all_features,
+                "label": label,
+                "action_mask": action_mask,
+            },
+            batch_size=tensordict.batch_size,
+            device=tensordict.device,
+        )
+        return td
 
     def _step(self, tensordict: TensorDictBase) -> TensorDictBase:
         # Clone feature data and embedding data. This will change for samples where AFA is done
@@ -179,7 +180,7 @@ class AFAMDP(EnvBase):
         model_output = self.task_model(tensordict["embedding"][is_stop])
         loss = self.loss_fn(model_output, tensordict["label"][is_stop])
         model_reward = torch.zeros(
-            self.batch_size + (1,), dtype=torch.float32, device=self.device
+            tensordict.batch_size + (1,), dtype=torch.float32, device=tensordict.device
         )
         model_reward[is_stop] = -loss.unsqueeze(-1)
         action_mask[is_stop, 0] = False
@@ -196,7 +197,7 @@ class AFAMDP(EnvBase):
 
         # Compute rewards using conditional selection
         fa_reward = torch.zeros(
-            self.batch_size + (1,), dtype=torch.float32, device=self.device
+            tensordict.batch_size + (1,), dtype=torch.float32, device=tensordict.device
         )
         fa_reward[is_fa] = -self.acquisition_costs[new_feature_indices].unsqueeze(-1)
 
@@ -219,7 +220,7 @@ class AFAMDP(EnvBase):
                 "reward": reward,
                 "action_mask": action_mask,
             },
-            batch_size=self.batch_size,
+            batch_size=tensordict.batch_size,
         )
 
     def _set_seed(self, seed: int | None):

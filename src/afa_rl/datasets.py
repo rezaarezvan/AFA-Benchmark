@@ -29,6 +29,10 @@ def get_dataset_fn(features, labels) -> DatasetFn:
         num_elems = batch_size.numel()
         local_features = get_wrapped_batch(features, idx, num_elems)
         local_labels = get_wrapped_batch(labels, idx, num_elems)
+        # If batch_size was empty, squeeze batch dimension
+        # if batch_size == torch.Size(()):
+        #     local_features = local_features.squeeze(0)
+        #     local_labels = local_labels.squeeze(0)
         if move_on:
             idx = (idx + num_elems) % len(features)
         return Sample(local_features, local_labels)

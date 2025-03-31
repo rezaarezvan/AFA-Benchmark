@@ -73,6 +73,7 @@ class TestAFAMDP(TestCase):
             device=self.device,
             batch_size=torch.Size((2,)),
         )
+        # check_env_specs(self.env)
         self.td = self.env.reset()
 
     def test_initial_state(self):

@@ -89,36 +89,36 @@ class ShimQAgent:
         td["action"] = resample_invalid_actions(td["action"], td["action_mask"])
         return td
 
-    def save(self, filepath: str):
-        checkpoint = {
-            "embedding_size": self.embedding_size,
-            "action_spec": self.action_spec,  # Ensure action_spec is serializable
-            "lr": self.lr,
-            "update_tau": self.update_tau,
-            "eps": self.eps,
-            "device": str(self.device),  # Convert device to string for compatibility
-            "model_state_dict": self.value_module.state_dict(),
-            "optimizer_state_dict": self.optim.state_dict(),
-        }
-        torch.save(checkpoint, filepath)
+    # def save(self, filepath: str):
+    #     checkpoint = {
+    #         "embedding_size": self.embedding_size,
+    #         "action_spec": self.action_spec,  # Ensure action_spec is serializable
+    #         "lr": self.lr,
+    #         "update_tau": self.update_tau,
+    #         "eps": self.eps,
+    #         "device": str(self.device),  # Convert device to string for compatibility
+    #         "model_state_dict": self.value_module.state_dict(),
+    #         "optimizer_state_dict": self.optim.state_dict(),
+    #     }
+    #     torch.save(checkpoint, filepath)
 
-    @staticmethod
-    def load(filepath: str, device: torch.device) -> "ShimQAgent":
-        checkpoint = torch.load(filepath, map_location=device, weights_only=False)
+    # @staticmethod
+    # def load(filepath: str, device: torch.device) -> "ShimQAgent":
+    #     checkpoint = torch.load(filepath, map_location=device, weights_only=False)
 
-        agent = ShimQAgent(
-            embedding_size=checkpoint["embedding_size"],
-            action_spec=checkpoint[
-                "action_spec"
-            ],  # Ensure action_spec is reconstructed properly
-            lr=checkpoint["lr"],
-            update_tau=checkpoint["update_tau"],
-            eps=checkpoint["eps"],
-            device=device,
-        )
+    #     agent = ShimQAgent(
+    #         embedding_size=checkpoint["embedding_size"],
+    #         action_spec=checkpoint[
+    #             "action_spec"
+    #         ],  # Ensure action_spec is reconstructed properly
+    #         lr=checkpoint["lr"],
+    #         update_tau=checkpoint["update_tau"],
+    #         eps=checkpoint["eps"],
+    #         device=device,
+    #     )
 
-        # Load model and optimizer state
-        agent.value_module.load_state_dict(checkpoint["model_state_dict"])
-        agent.optim.load_state_dict(checkpoint["optimizer_state_dict"])
+    #     # Load model and optimizer state
+    #     agent.value_module.load_state_dict(checkpoint["model_state_dict"])
+    #     agent.optim.load_state_dict(checkpoint["optimizer_state_dict"])
 
-        return agent
+    #     return agent
