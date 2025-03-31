@@ -1,6 +1,7 @@
 import argparse
 
 import torch
+from torchrl.envs import ExplorationType, set_exploration_type
 import yaml
 from torch import nn
 from tqdm import tqdm
@@ -19,22 +20,6 @@ from afa_rl.utils import FloatWrapFn, dict_to_namespace
 
 
 def main():
-    # # checkpoint as arg
-    # parser = ArgumentParser()
-    # parser.add_argument(
-    #     "--checkpoint",
-    #     type=str,
-    #     required=True,
-    #     help="Path to a ShimEmbedderClassifier checkpoint",
-    # )
-    # parser.add_argument(
-    #     "--agent_save_path",
-    #     type=str,
-    #     required=True,
-    #     help="Where to save the trained ShimQAgent",
-    # )
-    # args = parser.parse_args()
-
     torch.set_float32_matmul_precision("medium")
 
     # Use argparse to choose config file
@@ -165,18 +150,48 @@ def main():
             # classifier_loss.mean().backward()
             # classifier_optim.step()
 
+
             # Logging
             run.log(
                 {
-                    "agent_loss": agent_loss_value.item(),
-                    "action": td["action"].item(),
-                    # "classifier_loss": classifier_loss.mean().item(),
-                    "fa_reward": td["next", "fa_reward"].sum().item(),
-                    "model_reward": td["next", "model_reward"].sum().item(),
-                    "embedding_norm": td["embedding"].norm().item(),
-                    "episode_idx": episode_idx,
+                    "train/agent_loss": agent_loss_value.item(),
+                    "train/action": td["action"].item(),
+                    #train/ "classifier_loss": classifier_loss.mean().item(),
+                    "train/fa_reward": td["next", "fa_reward"].sum().item(),
+                    "train/model_reward": td["next", "model_reward"].sum().item(),
+                    "train/embedding_norm": td["embedding"].norm().item(),
+                    "train/episode_idx": episode_idx,
                 }
             )
+
+
+            if episode_idx % config.eval_every_n_episodes == 0:
+                with torch.no_grad(), set_exploration_type(ExplorationType.DETERMINISTIC):
+                    acquired_features = torch.zeros(config.eval_episodes, dtype=torch.int64, device=config.device)
+                    is_correct_class = torch.zeros(config.eval_episodes, dtype=torch.bool, device=config.device)
+                    for eval_episode in range(config.eval_episodes):
+                        # Evaluate agent
+                        td_eval = env.reset()
+                        td_eval = agent.policy(td_eval)
+                        td_eval = env.step(td_eval)
+                        while not td_eval["next", "done"]:
+                            td_eval = td_eval["next"]
+                            td_eval = agent.policy(td_eval)
+                            td_eval = env.step(td_eval)
+                        # Calculate acquired features
+                        acquired_features[eval_episode] = td_eval["feature_mask"].sum()
+                        # Check whether classification was correct
+                        is_correct_class[eval_episode] = (
+                            classifier(td_eval["embedding"]).argmax(dim=-1)
+                            == td_eval["label"]
+                        ).all()
+                    wandb.log(
+                        {
+                            "eval/acquired_features": acquired_features.mean().item(),
+                            "eval/accuracy": is_correct_class.float().mean().item(),
+                            "eval/episode_idx": episode_idx,
+                        }
+                    )
 
             if td["next", "done"].any():
                 td = env.reset()

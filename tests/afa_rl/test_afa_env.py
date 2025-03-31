@@ -214,8 +214,8 @@ class TestAFAMDP(TestCase):
             td["fa_reward"],
             torch.tensor(
                 [
-                    [10],
-                    [11],
+                    [-10],
+                    [-11],
                 ],
                 dtype=torch.float32,
                 device=self.device,
@@ -306,7 +306,7 @@ class TestAFAMDP(TestCase):
             td["fa_reward"],
             torch.tensor(
                 [
-                    [14],
+                    [-14],
                     [0],
                 ],
                 dtype=torch.float32,
@@ -322,6 +322,8 @@ class TestAFAMDP(TestCase):
                 device=self.device,
             ),
         )
+        # the second sample should have a non-zero model reward
+        assert torch.any(td["model_reward"][1] != 0), "Expected a non-zero model reward"
         torch.testing.assert_close(
             td["all_features"],
             torch.tensor(
@@ -396,7 +398,7 @@ class TestAFAMDP(TestCase):
             td["fa_reward"],
             torch.tensor(
                 [
-                    [14],
+                    [-14],
                     [0],
                 ],
                 dtype=torch.float32,

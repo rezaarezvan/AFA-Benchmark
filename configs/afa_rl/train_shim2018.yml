@@ -16,6 +16,8 @@ agent:
 
 n_episodes: 100000
 device: "cuda"
+eval_every_n_episodes: 100
+eval_episodes: 100
 
 wandb:
   entity: "valterschutz-chalmers-university-of-technology"
