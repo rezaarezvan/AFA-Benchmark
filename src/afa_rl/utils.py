@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from typing import Any, Callable
 
 import torch
@@ -45,3 +46,32 @@ def FloatWrapFn(f: Callable[..., Any]):
         return f(*[arg.float() for arg in args])
 
     return wrapper
+
+def dict_to_namespace(d):
+    """Convert a dict to a SimpleNamespace recursively."""
+    if not isinstance(d, dict):
+        return d
+
+    # Create a namespace for this level
+    ns = SimpleNamespace()
+
+    # Convert each key-value pair
+    for key, value in d.items():
+        if isinstance(value, dict):
+            # Recursively convert nested dictionaries
+            setattr(ns, key, dict_to_namespace(value))
+        elif isinstance(value, list):
+            # Convert lists with potential nested dictionaries
+            setattr(
+                ns,
+                key,
+                [
+                    dict_to_namespace(item) if isinstance(item, dict) else item
+                    for item in value
+                ],
+            )
+        else:
+            # Set the attribute directly for primitive types
+            setattr(ns, key, value)
+
+    return ns

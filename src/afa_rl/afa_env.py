@@ -198,7 +198,7 @@ class AFAMDP(EnvBase):
         fa_reward = torch.zeros(
             self.batch_size + (1,), dtype=torch.float32, device=self.device
         )
-        fa_reward[is_fa] = self.acquisition_costs[new_feature_indices].unsqueeze(-1)
+        fa_reward[is_fa] = -self.acquisition_costs[new_feature_indices].unsqueeze(-1)
 
         reward = model_reward + fa_reward
 
