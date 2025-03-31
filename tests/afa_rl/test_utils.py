@@ -1,6 +1,6 @@
 import torch
 
-from afa_rl.utils import get_feature_set
+from afa_rl.utils import get_feature_set, resample_invalid_actions
 
 
 def test_observed_features_to_state():
@@ -21,3 +21,22 @@ def test_observed_features_to_state():
 
     s_hat = get_feature_set(x, z)
     assert torch.allclose(s_hat, s)
+
+
+def test_resample_invalid_actions():
+    # Example action tensor (batch_size)
+    actions = torch.tensor([1, 2, 3])
+
+    # Example action mask (batch_size x num_actions)
+    action_mask = torch.tensor(
+        [
+            [False, True, True, False],  # Only indices 1, 2 are valid
+            [True, False, False, True],  # Only indices 0, 3 are valid
+            [False, False, True, True],  # Only indices 2, 3 are valid
+        ],
+        dtype=torch.bool,
+    )
+
+    for _ in range(100):
+        resampled_actions = resample_invalid_actions(actions, action_mask)
+        assert torch.all(action_mask[torch.arange(actions.shape[0]), resampled_actions])

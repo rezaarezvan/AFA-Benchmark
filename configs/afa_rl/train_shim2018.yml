@@ -2,7 +2,7 @@ pretrain_shim2018_config: "pretrain_shim2018.yml"
 checkpoint: "shim2018.pth"
 
 dataset:
-  size: 100000
+  size: 10000
   sigma: 0.01
   seed: 42
 
@@ -12,11 +12,13 @@ mdp:
 agent:
   lr: 0.001
   update_tau: 0.001
-  eps: 0.1
+  eps_init: 1.0
+  eps_end: 0.1
+  eps_episodes: 5000
 
-n_episodes: 100000
+n_episodes: 10000
 device: "cuda"
-eval_every_n_episodes: 100
+eval_every_n_episodes: 500
 eval_episodes: 100
 
 wandb:

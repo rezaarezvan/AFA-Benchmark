@@ -2,6 +2,7 @@ from types import SimpleNamespace
 from typing import Any, Callable
 
 import torch
+from torch import nn
 
 from afa_rl.custom_types import Feature, FeatureMask, FeatureSet
 
@@ -47,6 +48,7 @@ def FloatWrapFn(f: Callable[..., Any]):
 
     return wrapper
 
+
 def dict_to_namespace(d):
     """Convert a dict to a SimpleNamespace recursively."""
     if not isinstance(d, dict):
@@ -75,3 +77,23 @@ def dict_to_namespace(d):
             setattr(ns, key, value)
 
     return ns
+
+
+def resample_invalid_actions(actions, action_mask):
+    resampled_actions = actions.clone()
+    action_probs = action_mask.float()
+    random_action_indices = torch.multinomial(action_probs, 1).squeeze(-1)
+    # Check which actions are invalid
+    invalid_mask = ~action_mask[torch.arange(actions.shape[0]), actions]
+    resampled_actions[invalid_mask] = random_action_indices[invalid_mask]
+    return resampled_actions
+
+
+def get_sequential_module_norm(module: nn.Sequential):
+    """
+    Calculates the average norm of all the linear layers in a sequential module.
+    """
+    weight_norms = [
+        layer.weight.norm() for layer in module if isinstance(layer, nn.Linear)
+    ]
+    return torch.mean(torch.stack(weight_norms)).item()

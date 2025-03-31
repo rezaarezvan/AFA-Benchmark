@@ -6,6 +6,8 @@ from torchrl.data import TensorSpec
 from torchrl.modules import MLP, EGreedyModule, QValueActor
 from torchrl.objectives import DQNLoss, SoftUpdate
 
+from afa_rl.utils import resample_invalid_actions
+
 
 class ShimQAgent:
     def __init__(
@@ -14,14 +16,18 @@ class ShimQAgent:
         action_spec: TensorSpec,
         lr: float,
         update_tau: float,
-        eps: float,
+        eps_init: float,
+        eps_end: float,
+        eps_steps: int,
         device: torch.device,
     ):
         self.embedding_size = embedding_size
         self.action_spec = action_spec
         self.lr = lr
         self.update_tau = update_tau
-        self.eps = eps
+        self.eps_init = eps_init
+        self.eps_end = eps_end
+        self.eps_steps = eps_steps
         self.device = device
 
         # TODO: check if this action mask hack is problematic
@@ -52,18 +58,17 @@ class ShimQAgent:
             in_keys=["embedding", "action_mask"],
             spec=self.action_spec,
         )
+        self.egreedy_module = EGreedyModule(
+            spec=self.action_spec,
+            eps_init=self.eps_init,
+            eps_end=self.eps_end,
+            annealing_num_steps=self.eps_steps,
+            # It would be preferrable to use EGreedyModule's built-in action_mask_key but this
+            # is ignored in deterministic modes unfortunately.
+            action_mask_key="action_mask",
+        )
         self.egreedy_actor = TensorDictSequential(
-            [
-                self.value_network,
-                EGreedyModule(
-                    spec=self.action_spec,
-                    eps_init=self.eps,
-                    eps_end=self.eps,
-                    # It would be preferrable to use EGreedyModule's built-in action_mask_key but this
-                    # is ignored in deterministic modes unfortunately.
-                    action_mask_key="action_mask",
-                ),
-            ]
+            [self.value_network, self.egreedy_module]
         )
         self.loss_module = DQNLoss(
             value_network=self.value_network,
@@ -79,6 +84,9 @@ class ShimQAgent:
 
     def policy(self, td: TensorDictBase):
         td = self.egreedy_actor(td)
+        # EGreedyModule will still choose non-available actions (masked) when eps case is not triggered.
+        # To prevent this, we choose a random action in case an invalid action is chosen.
+        td["action"] = resample_invalid_actions(td["action"], td["action_mask"])
         return td
 
     def save(self, filepath: str):

@@ -7,8 +7,12 @@ from lightning.pytorch.loggers import WandbLogger
 
 import wandb
 from afa_rl.datasets import CubeDataset, DataModuleFromDataset
-from afa_rl.models import (MLPClassifier, ReadProcessEncoder, ShimEmbedder,
-                           ShimEmbedderClassifier)
+from afa_rl.models import (
+    MLPClassifier,
+    ReadProcessEncoder,
+    ShimEmbedder,
+    ShimEmbedderClassifier,
+)
 from afa_rl.utils import dict_to_namespace
 
 
@@ -76,7 +80,9 @@ def main():
     finally:
         # Move the best checkpoint to the desired location
         best_checkpoint = trainer.checkpoint_callback.best_model_path
-        torch.save(torch.load(best_checkpoint), f"checkpoints/afa_rl/{config.checkpoint}")
+        torch.save(
+            torch.load(best_checkpoint), f"checkpoints/afa_rl/{config.checkpoint}"
+        )
         print(f"ShimEmbedderClassifier saved to checkpoints/afa_rl/{config.checkpoint}")
 
 
