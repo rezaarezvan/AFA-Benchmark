@@ -28,7 +28,8 @@ class AFAMDP(EnvBase):
         embedder: Embedder,  # gives an embedding from features and feature indices
         task_model: TaskModel,  # takes an encoding and returns a prediction
         loss_fn: Callable[[TaskModelOutput, TaskLabel], Float[Tensor, "*batch"]],
-        acquisition_costs: Float[Tensor, "feature_size"], # positive values
+        acquisition_costs: Float[Tensor, "feature_size"],  # positive values
+        invalid_action_cost: float,  # how much to penalize invalid actions
         device: torch.device,
         batch_size: torch.Size,
     ):
@@ -41,6 +42,7 @@ class AFAMDP(EnvBase):
         self.task_model = task_model
         self.loss_fn = loss_fn
         self.acquisition_costs = acquisition_costs
+        self.invalid_action_cost = invalid_action_cost
 
         # Same feature size and label size
         dummy_sample = dataset_fn(torch.Size((1,)), move_on=False)
@@ -88,6 +90,10 @@ class AFAMDP(EnvBase):
                 dtype=torch.float32,
             ),
             fa_reward=Unbounded(
+                shape=self.batch_size + torch.Size((1,)),
+                dtype=torch.float32,
+            ),
+            invalid_action_reward=Unbounded(
                 shape=self.batch_size + torch.Size((1,)),
                 dtype=torch.float32,
             ),
@@ -140,6 +146,9 @@ class AFAMDP(EnvBase):
         fa_reward = torch.zeros(
             tensordict.batch_size + (1,), dtype=torch.float32, device=tensordict.device
         )
+        invalid_action_reward = torch.zeros(
+            tensordict.batch_size + (1,), dtype=torch.float32, device=tensordict.device
+        )
 
         td = TensorDict(
             {
@@ -148,10 +157,14 @@ class AFAMDP(EnvBase):
                 "embedding": embedding,
                 "model_reward": model_reward,
                 "fa_reward": fa_reward,
+                "invalid_action_reward": invalid_action_reward,
                 "all_features": all_features,
                 "label": label,
                 "predicted_class": torch.full(
-                    tensordict.batch_size+(1,), float("nan"), dtype=label.dtype, device=tensordict.device
+                    tensordict.batch_size + (1,),
+                    float("nan"),
+                    dtype=torch.float32,
+                    device=tensordict.device,
                 ),
             },
             batch_size=tensordict.batch_size,
@@ -160,10 +173,10 @@ class AFAMDP(EnvBase):
         return td
 
     def _step(self, tensordict: TensorDictBase) -> TensorDictBase:
-        feature_mask: Feature = tensordict["feature_mask"].clone()
-        feature_values: FeatureMask = tensordict["feature_values"].clone()
-        embedding: Embedding = tensordict["embedding"].clone()
-        predicted_class = tensordict["predicted_class"].clone()
+        new_feature_mask: Feature = tensordict["feature_mask"].clone()
+        new_feature_values: FeatureMask = tensordict["feature_values"].clone()
+        new_embedding: Embedding = tensordict["embedding"].clone()
+        new_predicted_class = tensordict["predicted_class"].clone()
 
         # Process stopping case. We don't have to compute new features and embeddings since the features don't change
         is_stop = tensordict["action"] == 0
@@ -176,41 +189,51 @@ class AFAMDP(EnvBase):
             tensordict.batch_size + (1,), dtype=torch.float32, device=tensordict.device
         )
         model_reward[is_stop] = -loss.unsqueeze(-1)
-        predicted_class[is_stop] = model_output.argmax(dim=-1, keepdim=True).float()
+        new_predicted_class[is_stop] = model_output.argmax(dim=-1, keepdim=True).float()
         # if not predicted_class[is_stop].isnan().all():
         #     pass
 
         # Process feature acquisition case, compute new features and embeddings
         is_fa = tensordict["action"] != 0
         new_feature_indices = tensordict["action"][is_fa] - 1
-        feature_mask[is_fa, new_feature_indices] = True
-        feature_values[is_fa, new_feature_indices] = tensordict["all_features"][
+        new_feature_mask[is_fa, new_feature_indices] = True
+        new_feature_values[is_fa, new_feature_indices] = tensordict["all_features"][
             is_fa, new_feature_indices
         ].clone()
-        embedding[is_fa] = self.embedder(feature_values[is_fa], feature_mask[is_fa])
-
-        # Compute rewards using conditional selection
+        new_embedding[is_fa] = self.embedder(
+            new_feature_values[is_fa], new_feature_mask[is_fa]
+        )
         fa_reward = torch.zeros(
             tensordict.batch_size + (1,), dtype=torch.float32, device=tensordict.device
         )
         fa_reward[is_fa] = -self.acquisition_costs[new_feature_indices].unsqueeze(-1)
 
-        reward = model_reward + fa_reward
+        # Penalize invalid actions, as specified by if feature_mask[action-1] is True, the action is invalid
+        invalid_action_mask = ~tensordict["feature_mask"][
+            torch.arange(len(tensordict)), tensordict["action"] - 1
+        ].unsqueeze(-1)
+        invalid_action_reward = torch.zeros(
+            tensordict.batch_size + (1,), dtype=torch.float32, device=tensordict.device
+        )
+        invalid_action_reward[invalid_action_mask] = -self.invalid_action_cost
+
+        reward = model_reward + fa_reward + invalid_action_reward
 
         # Compute done mask
         done = is_stop.unsqueeze(-1)
 
         return TensorDict(
             {
-                "feature_mask": feature_mask,
-                "feature_values": feature_values,
-                "embedding": embedding,
+                "feature_mask": new_feature_mask,
+                "feature_values": new_feature_values,
+                "embedding": new_embedding,
                 "fa_reward": fa_reward,
                 "model_reward": model_reward,
+                "invalid_action_reward": invalid_action_reward,
                 # all_features and label are not cloned
                 "all_features": tensordict["all_features"],
                 "label": tensordict["label"],
-                "predicted_class": predicted_class,
+                "predicted_class": new_predicted_class,
                 "done": done,
                 "reward": reward,
             },

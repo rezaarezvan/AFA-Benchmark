@@ -1,13 +1,12 @@
 import argparse
 
 import torch
-from torch import optim
+import yaml
+from torch import nn, optim
+from torch.nn import functional as F
 from torchrl.collectors import SyncDataCollector
 from torchrl.envs import ExplorationType, set_exploration_type
-import yaml
-from torch import nn
 from tqdm import tqdm
-from torch.nn import functional as F
 
 import wandb
 from afa_rl.afa_env import AFAMDP
@@ -21,6 +20,7 @@ from afa_rl.models import (
 )
 from afa_rl.utils import FloatWrapFn, dict_to_namespace, get_sequential_module_norm
 
+
 def check_embedder_and_classifier(embedder_and_classifier, dataset):
     """
     Check that the embedder and classifier have decent performance on Cube dataset
@@ -31,25 +31,51 @@ def check_embedder_and_classifier(embedder_and_classifier, dataset):
         features_all_features = dataset.features.to(embedder_and_classifier.device)
         labels = dataset.labels.to(embedder_and_classifier.device)
 
-        feature_mask_all_features = torch.ones_like(features_all_features, dtype=torch.bool, device=embedder_and_classifier.device)
-        embeddings_all_features = embedder_and_classifier.embedder(features_all_features, feature_mask_all_features)
-        predictions_all_features = embedder_and_classifier.classifier(embeddings_all_features)
-        accuracy_all_features = (predictions_all_features.argmax(dim=-1) == labels.argmax(dim=-1)).float().mean()
+        feature_mask_all_features = torch.ones_like(
+            features_all_features,
+            dtype=torch.bool,
+            device=embedder_and_classifier.device,
+        )
+        embeddings_all_features = embedder_and_classifier.embedder(
+            features_all_features, feature_mask_all_features
+        )
+        predictions_all_features = embedder_and_classifier.classifier(
+            embeddings_all_features
+        )
+        accuracy_all_features = (
+            (predictions_all_features.argmax(dim=-1) == labels.argmax(dim=-1))
+            .float()
+            .mean()
+        )
 
         feature_mask_half_features = torch.randint(
             0, 2, feature_mask_all_features.shape, device=embedder_and_classifier.device
         )
         features_half_features = features_all_features.clone()
         features_half_features[feature_mask_half_features == 0] = 0
-        embeddings_half_features = embedder_and_classifier.embedder(features_half_features, feature_mask_half_features)
-        predictions_half_features = embedder_and_classifier.classifier(embeddings_half_features)
-        accuracy_half_features = (predictions_half_features.argmax(dim=-1) == labels.argmax(dim=-1)).float().mean()
+        embeddings_half_features = embedder_and_classifier.embedder(
+            features_half_features, feature_mask_half_features
+        )
+        predictions_half_features = embedder_and_classifier.classifier(
+            embeddings_half_features
+        )
+        accuracy_half_features = (
+            (predictions_half_features.argmax(dim=-1) == labels.argmax(dim=-1))
+            .float()
+            .mean()
+        )
 
         loss_half_features = F.cross_entropy(predictions_half_features, labels)
 
-        print(f"Embedder and classifier accuracy with all features: {accuracy_all_features.item() * 100:.2f}%")
-        print(f"Embedder and classifier accuracy with 50% features: {accuracy_half_features.item() * 100:.2f}%")
-        print(f"Average cross-entropy loss with 50% features: {loss_half_features.item():.4f}")
+        print(
+            f"Embedder and classifier accuracy with all features: {accuracy_all_features.item() * 100:.2f}%"
+        )
+        print(
+            f"Embedder and classifier accuracy with 50% features: {accuracy_half_features.item() * 100:.2f}%"
+        )
+        print(
+            f"Average cross-entropy loss with 50% features: {loss_half_features.item():.4f}"
+        )
 
 
 def main():
@@ -57,7 +83,9 @@ def main():
 
     # Use argparse to choose config file
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", type=str, required=True, help="Path to YAML config file")
+    parser.add_argument(
+        "--config", type=str, required=True, help="Path to YAML config file"
+    )
     args = parser.parse_args()
 
     # Load config from yaml file
@@ -111,7 +139,6 @@ def main():
     # Freeze classifier weights
     classifier.requires_grad_(False)
     classifier.eval()
-
 
     embedder_classifier_optim = optim.Adam(
         embedder_and_classifier.parameters(), lr=config.embedder_classifier.lr
@@ -190,12 +217,17 @@ def main():
     )
 
     collector = SyncDataCollector(
-        train_env, agent.policy, frames_per_batch=config.batch_size, total_frames=config.n_batches*config.batch_size
+        train_env,
+        agent.policy,
+        frames_per_batch=config.batch_size,
+        total_frames=config.n_batches * config.batch_size,
     )
 
     # Training loop
     try:
-        for batch_idx, td in tqdm(enumerate(collector), total=config.n_batches, desc="Training agent..."):
+        for batch_idx, td in tqdm(
+            enumerate(collector), total=config.n_batches, desc="Training agent..."
+        ):
             agent.optim.zero_grad()
 
             agent_loss = agent.loss_module(td)
@@ -204,7 +236,6 @@ def main():
 
             embedder_classifier_optim.step()
             agent.optim.step()
-
 
             # Update target network
             agent.updater.step()
@@ -226,22 +257,34 @@ def main():
                     # "train/action": td["action"].item(),
                     "train/fa_reward": td["next", "fa_reward"].mean().item(),
                     "train/model_reward": td["next", "model_reward"].mean().item(),
+                    "train/invalid_action_reward": td["next", "invalid_action_reward"]
+                    .mean()
+                    .item(),
                     "train/reward": td["next", "reward"].mean().item(),
                     # "train/embedding_norm": td["embedding"].norm().item(),
                     # "train/episode_idx": episode_idx,
                     "train/qvalue norm": get_sequential_module_norm(
                         agent.value_module.net
                     ),
-                    "train/classifier_norm": get_sequential_module_norm(
-                        classifier.mlp
-                    ),
+                    "train/classifier_norm": get_sequential_module_norm(classifier.mlp),
                     "train/embedder_norm~": get_sequential_module_norm(
                         embedder.encoder.write_block
                     ),
                     "train/eps": agent.egreedy_module.eps.item(),
                     # acquired_features might be NaN if no agent in the batch has a finished episode
-                    "train/acquired_features": td["feature_mask"][td["next", "done"].squeeze(-1)].sum(dim=-1).float().mean().item(),
-                    "train/accuracy": td["label"][td["next","done"].squeeze(-1)].argmax(dim=-1).eq(td["next", "predicted_class"][td["next","done"].squeeze(-1)]).float().mean().item(),
+                    "train/acquired_features": td["feature_mask"][
+                        td["next", "done"].squeeze(-1)
+                    ]
+                    .sum(dim=-1)
+                    .float()
+                    .mean()
+                    .item(),
+                    "train/accuracy": td["label"][td["next", "done"].squeeze(-1)]
+                    .argmax(dim=-1)
+                    .eq(td["next", "predicted_class"][td["next", "done"].squeeze(-1)])
+                    .float()
+                    .mean()
+                    .item(),
                     "train/batch_idx": batch_idx,
                 }
             )
@@ -269,13 +312,19 @@ def main():
                             device=config.device,
                         ),
                         "reward": torch.zeros(
-                            config.eval_episodes, dtype=torch.float32, device=config.device
+                            config.eval_episodes,
+                            dtype=torch.float32,
+                            device=config.device,
                         ),
                         "traj_len": torch.zeros(
-                            config.eval_episodes, dtype=torch.int64, device=config.device
+                            config.eval_episodes,
+                            dtype=torch.int64,
+                            device=config.device,
                         ),
                     }
-                    for eval_episode in tqdm(range(config.eval_episodes), desc="Evaluating agent..."):
+                    for eval_episode in tqdm(
+                        range(config.eval_episodes), desc="Evaluating agent..."
+                    ):
                         # Evaluate agent
                         td_eval = eval_env.rollout(
                             max_steps=config.eval_max_steps, policy=agent.policy
@@ -283,33 +332,44 @@ def main():
                         # Squeeze batch dimension
                         td_eval = td_eval.squeeze(0)
                         # Calculate acquired features
-                        eval_metrics["acquired_features"][eval_episode] = td_eval["feature_mask"][
-                            -1
-                        ].sum()
+                        eval_metrics["acquired_features"][eval_episode] = td_eval[
+                            "feature_mask"
+                        ][-1].sum()
                         # Check whether classification was correct
                         predicted_class = classifier(td_eval["embedding"][-1]).argmax(
                             dim=-1
                         )
-                        eval_metrics["predicted_classes"][eval_episode] = predicted_class
+                        eval_metrics["predicted_classes"][eval_episode] = (
+                            predicted_class
+                        )
                         eval_metrics["is_correct_class"][eval_episode] = (
                             predicted_class == td_eval["label"][-1].argmax(dim=-1)
                         )
-                        eval_metrics["reward"][eval_episode] = td_eval["next", "reward"].mean()
+                        eval_metrics["reward"][eval_episode] = td_eval[
+                            "next", "reward"
+                        ].mean()
                         eval_metrics["traj_len"][eval_episode] = len(td_eval)
                     # Reset the action spec of the agent to the train env action spec
                     agent.egreedy_module._spec = train_env.action_spec
                     # eval_mean_metrics = {f"eval/{k}": v.float().mean() for k, v in eval_metrics.items()}
                     wandb.log(
                         {
-                            "eval/acquired_features": eval_metrics["acquired_features"].float()
+                            "eval/acquired_features": eval_metrics["acquired_features"]
+                            .float()
                             .mean()
                             .item(),
-                            "eval/accuracy": eval_metrics["is_correct_class"].float().mean().item(),
+                            "eval/accuracy": eval_metrics["is_correct_class"]
+                            .float()
+                            .mean()
+                            .item(),
                             "eval/predicted_class": wandb.Histogram(
                                 eval_metrics["predicted_classes"].cpu().numpy(),
                             ),
                             "eval/reward": eval_metrics["reward"].mean().item(),
-                            "eval/traj_len": eval_metrics["traj_len"].float().mean().item(),
+                            "eval/traj_len": eval_metrics["traj_len"]
+                            .float()
+                            .mean()
+                            .item(),
                             "eval/batch_idx": batch_idx,
                         }
                     )

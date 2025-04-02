@@ -87,13 +87,12 @@ def resample_invalid_actions(actions, action_mask, action_values):
 
     # Select the highest-value valid action for each invalid case
     valid_action_values = action_values.clone()
-    valid_action_values[~action_mask] = float('-inf')  # Mask out invalid actions
+    valid_action_values[~action_mask] = float("-inf")  # Mask out invalid actions
     best_valid_actions = valid_action_values.argmax(dim=-1)
 
     resampled_actions[invalid_mask] = best_valid_actions[invalid_mask]
 
     return resampled_actions
-
 
 
 def get_sequential_module_norm(module: nn.Sequential):

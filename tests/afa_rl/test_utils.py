@@ -52,6 +52,7 @@ def test_resample_invalid_actions():
     expected_actions = torch.tensor([2, 0, 3])
     assert torch.all(resampled_actions == expected_actions)
 
+
 def test_resample_invalid_actions_randomized():
     batch_size = 1000
     num_actions = 10
@@ -75,9 +76,9 @@ def test_resample_invalid_actions_randomized():
     resampled_actions = resample_invalid_actions(actions, action_mask, action_values)
 
     # Assertions
-    assert torch.all(
-        action_mask[torch.arange(batch_size), resampled_actions]
-    ), "Some resampled actions are still invalid!"
+    assert torch.all(action_mask[torch.arange(batch_size), resampled_actions]), (
+        "Some resampled actions are still invalid!"
+    )
 
     # Compute the expected highest valid action per row
     valid_action_values = action_values.clone()
