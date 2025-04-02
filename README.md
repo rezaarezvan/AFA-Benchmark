@@ -9,7 +9,7 @@ Generative greedy:
 
 Discriminative greedy:
 
-3. Ian Connick Covert, et al. Learning to maximize mutual information for dynamic feature selection. In International Conference on Machine Learning. PMLR 2023.
+3. Ian Connick Covert, et al. Learning to maximize mutual information for dynamic feature selection. ICML 2023.
 4. Soham Gadgil, et al. Estimating conditional mutual information for dynamic feature selection. ICML 2024.
 
 RL:
