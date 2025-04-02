@@ -43,8 +43,10 @@ class ShimQAgent:
 
             def forward(self, embedding, action_mask):
                 qvalues = self.net(embedding)
-                # Actions that are not allowed are set to -inf
-                # qvalues[~action_mask] = float("-inf")
+                # Actions that are not allowed are set equal to the smallest value
+                # in the qvalues tensor. This is a hack to make sure that the
+                # EGreedyModule will not choose these actions.
+                # qvalues[~action_mask] = qvalues.min()
                 return qvalues
 
         self.value_module = ValueModule(
@@ -86,7 +88,7 @@ class ShimQAgent:
         td = self.egreedy_actor(td)
         # EGreedyModule will still choose non-available actions (masked) when eps case is not triggered.
         # To prevent this, we choose a random action in case an invalid action is chosen.
-        td["action"] = resample_invalid_actions(td["action"], td["action_mask"])
+        # td["action"] = resample_invalid_actions(td["action"], td["action_mask"], td["action_value"])
         return td
 
     # def save(self, filepath: str):

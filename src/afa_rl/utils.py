@@ -79,14 +79,21 @@ def dict_to_namespace(d):
     return ns
 
 
-def resample_invalid_actions(actions, action_mask):
+def resample_invalid_actions(actions, action_mask, action_values):
     resampled_actions = actions.clone()
-    action_probs = action_mask.float()
-    random_action_indices = torch.multinomial(action_probs, 1).squeeze(-1)
-    # Check which actions are invalid
+
+    # Find invalid actions
     invalid_mask = ~action_mask[torch.arange(actions.shape[0]), actions]
-    resampled_actions[invalid_mask] = random_action_indices[invalid_mask]
+
+    # Select the highest-value valid action for each invalid case
+    valid_action_values = action_values.clone()
+    valid_action_values[~action_mask] = float('-inf')  # Mask out invalid actions
+    best_valid_actions = valid_action_values.argmax(dim=-1)
+
+    resampled_actions[invalid_mask] = best_valid_actions[invalid_mask]
+
     return resampled_actions
+
 
 
 def get_sequential_module_norm(module: nn.Sequential):

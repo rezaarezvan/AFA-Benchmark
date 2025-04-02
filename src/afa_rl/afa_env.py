@@ -28,7 +28,7 @@ class AFAMDP(EnvBase):
         embedder: Embedder,  # gives an embedding from features and feature indices
         task_model: TaskModel,  # takes an encoding and returns a prediction
         loss_fn: Callable[[TaskModelOutput, TaskLabel], Float[Tensor, "*batch"]],
-        acquisition_costs: Float[Tensor, "feature_size"],
+        acquisition_costs: Float[Tensor, "feature_size"], # positive values
         device: torch.device,
         batch_size: torch.Size,
     ):
