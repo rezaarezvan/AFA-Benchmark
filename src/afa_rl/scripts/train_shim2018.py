@@ -45,8 +45,11 @@ def check_embedder_and_classifier(embedder_and_classifier, dataset):
         predictions_half_features = embedder_and_classifier.classifier(embeddings_half_features)
         accuracy_half_features = (predictions_half_features.argmax(dim=-1) == labels.argmax(dim=-1)).float().mean()
 
+        loss_half_features = F.cross_entropy(predictions_half_features, labels)
+
         print(f"Embedder and classifier accuracy with all features: {accuracy_all_features.item() * 100:.2f}%")
         print(f"Embedder and classifier accuracy with 50% features: {accuracy_half_features.item() * 100:.2f}%")
+        print(f"Average cross-entropy loss with 50% features: {loss_half_features.item():.4f}")
 
 
 def main():
@@ -193,6 +196,7 @@ def main():
     # Training loop
     try:
         for batch_idx, td in tqdm(enumerate(collector), total=config.n_batches):
+            print("Training agent...")
             agent.optim.zero_grad()
 
             agent_loss = agent.loss_module(td)
@@ -249,24 +253,29 @@ def main():
                     # HACK: Set the action spec of the agent to the eval env action spec
                     # EGreedyModule insists on having the same batch size all the time
                     agent.egreedy_module._spec = eval_env.action_spec
-                    acquired_features = torch.zeros(
-                        config.eval_episodes,
-                        dtype=torch.int64,
-                        device=config.device,
-                    )
-                    is_correct_class = torch.zeros(
-                        config.eval_episodes, dtype=torch.bool, device=config.device
-                    )
-                    predicted_classes = torch.zeros(
-                        config.eval_episodes,
-                        dtype=torch.int64,
-                        device=config.device,
-                    )
-                    eval_reward = torch.zeros(
-                        config.eval_episodes, dtype=torch.float32, device=config.device
-                    )
+                    eval_metrics = {
+                        "acquired_features": torch.zeros(
+                            config.eval_episodes,
+                            dtype=torch.int64,
+                            device=config.device,
+                        ),
+                        "is_correct_class": torch.zeros(
+                            config.eval_episodes, dtype=torch.bool, device=config.device
+                        ),
+                        "predicted_classes": torch.zeros(
+                            config.eval_episodes,
+                            dtype=torch.int64,
+                            device=config.device,
+                        ),
+                        "reward": torch.zeros(
+                            config.eval_episodes, dtype=torch.float32, device=config.device
+                        ),
+                        "traj_len": torch.zeros(
+                            config.eval_episodes, dtype=torch.int64, device=config.device
+                        ),
+                    }
                     print("Evaluating agent...")
-                    for eval_episode in range(config.eval_episodes):
+                    for eval_episode in tqdm(range(config.eval_episodes)):
                         # Evaluate agent
                         td_eval = eval_env.rollout(
                             max_steps=config.eval_max_steps, policy=agent.policy
@@ -274,30 +283,33 @@ def main():
                         # Squeeze batch dimension
                         td_eval = td_eval.squeeze(0)
                         # Calculate acquired features
-                        acquired_features[eval_episode] = td_eval["feature_mask"][
+                        eval_metrics["acquired_features"][eval_episode] = td_eval["feature_mask"][
                             -1
                         ].sum()
                         # Check whether classification was correct
                         predicted_class = classifier(td_eval["embedding"][-1]).argmax(
                             dim=-1
                         )
-                        predicted_classes[eval_episode] = predicted_class
-                        is_correct_class[eval_episode] = (
+                        eval_metrics["predicted_classes"][eval_episode] = predicted_class
+                        eval_metrics["is_correct_class"][eval_episode] = (
                             predicted_class == td_eval["label"][-1].argmax(dim=-1)
                         )
-                        eval_reward[eval_episode] = td_eval["next", "reward"].mean()
+                        eval_metrics["reward"][eval_episode] = td_eval["next", "reward"].mean()
+                        eval_metrics["traj_len"][eval_episode] = len(td_eval)
                     # Reset the action spec of the agent to the train env action spec
                     agent.egreedy_module._spec = train_env.action_spec
+                    # eval_mean_metrics = {f"eval/{k}": v.float().mean() for k, v in eval_metrics.items()}
                     wandb.log(
                         {
-                            "eval/acquired_features": acquired_features.float()
+                            "eval/acquired_features": eval_metrics["acquired_features"].float()
                             .mean()
                             .item(),
-                            "eval/accuracy": is_correct_class.float().mean().item(),
+                            "eval/accuracy": eval_metrics["is_correct_class"].float().mean().item(),
                             "eval/predicted_class": wandb.Histogram(
-                                predicted_classes.cpu().numpy(),
+                                eval_metrics["predicted_classes"].cpu().numpy(),
                             ),
-                            "eval/reward": eval_reward.mean().item(),
+                            "eval/reward": eval_metrics["reward"].mean().item(),
+                            "eval/traj_len": eval_metrics["traj_len"].float().mean().item(),
                             "eval/batch_idx": batch_idx,
                         }
                     )

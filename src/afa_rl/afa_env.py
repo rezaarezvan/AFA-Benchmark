@@ -71,10 +71,10 @@ class AFAMDP(EnvBase):
                 dtype=torch.bool,
             ),
             # Which actions the agent is allowed to take
-            action_mask=Binary(
-                shape=self.batch_size + torch.Size((self.feature_size + 1,)),
-                dtype=torch.bool,
-            ),
+            # action_mask=Binary(
+            #     shape=self.batch_size + torch.Size((self.feature_size + 1,)),
+            #     dtype=torch.bool,
+            # ),
             feature_values=Unbounded(
                 shape=self.batch_size + torch.Size((self.feature_size,)),
                 dtype=torch.float32,
@@ -136,11 +136,11 @@ class AFAMDP(EnvBase):
             tensordict.batch_size + (1,), dtype=torch.float32, device=tensordict.device
         )
         # Agent is allowed to choose any feature at the beginning
-        action_mask = torch.ones(
-            tensordict.batch_size + (self.feature_size + 1,),
-            dtype=torch.bool,
-            device=tensordict.device,
-        )
+        # action_mask = torch.ones(
+        #     tensordict.batch_size + (self.feature_size + 1,),
+        #     dtype=torch.bool,
+        #     device=tensordict.device,
+        # )
 
         # If batch size was empty, squeeze batch dimension for some tensors
         # all_features = all_features.squeeze(0)
@@ -158,7 +158,7 @@ class AFAMDP(EnvBase):
                 "fa_reward": fa_reward,
                 "all_features": all_features,
                 "label": label,
-                "action_mask": action_mask,
+                # "action_mask": action_mask,
             },
             batch_size=tensordict.batch_size,
             device=tensordict.device,
@@ -170,7 +170,7 @@ class AFAMDP(EnvBase):
         feature_mask: Feature = tensordict["feature_mask"].clone()
         feature_values: FeatureMask = tensordict["feature_values"].clone()
         embedding: Embedding = tensordict["embedding"].clone()
-        action_mask = tensordict["action_mask"].clone()
+        # action_mask = tensordict["action_mask"].clone()
 
         # Process stopping case. We don't have to compute new features and embeddings since the features don't change
         is_stop = tensordict["action"] == 0
@@ -183,7 +183,7 @@ class AFAMDP(EnvBase):
             tensordict.batch_size + (1,), dtype=torch.float32, device=tensordict.device
         )
         model_reward[is_stop] = -loss.unsqueeze(-1)
-        action_mask[is_stop, 0] = False
+        # action_mask[is_stop, 0] = False # Setting this to false breaks stuff
 
         # Process feature acquisition case, compute new features and embeddings
         is_fa = tensordict["action"] != 0
@@ -193,7 +193,7 @@ class AFAMDP(EnvBase):
             is_fa, new_feature_indices
         ].clone()
         embedding[is_fa] = self.embedder(feature_values[is_fa], feature_mask[is_fa])
-        action_mask[is_fa, new_feature_indices + 1] = False
+        # action_mask[is_fa, new_feature_indices + 1] = False
 
         # Compute rewards using conditional selection
         fa_reward = torch.zeros(
@@ -218,7 +218,7 @@ class AFAMDP(EnvBase):
                 "label": tensordict["label"],
                 "done": done,
                 "reward": reward,
-                "action_mask": action_mask,
+                # "action_mask": action_mask,
             },
             batch_size=tensordict.batch_size,
         )

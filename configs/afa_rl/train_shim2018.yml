@@ -8,7 +8,7 @@ dataset:
 
 mdp:
   # acquisition_cost: 0.05
-  acquisition_cost: 1
+  acquisition_cost: 0.05
 
 embedder_classifier:
   lr: 0.001
@@ -16,17 +16,19 @@ embedder_classifier:
 agent:
   lr: 0.01
   update_tau: 0.001
-  eps_init: 1.0
-  eps_end: 0.1
+  eps_init: 0.2
+  eps_end: 0.2
   eps_steps: 5000
 
 n_batches: 10000
 n_agents: 128
+# n_agents: 1
 batch_size: 512 # batch size 4 per agent
+# batch_size: 1
 device: "cuda"
 eval_every_n_batches: 500
 eval_episodes: 100
-eval_max_steps: 100
+eval_max_steps: 30
 
 
 wandb:

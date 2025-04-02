@@ -41,12 +41,13 @@ class ShimQAgent:
                     device=device,
                 )
 
-            def forward(self, embedding, action_mask):
+            def forward(self, embedding):
                 qvalues = self.net(embedding)
                 # Actions that are not allowed are set equal to the smallest value
                 # in the qvalues tensor. This is a hack to make sure that the
                 # EGreedyModule will not choose these actions.
                 # qvalues[~action_mask] = qvalues.min()
+                # qvalues[~action_mask] = float("-inf")
                 return qvalues
 
         self.value_module = ValueModule(
@@ -57,7 +58,7 @@ class ShimQAgent:
         )
         self.value_network = QValueActor(
             module=self.value_module,
-            in_keys=["embedding", "action_mask"],
+            in_keys=["embedding"],
             spec=self.action_spec,
         )
         self.egreedy_module = EGreedyModule(
@@ -67,7 +68,7 @@ class ShimQAgent:
             annealing_num_steps=self.eps_steps,
             # It would be preferrable to use EGreedyModule's built-in action_mask_key but this
             # is ignored in deterministic modes unfortunately.
-            action_mask_key="action_mask",
+            # action_mask_key="action_mask",
         )
         self.egreedy_actor = TensorDictSequential(
             [self.value_network, self.egreedy_module]
@@ -75,7 +76,7 @@ class ShimQAgent:
         self.loss_module = DQNLoss(
             value_network=self.value_network,
             action_space=self.action_spec,
-            # double_dqn=True, # TODO: maybe double dqn work with masked actions
+            # double_dqn=True,
             double_dqn=False,
             delay_value=True,
             loss_function="l2",
