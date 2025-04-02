@@ -34,3 +34,5 @@ Maybe:
 11. Yang Li and Junier Oliva. Distribution guided active feature acquisition, arxiv 2024.
 12. He He, et al. Imitation learning by coaching. NeurIPS 2012
 13. Jaromír Janisch, et al. Classification with costly features as a sequential decision-making problem. MLJ 2020.
+14. Aditya Chattopadhyay, et al. Variational
+information pursuit for interpretable predictions. ICLR, 2023.
