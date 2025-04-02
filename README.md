@@ -19,7 +19,9 @@ encoding. NeurIPS 2018.
 6. Jaromír Janisch, et al. Classification with costly features using deep reinforcement learning. AAAI 2019.
 7. Sara Zannone, et al. Odin: Optimal discovery of high-value information using model-based deep reinforcement learning. ICML workshop, 2019.
 8. Yang Li and Junier Oliva. Active feature acquisition with generative surrogate models. ICML 2021.
-9. Mohammad Kachuee, et al. Opportunistic learning: Budgeted cost-sensitive learning from data streams. ICLR, 2019.
+
+
+(maybe: 9. Mohammad Kachuee, et al. Opportunistic learning: Budgeted cost-sensitive learning from data streams. ICLR, 2019.)
 
 
 
