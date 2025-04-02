@@ -195,8 +195,7 @@ def main():
 
     # Training loop
     try:
-        for batch_idx, td in tqdm(enumerate(collector), total=config.n_batches):
-            print("Training agent...")
+        for batch_idx, td in tqdm(enumerate(collector), total=config.n_batches, desc="Training agent..."):
             agent.optim.zero_grad()
 
             agent_loss = agent.loss_module(td)
@@ -240,7 +239,9 @@ def main():
                         embedder.encoder.write_block
                     ),
                     "train/eps": agent.egreedy_module.eps.item(),
+                    # acquired_features might be NaN if no agent in the batch has a finished episode
                     "train/acquired_features": td["feature_mask"][td["next", "done"].squeeze(-1)].sum(dim=-1).float().mean().item(),
+                    "train/accuracy": td["label"][td["next","done"].squeeze(-1)].argmax(dim=-1).eq(td["next", "predicted_class"][td["next","done"].squeeze(-1)]).float().mean().item(),
                     "train/batch_idx": batch_idx,
                 }
             )
@@ -274,8 +275,7 @@ def main():
                             config.eval_episodes, dtype=torch.int64, device=config.device
                         ),
                     }
-                    print("Evaluating agent...")
-                    for eval_episode in tqdm(range(config.eval_episodes)):
+                    for eval_episode in tqdm(range(config.eval_episodes), desc="Evaluating agent..."):
                         # Evaluate agent
                         td_eval = eval_env.rollout(
                             max_steps=config.eval_max_steps, policy=agent.policy

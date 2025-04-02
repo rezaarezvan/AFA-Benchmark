@@ -16,8 +16,8 @@ embedder_classifier:
 agent:
   lr: 0.01
   update_tau: 0.001
-  eps_init: 0.2
-  eps_end: 0.2
+  eps_init: 1.0
+  eps_end: 0.1
   eps_steps: 5000
 
 n_batches: 10000

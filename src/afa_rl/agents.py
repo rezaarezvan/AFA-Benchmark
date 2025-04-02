@@ -76,8 +76,8 @@ class ShimQAgent:
         self.loss_module = DQNLoss(
             value_network=self.value_network,
             action_space=self.action_spec,
-            # double_dqn=True,
-            double_dqn=False,
+            double_dqn=True,
+            # double_dqn=False,
             delay_value=True,
             loss_function="l2",
         )
