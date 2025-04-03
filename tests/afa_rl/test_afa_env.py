@@ -10,8 +10,8 @@ from afa_rl.custom_types import (
     Embedding,
     Feature,
     FeatureMask,
-    TaskModel,
-    TaskModelOutput,
+    Classifier,
+    Logits,
 )
 from afa_rl.datasets import get_dataset_fn
 from afa_rl.utils import FloatWrapFn
@@ -52,12 +52,12 @@ class LinearEncoder(Embedder):
         return self.net(torch.cat([feature_values, feature_mask], dim=-1))
 
 
-class LinearTaskModel(TaskModel):
+class LinearTaskModel(Classifier):
     def __init__(self, input_size, output_size):
         super().__init__()
         self.net = nn.Linear(input_size, output_size)
 
-    def forward(self, embedding: Embedding) -> TaskModelOutput:
+    def forward(self, embedding: Embedding) -> Logits:
         return self.net(embedding)
 
 
@@ -67,7 +67,7 @@ class TestAFAMDP(TestCase):
         self.env = AFAMDP(
             dataset_fn=get_dummy_data_fn(),
             embedder=LinearEncoder(10, 5),
-            task_model=LinearTaskModel(5, 4),
+            classifier=LinearTaskModel(5, 4),
             loss_fn=FloatWrapFn(nn.CrossEntropyLoss(reduction="none")),
             acquisition_costs=torch.tensor([10, 11, 12, 13, 14], dtype=torch.float32),
             invalid_action_cost=42,
@@ -178,7 +178,18 @@ class TestAFAMDP(TestCase):
                     [1, 0, 0, 0],
                     [0, 1, 0, 0],
                 ],
-                dtype=self.td["label"].dtype,
+                dtype=torch.int64,
+                device=self.device,
+            ),
+        )
+        torch.testing.assert_close(
+            self.td["predicted_class"],
+            torch.tensor(
+                [
+                    [-1],
+                    [-1],
+                ],
+                dtype=torch.int64,
                 device=self.device,
             ),
         )
@@ -259,7 +270,18 @@ class TestAFAMDP(TestCase):
                     [1, 0, 0, 0],
                     [0, 1, 0, 0],
                 ],
-                dtype=self.td["label"].dtype,
+                dtype=torch.int64,
+                device=self.device,
+            ),
+        )
+        torch.testing.assert_close(
+            self.td["predicted_class"],
+            torch.tensor(
+                [
+                    [-1],
+                    [-1],
+                ],
+                dtype=torch.int64,
                 device=self.device,
             ),
         )
@@ -351,7 +373,18 @@ class TestAFAMDP(TestCase):
                     [1, 0, 0, 0],
                     [0, 1, 0, 0],
                 ],
-                dtype=self.td["label"].dtype,
+                dtype=torch.int64,
+                device=self.device,
+            ),
+        )
+        torch.testing.assert_close(
+            self.td["predicted_class"],
+            torch.tensor(
+                [
+                    [-1],
+                    [-1],
+                ],
+                dtype=torch.int64,
                 device=self.device,
             ),
         )
@@ -432,10 +465,16 @@ class TestAFAMDP(TestCase):
                     [1, 0, 0, 0],
                     [0, 1, 0, 0],
                 ],
-                dtype=self.td["label"].dtype,
+                dtype=torch.int64,
                 device=self.device,
             ),
         )
+        # the episode that ended (n.2) should not have -1 as predicted class
+        assert td["predicted_class"][1].item() != -1, (
+            "Expected a non -1 predicted class"
+        )
+        # first episode should still have -1 as predicted class
+        assert td["predicted_class"][0].item() == -1, "Expected a -1 predicted class"
         torch.testing.assert_close(
             td["done"],
             torch.tensor(
@@ -514,6 +553,17 @@ class TestAFAMDP(TestCase):
                     [4, 5, 6, 7, 8],
                 ],
                 dtype=torch.float32,
+                device=self.device,
+            ),
+        )
+        torch.testing.assert_close(
+            td["predicted_class"],
+            torch.tensor(
+                [
+                    [-1],
+                    [-1],
+                ],
+                dtype=torch.int64,
                 device=self.device,
             ),
         )

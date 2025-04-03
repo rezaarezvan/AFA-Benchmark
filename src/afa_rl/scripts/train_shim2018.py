@@ -159,7 +159,7 @@ def main():
     train_env = AFAMDP(
         dataset_fn=dataset_fn,
         embedder=embedder,
-        task_model=classifier,
+        classifier=classifier,
         loss_fn=FloatWrapFn(nn.CrossEntropyLoss(reduction="none")),
         acquisition_costs=config.mdp.acquisition_cost
         * torch.ones(
@@ -172,7 +172,7 @@ def main():
     eval_env = AFAMDP(
         dataset_fn=dataset_fn,
         embedder=embedder,
-        task_model=classifier,
+        classifier=classifier,
         loss_fn=FloatWrapFn(nn.CrossEntropyLoss(reduction="none")),
         acquisition_costs=config.mdp.acquisition_cost
         * torch.ones(

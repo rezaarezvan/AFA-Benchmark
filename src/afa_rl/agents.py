@@ -6,8 +6,6 @@ from torchrl.data import TensorSpec
 from torchrl.modules import MLP, EGreedyModule, QValueActor
 from torchrl.objectives import DQNLoss, SoftUpdate
 
-from afa_rl.utils import resample_invalid_actions
-
 
 class ShimQAgent:
     def __init__(

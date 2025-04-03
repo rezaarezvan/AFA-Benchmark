@@ -12,8 +12,8 @@ from afa_rl.custom_types import (
     Embedding,
     Feature,
     FeatureMask,
-    TaskModel,
-    TaskModelOutput,
+    Classifier,
+    Logits,
 )
 from afa_rl.utils import get_feature_set
 
@@ -140,12 +140,12 @@ class ShimEmbedder(Embedder):
         return self.encoder(feature_set)
 
 
-class MLPClassifier(TaskModel):
+class MLPClassifier(Classifier):
     def __init__(self, input_size: int, num_classes: int, num_cells):
         super().__init__()
         self.mlp = MLP(input_size, num_classes, num_cells=num_cells)
 
-    def forward(self, embedding: Embedding) -> TaskModelOutput:
+    def forward(self, embedding: Embedding) -> Logits:
         return self.mlp(embedding)
 
 
@@ -163,7 +163,7 @@ class ShimEmbedderClassifier(pl.LightningModule):
 
     def forward(
         self, feature_values: Feature, feature_mask: FeatureMask
-    ) -> Tuple[Embedding, TaskModelOutput]:
+    ) -> Tuple[Embedding, Logits]:
         """
         Args:
             x: currently observed features, with zeros for missing features

@@ -13,9 +13,9 @@ from afa_rl.custom_types import (
     Embedding,
     Feature,
     FeatureMask,
-    TaskLabel,
-    TaskModel,
-    TaskModelOutput,
+    Label,
+    Classifier,
+    Logits,
 )
 
 
@@ -26,8 +26,8 @@ class AFAMDP(EnvBase):
         self,
         dataset_fn: DatasetFn,  # a function that returns data in batches when called
         embedder: Embedder,  # gives an embedding from features and feature indices
-        task_model: TaskModel,  # takes an encoding and returns a prediction
-        loss_fn: Callable[[TaskModelOutput, TaskLabel], Float[Tensor, "*batch"]],
+        classifier: Classifier,  # takes an encoding and returns a prediction
+        loss_fn: Callable[[Logits, Label], Float[Tensor, "*batch"]],
         acquisition_costs: Float[Tensor, "feature_size"],  # positive values
         invalid_action_cost: float,  # how much to penalize invalid actions
         device: torch.device,
@@ -39,7 +39,7 @@ class AFAMDP(EnvBase):
 
         self.dataset_fn = dataset_fn
         self.embedder = embedder
-        self.task_model = task_model
+        self.classifier = classifier
         self.loss_fn = loss_fn
         self.acquisition_costs = acquisition_costs
         self.invalid_action_cost = invalid_action_cost
@@ -47,9 +47,7 @@ class AFAMDP(EnvBase):
         # Same feature size and label size
         dummy_sample = dataset_fn(torch.Size((1,)), move_on=False)
         self.feature_size: int = dummy_sample.feature.shape[1]
-        self.label_size: int = dummy_sample.label.shape[1]
-        # Labels can in general have different dtypes
-        self.label_dtype = dummy_sample.label.dtype
+        self.n_classes: int = dummy_sample.label.shape[1]
 
         # Calculate the encoding size using dummy sample
         with torch.no_grad():
@@ -103,13 +101,13 @@ class AFAMDP(EnvBase):
                 dtype=torch.float32,
             ),
             label=Unbounded(
-                shape=self.batch_size + torch.Size((self.label_size,)),
-                dtype=self.label_dtype,
+                shape=self.batch_size + torch.Size((self.n_classes,)),
+                dtype=torch.int64,
             ),
-            # predicted_label is NaN until agent chooses to end episode
+            # predicted_label is -1 until agent chooses to end episode
             predicted_class=Unbounded(
                 shape=self.batch_size + torch.Size((1,)),
-                dtype=self.label_dtype,
+                dtype=torch.int64,
             ),
             batch_size=self.batch_size,
         )
@@ -130,7 +128,7 @@ class AFAMDP(EnvBase):
         # Get a sample from the dataset
         sample = self.dataset_fn(tensordict.batch_size)
         all_features: Feature = sample.feature.to(tensordict.device)
-        label: TaskLabel = sample.label.to(tensordict.device)
+        label: Label = sample.label.to(tensordict.device)
         # the indices of chosen features so far, start with no features
         feature_mask: FeatureMask = torch.zeros_like(
             all_features, dtype=torch.bool, device=tensordict.device
@@ -160,10 +158,10 @@ class AFAMDP(EnvBase):
                 "invalid_action_reward": invalid_action_reward,
                 "all_features": all_features,
                 "label": label,
-                "predicted_class": torch.full(
+                "predicted_class": -1
+                * torch.ones(
                     tensordict.batch_size + (1,),
-                    float("nan"),
-                    dtype=torch.float32,
+                    dtype=torch.int64,
                     device=tensordict.device,
                 ),
             },
@@ -180,18 +178,13 @@ class AFAMDP(EnvBase):
 
         # Process stopping case. We don't have to compute new features and embeddings since the features don't change
         is_stop = tensordict["action"] == 0
-        # TODO: for debugging
-        if is_stop.any():
-            pass
-        model_output = self.task_model(tensordict["embedding"][is_stop])
+        model_output = self.classifier(tensordict["embedding"][is_stop])
         loss = self.loss_fn(model_output, tensordict["label"][is_stop])
         model_reward = torch.zeros(
             tensordict.batch_size + (1,), dtype=torch.float32, device=tensordict.device
         )
         model_reward[is_stop] = -loss.unsqueeze(-1)
-        new_predicted_class[is_stop] = model_output.argmax(dim=-1, keepdim=True).float()
-        # if not predicted_class[is_stop].isnan().all():
-        #     pass
+        new_predicted_class[is_stop] = model_output.argmax(dim=-1, keepdim=True)
 
         # Process feature acquisition case, compute new features and embeddings
         is_fa = tensordict["action"] != 0
@@ -209,7 +202,7 @@ class AFAMDP(EnvBase):
         fa_reward[is_fa] = -self.acquisition_costs[new_feature_indices].unsqueeze(-1)
 
         # Penalize invalid actions, as specified by if feature_mask[action-1] is True, the action is invalid
-        invalid_action_mask = ~tensordict["feature_mask"][
+        invalid_action_mask = tensordict["feature_mask"][
             torch.arange(len(tensordict)), tensordict["action"] - 1
         ].unsqueeze(-1)
         invalid_action_reward = torch.zeros(

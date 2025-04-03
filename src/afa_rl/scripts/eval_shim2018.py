@@ -73,7 +73,7 @@ def main():
     env = AFAMDP(
         dataset_fn=dataset_fn,
         embedder=embedder,
-        task_model=classifier,
+        classifier=classifier,
         loss_fn=FloatWrapFn(nn.CrossEntropyLoss(reduction="none")),
         # loss_fn=nn.CrossEntropyLoss(reduction="none"),
         acquisition_costs=torch.ones((n_features,), dtype=torch.float32, device=device)
