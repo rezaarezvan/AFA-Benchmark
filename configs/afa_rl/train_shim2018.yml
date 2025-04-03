@@ -18,14 +18,19 @@ agent:
   update_tau: 0.001
   eps_init: 1.0
   eps_end: 0.1
-  eps_steps: 5000
+  eps_steps: 25000
+  replay_buffer_batch_size: 128
+  replay_buffer_size: 10000 # no use for it to be larger than the dataset size
+  num_optim: 4 # how many times to sample from replay buffer for each batch of data received
+  replay_buffer_alpha: 0.0 # turn off prioritization for now
+  replay_buffer_beta: 0.5
 
 n_batches: 50000
 n_agents: 128
 # n_agents: 1
 batch_size: 512 # batch size 4 per agent
 # batch_size: 1
-device: "cuda"
+device: "cuda:1"
 eval_every_n_batches: 500
 eval_episodes: 100
 eval_max_steps: 30

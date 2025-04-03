@@ -5,7 +5,7 @@ import yaml
 from torch import nn, optim
 from torch.nn import functional as F
 from torchrl.collectors import SyncDataCollector
-from torchrl.envs import ExplorationType, check_env_specs, set_exploration_type
+from torchrl.envs import ExplorationType, set_exploration_type
 from tqdm import tqdm
 
 import wandb
@@ -169,7 +169,7 @@ def main():
         device=config.device,
         batch_size=torch.Size((config.n_agents,)),
     )
-    check_env_specs(train_env)
+    # check_env_specs(train_env)
 
     eval_env = AFAMDP(
         dataset_fn=dataset_fn,
@@ -195,28 +195,11 @@ def main():
         eps_end=config.agent.eps_end,
         eps_steps=config.agent.eps_steps,
         device=config.device,
-    )
-
-    # td = env.reset()
-    # td = env.rand_step(td)
-    # print(f"single rand_step td: {td}")
-    # td = env.reset(TensorDict({}, batch_size=(2,), device=config.device))
-    # td = env.rand_step(td)
-    # print(f"multi rand_step td: {td}")
-    # td = env.rollout(100)
-    # print(f"train rollout td: {td}")
-    # td = eval_env.reset()
-    # agent.egreedy_module._spec = eval_env.action_spec
-    # td = agent.policy(td)
-    # td = eval_env.step(td)
-    # print(f"single step td: {td}")
-    # td = eval_env.rollout(100, policy=agent.policy)
-    # print(f"eval rollout td: {td}")
-
-    # Use WandB for logging
-    run = wandb.init(
-        entity=config.wandb.entity,
-        project=config.wandb.project,
+        replay_buffer_batch_size=config.agent.replay_buffer_batch_size,
+        replay_buffer_size=config.agent.replay_buffer_size,
+        num_optim=config.agent.num_optim,
+        replay_buffer_alpha=config.agent.replay_buffer_alpha,
+        replay_buffer_beta=config.agent.replay_buffer_beta,
     )
 
     collector = SyncDataCollector(
@@ -226,22 +209,19 @@ def main():
         total_frames=config.n_batches * config.batch_size,
     )
 
+    # Use WandB for logging
+    run = wandb.init(
+        entity=config.wandb.entity,
+        project=config.wandb.project,
+    )
+
     # Training loop
     try:
         for batch_idx, td in tqdm(
             enumerate(collector), total=config.n_batches, desc="Training agent..."
         ):
-            agent.optim.zero_grad()
-
-            agent_loss = agent.loss_module(td)
-            agent_loss_value = agent_loss["loss"]
-            agent_loss_value.backward()
-
-            embedder_classifier_optim.step()
-            agent.optim.step()
-
-            # Update target network
-            agent.updater.step()
+            agent.add_to_replay_buffer(td)
+            loss = agent.train()
             agent.egreedy_module.step()
 
             # Train classifier and embedder jointly
@@ -256,7 +236,7 @@ def main():
             # Logging
             run.log(
                 {
-                    "train/agent_loss": agent_loss_value.item(),
+                    "train/agent_loss": loss,
                     # "train/action": td["action"].item(),
                     "train/fa_reward": td["next", "fa_reward"].mean().item(),
                     "train/model_reward": td["next", "model_reward"].mean().item(),
@@ -288,6 +268,7 @@ def main():
                     .float()
                     .mean()
                     .item(),
+                    "train/replay buffer size": len(agent.replay_buffer),
                     "train/batch_idx": batch_idx,
                 }
             )

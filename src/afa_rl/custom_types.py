@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import NamedTuple, Protocol
 
 import torch
-from jaxtyping import Bool, Float, Shaped, Integer
+from jaxtyping import Bool, Float, Integer
 from torch import Tensor, nn
 
 Feature = Float[Tensor, "*batch feature_size"]

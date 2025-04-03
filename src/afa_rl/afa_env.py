@@ -209,15 +209,14 @@ class AFAMDP(EnvBase):
         # Update action_mask
         new_action_mask[is_fa, new_feature_indices + 1] = False
 
-
         # Penalize invalid actions by looking at action and action_mask
         invalid_action_reward = torch.zeros(
             tensordict.batch_size + (1,), dtype=torch.float32, device=tensordict.device
         )
-        is_invalid = ~tensordict["action_mask"][torch.arange(len(tensordict)), tensordict["action"]]
+        is_invalid = ~tensordict["action_mask"][
+            torch.arange(len(tensordict)), tensordict["action"]
+        ]
         invalid_action_reward[is_invalid] = -self.invalid_action_cost
-
-
 
         reward = model_reward + fa_reward + invalid_action_reward
 
