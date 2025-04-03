@@ -2,12 +2,12 @@ from abc import ABC, abstractmethod
 from typing import NamedTuple, Protocol
 
 import torch
-from jaxtyping import Bool, Float, Shaped
+from jaxtyping import Bool, Float, Shaped, Integer
 from torch import Tensor, nn
 
 Feature = Float[Tensor, "*batch feature_size"]
 FeatureMask = Bool[Tensor, "*batch feature_size"]
-Label = Shaped[Tensor, "*batch label_size"]
+Label = Integer[Tensor, "*batch label_size"]
 Logits = Float[Tensor, "batch model_output_size"]
 State = Float[
     Tensor, "*batch state_size"

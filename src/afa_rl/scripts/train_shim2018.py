@@ -5,7 +5,7 @@ import yaml
 from torch import nn, optim
 from torch.nn import functional as F
 from torchrl.collectors import SyncDataCollector
-from torchrl.envs import ExplorationType, set_exploration_type
+from torchrl.envs import ExplorationType, check_env_specs, set_exploration_type
 from tqdm import tqdm
 
 import wandb
@@ -65,7 +65,7 @@ def check_embedder_and_classifier(embedder_and_classifier, dataset):
             .mean()
         )
 
-        loss_half_features = F.cross_entropy(predictions_half_features, labels)
+        loss_half_features = F.cross_entropy(predictions_half_features, labels.float())
 
         print(
             f"Embedder and classifier accuracy with all features: {accuracy_all_features.item() * 100:.2f}%"
@@ -165,9 +165,11 @@ def main():
         * torch.ones(
             (pretrain_config.n_features,), dtype=torch.float32, device=config.device
         ),
+        invalid_action_cost=config.mdp.invalid_action_cost,
         device=config.device,
         batch_size=torch.Size((config.n_agents,)),
     )
+    check_env_specs(train_env)
 
     eval_env = AFAMDP(
         dataset_fn=dataset_fn,
@@ -179,6 +181,7 @@ def main():
             (pretrain_config.n_features,), dtype=torch.float32, device=config.device
         )
         / pretrain_config.n_features,
+        invalid_action_cost=config.mdp.invalid_action_cost,
         device=config.device,
         batch_size=torch.Size((1,)),
     )

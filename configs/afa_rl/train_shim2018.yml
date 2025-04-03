@@ -9,6 +9,7 @@ dataset:
 mdp:
   # acquisition_cost: 0.05
   acquisition_cost: 0.05
+  invalid_action_cost: 0.1
 
 embedder_classifier:
   lr: 0.001

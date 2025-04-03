@@ -80,7 +80,7 @@ class CubeDataset(Dataset):
                 (1, n_features - offset - 3), dtype=torch.float32, generator=rng
             )
         # Convert labels to one-hot encoding
-        self.labels = torch.nn.functional.one_hot(labels, num_classes=8).float()
+        self.labels = torch.nn.functional.one_hot(labels, num_classes=8)
 
     def __getitem__(self, idx):
         return self.features[idx], self.labels[idx]
