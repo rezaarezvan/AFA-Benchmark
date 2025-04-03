@@ -21,12 +21,9 @@ encoding. NeurIPS 2018.
 8. Yang Li and Junier Oliva. Active feature acquisition with generative surrogate models. ICML 2021.
 
 
-(maybe: 9. Mohammad Kachuee, et al. Opportunistic learning: Budgeted cost-sensitive learning from data streams. ICLR, 2019.)
-
-
-
 Maybe:
 
+9. Mohammad Kachuee, et al. Opportunistic learning: Budgeted cost-sensitive learning from data streams. ICLR, 2019.)
 10. Gabriel Dulac-Arnold, et al. Datum-wise classification: a sequential approach to sparsity. ECML PKDD 2011.
 11. Thomas Rückstieß, et al. Sequential feature selection for classification. AI 2011.
 12. Yang Li and Junier Oliva. Distribution guided active feature acquisition, arxiv 2024. **(Journal extension of Li and Oliva 2021).**
@@ -35,3 +32,10 @@ Maybe:
 15. Aditya Chattopadhyay, et al. Variational information pursuit for interpretable predictions. ICLR, 2023.
 16. Samrudhdhi B Rangrej et al. A probabilistic hard attention model for sequentially observed scenes. BMVC 2021. **(Extends EDDI to image data).**
 17. Ghosh et al. DiFA: Differentiable Feature Acquisition. AAAI 2023.
+
+## State requirements per method
+
+### Hajin Shim, et al. (2018)
+
+- Currently selected features as a vector, with $0$ for non-acquired features.
+- Boolean feature mask. $1$ if feature is acquired, $0$ if not.
