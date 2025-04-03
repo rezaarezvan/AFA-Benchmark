@@ -39,13 +39,10 @@ class ShimQAgent:
                     device=device,
                 )
 
-            def forward(self, embedding):
+            def forward(self, embedding, action_mask):
                 qvalues = self.net(embedding)
-                # Actions that are not allowed are set equal to the smallest value
-                # in the qvalues tensor. This is a hack to make sure that the
-                # EGreedyModule will not choose these actions.
-                # qvalues[~action_mask] = qvalues.min()
-                # qvalues[~action_mask] = float("-inf")
+                # By setting the Q-values of invalid actions to -inf, we prevent them from being selected greedily.
+                qvalues[~action_mask] = float("-inf")
                 return qvalues
 
         self.value_module = ValueModule(
@@ -56,7 +53,7 @@ class ShimQAgent:
         )
         self.value_network = QValueActor(
             module=self.value_module,
-            in_keys=["embedding"],
+            in_keys=["embedding", "action_mask"],
             spec=self.action_spec,
         )
         self.egreedy_module = EGreedyModule(
@@ -64,9 +61,7 @@ class ShimQAgent:
             eps_init=self.eps_init,
             eps_end=self.eps_end,
             annealing_num_steps=self.eps_steps,
-            # It would be preferrable to use EGreedyModule's built-in action_mask_key but this
-            # is ignored in deterministic modes unfortunately.
-            # action_mask_key="action_mask",
+            action_mask_key="action_mask", # prevents agent from choosing invalid actions non-greedily
         )
         self.egreedy_actor = TensorDictSequential(
             [self.value_network, self.egreedy_module]
@@ -85,9 +80,6 @@ class ShimQAgent:
 
     def policy(self, td: TensorDictBase):
         td = self.egreedy_actor(td)
-        # EGreedyModule will still choose non-available actions (masked) when eps case is not triggered.
-        # To prevent this, we choose a random action in case an invalid action is chosen.
-        # td["action"] = resample_invalid_actions(td["action"], td["action_mask"], td["action_value"])
         return td
 
     # def save(self, filepath: str):

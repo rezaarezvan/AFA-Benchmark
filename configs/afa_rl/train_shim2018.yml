@@ -7,9 +7,8 @@ dataset:
   seed: 42
 
 mdp:
-  # acquisition_cost: 0.05
   acquisition_cost: 0.05
-  invalid_action_cost: 0.1
+  invalid_action_cost: 42 # since invalid actions should never be selected, this should have no impact
 
 embedder_classifier:
   lr: 0.001
@@ -21,7 +20,7 @@ agent:
   eps_end: 0.1
   eps_steps: 5000
 
-n_batches: 10000
+n_batches: 50000
 n_agents: 128
 # n_agents: 1
 batch_size: 512 # batch size 4 per agent
