@@ -33,9 +33,8 @@ Maybe:
 16. Samrudhdhi B Rangrej et al. A probabilistic hard attention model for sequentially observed scenes. BMVC 2021. **(Extends EDDI to image data).**
 17. Ghosh et al. DiFA: Differentiable Feature Acquisition. AAAI 2023.
 
-## State requirements per method
+## State requirements per method at test time
 
-### Hajin Shim, et al. (2018)
-
+All of the four RL methods above need two things at test time:
 - Currently selected features as a vector, with $0$ for non-acquired features.
 - Boolean feature mask. $1$ if feature is acquired, $0$ if not.
