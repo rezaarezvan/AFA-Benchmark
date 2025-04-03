@@ -134,11 +134,11 @@ def main():
     classifier = embedder_and_classifier.classifier
 
     # Freeze embedder weights
-    embedder.requires_grad_(False)
-    embedder.eval()
+    # embedder.requires_grad_(False)
+    # embedder.eval()
     # Freeze classifier weights
-    classifier.requires_grad_(False)
-    classifier.eval()
+    # classifier.requires_grad_(False)
+    # classifier.eval()
 
     embedder_classifier_optim = optim.Adam(
         embedder_and_classifier.parameters(), lr=config.embedder_classifier.lr
@@ -220,23 +220,26 @@ def main():
         for batch_idx, td in tqdm(
             enumerate(collector), total=config.n_batches, desc="Training agent..."
         ):
+            # Collapse agent and batch dimensions
+            td = td.flatten(start_dim=0, end_dim=1)
             agent.add_to_replay_buffer(td)
-            loss = agent.train()
+            agent_loss = agent.train()
             agent.egreedy_module.step()
 
             # Train classifier and embedder jointly
-            # embedder_classifier_optim.zero_grad()
-            # logits = classifier(td["embedding"])
-            # classifier_loss = F.cross_entropy(
-            #     logits, td["label"]
-            # )
-            # classifier_loss.mean().backward()
-            # embedder_classifier_optim.step()
+            embedder_classifier_optim.zero_grad()
+            embedding = embedder(td["feature_values"], td["feature_mask"])
+            logits = classifier(embedding)
+            class_loss = F.cross_entropy(
+                logits, td["label"].float()
+            ).mean()
+            class_loss.mean().backward()
+            embedder_classifier_optim.step()
 
             # Logging
             run.log(
                 {
-                    "train/agent_loss": loss,
+                    "train/agent_loss": agent_loss,
                     # "train/action": td["action"].item(),
                     "train/fa_reward": td["next", "fa_reward"].mean().item(),
                     "train/model_reward": td["next", "model_reward"].mean().item(),

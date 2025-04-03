@@ -124,8 +124,8 @@ class ShimQAgent:
         #     return
 
         td = self.replay_buffer.sample()
-        loss = self.loss_module(td)["loss"]
         self.optim.zero_grad()
+        loss = self.loss_module(td)["loss"]
         loss.backward()
         self.optim.step()
         self.updater.step()
