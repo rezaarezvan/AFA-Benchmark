@@ -71,10 +71,10 @@ class AFAMDP(EnvBase):
                 dtype=torch.bool,
             ),
             # Which actions the agent is allowed to take
-            # action_mask=Binary(
-            #     shape=self.batch_size + torch.Size((self.feature_size + 1,)),
-            #     dtype=torch.bool,
-            # ),
+            action_mask=Binary(
+                shape=self.batch_size + torch.Size((self.feature_size + 1,)),
+                dtype=torch.bool,
+            ),
             feature_values=Unbounded(
                 shape=self.batch_size + torch.Size((self.feature_size,)),
                 dtype=torch.float32,
@@ -150,6 +150,11 @@ class AFAMDP(EnvBase):
 
         td = TensorDict(
             {
+                "action_mask": torch.ones(
+                    tensordict.batch_size + (self.feature_size + 1,),
+                    dtype=torch.bool,
+                    device=tensordict.device,
+                ),
                 "feature_mask": feature_mask,
                 "feature_values": feature_values,
                 "embedding": embedding,
@@ -175,6 +180,7 @@ class AFAMDP(EnvBase):
         new_feature_values: FeatureMask = tensordict["feature_values"].clone()
         new_embedding: Embedding = tensordict["embedding"].clone()
         new_predicted_class = tensordict["predicted_class"].clone()
+        new_action_mask = tensordict["action_mask"].clone()
 
         # Process stopping case. We don't have to compute new features and embeddings since the features don't change
         is_stop = tensordict["action"] == 0
@@ -200,15 +206,18 @@ class AFAMDP(EnvBase):
             tensordict.batch_size + (1,), dtype=torch.float32, device=tensordict.device
         )
         fa_reward[is_fa] = -self.acquisition_costs[new_feature_indices].unsqueeze(-1)
+        # Update action_mask
+        new_action_mask[is_fa, new_feature_indices + 1] = False
 
-        # Penalize invalid actions, as specified by if feature_mask[action-1] is True, the action is invalid
-        invalid_action_mask = tensordict["feature_mask"][
-            torch.arange(len(tensordict)), tensordict["action"] - 1
-        ].unsqueeze(-1)
+
+        # Penalize invalid actions by looking at action and action_mask
         invalid_action_reward = torch.zeros(
             tensordict.batch_size + (1,), dtype=torch.float32, device=tensordict.device
         )
-        invalid_action_reward[invalid_action_mask] = -self.invalid_action_cost
+        is_invalid = ~tensordict["action_mask"][torch.arange(len(tensordict)), tensordict["action"]]
+        invalid_action_reward[is_invalid] = -self.invalid_action_cost
+
+
 
         reward = model_reward + fa_reward + invalid_action_reward
 
@@ -217,6 +226,7 @@ class AFAMDP(EnvBase):
 
         return TensorDict(
             {
+                "action_mask": new_action_mask,
                 "feature_mask": new_feature_mask,
                 "feature_values": new_feature_values,
                 "embedding": new_embedding,
