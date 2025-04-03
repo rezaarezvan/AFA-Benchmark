@@ -16,6 +16,8 @@ from afa_rl.custom_types import (
 from afa_rl.datasets import get_dataset_fn
 from afa_rl.utils import FloatWrapFn
 
+# TODO: add test for action mask
+
 
 def get_dummy_data_fn() -> DatasetFn:
     """
@@ -105,6 +107,17 @@ class TestAFAMDP(TestCase):
 
     def test_initial_state(self):
         assert self.td.batch_size == torch.Size((2,))
+        torch.testing.assert_close(
+            self.td["action_mask"],
+            torch.tensor(
+                [
+                    [1, 1, 1, 1, 1, 1],
+                    [1, 1, 1, 1, 1, 1],
+                ],
+                dtype=torch.bool,
+                device=self.device,
+            ),
+        )
         torch.testing.assert_close(
             self.td["feature_mask"],
             torch.tensor(
@@ -197,6 +210,17 @@ class TestAFAMDP(TestCase):
     def test_state1(self):
         td = self.get_state1()
         assert td.batch_size == torch.Size((2,))
+        torch.testing.assert_close(
+            td["action_mask"],
+            torch.tensor(
+                [
+                    [1, 0, 1, 1, 1, 1],
+                    [1, 1, 0, 1, 1, 1],
+                ],
+                dtype=torch.bool,
+                device=self.device,
+            ),
+        )
         torch.testing.assert_close(
             td["feature_mask"],
             torch.tensor(
@@ -301,6 +325,17 @@ class TestAFAMDP(TestCase):
         td = self.get_state2()
         assert td.batch_size == torch.Size((2,))
         torch.testing.assert_close(
+            td["action_mask"],
+            torch.tensor(
+                [
+                    [1, 0, 1, 0, 1, 1],
+                    [1, 1, 0, 1, 1, 1],
+                ],
+                dtype=torch.bool,
+                device=self.device,
+            ),
+        )
+        torch.testing.assert_close(
             td["feature_mask"],
             torch.tensor(
                 [
@@ -404,6 +439,17 @@ class TestAFAMDP(TestCase):
         td = self.get_state3()
         assert td.batch_size == torch.Size((2,))
         torch.testing.assert_close(
+            td["action_mask"],
+            torch.tensor(
+                [
+                    [1, 0, 1, 0, 1, 0],
+                    [1, 1, 0, 1, 1, 1],
+                ],
+                dtype=torch.bool,
+                device=self.device,
+            ),
+        )
+        torch.testing.assert_close(
             td["feature_mask"],
             torch.tensor(
                 [
@@ -490,6 +536,17 @@ class TestAFAMDP(TestCase):
     def test_state3_with_reset(self):
         td = self.get_state3_with_reset()
         assert td.batch_size == torch.Size((2,))
+        torch.testing.assert_close(
+            td["action_mask"],
+            torch.tensor(
+                [
+                    [1, 0, 1, 0, 1, 0],
+                    [1, 1, 1, 1, 1, 1],
+                ],
+                dtype=torch.bool,
+                device=self.device,
+            ),
+        )
         torch.testing.assert_close(
             td["feature_mask"],
             torch.tensor(
