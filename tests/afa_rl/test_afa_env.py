@@ -5,21 +5,18 @@ from torch import nn
 
 from afa_rl.afa_env import AFAMDP
 from afa_rl.custom_types import (
-    DatasetFn,
+    AFADatasetFn,
+    Classifier,
     Embedder,
     Embedding,
-    Feature,
-    FeatureMask,
-    Classifier,
     Logits,
 )
-from afa_rl.datasets import get_dataset_fn
 from afa_rl.utils import FloatWrapFn
+from afa_rl.datasets import get_afa_dataset_fn
+from common.custom_types import FeatureMask, MaskedFeatures
 
-# TODO: add test for action mask
 
-
-def get_dummy_data_fn() -> DatasetFn:
+def get_dummy_data_fn() -> AFADatasetFn:
     """
     A very simple dataset for debugging
     """
@@ -42,7 +39,7 @@ def get_dummy_data_fn() -> DatasetFn:
         dtype=torch.int64,
     )
 
-    return get_dataset_fn(features, labels)
+    return get_afa_dataset_fn(features, labels)
 
 
 class LinearEncoder(Embedder):
@@ -50,8 +47,10 @@ class LinearEncoder(Embedder):
         super().__init__()
         self.net = nn.Linear(input_size, output_size)
 
-    def forward(self, feature_values: Feature, feature_mask: FeatureMask) -> Embedding:
-        return self.net(torch.cat([feature_values, feature_mask], dim=-1))
+    def forward(
+        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+    ) -> Embedding:
+        return self.net(torch.cat([masked_features, feature_mask], dim=-1))
 
 
 class LinearTaskModel(Classifier):
@@ -130,7 +129,7 @@ class TestAFAMDP(TestCase):
             ),
         )
         torch.testing.assert_close(
-            self.td["feature_values"],
+            self.td["masked_features"],
             torch.tensor(
                 [
                     [0, 0, 0, 0, 0],
@@ -174,7 +173,7 @@ class TestAFAMDP(TestCase):
             ),
         )
         torch.testing.assert_close(
-            self.td["all_features"],
+            self.td["features"],
             torch.tensor(
                 [
                     [1, 2, 3, 4, 5],
@@ -233,7 +232,7 @@ class TestAFAMDP(TestCase):
             ),
         )
         torch.testing.assert_close(
-            td["feature_values"],
+            td["masked_features"],
             torch.tensor(
                 [
                     [1, 0, 0, 0, 0],
@@ -277,7 +276,7 @@ class TestAFAMDP(TestCase):
             ),
         )
         torch.testing.assert_close(
-            td["all_features"],
+            td["features"],
             torch.tensor(
                 [
                     [1, 2, 3, 4, 5],
@@ -347,7 +346,7 @@ class TestAFAMDP(TestCase):
             ),
         )
         torch.testing.assert_close(
-            td["feature_values"],
+            td["masked_features"],
             torch.tensor(
                 [
                     [1, 0, 3, 0, 0],
@@ -391,7 +390,7 @@ class TestAFAMDP(TestCase):
             ),
         )
         torch.testing.assert_close(
-            td["all_features"],
+            td["features"],
             torch.tensor(
                 [
                     [1, 2, 3, 4, 5],
@@ -461,7 +460,7 @@ class TestAFAMDP(TestCase):
             ),
         )
         torch.testing.assert_close(
-            td["feature_values"],
+            td["masked_features"],
             torch.tensor(
                 [
                     [1, 0, 3, 0, 5],
@@ -494,7 +493,7 @@ class TestAFAMDP(TestCase):
         # the second sample should have a non-zero model reward
         assert torch.any(td["model_reward"][1] != 0), "Expected a non-zero model reward"
         torch.testing.assert_close(
-            td["all_features"],
+            td["features"],
             torch.tensor(
                 [
                     [1, 2, 3, 4, 5],
@@ -559,7 +558,7 @@ class TestAFAMDP(TestCase):
             ),
         )
         torch.testing.assert_close(
-            td["feature_values"],
+            td["masked_features"],
             torch.tensor(
                 [
                     [1, 0, 3, 0, 5],
@@ -603,7 +602,7 @@ class TestAFAMDP(TestCase):
         # NOTE: this is a bit weird, but as soon as a single batch element is done, a complete new data batch
         # (from dataset_fn) is loaded, and only some of the elements are used. This is why the all_features tensor skips over the sample [3, 4, 5, 6, 7]
         torch.testing.assert_close(
-            td["all_features"],
+            td["features"],
             torch.tensor(
                 [
                     [1, 2, 3, 4, 5],
@@ -646,11 +645,3 @@ class TestAFAMDP(TestCase):
                 device=self.device,
             ),
         )
-        #         [
-        #             [0],
-        #             [0],
-        #         ],
-        #         dtype=torch.bool,
-        #         device=self.device,
-        #     ),
-        # )

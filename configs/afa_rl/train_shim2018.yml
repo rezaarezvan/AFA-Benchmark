@@ -1,5 +1,6 @@
 pretrain_shim2018_config: "pretrain_shim2018.yml"
-checkpoint: "shim2018.pth"
+afa_method_save_name: "afa_method_shim2018.pt"
+dataset_save_name: "dataset_cube.pt"
 
 dataset:
   size: 10000
@@ -25,13 +26,11 @@ agent:
   replay_buffer_alpha: 0.0 # turn off prioritization for now
   replay_buffer_beta: 0.5
 
-n_batches: 10000
-n_agents: 128
-# n_agents: 1
-batch_size: 512 # batch size 4 per agent
-# batch_size: 1
-device: "cuda:1"
-eval_every_n_batches: 500
+n_batches: 16
+n_agents: 2
+batch_size: 4
+device: "cuda"
+eval_every_n_batches: 101
 eval_episodes: 100
 eval_max_steps: 30
 

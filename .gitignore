@@ -181,3 +181,9 @@ logs
 
 # Wandb folder
 wandb
+
+# Data folder
+data
+
+# Model folder, includes weights and other types of saved models
+models

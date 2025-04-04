@@ -10,8 +10,9 @@ from tqdm import tqdm
 
 import wandb
 from afa_rl.afa_env import AFAMDP
-from afa_rl.agents import ShimQAgent
-from afa_rl.datasets import CubeDataset, get_dataset_fn
+from afa_rl.afa_methods import Shim2018AFAMethod
+from afa_rl.agents import Shim2018Agent
+from afa_rl.datasets import get_afa_dataset_fn
 from afa_rl.models import (
     MLPClassifier,
     ReadProcessEncoder,
@@ -19,63 +20,62 @@ from afa_rl.models import (
     ShimEmbedderClassifier,
 )
 from afa_rl.utils import FloatWrapFn, dict_to_namespace, get_sequential_module_norm
+from common.custom_types import (
+    AFADataset,
+)
+from common.datasets import CubeDataset
 
 
-def check_embedder_and_classifier(embedder_and_classifier, dataset):
+def check_embedder_and_classifier(embedder_and_classifier, dataset: AFADataset):
     """
     Check that the embedder and classifier have decent performance on Cube dataset
     """
     # Calculate average accuracy over the whole dataset
     with torch.no_grad():
         # Get the features and labels from the dataset
-        features_all_features = dataset.features.to(embedder_and_classifier.device)
-        labels = dataset.labels.to(embedder_and_classifier.device)
+        features, labels = dataset.get_all_data()
+        features = features.to(embedder_and_classifier.device)
+        labels = labels.to(embedder_and_classifier.device)
 
-        feature_mask_all_features = torch.ones_like(
-            features_all_features,
+        # Allow embedder to look at *all* features
+        masked_features_all = features
+        feature_mask_all = torch.ones_like(
+            features,
             dtype=torch.bool,
             device=embedder_and_classifier.device,
         )
-        embeddings_all_features = embedder_and_classifier.embedder(
-            features_all_features, feature_mask_all_features
+        embeddings_all = embedder_and_classifier.embedder(
+            masked_features_all, feature_mask_all
         )
-        predictions_all_features = embedder_and_classifier.classifier(
-            embeddings_all_features
-        )
-        accuracy_all_features = (
-            (predictions_all_features.argmax(dim=-1) == labels.argmax(dim=-1))
-            .float()
-            .mean()
+        predictions_all = embedder_and_classifier.classifier(embeddings_all)
+        accuracy_all = (
+            (predictions_all.argmax(dim=-1) == labels.argmax(dim=-1)).float().mean()
         )
 
-        feature_mask_half_features = torch.randint(
-            0, 2, feature_mask_all_features.shape, device=embedder_and_classifier.device
+        # Same thing, but only allow embedder to look at 50% of the features
+        feature_mask_half = torch.randint(
+            0, 2, feature_mask_all.shape, device=embedder_and_classifier.device
         )
-        features_half_features = features_all_features.clone()
-        features_half_features[feature_mask_half_features == 0] = 0
-        embeddings_half_features = embedder_and_classifier.embedder(
-            features_half_features, feature_mask_half_features
+        masked_features_half = features.clone()
+        masked_features_half[feature_mask_half == 0] = 0
+        embeddings_half = embedder_and_classifier.embedder(
+            masked_features_half, feature_mask_half
         )
-        predictions_half_features = embedder_and_classifier.classifier(
-            embeddings_half_features
-        )
-        accuracy_half_features = (
-            (predictions_half_features.argmax(dim=-1) == labels.argmax(dim=-1))
-            .float()
-            .mean()
+        predictions_half = embedder_and_classifier.classifier(embeddings_half)
+        accuracy_half = (
+            (predictions_half.argmax(dim=-1) == labels.argmax(dim=-1)).float().mean()
         )
 
-        loss_half_features = F.cross_entropy(predictions_half_features, labels.float())
+        # Calculate the loss for the 50% feature case. Useful for setting acquisition costs
+        loss_half = F.cross_entropy(predictions_half, labels.float())
 
         print(
-            f"Embedder and classifier accuracy with all features: {accuracy_all_features.item() * 100:.2f}%"
+            f"Embedder and classifier accuracy with all features: {accuracy_all.item() * 100:.2f}%"
         )
         print(
-            f"Embedder and classifier accuracy with 50% features: {accuracy_half_features.item() * 100:.2f}%"
+            f"Embedder and classifier accuracy with 50% features: {accuracy_half.item() * 100:.2f}%"
         )
-        print(
-            f"Average cross-entropy loss with 50% features: {loss_half_features.item():.4f}"
-        )
+        print(f"Average cross-entropy loss with 50% features: {loss_half.item():.4f}")
 
 
 def main():
@@ -123,7 +123,7 @@ def main():
         lr=pretrain_config.embedder_classifier.lr,
     )
     embedder_classifier_checkpoint = torch.load(
-        f"checkpoints/afa_rl/{pretrain_config.checkpoint}", weights_only=True
+        f"models/afa_rl/{pretrain_config.checkpoint}", weights_only=True
     )
     embedder_and_classifier.load_state_dict(
         embedder_classifier_checkpoint["state_dict"]
@@ -133,7 +133,7 @@ def main():
     embedder = embedder_and_classifier.embedder
     classifier = embedder_and_classifier.classifier
 
-    # Freeze embedder weights
+    # Freeze embedder weights if necessary
     # embedder.requires_grad_(False)
     # embedder.eval()
     # Freeze classifier weights
@@ -151,7 +151,8 @@ def main():
         sigma=config.dataset.sigma,
         seed=config.dataset.seed,
     )
-    dataset_fn = get_dataset_fn(dataset.features, dataset.labels)
+    dataset.generate_data()
+    dataset_fn = get_afa_dataset_fn(dataset.features, dataset.labels)
 
     # Check that embedder+classifier indeed have decent performance
     check_embedder_and_classifier(embedder_and_classifier, dataset)
@@ -186,7 +187,7 @@ def main():
         batch_size=torch.Size((1,)),
     )
 
-    agent = ShimQAgent(
+    agent = Shim2018Agent(
         embedding_size=pretrain_config.encoder.output_size,
         action_spec=train_env.action_spec,
         lr=config.agent.lr,
@@ -194,7 +195,7 @@ def main():
         eps_init=config.agent.eps_init,
         eps_end=config.agent.eps_end,
         eps_steps=config.agent.eps_steps,
-        device=config.device,
+        device=torch.device(config.device),
         replay_buffer_batch_size=config.agent.replay_buffer_batch_size,
         replay_buffer_size=config.agent.replay_buffer_size,
         num_optim=config.agent.num_optim,
@@ -228,11 +229,9 @@ def main():
 
             # Train classifier and embedder jointly
             embedder_classifier_optim.zero_grad()
-            embedding = embedder(td["feature_values"], td["feature_mask"])
+            embedding = embedder(td["masked_features"], td["feature_mask"])
             logits = classifier(embedding)
-            class_loss = F.cross_entropy(
-                logits, td["label"].float()
-            ).mean()
+            class_loss = F.cross_entropy(logits, td["label"].float()).mean()
             class_loss.mean().backward()
             embedder_classifier_optim.step()
 
@@ -276,7 +275,7 @@ def main():
                 }
             )
 
-            if batch_idx % config.eval_every_n_batches == 0:
+            if batch_idx != 0 and batch_idx % config.eval_every_n_batches == 0:
                 with (
                     torch.no_grad(),
                     set_exploration_type(ExplorationType.DETERMINISTIC),
@@ -362,9 +361,13 @@ def main():
                     )
     except KeyboardInterrupt:
         pass
-    # finally:
-    #     agent.save(f"checkpoints/afa_rl/{config.checkpoint}")
-    #     print(f"Agent saved to checkpoints/afa_rl/{config.checkpoint}")
+
+    # Convert the embedder+agent to an AFAMethod and save it
+    afa_method = Shim2018AFAMethod(agent.value_network, embedder, eval_env.action_spec)
+    afa_method.save(f"models/afa_rl/{config.afa_method_save_name}")
+
+    # Also save the dataset we used
+    dataset.save(f"data/afa_rl/{config.dataset_save_name}")
 
 
 if __name__ == "__main__":

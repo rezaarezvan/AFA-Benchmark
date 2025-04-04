@@ -7,8 +7,7 @@ from tqdm import tqdm
 
 import wandb
 from afa_rl.afa_env import AFAMDP
-from afa_rl.agents import ShimQAgent
-from afa_rl.datasets import CubeDataset, get_dataset_fn
+from afa_rl.agents import Shim2018Agent
 from afa_rl.models import (
     MLPClassifier,
     ReadProcessEncoder,
@@ -16,6 +15,7 @@ from afa_rl.models import (
     ShimEmbedderClassifier,
 )
 from afa_rl.utils import FloatWrapFn
+from common.datasets import CubeDataset, get_dataset_fn
 
 
 def main():
@@ -82,7 +82,7 @@ def main():
         batch_size=torch.Size((batch_size,)),
     )
 
-    agent = ShimQAgent.load(args.agent_save_path, device)
+    agent = Shim2018Agent.load(args.agent_save_path, device)
 
     # Use WandB for logging
     run = wandb.init()

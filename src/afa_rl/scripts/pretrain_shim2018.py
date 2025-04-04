@@ -6,7 +6,6 @@ import yaml
 from lightning.pytorch.loggers import WandbLogger
 
 import wandb
-from afa_rl.datasets import CubeDataset, DataModuleFromDataset
 from afa_rl.models import (
     MLPClassifier,
     ReadProcessEncoder,
@@ -14,6 +13,7 @@ from afa_rl.models import (
     ShimEmbedderClassifier,
 )
 from afa_rl.utils import dict_to_namespace
+from common.datasets import CubeDataset, DataModuleFromDataset
 
 
 def main():

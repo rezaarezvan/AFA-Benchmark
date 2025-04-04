@@ -9,15 +9,15 @@ class TestDatasets(TestCase):
     def test_get_wrapped_batch(self):
         t = torch.tensor([[1, 2], [3, 4], [5, 6]], dtype=torch.int64)
         torch.testing.assert_close(
-            get_wrapped_batch(t, idx=1, num_elems=2),
+            get_wrapped_batch(t, idx=1, numel=2),
             torch.tensor([[3, 4], [5, 6]], dtype=torch.int64),
         )
         torch.testing.assert_close(
-            get_wrapped_batch(t, idx=1, num_elems=3),
+            get_wrapped_batch(t, idx=1, numel=3),
             torch.tensor([[3, 4], [5, 6], [1, 2]], dtype=torch.int64),
         )
         torch.testing.assert_close(
-            get_wrapped_batch(t, idx=1, num_elems=6),
+            get_wrapped_batch(t, idx=1, numel=6),
             torch.tensor(
                 [[3, 4], [5, 6], [1, 2], [3, 4], [5, 6], [1, 2]], dtype=torch.int64
             ),

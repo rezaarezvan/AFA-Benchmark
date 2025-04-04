@@ -1,8 +1,7 @@
 import torch
 from tensordict import TensorDictBase
 from tensordict.nn import TensorDictSequential
-from torch import nn, optim
-from torch import Tensor
+from torch import Tensor, nn, optim
 from torchrl.data import (
     LazyTensorStorage,
     PrioritizedSampler,
@@ -13,7 +12,29 @@ from torchrl.modules import MLP, EGreedyModule, QValueActor
 from torchrl.objectives import DQNLoss, SoftUpdate
 
 
-class ShimQAgent:
+class Shim2018ValueModule(nn.Module):
+    def __init__(self, embedding_size, action_size, num_cells, device):
+        super().__init__()
+        self.embedding_size = embedding_size
+        self.action_size = action_size
+        self.num_cells = num_cells
+        self.device = device
+
+        self.net = MLP(
+            in_features=embedding_size,
+            out_features=action_size,
+            num_cells=num_cells,
+            device=device,
+        )
+
+    def forward(self, embedding, action_mask):
+        qvalues = self.net(embedding)
+        # By setting the Q-values of invalid actions to -inf, we prevent them from being selected greedily.
+        qvalues[~action_mask] = float("-inf")
+        return qvalues
+
+
+class Shim2018Agent:
     def __init__(
         self,
         embedding_size: int,
@@ -44,23 +65,7 @@ class ShimQAgent:
         self.replay_buffer_alpha = replay_buffer_alpha
         self.replay_buffer_beta = replay_buffer_beta
 
-        class ValueModule(nn.Module):
-            def __init__(self, embedding_size, action_size, num_cells, device):
-                super().__init__()
-                self.net = MLP(
-                    in_features=embedding_size,
-                    out_features=action_size,
-                    num_cells=num_cells,
-                    device=device,
-                )
-
-            def forward(self, embedding, action_mask):
-                qvalues = self.net(embedding)
-                # By setting the Q-values of invalid actions to -inf, we prevent them from being selected greedily.
-                qvalues[~action_mask] = float("-inf")
-                return qvalues
-
-        self.value_module = ValueModule(
+        self.value_module = Shim2018ValueModule(
             embedding_size=self.embedding_size,
             action_size=self.action_spec.n,
             num_cells=[32, 32],
@@ -108,6 +113,13 @@ class ShimQAgent:
 
     def policy(self, td: TensorDictBase):
         td = self.egreedy_actor(td)
+        return td
+
+    def greedy_policy(self, td: TensorDictBase):
+        """
+        Greedily select actions based on the Q-values of the value network.
+        """
+        td = self.value_network(td)
         return td
 
     def add_to_replay_buffer(self, td: TensorDictBase):
