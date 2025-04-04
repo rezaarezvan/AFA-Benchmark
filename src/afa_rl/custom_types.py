@@ -2,13 +2,13 @@ from abc import ABC, abstractmethod
 from typing import NamedTuple, Protocol
 
 import torch
-from jaxtyping import Bool, Float, Shaped
+from jaxtyping import Bool, Float, Integer
 from torch import Tensor, nn
 
 Feature = Float[Tensor, "*batch feature_size"]
 FeatureMask = Bool[Tensor, "*batch feature_size"]
-TaskLabel = Shaped[Tensor, "*batch label_size"]
-TaskModelOutput = Float[Tensor, "batch model_output_size"]
+Label = Integer[Tensor, "*batch label_size"]
+Logits = Float[Tensor, "batch model_output_size"]
 State = Float[
     Tensor, "*batch state_size"
 ]  # A state is a concatenation of feature values and feature indices
@@ -20,7 +20,7 @@ FeatureSet = Float[
 
 class Sample(NamedTuple):
     feature: Feature
-    label: TaskLabel
+    label: Label
 
 
 class DatasetFn(Protocol):
@@ -45,13 +45,9 @@ class Embedder(nn.Module, ABC):
         return super().__call__(feature_values, feature_mask)
 
 
-class TaskModel(nn.Module, ABC):
-    """
-    A task model is typically a nn.Module that takes in an embedding and returns a prediction.
-    """
-
+class Classifier(nn.Module, ABC):
     @abstractmethod
-    def forward(self, embedding: Embedding) -> TaskModelOutput: ...
+    def forward(self, embedding: Embedding) -> Logits: ...
 
-    def __call__(self, embedding: Embedding) -> TaskModelOutput:
+    def __call__(self, embedding: Embedding) -> Logits:
         return super().__call__(embedding)

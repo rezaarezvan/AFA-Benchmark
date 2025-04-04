@@ -2,6 +2,7 @@ from argparse import ArgumentParser
 
 import torch
 from torch import nn
+from torchrl.envs import ExplorationType, set_exploration_type
 from tqdm import tqdm
 
 import wandb
@@ -18,7 +19,6 @@ from afa_rl.utils import FloatWrapFn
 
 
 def main():
-    # checkpoint as arg
     parser = ArgumentParser()
     parser.add_argument(
         "--checkpoint",
@@ -30,7 +30,7 @@ def main():
         "--agent_save_path",
         type=str,
         required=True,
-        help="Where to save the trained ShimQAgent",
+        help="Path to a .pth file containing a saved ShimQAgent",
     )
     args = parser.parse_args()
     checkpoint = torch.load(args.checkpoint, weights_only=True)
@@ -73,84 +73,49 @@ def main():
     env = AFAMDP(
         dataset_fn=dataset_fn,
         embedder=embedder,
-        task_model=classifier,
+        classifier=classifier,
         loss_fn=FloatWrapFn(nn.CrossEntropyLoss(reduction="none")),
         # loss_fn=nn.CrossEntropyLoss(reduction="none"),
-        acquisition_costs=(-0.05)
-        * torch.ones((n_features,), dtype=torch.float32, device=device)
+        acquisition_costs=torch.ones((n_features,), dtype=torch.float32, device=device)
         / n_features,
         device=device,
         batch_size=torch.Size((batch_size,)),
     )
 
-    agent = ShimQAgent(
-        embedding_size=16,
-        action_spec=env.action_spec,
-        lr=1e-3,
-        update_tau=1e-3,
-        eps=0.1,
-        device=device,
-    )
+    agent = ShimQAgent.load(args.agent_save_path, device)
 
     # Use WandB for logging
     run = wandb.init()
 
-    # Training loop
+    # Evaluation loop
     try:
         td = env.reset()
-        episode_idx = 0
         for i in tqdm(range(100_000)):
             # Pick action
-            td = agent.policy(td)
+            with torch.no_grad(), set_exploration_type(ExplorationType.DETERMINISTIC):
+                td = agent.policy(td)
+            # Take step
             td = env.step(td)
 
-            agent.optim.zero_grad()
-
-            if not td["action_mask"][:,1:].any().item():
-                pass
-            agent_loss = agent.loss_module(td)
-            agent_loss_value = agent_loss["loss"]
-            if agent_loss_value.isnan().any():
-                pass
-            agent_loss_value.backward()
-
-            # Clip gradients?
-
-            agent.optim.step()
-
-            # Update target network
-            agent.updater.step()
-
-            # Train classifier on *all* samples in batch?
-            # classifier_optim.zero_grad()
-            # classifier_loss = classifier_loss_fn(
-            #     classifier(td_maybe_done["embedding"]), td_maybe_done["label"]
-            # )
-            # classifier_loss.mean().backward()
-            # classifier_optim.step()
-
-            # Logging
-            run.log(
-                {
-                    "agent_loss": agent_loss_value.item(),
-                    "action": td["action"].item(),
-                    # "classifier_loss": classifier_loss.mean().item(),
-                    "fa_reward": td["next", "fa_reward"].sum().item(),
-                    "model_reward": td["next","model_reward"].sum().item(),
-                    "embedding_norm": td["embedding"].norm().item(),
-                    "episode_idx": episode_idx,
-                }
-            )
-
-            if td["next", "done"].any():
+            # Only log if the episode is finished
+            if td["next", "done"].item():
+                y = td["next", "label"].argmax(dim=-1).item()
+                yhat = classifier(td["next", "embedding"]).argmax(dim=-1).item()
+                is_correct = y == yhat
+                run.log(
+                    {
+                        "step": td["next", "feature_mask"].sum().item(),
+                        "is_correct": float(is_correct),
+                    }
+                )
                 td = env.reset()
-                episode_idx += 1
             else:
                 td = td["next"]
+
     except KeyboardInterrupt:
         pass
     finally:
-        agent.save(args.agent_save_path)
+        agent.save("checkpoints/shim_q_agent.pth")
 
 
 if __name__ == "__main__":

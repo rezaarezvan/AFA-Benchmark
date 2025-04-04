@@ -29,6 +29,10 @@ def get_dataset_fn(features, labels) -> DatasetFn:
         num_elems = batch_size.numel()
         local_features = get_wrapped_batch(features, idx, num_elems)
         local_labels = get_wrapped_batch(labels, idx, num_elems)
+        # If batch_size was empty, squeeze batch dimension
+        # if batch_size == torch.Size(()):
+        #     local_features = local_features.squeeze(0)
+        #     local_labels = local_labels.squeeze(0)
         if move_on:
             idx = (idx + num_elems) % len(features)
         return Sample(local_features, local_labels)
@@ -76,7 +80,7 @@ class CubeDataset(Dataset):
                 (1, n_features - offset - 3), dtype=torch.float32, generator=rng
             )
         # Convert labels to one-hot encoding
-        self.labels = torch.nn.functional.one_hot(labels, num_classes=8).float()
+        self.labels = torch.nn.functional.one_hot(labels, num_classes=8)
 
     def __getitem__(self, idx):
         return self.features[idx], self.labels[idx]

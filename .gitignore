@@ -140,6 +140,9 @@ venv.bak/
 .spyderproject
 .spyproject
 
+# VSCode settings
+.vscode/
+
 # Rope project settings
 .ropeproject
 
@@ -175,3 +178,6 @@ cython_debug/
 
 # Logs
 logs
+
+# Wandb folder
+wandb

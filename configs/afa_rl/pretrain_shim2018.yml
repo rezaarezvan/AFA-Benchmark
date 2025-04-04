@@ -1,0 +1,26 @@
+epochs: 100
+checkpoint: "pretrain_shim2018.ckpt"
+n_features: 20
+
+dataset:
+  size: 100000
+  sigma: 0.01
+  seed: 42
+dataloader:
+  batch_size: 128
+  train_ratio: 0.8
+  num_workers: 1
+encoder:
+  output_size: 16
+  reading_block_cells: [32, 32]
+  writing_block_cells: [32, 32]
+  memory_size: 16
+  processing_steps: 5
+classifier:
+  num_cells: [32, 32]
+embedder_classifier:
+  lr: 0.0001
+wandb:
+  entity: "valterschutz-chalmers-university-of-technology"
+  project: "pretrain-shim2018"
+device: "cuda"
