@@ -4,27 +4,34 @@ from typing import Any, Callable
 import torch
 from torch import nn
 
-from afa_rl.custom_types import Feature, FeatureMask, FeatureSet
+from afa_rl.custom_types import FeatureMask, FeatureSet
+from common.custom_types import MaskedFeatures
 
 
-def get_feature_set(feature_values: Feature, feature_mask: FeatureMask) -> FeatureSet:
+def remove_module_prefix(state_dict):
+    return {k.replace("module.", ""): v for k, v in state_dict.items()}
+
+
+def get_feature_set(
+    masked_features: MaskedFeatures, feature_mask: FeatureMask
+) -> FeatureSet:
     """
     Converts partially observed features and their indices to the state representation expected by the embedder.
     """
-    batch_size, feature_size = feature_values.shape
+    batch_size, feature_size = masked_features.shape
 
     feature_set = torch.zeros(
         (batch_size, feature_size, 1 + feature_size),
-        device=feature_values.device,
+        device=masked_features.device,
         dtype=torch.float,
     )
 
     # First column: feature values
-    feature_set[:, :, 0] = feature_values
+    feature_set[:, :, 0] = masked_features
 
     # Generate one-hot indices
     one_hot_indices = torch.eye(
-        feature_size, device=feature_values.device
+        feature_size, device=masked_features.device
     )  # shape: (feature_size, feature_size)
 
     # Expand one-hot vectors only for observed features

@@ -8,15 +8,13 @@ from torchrl.data import Binary, Categorical, Composite, Unbounded
 from torchrl.envs import EnvBase
 
 from afa_rl.custom_types import (
-    DatasetFn,
+    AFADatasetFn,
+    Classifier,
     Embedder,
     Embedding,
-    Feature,
-    FeatureMask,
-    Label,
-    Classifier,
     Logits,
 )
+from common.custom_types import Features, FeatureMask, Label, MaskedFeatures
 
 
 class AFAMDP(EnvBase):
@@ -24,7 +22,7 @@ class AFAMDP(EnvBase):
 
     def __init__(
         self,
-        dataset_fn: DatasetFn,  # a function that returns data in batches when called
+        dataset_fn: AFADatasetFn,  # a function that returns data in batches when called
         embedder: Embedder,  # gives an embedding from features and feature indices
         classifier: Classifier,  # takes an encoding and returns a prediction
         loss_fn: Callable[[Logits, Label], Float[Tensor, "*batch"]],
@@ -45,13 +43,13 @@ class AFAMDP(EnvBase):
         self.invalid_action_cost = invalid_action_cost
 
         # Same feature size and label size
-        dummy_sample = dataset_fn(torch.Size((1,)), move_on=False)
-        self.feature_size: int = dummy_sample.feature.shape[1]
-        self.n_classes: int = dummy_sample.label.shape[1]
+        dummy_features, dummy_label = dataset_fn(torch.Size((1,)), move_on=False)
+        self.feature_size: int = dummy_features.shape[1]
+        self.n_classes: int = dummy_label.shape[1]
 
         # Calculate the encoding size using dummy sample
         with torch.no_grad():
-            dummy_feature_values: Feature = torch.zeros(
+            dummy_masked_features: Features = torch.zeros(
                 torch.Size((1, self.feature_size)),
                 dtype=torch.float32,
                 device=device,
@@ -59,7 +57,7 @@ class AFAMDP(EnvBase):
             dummy_feature_mask: FeatureMask = torch.zeros(
                 torch.Size((1, self.feature_size)), dtype=torch.bool, device=device
             )
-            dummy_embedding = self.embedder(dummy_feature_values, dummy_feature_mask)
+            dummy_embedding = self.embedder(dummy_masked_features, dummy_feature_mask)
         self.embedding_size: int = dummy_embedding.shape[1]
 
         self._make_spec()
@@ -70,12 +68,11 @@ class AFAMDP(EnvBase):
                 shape=self.batch_size + torch.Size((self.feature_size,)),
                 dtype=torch.bool,
             ),
-            # Which actions the agent is allowed to take
             action_mask=Binary(
                 shape=self.batch_size + torch.Size((self.feature_size + 1,)),
                 dtype=torch.bool,
             ),
-            feature_values=Unbounded(
+            masked_features=Unbounded(
                 shape=self.batch_size + torch.Size((self.feature_size,)),
                 dtype=torch.float32,
             ),
@@ -96,7 +93,7 @@ class AFAMDP(EnvBase):
                 dtype=torch.float32,
             ),
             # hidden from the agent
-            all_features=Unbounded(
+            features=Unbounded(
                 shape=self.batch_size + torch.Size((self.feature_size,)),
                 dtype=torch.float32,
             ),
@@ -126,18 +123,18 @@ class AFAMDP(EnvBase):
             tensordict = TensorDict({}, batch_size=self.batch_size, device=self.device)
 
         # Get a sample from the dataset
-        sample = self.dataset_fn(tensordict.batch_size)
-        all_features: Feature = sample.feature.to(tensordict.device)
-        label: Label = sample.label.to(tensordict.device)
-        # the indices of chosen features so far, start with no features
+        features, label = self.dataset_fn(tensordict.batch_size)
+        features: Features = features.to(tensordict.device)
+        label: Label = label.to(tensordict.device)
+        # The indices of chosen features so far, start with no features
         feature_mask: FeatureMask = torch.zeros_like(
-            all_features, dtype=torch.bool, device=tensordict.device
+            features, dtype=torch.bool, device=tensordict.device
         )
-        # the values of chosen features so far, start with no features
-        feature_values: Feature = torch.zeros_like(
-            all_features, dtype=torch.float32, device=tensordict.device
+        # The values of chosen features so far, start with no features
+        masked_features: MaskedFeatures = torch.zeros_like(
+            features, dtype=torch.float32, device=tensordict.device
         )
-        embedding = self.embedder(feature_values, feature_mask)
+        embedding = self.embedder(masked_features, feature_mask)
         model_reward = torch.zeros(
             tensordict.batch_size + (1,), dtype=torch.float32, device=tensordict.device
         )
@@ -156,12 +153,12 @@ class AFAMDP(EnvBase):
                     device=tensordict.device,
                 ),
                 "feature_mask": feature_mask,
-                "feature_values": feature_values,
+                "masked_features": masked_features,
                 "embedding": embedding,
                 "model_reward": model_reward,
                 "fa_reward": fa_reward,
                 "invalid_action_reward": invalid_action_reward,
-                "all_features": all_features,
+                "features": features,
                 "label": label,
                 "predicted_class": -1
                 * torch.ones(
@@ -176,8 +173,8 @@ class AFAMDP(EnvBase):
         return td
 
     def _step(self, tensordict: TensorDictBase) -> TensorDictBase:
-        new_feature_mask: Feature = tensordict["feature_mask"].clone()
-        new_feature_values: FeatureMask = tensordict["feature_values"].clone()
+        new_feature_mask: FeatureMask = tensordict["feature_mask"].clone()
+        new_masked_features: MaskedFeatures = tensordict["masked_features"].clone()
         new_embedding: Embedding = tensordict["embedding"].clone()
         new_predicted_class = tensordict["predicted_class"].clone()
         new_action_mask = tensordict["action_mask"].clone()
@@ -196,11 +193,11 @@ class AFAMDP(EnvBase):
         is_fa = tensordict["action"] != 0
         new_feature_indices = tensordict["action"][is_fa] - 1
         new_feature_mask[is_fa, new_feature_indices] = True
-        new_feature_values[is_fa, new_feature_indices] = tensordict["all_features"][
+        new_masked_features[is_fa, new_feature_indices] = tensordict["features"][
             is_fa, new_feature_indices
         ].clone()
         new_embedding[is_fa] = self.embedder(
-            new_feature_values[is_fa], new_feature_mask[is_fa]
+            new_masked_features[is_fa], new_feature_mask[is_fa]
         )
         fa_reward = torch.zeros(
             tensordict.batch_size + (1,), dtype=torch.float32, device=tensordict.device
@@ -227,13 +224,13 @@ class AFAMDP(EnvBase):
             {
                 "action_mask": new_action_mask,
                 "feature_mask": new_feature_mask,
-                "feature_values": new_feature_values,
+                "masked_features": new_masked_features,
                 "embedding": new_embedding,
                 "fa_reward": fa_reward,
                 "model_reward": model_reward,
                 "invalid_action_reward": invalid_action_reward,
-                # all_features and label are not cloned
-                "all_features": tensordict["all_features"],
+                # features and label are not cloned since they stay the same
+                "features": tensordict["features"],
                 "label": tensordict["label"],
                 "predicted_class": new_predicted_class,
                 "done": done,

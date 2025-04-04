@@ -8,14 +8,13 @@ from torch import Tensor, nn, optim
 from torchrl.modules import MLP
 
 from afa_rl.custom_types import (
+    Classifier,
     Embedder,
     Embedding,
-    Feature,
-    FeatureMask,
-    Classifier,
     Logits,
 )
 from afa_rl.utils import get_feature_set
+from common.custom_types import FeatureMask, MaskedFeatures
 
 
 class ReadProcessEncoder(pl.LightningModule):
@@ -135,8 +134,10 @@ class ShimEmbedder(Embedder):
         super().__init__()
         self.encoder = encoder
 
-    def forward(self, feature_values: Feature, feature_mask: FeatureMask) -> Embedding:
-        feature_set = get_feature_set(feature_values, feature_mask)
+    def forward(
+        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+    ) -> Embedding:
+        feature_set = get_feature_set(masked_features, feature_mask)
         return self.encoder(feature_set)
 
 
@@ -162,7 +163,7 @@ class ShimEmbedderClassifier(pl.LightningModule):
         self.classifier = classifier
 
     def forward(
-        self, feature_values: Feature, feature_mask: FeatureMask
+        self, feature_values: MaskedFeatures, feature_mask: FeatureMask
     ) -> Tuple[Embedding, Logits]:
         """
         Args:

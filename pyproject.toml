@@ -1,6 +1,6 @@
 [project]
 name = "afa-rl"
-version = "0.2.0"
+version = "0.3.0"
 requires-python = "==3.13.2"
 dependencies = [
     "jaxtyping>=0.3.0",
