@@ -38,3 +38,17 @@ Maybe:
 All of the four RL methods above need two things at test time:
 - Currently selected features as a vector, with $0$ for non-acquired features.
 - Boolean feature mask. $1$ if feature is acquired, $0$ if not.
+
+## Synthetic dataset generation
+
+Things to consider for synthetic data generation in the context of AFA (extension of CUBE):
+
+- Number of features.
+- Number of classes.
+- Number of informative/redundant features for each class.
+- Degree of overlap in which features are relevant for each class.
+- Cost profiles (uniform vs. highly skewed).
+- Label noise
+- Class balance
+- Synthetic data where non-greedy selection is better than greedy
+
