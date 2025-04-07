@@ -3,7 +3,7 @@ from unittest import TestCase
 import torch
 from torch import nn
 
-from afa_rl.afa_env import AFAMDP
+from afa_rl.afa_env import Shim2018Env
 from afa_rl.custom_types import (
     AFADatasetFn,
     Classifier,
@@ -11,8 +11,8 @@ from afa_rl.custom_types import (
     Embedding,
     Logits,
 )
-from afa_rl.utils import FloatWrapFn
 from afa_rl.datasets import get_afa_dataset_fn
+from afa_rl.utils import FloatWrapFn
 from common.custom_types import FeatureMask, MaskedFeatures
 
 
@@ -65,7 +65,7 @@ class LinearTaskModel(Classifier):
 class TestAFAMDP(TestCase):
     def setUp(self):
         self.device = torch.device("cpu")
-        self.env = AFAMDP(
+        self.env = Shim2018Env(
             dataset_fn=get_dummy_data_fn(),
             embedder=LinearEncoder(10, 5),
             classifier=LinearTaskModel(5, 4),

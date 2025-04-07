@@ -2,7 +2,8 @@ import lightning as pl
 import torch
 from jaxtyping import Shaped
 from torch import Tensor
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, random_split
+from torchvision import datasets, transforms
 
 from afa_rl.custom_types import AFADatasetFn
 from common.custom_types import Features, Label
@@ -75,3 +76,27 @@ class DataModuleFromDataset(pl.LightningDataModule):
             num_workers=self.num_workers,
             persistent_workers=True,
         )
+
+
+class MNISTDataModule(pl.LightningDataModule):
+    def __init__(self, batch_size=128, transform=None):
+        super().__init__()
+        self.batch_size = batch_size
+        if transform is None:
+            self.transform = transforms.ToTensor()
+        else:
+            self.transform = transform
+
+    def prepare_data(self):
+        datasets.MNIST(root=".", train=True, download=True)
+        datasets.MNIST(root=".", train=False, download=True)
+
+    def setup(self, stage=None):
+        mnist_full = datasets.MNIST(root=".", train=True, transform=self.transform)
+        self.train_set, self.val_set = random_split(mnist_full, [55000, 5000])
+
+    def train_dataloader(self):
+        return DataLoader(self.train_set, batch_size=self.batch_size, shuffle=True)
+
+    def val_dataloader(self):
+        return DataLoader(self.val_set, batch_size=self.batch_size)

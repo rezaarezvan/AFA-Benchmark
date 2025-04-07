@@ -1,11 +1,13 @@
 from types import SimpleNamespace
-from typing import Any, Callable
+from typing import Any, Callable, Tuple
 
 import torch
-from torch import nn
+from jaxtyping import Float
+from pandas.core.arrays import masked
+from torch import Tensor, nn
 
 from afa_rl.custom_types import FeatureMask, FeatureSet
-from common.custom_types import MaskedFeatures
+from common.custom_types import Features, MaskedFeatures
 
 
 def remove_module_prefix(state_dict):
@@ -43,6 +45,57 @@ def get_feature_set(
     )
 
     return feature_set
+
+
+def get_image_feature_set(
+    masked_image: torch.Tensor,
+    feature_mask: torch.Tensor,
+    image_shape: Tuple[int, int],
+) -> torch.Tensor:
+    """
+    Converts a partially observed image and the indices to a feature set.
+
+    The output has shape (batch, HxW, 3), where each row in the third dimension is
+    [value, row, col] for observed pixels in each batch. Unobserved pixels are
+    included with value=0, row=col=0 and are padded to the end of the output.
+    """
+    batch_size, flat_dim = masked_image.shape
+    h, w = image_shape
+
+    # Reshape into (B, H, W)
+    masked_image = masked_image.view(batch_size, h, w)
+    feature_mask = feature_mask.view(batch_size, h, w)
+
+    # Prepare a tensor to hold the result
+    result = []
+
+    for i in range(batch_size):
+        # Get observed pixel indices (N, 2)
+        obs_indices = torch.nonzero(feature_mask[i], as_tuple=False)  # shape (N, 2)
+        values = masked_image[i, obs_indices[:, 0], obs_indices[:, 1]]
+
+        # Adjust the row and column indices to 1-based indexing
+        obs_indices = obs_indices + 1  # Make row and col 1-based
+
+        # Stack [value, row, col] for observed pixels
+        feature_set = torch.stack(
+            [values, obs_indices[:, 0].float(), obs_indices[:, 1].float()], dim=1
+        )
+
+        # Create a tensor of size (H×W, 3) by padding unobserved pixels with zeros
+        padded_set = torch.zeros((h * w, 3), device=masked_image.device)
+
+        # For unobserved pixels, set value=0 and row=col=0
+        padded_set[:, 0] = 0  # value = 0
+        padded_set[:, 1] = 0  # row = 0
+        padded_set[:, 2] = 0  # col = 0
+
+        # Copy observed pixels into the result
+        padded_set[: feature_set.size(0), :] = feature_set
+
+        result.append(padded_set)
+
+    return torch.stack(result)
 
 
 def FloatWrapFn(f: Callable[..., Any]):
@@ -110,3 +163,17 @@ def get_sequential_module_norm(module: nn.Sequential):
         layer.weight.norm() for layer in module if isinstance(layer, nn.Linear)
     ]
     return torch.mean(torch.stack(weight_norms)).item()
+
+
+def mask_data(features: Features, p: float) -> Tuple[MaskedFeatures, FeatureMask]:
+    """
+    Given features, mask them with a probability p.
+    Returns the masked features and the mask.
+
+    Args:
+        batch: The features to mask.
+        p: The probability of each feature being observed (1).
+    """
+    feature_mask = torch.rand(features.shape, device=features.device) < p
+    masked_features = features * feature_mask.float()
+    return masked_features, feature_mask

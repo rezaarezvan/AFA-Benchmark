@@ -1,9 +1,13 @@
 import torch
 
-from afa_rl.utils import get_feature_set, resample_invalid_actions
+from afa_rl.utils import (
+    get_feature_set,
+    get_image_feature_set,
+    resample_invalid_actions,
+)
 
 
-def test_observed_features_to_state():
+def test_get_feature_set():
     # First case
     x1 = torch.tensor([3, 0, 2], dtype=torch.float32)
     z1 = torch.tensor([1, 0, 1], dtype=torch.bool)
@@ -21,6 +25,55 @@ def test_observed_features_to_state():
 
     s_hat = get_feature_set(x, z)
     assert torch.allclose(s_hat, s)
+
+
+def test_get_image_feature_set():
+    image_shape = (3, 3)
+    # Example from docstring (batch size = 1)
+    masked_image1 = torch.tensor([3, 0, 1, 2, 1, 0, 0, 2, 3]).float()
+
+    feature_mask1 = torch.tensor([1, 0, 1, 1, 1, 0, 1, 1, 1])
+    expected1 = torch.tensor(
+        [
+            [3, 1, 1],
+            [1, 1, 3],
+            [2, 2, 1],
+            [1, 2, 2],
+            [0, 3, 1],
+            [2, 3, 2],
+            [3, 3, 3],
+            [0, 0, 0],  # not observed
+            [0, 0, 0],  # not observed
+        ]
+    ).float()
+
+    # Additional example since it needs to work batched
+    masked_image2 = torch.tensor([4, 5, 3, 0, 0, 0, 3, 0, 3]).float()
+
+    feature_mask2 = torch.tensor([1, 1, 1, 0, 1, 0, 1, 0, 1])
+    expected2 = torch.tensor(
+        [
+            [4, 1, 1],
+            [5, 1, 2],
+            [3, 1, 3],
+            [0, 2, 2],
+            [3, 3, 1],
+            [3, 3, 3],
+            [0, 0, 0],  # not observed
+            [0, 0, 0],  # not observed
+            [0, 0, 0],  # not observed
+        ]
+    ).float()
+
+    # Stack the two examples
+    masked_image = torch.stack([masked_image1, masked_image2])
+    feature_mask = torch.stack([feature_mask1, feature_mask2])
+    expected = torch.stack([expected1, expected2])
+
+    result = get_image_feature_set(masked_image, feature_mask, image_shape)
+
+    # The order of rows matters because of how nonzero works (row-major)
+    assert torch.equal(result, expected), f"\nExpected:\n{expected}\nGot:\n{result}"
 
 
 def test_resample_invalid_actions():

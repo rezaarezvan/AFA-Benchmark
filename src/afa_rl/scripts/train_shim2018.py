@@ -9,7 +9,7 @@ from torchrl.envs import ExplorationType, set_exploration_type
 from tqdm import tqdm
 
 import wandb
-from afa_rl.afa_env import AFAMDP
+from afa_rl.afa_env import Shim2018Env
 from afa_rl.afa_methods import Shim2018AFAMethod
 from afa_rl.agents import Shim2018Agent
 from afa_rl.datasets import get_afa_dataset_fn
@@ -157,7 +157,7 @@ def main():
     # Check that embedder+classifier indeed have decent performance
     check_embedder_and_classifier(embedder_and_classifier, dataset)
 
-    train_env = AFAMDP(
+    train_env = Shim2018Env(
         dataset_fn=dataset_fn,
         embedder=embedder,
         classifier=classifier,
@@ -172,7 +172,7 @@ def main():
     )
     # check_env_specs(train_env)
 
-    eval_env = AFAMDP(
+    eval_env = Shim2018Env(
         dataset_fn=dataset_fn,
         embedder=embedder,
         classifier=classifier,

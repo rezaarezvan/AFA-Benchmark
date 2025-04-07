@@ -14,10 +14,20 @@ from afa_rl.custom_types import (
     Embedding,
     Logits,
 )
-from common.custom_types import Features, FeatureMask, Label, MaskedFeatures
+from common.custom_types import (
+    AFARewardFn,
+    FeatureMask,
+    Features,
+    Label,
+    MaskedFeatures,
+)
 
 
-class AFAMDP(EnvBase):
+class Shim2018Env(EnvBase):
+    """
+    The MDP environment used in the paper "Joint Active Feature Acquisition and Classification with Variable-Size Set Encoding"
+    """
+
     batch_locked = False
 
     def __init__(
@@ -235,6 +245,159 @@ class AFAMDP(EnvBase):
                 "predicted_class": new_predicted_class,
                 "done": done,
                 "reward": reward,
+            },
+            batch_size=tensordict.batch_size,
+        )
+
+    def _set_seed(self, seed: int | None):
+        rng = torch.manual_seed(seed)  # type: ignore
+        self.rng = rng
+
+
+class AFAEnv(EnvBase):
+    """
+    A general MDP for active feature acquisition (AFA).
+    """
+
+    batch_locked = False
+
+    def __init__(
+        self,
+        dataset_fn: AFADatasetFn,  # a function that returns data in batches when called
+        reward_fn: AFARewardFn,
+        device: torch.device,
+        batch_size: torch.Size,
+    ):
+        # Do not allow empty batch sizes
+        assert batch_size != torch.Size(()), "Batch size must be non-empty"
+        super().__init__(device=device, batch_size=batch_size)
+
+        self.dataset_fn = dataset_fn
+        self.reward_fn = reward_fn
+
+        self._make_spec()
+
+    def _make_spec(self):
+        self.observation_spec = Composite(
+            feature_mask=Binary(
+                shape=self.batch_size + torch.Size((self.feature_size,)),
+                dtype=torch.bool,
+            ),
+            action_mask=Binary(
+                shape=self.batch_size + torch.Size((self.feature_size + 1,)),
+                dtype=torch.bool,
+            ),
+            masked_features=Unbounded(
+                shape=self.batch_size + torch.Size((self.feature_size,)),
+                dtype=torch.float32,
+            ),
+            # hidden from the agent
+            features=Unbounded(
+                shape=self.batch_size + torch.Size((self.feature_size,)),
+                dtype=torch.float32,
+            ),
+            label=Unbounded(
+                shape=self.batch_size + torch.Size((self.n_classes,)),
+                dtype=torch.int64,
+            ),
+            # predicted_label is -1 until agent chooses to end episode
+            predicted_class=Unbounded(
+                shape=self.batch_size + torch.Size((1,)),
+                dtype=torch.int64,
+            ),
+            batch_size=self.batch_size,
+        )
+        # action = 0 means stop, action = i means choose feature i
+        self.action_spec = Categorical(
+            n=self.feature_size + 1,
+            shape=self.batch_size + torch.Size(()),
+            dtype=torch.int64,
+        )
+        self.reward_spec = Unbounded(
+            shape=self.batch_size + torch.Size((1,)), dtype=torch.float32
+        )
+
+    def _reset(self, tensordict: TensorDictBase, **_):
+        if tensordict is None:
+            tensordict = TensorDict({}, batch_size=self.batch_size, device=self.device)
+
+        # Get a sample from the dataset
+        features, label = self.dataset_fn(tensordict.batch_size)
+        features: Features = features.to(tensordict.device)
+        label: Label = label.to(tensordict.device)
+        # The indices of chosen features so far, start with no features
+        feature_mask: FeatureMask = torch.zeros_like(
+            features, dtype=torch.bool, device=tensordict.device
+        )
+        # The values of chosen features so far, start with no features
+        masked_features: MaskedFeatures = torch.zeros_like(
+            features, dtype=torch.float32, device=tensordict.device
+        )
+
+        td = TensorDict(
+            {
+                "action_mask": torch.ones(
+                    tensordict.batch_size + (self.feature_size + 1,),
+                    dtype=torch.bool,
+                    device=tensordict.device,
+                ),
+                "feature_mask": feature_mask,
+                "masked_features": masked_features,
+                "features": features,
+                "label": label,
+                "predicted_class": -1
+                * torch.ones(
+                    tensordict.batch_size + (1,),
+                    dtype=torch.int64,
+                    device=tensordict.device,
+                ),
+            },
+            batch_size=tensordict.batch_size,
+            device=tensordict.device,
+        )
+        return td
+
+    def _step(self, tensordict: TensorDictBase) -> TensorDictBase:
+        new_feature_mask: FeatureMask = tensordict["feature_mask"].clone()
+        new_masked_features: MaskedFeatures = tensordict["masked_features"].clone()
+        new_embedding: Embedding = tensordict["embedding"].clone()
+        new_predicted_class = tensordict["predicted_class"].clone()
+        new_action_mask = tensordict["action_mask"].clone()
+
+        # Process stopping case. We don't have to compute new features since the features don't change
+        is_stop = tensordict["action"] == 0
+
+        # Process feature acquisition case, compute new features
+        is_fa = tensordict["action"] != 0
+        new_feature_indices = tensordict["action"][is_fa] - 1
+        new_feature_mask[is_fa, new_feature_indices] = True
+        new_masked_features[is_fa, new_feature_indices] = tensordict["features"][
+            is_fa, new_feature_indices
+        ].clone()
+        # Update action_mask
+        new_action_mask[is_fa, new_feature_indices + 1] = False
+
+        reward = self.reward_fn(
+            tensordict["masked_features"],
+            tensordict["feature_mask"],
+            tensordict["action"],
+            tensordict["features"],
+            tensordict["label"],
+        )
+
+        # Compute done mask
+        done = is_stop.unsqueeze(-1)
+
+        return TensorDict(
+            {
+                "action_mask": new_action_mask,
+                "feature_mask": new_feature_mask,
+                "masked_features": new_masked_features,
+                "done": done,
+                "reward": reward,
+                # features and label are not cloned since they stay the same
+                "features": tensordict["features"],
+                "label": tensordict["label"],
             },
             batch_size=tensordict.batch_size,
         )

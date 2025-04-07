@@ -13,7 +13,7 @@ State = Float[
 ]  # A state is a concatenation of feature values and feature indices
 Embedding = Float[Tensor, "*batch embedding_size"]
 FeatureSet = Float[
-    Tensor, "batch features {feature_size+1}"
+    Tensor, "batch features set_size"
 ]  # A feature set is the set version of State. Each element-index tuple becomes a vector.
 
 
@@ -49,3 +49,21 @@ class AFADatasetFn(Protocol):
     def __call__(
         self, batch_size: torch.Size, move_on: bool = True
     ) -> tuple[Features, Label]: ...
+
+
+class PermutationInvariantEncoder(nn.Module, ABC):
+    """
+    A permutation invariant encoder for as described in the paper "EDDI: Efficient Dynamic Discovery of High-Value Information with Partial VAE"
+
+    This is c(x_0) in the paper.
+    """
+
+    @abstractmethod
+    def forward(
+        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+    ) -> Float[Tensor, "*batch latent_size"]: ...
+
+    def __call__(
+        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+    ) -> Float[Tensor, "*batch latent_size"]:
+        return super().__call__(masked_features, feature_mask)

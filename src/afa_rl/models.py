@@ -12,9 +12,10 @@ from afa_rl.custom_types import (
     Embedder,
     Embedding,
     Logits,
+    PermutationInvariantEncoder,
 )
-from afa_rl.utils import get_feature_set
-from common.custom_types import FeatureMask, MaskedFeatures
+from afa_rl.utils import get_feature_set, get_image_feature_set, mask_data
+from common.custom_types import FeatureMask, Features, MaskedFeatures
 
 
 class ReadProcessEncoder(pl.LightningModule):
@@ -219,6 +220,149 @@ class ShimEmbedderClassifier(pl.LightningModule):
         self.log("val_acc_full", acc_full)
 
         return loss
+
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.parameters(), lr=self.lr)
+
+
+class PermutationInvariantEncoder1D(PermutationInvariantEncoder):
+    """
+    A PermutationInvariantEncoder designed for 1D data.
+    """
+
+    def __init__(self, element_encoder: nn.Module):
+        super().__init__()
+
+        self.element_encoder = element_encoder  # h in the paper
+
+    def forward(
+        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+    ) -> Float[Tensor, "*batch latent_size"]:
+        """
+        Args:
+            masked_features: currently observed features, with zeros for missing features
+            feature_mask: indicator for missing features, 1 if feature is observed, 0 if missing
+        Returns:
+            code: the embedding of the input features
+        """
+
+        # Concatenate the feature values with their one-hot indices
+        feature_set = get_feature_set(masked_features, feature_mask)
+
+        # Pass through the element encoder
+        encoded = self.element_encoder(
+            feature_set
+        )  # Shape: (batch_size, num_elements, latent_size)
+
+        # Perform max pooling over the sequence dimension
+        encoding = torch.max(encoded, dim=-2)[0]  # Shape: (batch_size, 1, latent_size)
+        encoding = encoding.squeeze(-2)  # Shape: (batch_size, latent_size)
+
+        return encoding
+
+
+class PermutationInvariantEncoder2D(PermutationInvariantEncoder):
+    """
+    A PermutationInvariantEncoder designed for 2D data.
+    """
+
+    def __init__(self, element_encoder: nn.Module, image_shape: Tuple[int, int]):
+        super().__init__()
+
+        # element_encoder has to take inputs of shape (batch_size, num_elements, 3). The last dimension is (value, height, width)
+        self.element_encoder = element_encoder  # h in the paper
+
+        self.image_shape = image_shape  # (height, width)
+
+    def forward(
+        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+    ) -> Float[Tensor, "*batch latent_size"]:
+        """
+        Args:
+            masked_features: currently observed features, with zeros for missing features
+            feature_mask: indicator for missing features, 1 if feature is observed, 0 if missing
+        Returns:
+            code: the embedding of the input features
+        """
+
+        # Concatenate the feature values with image indices
+        feature_set = get_image_feature_set(
+            masked_features, feature_mask, image_shape=self.image_shape
+        )  # Shape: (batch_size, num_elements, 3)
+
+        # Pass through the element encoder
+        encoded = self.element_encoder(
+            feature_set
+        )  # Shape: (batch_size, num_elements, latent_size)
+
+        # Perform max pooling over the sequence dimension
+        encoding = torch.max(encoded, dim=-2)[0]  # Shape: (batch_size, 1, latent_size)
+        encoding = encoding.squeeze(-2)  # Shape: (batch_size, latent_size)
+
+        return encoding
+
+
+class PartialVAE(pl.LightningModule):
+    """
+    A partial VAE for masked data, as described in "EDDI: Efficient Dynamic Discovery of High-Value Information with Partial VAE"
+
+    To make the model work with different shapes of data, change the encoder.
+    """
+
+    def __init__(
+        self,
+        encoder: PermutationInvariantEncoder,
+        fc_mu: nn.Module,
+        fc_logvar: nn.Module,
+        decoder: nn.Module,
+        lr=1e-3,
+    ):
+        """
+        Args:
+            encoder: the encoder to use. Should be a permutation invariant encoder.
+            fc_mu: the MLP to use for the mean of the latent space
+            fc_logvar: the MLP to use for the log variance of the latent space
+            decoder: the MLP to use for the decoder
+            lr: learning rate for the optimizer
+        """
+        super().__init__()
+
+        self.encoder = encoder
+
+        self.fc_mu = fc_mu
+        self.fc_logvar = fc_logvar
+        self.decoder = decoder  # Maps from latent space to the original feature space
+        self.lr = lr
+
+    def forward(self, masked_features: MaskedFeatures, feature_mask: FeatureMask):
+        encoding = self.encoder(masked_features, feature_mask)
+
+        mu, logvar = self.fc_mu(encoding), self.fc_logvar(encoding)
+        std = torch.exp(0.5 * logvar)
+        z = mu + std * torch.randn_like(std)
+        x_hat = self.decoder(z)
+        return x_hat, mu, logvar
+
+    def training_step(self, batch, batch_idx):
+        features, _ = batch  # ignore labels when training VAE for reconstruction
+        masked_features, feature_mask = mask_data(features, p=0.5)
+        estimated_features, mu, logvar = self(masked_features, feature_mask)
+        loss = self.loss_function(estimated_features, features, mu, logvar)
+        self.log("train_loss", loss)
+        return loss
+
+    def validation_step(self, batch, batch_idx):
+        features, _ = batch  # ignore labels when training VAE for reconstruction
+        masked_features, feature_mask = mask_data(features, p=0.5)
+        estimated_features, mu, logvar = self(masked_features, feature_mask)
+        loss = self.loss_function(estimated_features, features, mu, logvar)
+        self.log("val_loss", loss)
+        return loss
+
+    def loss_function(self, estimated_features, features, mu, logvar):
+        recon_loss = ((estimated_features - features) ** 2).sum()
+        kl_div = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+        return recon_loss + kl_div
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.lr)

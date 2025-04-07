@@ -6,7 +6,7 @@ from torchrl.envs import ExplorationType, set_exploration_type
 from tqdm import tqdm
 
 import wandb
-from afa_rl.afa_env import AFAMDP
+from afa_rl.afa_env import Shim2018Env
 from afa_rl.agents import Shim2018Agent
 from afa_rl.models import (
     MLPClassifier,
@@ -70,7 +70,7 @@ def main():
     dataset_fn = get_dataset_fn(dataset.features, dataset.labels)
 
     batch_size = 1
-    env = AFAMDP(
+    env = Shim2018Env(
         dataset_fn=dataset_fn,
         embedder=embedder,
         classifier=classifier,

@@ -1,4 +1,4 @@
-from typing import Protocol
+from typing import Callable, Protocol
 
 from jaxtyping import Bool, Float, Integer
 from torch import Tensor
@@ -53,6 +53,8 @@ class AFADataset(Protocol):
 
 type MaskedFeatures = Integer[Tensor, "*batch n_features"]
 type FeatureMask = Bool[Tensor, "*batch n_features"]
+
+# Outputs of AFA methods. 0 means stop collecting features, i > 0 means collect feature i.
 type AFASelection = Integer[Tensor, "*batch 1"]
 
 
@@ -74,7 +76,7 @@ class AFAMethod(Protocol):
         feature_mask: FeatureMask,
     ) -> AFASelection:
         """
-        Returns the index of the feature to be collected next.
+        Returns the 1-based index of the feature to be collected next or 0 if no more features should be collected.
         """
         ...
 
@@ -90,3 +92,17 @@ class AFAMethod(Protocol):
         Loads the method from a file.
         """
         ...
+
+
+# A reward function will in general depend on
+# - masked features
+# - feature mask (the features that have been observed so far)
+# - the selection (the feature that was selected)
+# - the ground truth features
+# - the ground truth label
+
+type AFAReward = Float[Tensor, "*batch 1"]
+type AFARewardFn = Callable[
+    [MaskedFeatures, FeatureMask, AFASelection, Features, Label],
+    AFAReward,
+]
