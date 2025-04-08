@@ -360,8 +360,6 @@ class AFAEnv(EnvBase):
     def _step(self, tensordict: TensorDictBase) -> TensorDictBase:
         new_feature_mask: FeatureMask = tensordict["feature_mask"].clone()
         new_masked_features: MaskedFeatures = tensordict["masked_features"].clone()
-        new_embedding: Embedding = tensordict["embedding"].clone()
-        new_predicted_class = tensordict["predicted_class"].clone()
         new_action_mask = tensordict["action_mask"].clone()
 
         # Process stopping case. We don't have to compute new features since the features don't change

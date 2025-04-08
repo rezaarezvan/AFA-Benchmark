@@ -51,9 +51,9 @@ class AFADatasetFn(Protocol):
     ) -> tuple[Features, Label]: ...
 
 
-class PermutationInvariantEncoder(nn.Module, ABC):
+class PointNet(nn.Module, ABC):
     """
-    A permutation invariant encoder for as described in the paper "EDDI: Efficient Dynamic Discovery of High-Value Information with Partial VAE"
+    PointNet as described in the paper "EDDI: Efficient Dynamic Discovery of High-Value Information with Partial VAE"
 
     This is c(x_0) in the paper.
     """
@@ -61,9 +61,9 @@ class PermutationInvariantEncoder(nn.Module, ABC):
     @abstractmethod
     def forward(
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
-    ) -> Float[Tensor, "*batch latent_size"]: ...
+    ) -> Float[Tensor, "*batch pointnet_size"]: ...
 
     def __call__(
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
-    ) -> Float[Tensor, "*batch latent_size"]:
+    ) -> Float[Tensor, "*batch pointnet_size"]:
         return super().__call__(masked_features, feature_mask)

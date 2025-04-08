@@ -11,8 +11,9 @@ from afa_rl.custom_types import (
     Classifier,
     Embedder,
     Embedding,
+    Label,
     Logits,
-    PermutationInvariantEncoder,
+    PointNet,
 )
 from afa_rl.utils import get_feature_set, get_image_feature_set, mask_data
 from common.custom_types import FeatureMask, Features, MaskedFeatures
@@ -225,25 +226,29 @@ class ShimEmbedderClassifier(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=self.lr)
 
 
-class PermutationInvariantEncoder1D(PermutationInvariantEncoder):
+class PointNet1D(PointNet):
     """
-    A PermutationInvariantEncoder designed for 1D data.
+    A PointNet designed for 1D data.
     """
 
     def __init__(self, element_encoder: nn.Module):
+        """
+        Args:
+            element_encoder: the encoder to use for each element in the sequence. Has to accept inputs of size n_features+1
+        """
         super().__init__()
 
         self.element_encoder = element_encoder  # h in the paper
 
     def forward(
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
-    ) -> Float[Tensor, "*batch latent_size"]:
+    ) -> Float[Tensor, "*batch pointnet_size"]:
         """
         Args:
             masked_features: currently observed features, with zeros for missing features
             feature_mask: indicator for missing features, 1 if feature is observed, 0 if missing
         Returns:
-            code: the embedding of the input features
+            the encoding of the input features
         """
 
         # Concatenate the feature values with their one-hot indices
@@ -261,28 +266,31 @@ class PermutationInvariantEncoder1D(PermutationInvariantEncoder):
         return encoding
 
 
-class PermutationInvariantEncoder2D(PermutationInvariantEncoder):
+class PointNet2D(PointNet):
     """
-    A PermutationInvariantEncoder designed for 2D data.
+    A PointNet designed for 2D data.
     """
 
     def __init__(self, element_encoder: nn.Module, image_shape: Tuple[int, int]):
+        """
+        Args:
+            element_encoder: has to take inputs of shape (batch_size, num_elements, 3). The last dimension is (value, height, width)
+        """
         super().__init__()
 
-        # element_encoder has to take inputs of shape (batch_size, num_elements, 3). The last dimension is (value, height, width)
         self.element_encoder = element_encoder  # h in the paper
 
         self.image_shape = image_shape  # (height, width)
 
     def forward(
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
-    ) -> Float[Tensor, "*batch latent_size"]:
+    ) -> Float[Tensor, "*batch pointnet_size"]:
         """
         Args:
             masked_features: currently observed features, with zeros for missing features
             feature_mask: indicator for missing features, 1 if feature is observed, 0 if missing
         Returns:
-            code: the embedding of the input features
+            the encoding of the input features
         """
 
         # Concatenate the feature values with image indices
@@ -302,64 +310,109 @@ class PermutationInvariantEncoder2D(PermutationInvariantEncoder):
         return encoding
 
 
-class PartialVAE(pl.LightningModule):
+class PartialVAE(nn.Module):
     """
     A partial VAE for masked data, as described in "EDDI: Efficient Dynamic Discovery of High-Value Information with Partial VAE"
 
-    To make the model work with different shapes of data, change the encoder.
+    To make the model work with different shapes of data, change the pointnet.
     """
 
     def __init__(
         self,
-        encoder: PermutationInvariantEncoder,
-        fc_mu: nn.Module,
-        fc_logvar: nn.Module,
+        pointnet: PointNet,
+        encoder: nn.Module,
+        mu_net: nn.Module,
+        logvar_net: nn.Module,
         decoder: nn.Module,
-        lr=1e-3,
     ):
         """
         Args:
-            encoder: the encoder to use. Should be a permutation invariant encoder.
-            fc_mu: the MLP to use for the mean of the latent space
-            fc_logvar: the MLP to use for the log variance of the latent space
-            decoder: the MLP to use for the decoder
-            lr: learning rate for the optimizer
+            pointnet: maps unordered sets of features to a single vector
+            encoder: a network that maps the output from the pointnet to input for mu_net and logvar_net
+            mu_net: the network to use for the mean of the latent space
+            logvar_net: the network to use for the log variance of the latent space
+            decoder: the network to use for the decoder
         """
         super().__init__()
 
+        self.pointnet = pointnet
         self.encoder = encoder
 
-        self.fc_mu = fc_mu
-        self.fc_logvar = fc_logvar
+        self.mu_net = mu_net
+        self.logvar_net = logvar_net
         self.decoder = decoder  # Maps from latent space to the original feature space
-        self.lr = lr
 
     def forward(self, masked_features: MaskedFeatures, feature_mask: FeatureMask):
-        encoding = self.encoder(masked_features, feature_mask)
+        pointnet_output = self.pointnet(masked_features, feature_mask)
+        encoding = self.encoder(pointnet_output)
 
-        mu, logvar = self.fc_mu(encoding), self.fc_logvar(encoding)
+        mu, logvar = self.mu_net(encoding), self.logvar_net(encoding)
         std = torch.exp(0.5 * logvar)
         z = mu + std * torch.randn_like(std)
         x_hat = self.decoder(z)
-        return x_hat, mu, logvar
+        return encoding, mu, logvar, z, x_hat
+
+
+class Zannone2019PretrainingModel(pl.LightningModule):
+    def __init__(self, partial_vae, classifier, lr):
+        super().__init__()
+        self.partial_vae = partial_vae
+        self.classifier = classifier
+        self.lr = lr
 
     def training_step(self, batch, batch_idx):
-        features, _ = batch  # ignore labels when training VAE for reconstruction
+        features: Features = batch[0]
+        label: Label = batch[1]
+
         masked_features, feature_mask = mask_data(features, p=0.5)
-        estimated_features, mu, logvar = self(masked_features, feature_mask)
-        loss = self.loss_function(estimated_features, features, mu, logvar)
-        self.log("train_loss", loss)
-        return loss
+
+        # Pass masked features through VAE, returning estimated features but also encoding which will be passed through classifier
+        encoding, mu, logvar, z, estimated_features = self.partial_vae(
+            masked_features, feature_mask
+        )
+        partial_vae_loss = self.partial_vae_loss_function(
+            estimated_features, features, mu, logvar
+        )
+
+        # Pass the encoding through the classifier
+        classifier_output = self.classifier(encoding)
+        classifier_loss = F.cross_entropy(classifier_output, label.float())
+
+        total_loss = partial_vae_loss + classifier_loss
+        self.log("train_loss", total_loss)
+
+        return total_loss
 
     def validation_step(self, batch, batch_idx):
-        features, _ = batch  # ignore labels when training VAE for reconstruction
-        masked_features, feature_mask = mask_data(features, p=0.5)
-        estimated_features, mu, logvar = self(masked_features, feature_mask)
-        loss = self.loss_function(estimated_features, features, mu, logvar)
-        self.log("val_loss", loss)
-        return loss
+        features: Features = batch[0]
+        label: Label = batch[1]
 
-    def loss_function(self, estimated_features, features, mu, logvar):
+        masked_features, feature_mask = mask_data(features, p=0.5)
+
+        # Pass masked features through VAE, returning estimated features but also encoding which will be passed through classifier
+        encoding, mu, logvar, z, estimated_features = self.partial_vae(
+            masked_features, feature_mask
+        )
+        partial_vae_loss = self.partial_vae_loss_function(
+            estimated_features, features, mu, logvar
+        )
+
+        # Pass the encoding through the classifier
+        logits = self.classifier(encoding)
+        classifier_loss = F.cross_entropy(logits, label.float())
+
+        # For validation, additionally calculate accuracy
+        y_pred = torch.argmax(logits, dim=1)
+        y_cls = torch.argmax(label, dim=1)
+        acc = (y_pred == y_cls).float().mean()
+        self.log("val_acc", acc)
+
+        total_loss = partial_vae_loss + classifier_loss
+        self.log("val_loss", total_loss)
+
+        return total_loss
+
+    def partial_vae_loss_function(self, estimated_features, features, mu, logvar):
         recon_loss = ((estimated_features - features) ** 2).sum()
         kl_div = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
         return recon_loss + kl_div

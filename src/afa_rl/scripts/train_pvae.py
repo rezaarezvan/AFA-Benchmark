@@ -1,19 +1,15 @@
 import lightning as pl
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from lightning.pytorch.loggers import WandbLogger
-from torch.utils.data import DataLoader, random_split
-from torchvision import datasets, transforms
-from torchvision.datasets import MNIST
+from torchvision import transforms
 
 import wandb
-from afa_rl.callbacks import ImageLoggerCallback
 from afa_rl.datasets import DataModuleFromDataset, MNISTDataModule
 from afa_rl.models import (
     PartialVAE,
-    PermutationInvariantEncoder1D,
-    PermutationInvariantEncoder2D,
+    PointNet1D,
+    PointNet2D,
 )
 from common.datasets import CubeDataset
 
@@ -33,7 +29,7 @@ def main1D():
     )
 
     model = PartialVAE(
-        encoder=PermutationInvariantEncoder1D(
+        encoder=PointNet1D(
             element_encoder=nn.Sequential(
                 nn.Linear(21, 50),
                 nn.ReLU(),
@@ -42,10 +38,10 @@ def main1D():
                 nn.Linear(50, 50),
             ),
         ),
-        fc_mu=nn.Sequential(
+        mu_net=nn.Sequential(
             nn.Linear(50, 30),
         ),
-        fc_logvar=nn.Sequential(
+        logvar_net=nn.Sequential(
             nn.Linear(50, 30),
         ),
         decoder=nn.Sequential(
@@ -78,7 +74,7 @@ def main2D():
     )
 
     model = PartialVAE(
-        encoder=PermutationInvariantEncoder2D(
+        encoder=PointNet2D(
             element_encoder=nn.Sequential(
                 nn.Linear(3, 50),
                 nn.ReLU(),
@@ -88,10 +84,10 @@ def main2D():
             ),
             image_shape=(28, 28),
         ),
-        fc_mu=nn.Sequential(
+        mu_net=nn.Sequential(
             nn.Linear(50, 30),
         ),
-        fc_logvar=nn.Sequential(
+        logvar_net=nn.Sequential(
             nn.Linear(50, 30),
         ),
         decoder=nn.Sequential(

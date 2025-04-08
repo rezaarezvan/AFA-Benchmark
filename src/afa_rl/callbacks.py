@@ -1,7 +1,5 @@
 import lightning as pl
-import matplotlib.pyplot as plt
 import torch
-import torchvision.utils as vutils
 
 import wandb
 

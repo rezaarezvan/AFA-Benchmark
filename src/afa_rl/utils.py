@@ -2,9 +2,7 @@ from types import SimpleNamespace
 from typing import Any, Callable, Tuple
 
 import torch
-from jaxtyping import Float
-from pandas.core.arrays import masked
-from torch import Tensor, nn
+from torch import nn
 
 from afa_rl.custom_types import FeatureMask, FeatureSet
 from common.custom_types import Features, MaskedFeatures
