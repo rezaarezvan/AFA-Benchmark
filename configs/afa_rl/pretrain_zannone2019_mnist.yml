@@ -1,0 +1,31 @@
+epochs: 100
+checkpoint: "pretrain_zannone2019_mnist.ckpt"
+lr: 0.001
+
+dataset:
+  name: "mnist"
+  batch_size: 128
+  n_features: 784 # MNIST IMAGE SIZE, DO NOT CHANGE
+dataloader:
+  batch_size: 128
+  train_ratio: 0.8
+  num_workers: 1
+pointnet: # 3 -> 20 -> 20
+  input_size: 3
+  output_size: 20
+  num_cells: [20]
+encoder:
+  output_size: 20
+  num_cells: [500, 200] # 20 -> 500 -> 200 -> 20
+partial_vae:
+  latent_size: 20
+  mu_net_num_cells: [] # 20 -> 20
+  logvar_net_num_cells: [] # 20 -> 20
+  decoder_num_cells: [500, 200] # 20 -> 500 -> 200 -> 20
+classifier: # 20 -> onehot(10)
+  output_size: 10 # mnist classes
+  num_cells: []
+wandb:
+  entity: "valterschutz-chalmers-university-of-technology"
+  project: "pretrain-zannone2019-mnist"
+device: "cuda"

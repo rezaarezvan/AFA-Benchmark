@@ -4,14 +4,16 @@ import os
 import lightning as pl
 import torch
 from torchrl.modules import MLP
+from torchvision import transforms
 import yaml
 from lightning.pytorch.loggers import WandbLogger
 
 import wandb
-from afa_rl.datasets import DataModuleFromDataset
+from afa_rl.datasets import DataModuleFromDataset, MNISTDataModule
 from afa_rl.models import (
     PartialVAE,
     PointNet1D,
+    PointNet2D,
     Zannone2019PretrainingModel,
 )
 from afa_rl.utils import dict_to_namespace
@@ -38,26 +40,45 @@ def main():
 
     config = dict_to_namespace(config_dict)
 
-    dataset = CubeDataset(
-        n_features=config.n_features,
-        data_points=config.dataset.size,
-        sigma=config.dataset.sigma,
-        seed=config.dataset.seed,
-    )
-    dataset.generate_data()
-    datamodule = DataModuleFromDataset(
-        dataset=dataset,
-        batch_size=config.dataloader.batch_size,
-        train_ratio=config.dataloader.train_ratio,
-        num_workers=config.dataloader.num_workers,
-    )
+    # Two different datasets possible: "cube" or "mnist"
+    # This will also influence which PointNet to use
+    if config.dataset.name == "cube":
+        dataset = CubeDataset(
+            n_features=config.dataset.n_features,
+            data_points=config.dataset.size,
+            sigma=config.dataset.sigma,
+            seed=config.dataset.seed,
+        )
+        dataset.generate_data()
+        datamodule = DataModuleFromDataset(
+            dataset=dataset,
+            batch_size=config.dataloader.batch_size,
+            train_ratio=config.dataloader.train_ratio,
+            num_workers=config.dataloader.num_workers,
+        )
+        pointnet_cls = PointNet1D
+        pointnet_kwargs = {}
+    elif config.dataset.name == "mnist":
+        datamodule = MNISTDataModule(
+            batch_size=config.dataset.batch_size,
+            transform=transforms.Compose(
+                [transforms.ToTensor(), transforms.Lambda(lambda x: x.view(-1))]
+            ),
+        )
+        pointnet_cls = PointNet2D
+        pointnet_kwargs = {"image_shape": (28, 28)}
+    else:
+        raise ValueError(
+            f"Dataset {config.dataset.name} not supported. Use 'cube' or 'mnist'."
+        )
 
-    pointnet = PointNet1D(
+    pointnet = pointnet_cls(
         element_encoder=MLP(
-            in_features=config.n_features + 1,
+            in_features=config.pointnet.input_size,
             out_features=config.pointnet.output_size,
             num_cells=config.pointnet.num_cells,
         ),
+        **pointnet_kwargs,
     )
     encoder = MLP(
         in_features=config.pointnet.output_size,
@@ -79,7 +100,7 @@ def main():
         ),
         decoder=MLP(
             in_features=config.partial_vae.latent_size,
-            out_features=config.n_features,
+            out_features=config.dataset.n_features,
             num_cells=config.partial_vae.decoder_num_cells,
         ),
     )
@@ -87,7 +108,7 @@ def main():
         partial_vae=partial_vae,
         classifier=MLP(
             in_features=config.encoder.output_size,
-            out_features=8,
+            out_features=config.classifier.output_size,
             num_cells=config.classifier.num_cells,
         ),
         lr=config.lr,
@@ -109,15 +130,11 @@ def main():
         # Move the best checkpoint to the desired location
         best_checkpoint = trainer.checkpoint_callback.best_model_path
         # Create checkpoints directory if it doesn't exist
-        checkpoints_dir = "checkpoints/afa_rl"
+        checkpoints_dir = "models/afa_rl"
         os.makedirs(checkpoints_dir, exist_ok=True)
         # Save
-        torch.save(
-            torch.load(best_checkpoint), f"checkpoints/afa_rl/{config.checkpoint}"
-        )
-        print(
-            f"Zannone2019PretrainingModel saved to checkpoints/afa_rl/{config.checkpoint}"
-        )
+        torch.save(torch.load(best_checkpoint), f"models/afa_rl/{config.checkpoint}")
+        print(f"Zannone2019PretrainingModel saved to models/afa_rl/{config.checkpoint}")
 
 
 if __name__ == "__main__":

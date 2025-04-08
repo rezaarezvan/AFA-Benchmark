@@ -405,10 +405,10 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         y_pred = torch.argmax(logits, dim=1)
         y_cls = torch.argmax(label, dim=1)
         acc = (y_pred == y_cls).float().mean()
-        self.log("val_acc", acc)
+        self.log("val_acc", acc, sync_dist=True)
 
         total_loss = partial_vae_loss + classifier_loss
-        self.log("val_loss", total_loss)
+        self.log("val_loss", total_loss, sync_dist=True)
 
         return total_loss
 

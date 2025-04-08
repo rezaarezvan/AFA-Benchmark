@@ -1,4 +1,5 @@
 import lightning as pl
+from torch.nn import functional as F
 import torch
 from jaxtyping import Shaped
 from torch import Tensor
@@ -78,6 +79,20 @@ class DataModuleFromDataset(pl.LightningDataModule):
         )
 
 
+class OneHotLabelWrapper(torch.utils.data.Dataset):
+    def __init__(self, dataset, num_classes):
+        self.dataset = dataset
+        self.num_classes = num_classes
+
+    def __getitem__(self, index):
+        img, label = self.dataset[index]
+        one_hot_label = F.one_hot(torch.tensor(label), num_classes=self.num_classes)
+        return img, one_hot_label
+
+    def __len__(self):
+        return len(self.dataset)
+
+
 class MNISTDataModule(pl.LightningDataModule):
     def __init__(self, batch_size=128, transform=None):
         super().__init__()
@@ -88,12 +103,16 @@ class MNISTDataModule(pl.LightningDataModule):
             self.transform = transform
 
     def prepare_data(self):
-        datasets.MNIST(root=".", train=True, download=True)
-        datasets.MNIST(root=".", train=False, download=True)
+        datasets.MNIST(root="data/MNIST", train=True, download=True)
+        datasets.MNIST(root="data/MNIST", train=False, download=True)
 
     def setup(self, stage=None):
-        mnist_full = datasets.MNIST(root=".", train=True, transform=self.transform)
-        self.train_set, self.val_set = random_split(mnist_full, [55000, 5000])
+        mnist_full = datasets.MNIST(
+            root="data/MNIST", train=True, transform=self.transform
+        )
+        train_set, val_set = random_split(mnist_full, [55000, 5000])
+        self.train_set = OneHotLabelWrapper(train_set, num_classes=10)
+        self.val_set = OneHotLabelWrapper(val_set, num_classes=10)
 
     def train_dataloader(self):
         return DataLoader(self.train_set, batch_size=self.batch_size, shuffle=True)
