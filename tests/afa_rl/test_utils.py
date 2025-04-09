@@ -1,7 +1,9 @@
 import torch
 
 from afa_rl.utils import (
+    get_1D_identity,
     get_feature_set,
+    get_2D_identity,
     get_image_feature_set,
     resample_invalid_actions,
 )
@@ -25,6 +27,22 @@ def test_get_feature_set():
 
     s_hat = get_feature_set(x, z)
     assert torch.allclose(s_hat, s)
+
+def test_get_1D_identity():
+    # First case
+    feature_mask1 = torch.tensor([1, 0, 1], dtype=torch.bool)
+    expected1 = torch.tensor([[1, 0, 0], [0, 0, 0], [0, 0, 1]], dtype=torch.float32)
+
+    # Second case
+    feature_mask2 = torch.tensor([1, 1, 0], dtype=torch.bool)
+    expected2 = torch.tensor([[1, 0, 0], [0, 1, 0], [0, 0, 0]], dtype=torch.float32)
+
+    # Batched, stack them
+    feature_mask = torch.stack([feature_mask1, feature_mask2])
+    expected = torch.stack([expected1, expected2])
+
+    identity = get_1D_identity(feature_mask)
+    assert torch.allclose(identity, expected)
 
 
 def test_get_image_feature_set():
@@ -74,6 +92,50 @@ def test_get_image_feature_set():
 
     # The order of rows matters because of how nonzero works (row-major)
     assert torch.equal(result, expected), f"\nExpected:\n{expected}\nGot:\n{result}"
+
+def test_get_2D_identity():
+    image_shape = (3, 3)
+
+    feature_mask1 = torch.tensor([1, 0, 1, 1, 1, 0, 1, 1, 1])
+    expected1 = torch.tensor(
+        [
+            [1, 1],
+            [1, 3],
+            [2, 1],
+            [2, 2],
+            [3, 1],
+            [3, 2],
+            [3, 3],
+            [0, 0],  # not observed
+            [0, 0],  # not observed
+        ]
+    ).float()
+
+    # Additional example since it needs to work batched
+    feature_mask2 = torch.tensor([1, 1, 1, 0, 1, 0, 1, 0, 1])
+    expected2 = torch.tensor(
+        [
+            [1, 1],
+            [1, 2],
+            [1, 3],
+            [2, 2],
+            [3, 1],
+            [3, 3],
+            [0, 0],  # not observed
+            [0, 0],  # not observed
+            [0, 0],  # not observed
+        ]
+    ).float()
+
+    # Stack the two examples
+    feature_mask = torch.stack([feature_mask1, feature_mask2])
+    expected = torch.stack([expected1, expected2])
+
+    result = get_2D_identity(feature_mask, image_shape)
+
+    # The order of rows matters because of how nonzero works (row-major)
+    assert torch.equal(result, expected), f"\nExpected:\n{expected}\nGot:\n{result}"
+
 
 
 def test_resample_invalid_actions():

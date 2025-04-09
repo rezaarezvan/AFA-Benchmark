@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Callable, Tuple
 
 import lightning as pl
 import torch
@@ -13,9 +13,15 @@ from afa_rl.custom_types import (
     Embedding,
     Label,
     Logits,
-    PointNet,
+    NaiveIdentityFn,
+    PointNetLike,
 )
-from afa_rl.utils import get_feature_set, get_image_feature_set, mask_data
+from afa_rl.utils import (
+    get_2D_identity,
+    get_feature_set,
+    get_image_feature_set,
+    mask_data,
+)
 from common.custom_types import FeatureMask, Features, MaskedFeatures
 
 
@@ -226,18 +232,20 @@ class ShimEmbedderClassifier(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=self.lr)
 
 
-class PointNet1D(PointNet):
+class PointNet(PointNetLike):
     """
-    A PointNet designed for 1D data.
+    A (normal) PointNet
     """
 
-    def __init__(self, element_encoder: nn.Module):
+    def __init__(self, element_fn, element_encoder: nn.Module):
         """
         Args:
-            element_encoder: the encoder to use for each element in the sequence. Has to accept inputs of size n_features+1
+            element_fn: concatenates feature values with their identities
+            element_encoder: nn.Module
         """
         super().__init__()
 
+        self.element_fn = element_fn
         self.element_encoder = element_encoder  # h in the paper
 
     def forward(
@@ -251,36 +259,45 @@ class PointNet1D(PointNet):
             the encoding of the input features
         """
 
-        # Concatenate the feature values with their one-hot indices
-        feature_set = get_feature_set(masked_features, feature_mask)
+        # PointNet concatenates feature values with their identities
+        s = self.element_fn(masked_features, feature_mask)
 
-        # Pass through the element encoder
+        # Pass s through the element encoder
         encoded = self.element_encoder(
-            feature_set
-        )  # Shape: (batch_size, num_elements, latent_size)
+            s
+        )  # Shape: (batch_size, num_elements, element_encoding_size)
 
         # Perform max pooling over the sequence dimension
-        encoding = torch.max(encoded, dim=-2)[0]  # Shape: (batch_size, 1, latent_size)
-        encoding = encoding.squeeze(-2)  # Shape: (batch_size, latent_size)
+        # avg would not work here since `encoded` has zeros for each unobserved feature
+        encoding = torch.max(encoded, dim=-2)[
+            0
+        ]  # Shape: (batch_size, element_encoding_size)
 
         return encoding
 
 
-class PointNet2D(PointNet):
+class PointNetPlus(PointNetLike):
     """
-    A PointNet designed for 2D data.
+    A PointNetPlus.
     """
 
-    def __init__(self, element_encoder: nn.Module, image_shape: Tuple[int, int]):
+    def __init__(
+        self,
+        naive_identity_fn: NaiveIdentityFn,
+        identity_network: nn.Module,
+        element_encoder: nn.Module,
+    ):
         """
         Args:
-            element_encoder: has to take inputs of shape (batch_size, num_elements, 3). The last dimension is (value, height, width)
+            naive_identity_fn: takes a FeatureMask as input and outputs a suitable location-like representation for each feature. Usually one-hot indices for 1D data and coordinates for 2D data.
+            identity_network: transforms naive identity into a vector to be used with PNP
+            element_encoder: nn.Module
         """
         super().__init__()
 
+        self.naive_identity_fn = naive_identity_fn  # naive e
+        self.identity_network = identity_network  # learns e from naive e
         self.element_encoder = element_encoder  # h in the paper
-
-        self.image_shape = image_shape  # (height, width)
 
     def forward(
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
@@ -293,19 +310,32 @@ class PointNet2D(PointNet):
             the encoding of the input features
         """
 
-        # Concatenate the feature values with image indices
-        feature_set = get_image_feature_set(
-            masked_features, feature_mask, image_shape=self.image_shape
-        )  # Shape: (batch_size, num_elements, 3)
+        # Get coordinates of each feature (naive e)
+        naive_identity = self.naive_identity_fn(
+            feature_mask
+        )  # Shape: (batch_size, num_elements, naive_identity_size)
 
-        # Pass through the element encoder
+        # Pass it through the identity network to learn the identity
+        identity = self.identity_network(
+            naive_identity
+        )  # Shape: (batch_size, num_elements, identity_size)
+
+        # PointNetPlus does pointwise-multiplication between each identity vector and feature value
+        # Could not think of a better name than s...
+        s = identity * masked_features.unsqueeze(
+            -1
+        )  # Shape: (batch_size, num_elements, identity_size)
+
+        # Pass s through the element encoder
         encoded = self.element_encoder(
-            feature_set
-        )  # Shape: (batch_size, num_elements, latent_size)
+            s
+        )  # Shape: (batch_size, num_elements, element_encoding_size)
 
         # Perform max pooling over the sequence dimension
-        encoding = torch.max(encoded, dim=-2)[0]  # Shape: (batch_size, 1, latent_size)
-        encoding = encoding.squeeze(-2)  # Shape: (batch_size, latent_size)
+        # avg would not work here since `encoded` has zeros for each unobserved feature
+        encoding = torch.max(encoded, dim=-2)[
+            0
+        ]  # Shape: (batch_size, element_encoding_size)
 
         return encoding
 
@@ -319,7 +349,7 @@ class PartialVAE(nn.Module):
 
     def __init__(
         self,
-        pointnet: PointNet,
+        pointnet: PointNetLike,
         encoder: nn.Module,
         mu_net: nn.Module,
         logvar_net: nn.Module,

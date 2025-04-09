@@ -3,14 +3,16 @@ Check if pretrain_zannone2019 with mnist dataset produces reasonable results.
 """
 
 import argparse
+from functools import partial
+from turtle import shape
+
 import matplotlib.pyplot as plt
-
 import torch
-from torchrl.modules import MLP
 import yaml
+from torchrl.modules import MLP
 
-from afa_rl.models import PartialVAE, PointNet2D, Zannone2019PretrainingModel
-from afa_rl.utils import dict_to_namespace
+from afa_rl.models import PartialVAE, PointNetPlus, Zannone2019PretrainingModel
+from afa_rl.utils import dict_to_namespace, get_2D_identity
 
 
 def main():
@@ -31,13 +33,20 @@ def main():
     # Config must be for MNIST dataset
     assert config.dataset.name == "mnist", "Config must be for MNIST dataset"
 
-    pointnet = PointNet2D(
-        element_encoder=MLP(
-            in_features=config.pointnet.input_size,
-            out_features=config.pointnet.output_size,
-            num_cells=config.pointnet.num_cells,
+    naive_identity_fn = partial(get_2D_identity, image_shape=(28, 28))
+    naive_identity_size = 2
+    pointnet = PointNetPlus(
+        naive_identity_fn=naive_identity_fn,
+        identity_network=MLP(
+            in_features=naive_identity_size,
+            out_features=config.pointnet.identity_size,
+            num_cells=config.pointnet.identity_network_num_cells,
         ),
-        image_shape=(28, 28),
+        element_encoder=MLP(
+            in_features=config.pointnet.identity_size,
+            out_features=config.pointnet.output_size,
+            num_cells=config.pointnet.element_encoder_num_cells,
+        ),
     )
     encoder = MLP(
         in_features=config.pointnet.output_size,

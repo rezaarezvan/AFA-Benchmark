@@ -2,7 +2,8 @@ from types import SimpleNamespace
 from typing import Any, Callable, Tuple
 
 import torch
-from torch import nn
+from jaxtyping import Integer
+from torch import Tensor, nn
 
 from afa_rl.custom_types import FeatureMask, FeatureSet
 from common.custom_types import Features, MaskedFeatures
@@ -46,10 +47,10 @@ def get_feature_set(
 
 
 def get_image_feature_set(
-    masked_image: torch.Tensor,
-    feature_mask: torch.Tensor,
+    masked_image: MaskedFeatures,
+    feature_mask: FeatureMask,
     image_shape: Tuple[int, int],
-) -> torch.Tensor:
+) -> FeatureSet:
     """
     Converts a partially observed image and the indices to a feature set.
 
@@ -68,8 +69,10 @@ def get_image_feature_set(
     result = []
 
     for i in range(batch_size):
-        # Get observed pixel indices (N, 2)
-        obs_indices = torch.nonzero(feature_mask[i], as_tuple=False)  # shape (N, 2)
+        # Get observed pixel indices (n_features, 2)
+        obs_indices = torch.nonzero(
+            feature_mask[i], as_tuple=False
+        )  # shape (n_features, 2)
         values = masked_image[i, obs_indices[:, 0], obs_indices[:, 1]]
 
         # Adjust the row and column indices to 1-based indexing
@@ -94,6 +97,82 @@ def get_image_feature_set(
         result.append(padded_set)
 
     return torch.stack(result)
+
+
+def get_2D_identity(
+    feature_mask: FeatureMask,
+    image_shape: Tuple[int, int],
+) -> Integer[Tensor, "*batch n_features 2"]:
+    """
+    Returns the coordinates for each observed feature (as given by the feature mask)
+    but with (0, 0) for unobserved features.
+    """
+    batch_size, flat_dim = feature_mask.shape
+    h, w = image_shape
+
+    # Reshape into (B, H, W)
+    feature_mask = feature_mask.view(batch_size, h, w)
+
+    # Prepare a tensor to hold the result
+    result = []
+
+    for i in range(batch_size):
+        # Get observed pixel indices (n_features, 2)
+        obs_indices = torch.nonzero(
+            feature_mask[i], as_tuple=False
+        )  # shape (n_features, 2)
+
+        # Adjust the row and column indices to 1-based indexing
+        obs_indices = obs_indices + 1  # Make row and col 1-based
+
+        # Stack [row, col] for observed pixels
+        coords = torch.stack(
+            [obs_indices[:, 0].float(), obs_indices[:, 1].float()], dim=1
+        )
+
+        # Create a tensor of size (H×W, 2) by padding unobserved pixels with zeros
+        padded_set = torch.zeros((h * w, 2), device=feature_mask.device)
+
+        # For unobserved pixels, set row=col=0
+        padded_set[:, 0] = 0  # row = 0
+        padded_set[:, 1] = 0  # col = 0
+
+        # Copy observed pixels into the result
+        padded_set[: coords.size(0), :] = coords
+
+        result.append(padded_set)
+
+    return torch.stack(result)
+
+
+def get_1D_identity(
+    feature_mask: FeatureMask,
+) -> Integer[Tensor, "*batch n_features n_features"]:
+    """
+    Converts a feature mask to a onehot representation for each feature, but with all zeros for unobserved features.
+    """
+    batch_size, feature_size = feature_mask.shape
+
+    feature_set = torch.zeros(
+        (batch_size, feature_size, feature_size),
+        device=feature_mask.device,
+        dtype=torch.float,
+    )
+
+    # Generate one-hot indices
+    one_hot_indices = torch.eye(
+        feature_size, device=feature_mask.device
+    )  # shape: (feature_size, feature_size)
+
+    # Expand one-hot vectors only for observed features
+    mask_expanded = feature_mask.unsqueeze(-1).expand(
+        -1, -1, feature_size
+    )  # shape: (batch, features, feature_size)
+    feature_set[:, :, :] = (
+        one_hot_indices.unsqueeze(0).expand(batch_size, -1, -1) * mask_expanded
+    )
+
+    return feature_set
 
 
 def FloatWrapFn(f: Callable[..., Any]):

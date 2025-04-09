@@ -4,27 +4,29 @@ lr: 0.001
 
 dataset:
   name: "mnist"
-  batch_size: 128
   n_features: 784 # MNIST IMAGE SIZE, DO NOT CHANGE
 dataloader:
   batch_size: 128
   train_ratio: 0.8
   num_workers: 1
-pointnet: # 3 -> 20 -> 20
-  input_size: 3
-  output_size: 20
-  num_cells: [20]
+pointnet: # 3 -> ... -> 3
+  # identity_network: 3 -> 3 -> 3
+  identity_network_num_cells: [3]
+  identity_size: 3
+  # element_encoder: 32 -> 42 -> 42 -> 42
+  element_encoder_num_cells: [42, 42]
+  output_size: 42
 encoder:
-  output_size: 20
-  num_cells: [500, 200] # 20 -> 500 -> 200 -> 20
+  num_cells: [52, 52] # 42 -> 52 -> 52 -> 52
+  output_size: 52
 partial_vae:
-  latent_size: 20
-  mu_net_num_cells: [] # 20 -> 20
-  logvar_net_num_cells: [] # 20 -> 20
-  decoder_num_cells: [500, 200] # 20 -> 500 -> 200 -> 20
+  mu_net_num_cells: [62, 62] # 52 -> 62 -> 62 -> 62
+  logvar_net_num_cells: [62, 62] # 52 -> 62 -> 62 -> 62
+  latent_size: 62
+  decoder_num_cells: [500, 200] # 62 -> 500 -> 200 -> 784
 classifier: # 20 -> onehot(10)
   output_size: 10 # mnist classes
-  num_cells: []
+  num_cells: [24, 24] # 52 -> 24 -> 24 -> 10
 wandb:
   entity: "valterschutz-chalmers-university-of-technology"
   project: "pretrain-zannone2019-mnist"

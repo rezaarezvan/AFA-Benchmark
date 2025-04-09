@@ -1,22 +1,23 @@
 import argparse
 import os
+from functools import partial
 
 import lightning as pl
 import torch
-from torchrl.modules import MLP
-from torchvision import transforms
 import yaml
 from lightning.pytorch.loggers import WandbLogger
+from torchrl.modules import MLP
+from torchvision import transforms
 
 import wandb
 from afa_rl.datasets import DataModuleFromDataset, MNISTDataModule
 from afa_rl.models import (
     PartialVAE,
-    PointNet1D,
-    PointNet2D,
+    PointNetPlus,
     Zannone2019PretrainingModel,
+    get_2D_identity,
 )
-from afa_rl.utils import dict_to_namespace
+from afa_rl.utils import dict_to_namespace, get_1D_identity
 from common.datasets import CubeDataset
 
 
@@ -56,29 +57,34 @@ def main():
             train_ratio=config.dataloader.train_ratio,
             num_workers=config.dataloader.num_workers,
         )
-        pointnet_cls = PointNet1D
-        pointnet_kwargs = {}
+        naive_identity_fn = get_1D_identity
+        naive_identity_size = config.dataset.n_features  # onehot
     elif config.dataset.name == "mnist":
         datamodule = MNISTDataModule(
-            batch_size=config.dataset.batch_size,
+            batch_size=config.dataloader.batch_size,
             transform=transforms.Compose(
                 [transforms.ToTensor(), transforms.Lambda(lambda x: x.view(-1))]
             ),
         )
-        pointnet_cls = PointNet2D
-        pointnet_kwargs = {"image_shape": (28, 28)}
+        naive_identity_fn = partial(get_2D_identity, image_shape=(28, 28))
+        naive_identity_size = 2  # coordinates
     else:
         raise ValueError(
             f"Dataset {config.dataset.name} not supported. Use 'cube' or 'mnist'."
         )
 
-    pointnet = pointnet_cls(
-        element_encoder=MLP(
-            in_features=config.pointnet.input_size,
-            out_features=config.pointnet.output_size,
-            num_cells=config.pointnet.num_cells,
+    pointnet = PointNetPlus(
+        naive_identity_fn=naive_identity_fn,
+        identity_network=MLP(
+            in_features=naive_identity_size,
+            out_features=config.pointnet.identity_size,
+            num_cells=config.pointnet.identity_network_num_cells,
         ),
-        **pointnet_kwargs,
+        element_encoder=MLP(
+            in_features=config.pointnet.identity_size,
+            out_features=config.pointnet.output_size,
+            num_cells=config.pointnet.element_encoder_num_cells,
+        ),
     )
     encoder = MLP(
         in_features=config.pointnet.output_size,

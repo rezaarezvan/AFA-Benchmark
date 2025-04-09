@@ -1,8 +1,8 @@
 import lightning as pl
-from torch.nn import functional as F
 import torch
 from jaxtyping import Shaped
 from torch import Tensor
+from torch.nn import functional as F
 from torch.utils.data import DataLoader, random_split
 from torchvision import datasets, transforms
 

@@ -1,6 +1,6 @@
 epochs: 100
 checkpoint: "pretrain_zannone2019_cube.ckpt"
-lr: 0.001
+lr: 0.0001
 
 dataset:
   name: "cube"
@@ -12,19 +12,20 @@ dataloader:
   batch_size: 128
   train_ratio: 0.8
   num_workers: 1
-pointnet: # 21 -> 20 -> 20
-  input_size: 21
+pointnet:
+  identity_network_num_cells: [20, 20, 20]
+  identity_size: 20
+  element_encoder_num_cells: [20, 20, 20]
   output_size: 20
-  num_cells: [20]
 encoder:
-  output_size: 20
-  num_cells: [500, 200] # 20 -> 500 -> 200 -> 20
-partial_vae:
-  latent_size: 20
-  mu_net_num_cells: [] # 20 -> 20
-  logvar_net_num_cells: [] # 20 -> 20
-  decoder_num_cells: [500, 200] # 20 -> 500 -> 200 -> 20
-classifier: # 20 -> onehot(8)
+  output_size: 200
+  num_cells: [500]
+partial_vae: # TODO
+  latent_size: 100
+  mu_net_num_cells: []
+  logvar_net_num_cells: []
+  decoder_num_cells: [500, 200]
+classifier:
   output_size: 8 # cube classes
   num_cells: []
 wandb:

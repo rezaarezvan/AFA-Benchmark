@@ -1,19 +1,19 @@
 from abc import ABC, abstractmethod
-from typing import Protocol
+from typing import Callable, Protocol
 
 import torch
-from jaxtyping import Float
+from jaxtyping import Float, Integer
 from torch import Tensor, nn
 
 from common.custom_types import FeatureMask, Features, Label, MaskedFeatures
 
-Logits = Float[Tensor, "batch model_output_size"]
-State = Float[
+type Logits = Float[Tensor, "batch model_output_size"]
+type State = Float[
     Tensor, "*batch state_size"
 ]  # A state is a concatenation of feature values and feature indices
-Embedding = Float[Tensor, "*batch embedding_size"]
-FeatureSet = Float[
-    Tensor, "batch features set_size"
+type Embedding = Float[Tensor, "*batch embedding_size"]
+type FeatureSet = Float[
+    Tensor, "batch n_features set_size"
 ]  # A feature set is the set version of State. Each element-index tuple becomes a vector.
 
 
@@ -51,7 +51,7 @@ class AFADatasetFn(Protocol):
     ) -> tuple[Features, Label]: ...
 
 
-class PointNet(nn.Module, ABC):
+class PointNetLike(nn.Module, ABC):
     """
     PointNet as described in the paper "EDDI: Efficient Dynamic Discovery of High-Value Information with Partial VAE"
 
@@ -67,3 +67,7 @@ class PointNet(nn.Module, ABC):
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
     ) -> Float[Tensor, "*batch pointnet_size"]:
         return super().__call__(masked_features, feature_mask)
+
+
+type NaiveIdentity = Integer[Tensor, "*batch n_features naive_identity_size"]
+type NaiveIdentityFn = Callable[[FeatureMask], NaiveIdentity]
