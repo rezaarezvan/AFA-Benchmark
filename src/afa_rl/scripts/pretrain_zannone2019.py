@@ -25,7 +25,7 @@ def main():
 
     # Use argparse to choose config file
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", type=str)
+    parser.add_argument("--config", type=str, required=True)
     args = parser.parse_args()
 
     # Load config from yaml file

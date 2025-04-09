@@ -354,7 +354,7 @@ class PartialVAE(nn.Module):
 
 
 class Zannone2019PretrainingModel(pl.LightningModule):
-    def __init__(self, partial_vae, classifier, lr):
+    def __init__(self, partial_vae: nn.Module, classifier: nn.Module, lr):
         super().__init__()
         self.partial_vae = partial_vae
         self.classifier = classifier
