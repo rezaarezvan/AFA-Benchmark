@@ -4,6 +4,7 @@ from functools import partial
 
 import lightning as pl
 import torch
+from torch import nn
 import yaml
 from lightning.pytorch.loggers import WandbLogger
 from torchrl.modules import MLP
@@ -14,10 +15,10 @@ from afa_rl.datasets import DataModuleFromDataset, MNISTDataModule
 from afa_rl.models import (
     PartialVAE,
     PointNetPlus,
+    PointNetType,
     Zannone2019PretrainingModel,
-    get_2D_identity,
 )
-from afa_rl.utils import dict_to_namespace, get_1D_identity
+from afa_rl.utils import dict_to_namespace, get_1D_identity, get_2D_identity
 from common.datasets import CubeDataset
 
 
@@ -73,49 +74,60 @@ def main():
             f"Dataset {config.dataset.name} not supported. Use 'cube' or 'mnist'."
         )
 
+    # PointNet or PointNetPlus
+    if config.pointnet.type == "pointnet":
+        pointnet_type = PointNetType.POINTNET
+    elif config.pointnet.type == "pointnetplus":
+        pointnet_type = PointNetType.POINTNETPLUS
+    else:
+        raise ValueError(
+            f"PointNet type {config.pointnet.type} not supported. Use 'pointnet' or 'pointnetplus'."
+        )
+
     pointnet = PointNetPlus(
         naive_identity_fn=naive_identity_fn,
         identity_network=MLP(
             in_features=naive_identity_size,
             out_features=config.pointnet.identity_size,
             num_cells=config.pointnet.identity_network_num_cells,
+            activation_class=nn.ReLU,
         ),
         element_encoder=MLP(
             in_features=config.pointnet.identity_size,
             out_features=config.pointnet.output_size,
             num_cells=config.pointnet.element_encoder_num_cells,
+            activation_class=nn.ReLU,
         ),
+        pointnet_type=pointnet_type,
     )
     encoder = MLP(
         in_features=config.pointnet.output_size,
-        out_features=config.encoder.output_size,
+        out_features=2 * config.partial_vae.latent_size,
         num_cells=config.encoder.num_cells,
+        activation_class=nn.ReLU,
     )
     partial_vae = PartialVAE(
         pointnet=pointnet,
         encoder=encoder,
-        mu_net=MLP(
-            in_features=config.encoder.output_size,
-            out_features=config.partial_vae.latent_size,
-            num_cells=config.partial_vae.mu_net_num_cells,
-        ),
-        logvar_net=MLP(
-            in_features=config.encoder.output_size,
-            out_features=config.partial_vae.latent_size,
-            num_cells=config.partial_vae.logvar_net_num_cells,
-        ),
-        decoder=MLP(
-            in_features=config.partial_vae.latent_size,
-            out_features=config.dataset.n_features,
-            num_cells=config.partial_vae.decoder_num_cells,
+        decoder=nn.Sequential(
+            MLP(
+                in_features=config.partial_vae.latent_size,
+                out_features=config.dataset.n_features,
+                num_cells=config.partial_vae.decoder_num_cells,
+                activation_class=nn.ReLU,
+            ),
+            nn.Sigmoid()
+            if config.partial_vae.decoder_last_layer_sigmoid
+            else nn.Identity(),
         ),
     )
     model = Zannone2019PretrainingModel(
         partial_vae=partial_vae,
         classifier=MLP(
-            in_features=config.encoder.output_size,
+            in_features=config.partial_vae.latent_size,
             out_features=config.classifier.output_size,
             num_cells=config.classifier.num_cells,
+            activation_class=nn.ReLU,
         ),
         lr=config.lr,
     )

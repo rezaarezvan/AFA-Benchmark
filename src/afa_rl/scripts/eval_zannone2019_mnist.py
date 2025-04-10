@@ -4,7 +4,6 @@ Check if pretrain_zannone2019 with mnist dataset produces reasonable results.
 
 import argparse
 from functools import partial
-from turtle import shape
 
 import matplotlib.pyplot as plt
 import torch

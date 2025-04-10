@@ -1,4 +1,5 @@
-from typing import Callable, Tuple
+from enum import Enum
+from typing import Tuple
 
 import lightning as pl
 import torch
@@ -17,9 +18,7 @@ from afa_rl.custom_types import (
     PointNetLike,
 )
 from afa_rl.utils import (
-    get_2D_identity,
     get_feature_set,
-    get_image_feature_set,
     mask_data,
 )
 from common.custom_types import FeatureMask, Features, MaskedFeatures
@@ -152,7 +151,9 @@ class ShimEmbedder(Embedder):
 class MLPClassifier(Classifier):
     def __init__(self, input_size: int, num_classes: int, num_cells):
         super().__init__()
-        self.mlp = MLP(input_size, num_classes, num_cells=num_cells)
+        self.mlp = MLP(
+            input_size, num_classes, num_cells=num_cells, activation_class=nn.ReLU
+        )
 
     def forward(self, embedding: Embedding) -> Logits:
         return self.mlp(embedding)
@@ -234,51 +235,7 @@ class ShimEmbedderClassifier(pl.LightningModule):
 
 class PointNet(PointNetLike):
     """
-    A (normal) PointNet
-    """
-
-    def __init__(self, element_fn, element_encoder: nn.Module):
-        """
-        Args:
-            element_fn: concatenates feature values with their identities
-            element_encoder: nn.Module
-        """
-        super().__init__()
-
-        self.element_fn = element_fn
-        self.element_encoder = element_encoder  # h in the paper
-
-    def forward(
-        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
-    ) -> Float[Tensor, "*batch pointnet_size"]:
-        """
-        Args:
-            masked_features: currently observed features, with zeros for missing features
-            feature_mask: indicator for missing features, 1 if feature is observed, 0 if missing
-        Returns:
-            the encoding of the input features
-        """
-
-        # PointNet concatenates feature values with their identities
-        s = self.element_fn(masked_features, feature_mask)
-
-        # Pass s through the element encoder
-        encoded = self.element_encoder(
-            s
-        )  # Shape: (batch_size, num_elements, element_encoding_size)
-
-        # Perform max pooling over the sequence dimension
-        # avg would not work here since `encoded` has zeros for each unobserved feature
-        encoding = torch.max(encoded, dim=-2)[
-            0
-        ]  # Shape: (batch_size, element_encoding_size)
-
-        return encoding
-
-
-class PointNetPlus(PointNetLike):
-    """
-    A PointNetPlus.
+    A PointNet.
     """
 
     def __init__(
@@ -320,22 +277,110 @@ class PointNetPlus(PointNetLike):
             naive_identity
         )  # Shape: (batch_size, num_elements, identity_size)
 
-        # PointNetPlus does pointwise-multiplication between each identity vector and feature value
+        # Normal PointNet concatenates feature value with identity vector
         # Could not think of a better name than s...
-        s = identity * masked_features.unsqueeze(
-            -1
-        )  # Shape: (batch_size, num_elements, identity_size)
+        s = torch.cat(
+            [masked_features.unsqueeze(-1), identity], dim=-1
+        )  # Shape: (batch_size, num_elements, identity_size + 1)
 
         # Pass s through the element encoder
         encoded = self.element_encoder(
             s
         )  # Shape: (batch_size, num_elements, element_encoding_size)
 
-        # Perform max pooling over the sequence dimension
-        # avg would not work here since `encoded` has zeros for each unobserved feature
-        encoding = torch.max(encoded, dim=-2)[
-            0
-        ]  # Shape: (batch_size, element_encoding_size)
+        # Mask out the unobserved features with zeros
+        encoded = encoded * feature_mask.unsqueeze(
+            -1
+        )  # Shape: (batch_size, num_elements, element_encoding_size)
+
+        # Sum over num_elements dimension
+        encoding = torch.sum(
+            encoded, dim=-2
+        )  # Shape: (batch_size, element_encoding_size)
+
+        return encoding
+
+
+class PointNetType(Enum):
+    POINTNET = 1
+    POINTNETPLUS = 2
+
+
+class PointNetPlus(PointNetLike):
+    """
+    A PointNetPlus.
+    """
+
+    def __init__(
+        self,
+        naive_identity_fn: NaiveIdentityFn,
+        identity_network: nn.Module,
+        element_encoder: nn.Module,
+        pointnet_type: PointNetType,
+    ):
+        """
+        Args:
+            naive_identity_fn: takes a FeatureMask as input and outputs a suitable location-like representation for each feature. Usually one-hot indices for 1D data and coordinates for 2D data.
+            identity_network: transforms naive identity into a vector to be used with PNP
+            element_encoder: nn.Module
+            pointnet_type: PointNetType, either POINTNET or POINTNETPLUS
+        """
+        super().__init__()
+
+        self.naive_identity_fn = naive_identity_fn  # naive e
+        self.identity_network = identity_network  # learns e from naive e
+        self.element_encoder = element_encoder  # h in the paper
+        self.pointnet_type = pointnet_type
+
+    def forward(
+        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+    ) -> Float[Tensor, "*batch pointnet_size"]:
+        """
+        Args:
+            masked_features: currently observed features, with zeros for missing features
+            feature_mask: indicator for missing features, 1 if feature is observed, 0 if missing
+        Returns:
+            the encoding of the input features
+        """
+
+        # Get coordinates of each feature (naive e)
+        naive_identity = self.naive_identity_fn(
+            feature_mask
+        )  # Shape: (batch_size, num_elements, naive_identity_size)
+
+        # Pass it through the identity network to learn the identity
+        identity = self.identity_network(
+            naive_identity
+        )  # Shape: (batch_size, num_elements, identity_size)
+
+        # Could not think of a better name than s...
+        if self.pointnet_type == PointNetType.POINTNETPLUS:
+            # PointNetPlus does pointwise-multiplication between each identity vector and feature value
+            s = (
+                masked_features.unsqueeze(-1) * identity
+            )  # Shape: (batch_size, num_elements, identity_size)
+        elif self.pointnet_type == PointNetType.POINTNET:
+            # Normal PointNet concatenates feature value with identity vector
+            s = torch.cat(
+                [masked_features.unsqueeze(-1), identity], dim=-1
+            )  # Shape: (batch_size, num_elements, identity_size + 1)
+        else:
+            raise ValueError(f"Unknown PointNet type: {self.pointnet_type}")
+
+        # Pass s through the element encoder
+        encoded = self.element_encoder(
+            s
+        )  # Shape: (batch_size, num_elements, element_encoding_size)
+
+        # Mask out the unobserved features with zeros
+        encoded = encoded * feature_mask.unsqueeze(
+            -1
+        )  # Shape: (batch_size, num_elements, element_encoding_size)
+
+        # Sum over num_elements dimension
+        encoding = torch.sum(
+            encoded, dim=-2
+        )  # Shape: (batch_size, element_encoding_size)
 
         return encoding
 
@@ -351,36 +396,30 @@ class PartialVAE(nn.Module):
         self,
         pointnet: PointNetLike,
         encoder: nn.Module,
-        mu_net: nn.Module,
-        logvar_net: nn.Module,
         decoder: nn.Module,
     ):
         """
         Args:
             pointnet: maps unordered sets of features to a single vector
             encoder: a network that maps the output from the pointnet to input for mu_net and logvar_net
-            mu_net: the network to use for the mean of the latent space
-            logvar_net: the network to use for the log variance of the latent space
             decoder: the network to use for the decoder
         """
         super().__init__()
 
         self.pointnet = pointnet
         self.encoder = encoder
-
-        self.mu_net = mu_net
-        self.logvar_net = logvar_net
         self.decoder = decoder  # Maps from latent space to the original feature space
 
     def forward(self, masked_features: MaskedFeatures, feature_mask: FeatureMask):
         pointnet_output = self.pointnet(masked_features, feature_mask)
         encoding = self.encoder(pointnet_output)
 
-        mu, logvar = self.mu_net(encoding), self.logvar_net(encoding)
+        mu = encoding[:, : encoding.shape[1] // 2]
+        logvar = encoding[:, encoding.shape[1] // 2 :]
         std = torch.exp(0.5 * logvar)
         z = mu + std * torch.randn_like(std)
         x_hat = self.decoder(z)
-        return encoding, mu, logvar, z, x_hat
+        return mu, logvar, z, x_hat
 
 
 class Zannone2019PretrainingModel(pl.LightningModule):
@@ -390,26 +429,37 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         self.classifier = classifier
         self.lr = lr
 
+        # Initial masking probability
+        self.masking_probability = 0.5
+        self.log("masking_probability", self.masking_probability, sync_dist=True)
+
+    def on_train_epoch_start(self):
+        # Masking probability uniformly distributed between 0 and 0.7
+        self.masking_probability = torch.rand(1).item() * 0.7
+        self.log("masking_probability", self.masking_probability, sync_dist=True)
+
     def training_step(self, batch, batch_idx):
         features: Features = batch[0]
         label: Label = batch[1]
 
-        masked_features, feature_mask = mask_data(features, p=0.5)
+        masked_features, feature_mask = mask_data(features, p=self.masking_probability)
 
         # Pass masked features through VAE, returning estimated features but also encoding which will be passed through classifier
-        encoding, mu, logvar, z, estimated_features = self.partial_vae(
+        mu, logvar, z, estimated_features = self.partial_vae(
             masked_features, feature_mask
         )
         partial_vae_loss = self.partial_vae_loss_function(
             estimated_features, features, mu, logvar
         )
+        self.log("train_loss_vae", partial_vae_loss, sync_dist=True)
 
         # Pass the encoding through the classifier
-        classifier_output = self.classifier(encoding)
+        classifier_output = self.classifier(z)
         classifier_loss = F.cross_entropy(classifier_output, label.float())
+        self.log("train_loss_classifier", classifier_loss, sync_dist=True)
 
         total_loss = partial_vae_loss + classifier_loss
-        self.log("train_loss", total_loss)
+        self.log("train_loss", total_loss, sync_dist=True)
 
         return total_loss
 
@@ -417,19 +467,21 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         features: Features = batch[0]
         label: Label = batch[1]
 
-        masked_features, feature_mask = mask_data(features, p=0.5)
+        masked_features, feature_mask = mask_data(features, p=self.masking_probability)
 
         # Pass masked features through VAE, returning estimated features but also encoding which will be passed through classifier
-        encoding, mu, logvar, z, estimated_features = self.partial_vae(
+        mu, logvar, z, estimated_features = self.partial_vae(
             masked_features, feature_mask
         )
         partial_vae_loss = self.partial_vae_loss_function(
             estimated_features, features, mu, logvar
         )
+        self.log("val_loss_vae", partial_vae_loss, sync_dist=True)
 
         # Pass the encoding through the classifier
-        logits = self.classifier(encoding)
+        logits = self.classifier(z)
         classifier_loss = F.cross_entropy(logits, label.float())
+        self.log("val_loss_classifier", classifier_loss, sync_dist=True)
 
         # For validation, additionally calculate accuracy
         y_pred = torch.argmax(logits, dim=1)
@@ -443,7 +495,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         return total_loss
 
     def partial_vae_loss_function(self, estimated_features, features, mu, logvar):
-        recon_loss = ((estimated_features - features) ** 2).sum()
+        recon_loss = ((estimated_features - features) ** 2).mean()
         kl_div = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
         return recon_loss + kl_div
 

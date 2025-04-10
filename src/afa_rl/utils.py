@@ -244,13 +244,13 @@ def get_sequential_module_norm(module: nn.Sequential):
 
 def mask_data(features: Features, p: float) -> Tuple[MaskedFeatures, FeatureMask]:
     """
-    Given features, mask them with a probability p.
+    Given features, mask them with probability p.
     Returns the masked features and the mask.
 
     Args:
         batch: The features to mask.
         p: The probability of each feature being observed (1).
     """
-    feature_mask = torch.rand(features.shape, device=features.device) < p
+    feature_mask = torch.rand(features.shape, device=features.device) > p
     masked_features = features * feature_mask.float()
     return masked_features, feature_mask
