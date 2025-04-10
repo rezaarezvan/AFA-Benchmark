@@ -1,33 +1,39 @@
 epochs: 100
 checkpoint: "pretrain_zannone2019_cube.ckpt"
-lr: 0.0001
+lr: 0.001
+verbose: False
+max_masking_probability: 0.0
 
 dataset:
   name: "cube"
-  n_features: 20
+  n_features: 20 # ODIN paper
   size: 100000
-  sigma: 0.01
   seed: 42
+  bounded_0_1: False
+  non_informative_feature_mean: 0.5 # ODIN paper
+  # informative_feature_variance: 0.1 # ODIN paper
+  informative_feature_variance: 0.0 # ODIN paper
+  # non_informative_feature_variance: 0.3 # ODIN paper
+  non_informative_feature_variance: 0.0 # ODIN paper
 dataloader:
-  batch_size: 128
+  batch_size: 100
   train_ratio: 0.8
-  num_workers: 1
 pointnet:
-  identity_network_num_cells: [20, 20, 20]
-  identity_size: 20
-  element_encoder_num_cells: [20, 20, 20]
-  output_size: 20
+  naive_identity_type: "1D"
+  type: "pointnet" # ODIN paper does not mention which type they use
+  identity_network_num_cells: [20,20] # just a guess
+  identity_size: 20 # EDDI paper
+  feature_map_encoder_num_cells: [500] # EDDI paper
+  output_size: 40 # always twice as large as latent size according to EDDI paper
 encoder:
-  output_size: 200
-  num_cells: [500]
-partial_vae: # TODO
-  latent_size: 100
-  mu_net_num_cells: []
-  logvar_net_num_cells: []
-  decoder_num_cells: [500, 200]
+  num_cells: [500, 200] # ODIN paper
+  # num_cells: [500, 500, 200] # EDDI paper
+partial_vae:
+  latent_size: 20 # EDDI paper
+  decoder_num_cells: [200, 500, 500] # EDDI paper
 classifier:
   output_size: 8 # cube classes
-  num_cells: []
+  num_cells: [64, 64] # just a guess
 wandb:
   entity: "valterschutz-chalmers-university-of-technology"
   project: "pretrain-zannone2019-cube"

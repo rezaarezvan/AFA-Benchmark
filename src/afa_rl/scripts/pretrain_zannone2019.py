@@ -11,7 +11,11 @@ from torchrl.modules import MLP
 from torchvision import transforms
 
 import wandb
-from afa_rl.datasets import DataModuleFromDataset, MNISTDataModule
+from afa_rl.datasets import (
+    DataModuleFromDataset,
+    MNISTDataModule,
+    Zannone2019CubeDataset,
+)
 from afa_rl.models import (
     PartialVAE,
     PointNet,
@@ -19,7 +23,6 @@ from afa_rl.models import (
     Zannone2019PretrainingModel,
 )
 from afa_rl.utils import dict_to_namespace, get_1D_identity, get_2D_identity
-from common.datasets import CubeDataset
 
 
 def main():
@@ -45,18 +48,20 @@ def main():
     # Two different datasets possible: "cube" or "mnist"
     # This will also influence which PointNet to use
     if config.dataset.name == "cube":
-        dataset = CubeDataset(
+        dataset = Zannone2019CubeDataset(
             n_features=config.dataset.n_features,
             data_points=config.dataset.size,
-            sigma=config.dataset.sigma,
             seed=config.dataset.seed,
+            non_informative_feature_mean=config.dataset.non_informative_feature_mean,
+            informative_feature_variance=config.dataset.informative_feature_variance,
+            non_informative_feature_variance=config.dataset.non_informative_feature_variance,
         )
         dataset.generate_data()
         datamodule = DataModuleFromDataset(
             dataset=dataset,
             batch_size=config.dataloader.batch_size,
             train_ratio=config.dataloader.train_ratio,
-            num_workers=config.dataloader.num_workers,
+            num_workers=1,
         )
         image_shape = None
         assert config.pointnet.naive_identity_type == "1D"

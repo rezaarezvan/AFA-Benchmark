@@ -249,7 +249,7 @@ def mask_data(features: Features, p: float) -> Tuple[MaskedFeatures, FeatureMask
 
     Args:
         batch: The features to mask.
-        p: The probability of each feature being observed (1).
+        p: The probability of each feature being masked (0).
     """
     feature_mask = torch.rand(features.shape, device=features.device) > p
     masked_features = features * feature_mask.float()

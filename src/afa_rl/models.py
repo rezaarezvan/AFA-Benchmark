@@ -364,6 +364,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         classifier: nn.Module,
         lr: float,
         max_masking_probability: float,
+        validation_masking_probability=0.0,
         verbose=False,
         image_shape=None,
     ):
@@ -372,6 +373,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         self.classifier = classifier
         self.lr = lr
         self.max_masking_probability = max_masking_probability
+        self.validation_masking_probability = validation_masking_probability
         self.verbose = verbose
 
         # If image_shape is given, show reconstructed images at validation time
@@ -414,7 +416,10 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         features: Features = batch[0]
         label: Label = batch[1]
 
-        masked_features, feature_mask = mask_data(features, p=self.masking_probability)
+        # Constant masking probability for validation
+        masked_features, feature_mask = mask_data(
+            features, p=self.validation_masking_probability
+        )
 
         # Pass masked features through VAE, returning estimated features but also encoding which will be passed through classifier
         mu, logvar, z, estimated_features = self.partial_vae(
@@ -465,13 +470,23 @@ class Zannone2019PretrainingModel(pl.LightningModule):
             self.log("norm_classifier", norm_classifier, sync_dist=True)
 
         # If self.image_shape is defined, plot 4 images, their reconstructions and the predicted labels
-        if self.image_shape and batch_idx == 0:
-            self.log_val_images(
-                features=masked_features,
-                estimated_features=estimated_features,
-                y_cls=y_cls,
-                y_pred=y_pred,
-            )
+        if batch_idx == 0:
+            # If dataset consists of images, plot them
+            if self.image_shape:
+                self.log_val_images(
+                    features=masked_features,
+                    estimated_features=estimated_features,
+                    y_cls=y_cls,
+                    y_pred=y_pred,
+                )
+            # Otherwise plot features as 1D signals
+            else:
+                self.log_val_features(
+                    features=masked_features,
+                    estimated_features=estimated_features,
+                    y_cls=y_cls,
+                    y_pred=y_pred,
+                )
 
         return total_loss
 
@@ -493,7 +508,21 @@ class Zannone2019PretrainingModel(pl.LightningModule):
             axs[0, i].set_title(f"True: {y_cls[i].item()}")
             axs[1, i].set_title(f"Pred: {y_pred[i].item()}")
 
-        wandb.log({"val_images": wandb.Image(fig)})
+        wandb.log({"val_recon": wandb.Image(fig)})
+        plt.close(fig)
+
+    @rank_zero_only
+    def log_val_features(self, features, estimated_features, y_cls, y_pred):
+        # Plot the first 4 samples
+        fig, axs = plt.subplots(2, 4, figsize=(20, 6))
+        for i in range(4):
+            axs[0, i].plot(features[i].cpu().numpy())
+            axs[1, i].plot(estimated_features[i].cpu().numpy())
+            # Labels as titles
+            axs[0, i].set_title(f"True: {y_cls[i].item()}")
+            axs[1, i].set_title(f"Pred: {y_pred[i].item()}")
+
+        wandb.log({"val_recon": wandb.Image(fig)})
         plt.close(fig)
 
     def partial_vae_loss_function(self, estimated_features, features, mu, logvar):

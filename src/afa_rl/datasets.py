@@ -1,13 +1,14 @@
+import math
 import lightning as pl
 import torch
 from jaxtyping import Shaped
 from torch import Tensor
 from torch.nn import functional as F
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader, Dataset, random_split
 from torchvision import datasets, transforms
 
 from afa_rl.custom_types import AFADatasetFn
-from common.custom_types import Features, Label
+from common.custom_types import FeatureMask, Features, Label, MaskedFeatures
 
 
 def get_wrapped_batch(
@@ -119,3 +120,104 @@ class MNISTDataModule(pl.LightningDataModule):
 
     def val_dataloader(self):
         return DataLoader(self.val_set, batch_size=self.batch_size)
+
+
+class Zannone2019CubeDataset(Dataset):
+    """
+    The Cube dataset, as described in the paper "ODIN: Optimal Discovery of High-value INformation Using Model-based Deep Reinforcement Learning"
+
+    Implements the AFADataset protocol.
+    """
+
+    def __init__(
+        self,
+        n_features: int = 20,
+        data_points: int = 20000,
+        seed: int = 123,
+        non_informative_feature_mean: float = 0.5,
+        informative_feature_variance: float = 0.1,
+        non_informative_feature_variance: float = 0.3,
+    ):
+        super().__init__()
+        self.n_features = n_features
+        self.data_points = data_points
+        self.seed = seed
+        self.non_informative_feature_mean = non_informative_feature_mean
+        self.informative_feature_variance = informative_feature_variance
+        self.non_informative_feature_variance = non_informative_feature_variance
+        self._non_informative_feature_std = math.sqrt(
+            self.non_informative_feature_variance
+        )
+
+    def generate_data(self) -> None:
+        rng = torch.Generator()
+        rng.manual_seed(self.seed)
+        # Each coordinate is drawn from a Bernoulli distribution with p=0.5, which is the same as uniform
+        coords = torch.randint(
+            low=0, high=2, size=(self.data_points, 3), dtype=torch.int64, generator=rng
+        )
+        # Each corner in the cube is a different label
+        labels = torch.einsum(
+            "bi,i->b", coords, torch.tensor([1, 2, 4], dtype=torch.int64)
+        )
+        # Coords have noise
+        coords = coords.float()
+        coords += (
+            torch.randn(self.data_points, 3, dtype=torch.float32, generator=rng)
+            * self.informative_feature_variance
+        )
+        # The final features are the coordinates offset according to the labels, and some noise added
+        self.features = torch.zeros(
+            self.data_points, self.n_features, dtype=torch.float32
+        )
+        for i in range(self.data_points):
+            offset: int = labels[i].item()
+            self.features[i, offset : offset + 3] += coords[i]
+            # All other features have mean 0.5 and variance 0.3
+            self.features[i, :offset] = torch.normal(
+                mean=self.non_informative_feature_mean,
+                std=self._non_informative_feature_std,
+                size=(1, offset),
+                dtype=torch.float32,
+                generator=rng,
+            )
+            self.features[i, offset + 3 :] = torch.normal(
+                mean=self.non_informative_feature_mean,
+                std=self._non_informative_feature_std,
+                size=(1, self.n_features - offset - 3),
+                dtype=torch.float32,
+                generator=rng,
+            )
+        # Convert labels to one-hot encoding
+        self.labels = torch.nn.functional.one_hot(labels, num_classes=8)
+
+    def __getitem__(self, idx: int) -> tuple[MaskedFeatures, FeatureMask]:
+        return self.features[idx], self.labels[idx]
+
+    def __len__(self):
+        return len(self.features)
+
+    def get_all_data(self) -> tuple[MaskedFeatures, FeatureMask]:
+        return self.features, self.labels
+
+    def save(self, path: str) -> None:
+        torch.save(
+            {
+                "features": self.features,
+                "labels": self.labels,
+                "config": {
+                    "n_features": self.n_features,
+                    "data_points": self.data_points,
+                    "seed": self.seed,
+                },
+            },
+            path,
+        )
+
+    @staticmethod
+    def load(path: str) -> "Zannone2019CubeDataset":
+        data = torch.load(path)
+        dataset = Zannone2019CubeDataset(**data["config"])
+        dataset.features = data["features"]
+        dataset.labels = data["labels"]
+        return dataset
