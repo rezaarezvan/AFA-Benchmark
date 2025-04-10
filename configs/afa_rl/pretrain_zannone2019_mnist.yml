@@ -1,29 +1,32 @@
 epochs: 100
 checkpoint: "pretrain_zannone2019_mnist.ckpt"
 lr: 0.001
+verbose: False
+max_masking_probability: 0.9
 
 dataset:
   name: "mnist"
   n_features: 784 # MNIST IMAGE SIZE, DO NOT CHANGE
+  bounded_0_1: True
 dataloader:
   batch_size: 100
   train_ratio: 0.8
-  num_workers: 1
 pointnet:
+  naive_identity_type: "1D"
   type: "pointnetplus"
-  identity_network_num_cells: [20,20]
-  identity_size: 20
-  element_encoder_num_cells: [500]
-  output_size: 20
+  identity_network_num_cells: [20,20] # just a guess
+  identity_size: 20 # EDDI paper
+  feature_map_encoder_num_cells: [500] # EDDI paper
+  output_size: 40 # always twice as large as latent size according to EDDI paper
 encoder:
-  num_cells: [500, 500, 200]
+  # num_cells: [500, 200] # ODIN paper
+  num_cells: [500, 500, 200] # EDDI paper
 partial_vae:
-  latent_size: 20
-  decoder_num_cells: [200, 500, 500]
-  decoder_last_layer_sigmoid: True
+  latent_size: 20 # EDDI paper
+  decoder_num_cells: [200, 500, 500] # EDDI paper
 classifier:
   output_size: 10 # mnist classes
-  num_cells: [64, 64]
+  num_cells: [64, 64] # just a guess
 wandb:
   entity: "valterschutz-chalmers-university-of-technology"
   project: "pretrain-zannone2019-mnist"

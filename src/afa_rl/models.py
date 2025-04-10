@@ -1,4 +1,6 @@
 from enum import Enum
+from lightning.fabric.utilities import rank_zero_only
+from matplotlib import pyplot as plt
 from typing import Tuple
 
 import lightning as pl
@@ -7,6 +9,7 @@ import torch.nn.functional as F
 from jaxtyping import Float, Shaped
 from torch import Tensor, nn, optim
 from torchrl.modules import MLP
+import wandb
 
 from afa_rl.custom_types import (
     Classifier,
@@ -233,103 +236,35 @@ class ShimEmbedderClassifier(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=self.lr)
 
 
-class PointNet(PointNetLike):
-    """
-    A PointNet.
-    """
-
-    def __init__(
-        self,
-        naive_identity_fn: NaiveIdentityFn,
-        identity_network: nn.Module,
-        element_encoder: nn.Module,
-    ):
-        """
-        Args:
-            naive_identity_fn: takes a FeatureMask as input and outputs a suitable location-like representation for each feature. Usually one-hot indices for 1D data and coordinates for 2D data.
-            identity_network: transforms naive identity into a vector to be used with PNP
-            element_encoder: nn.Module
-        """
-        super().__init__()
-
-        self.naive_identity_fn = naive_identity_fn  # naive e
-        self.identity_network = identity_network  # learns e from naive e
-        self.element_encoder = element_encoder  # h in the paper
-
-    def forward(
-        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
-    ) -> Float[Tensor, "*batch pointnet_size"]:
-        """
-        Args:
-            masked_features: currently observed features, with zeros for missing features
-            feature_mask: indicator for missing features, 1 if feature is observed, 0 if missing
-        Returns:
-            the encoding of the input features
-        """
-
-        # Get coordinates of each feature (naive e)
-        naive_identity = self.naive_identity_fn(
-            feature_mask
-        )  # Shape: (batch_size, num_elements, naive_identity_size)
-
-        # Pass it through the identity network to learn the identity
-        identity = self.identity_network(
-            naive_identity
-        )  # Shape: (batch_size, num_elements, identity_size)
-
-        # Normal PointNet concatenates feature value with identity vector
-        # Could not think of a better name than s...
-        s = torch.cat(
-            [masked_features.unsqueeze(-1), identity], dim=-1
-        )  # Shape: (batch_size, num_elements, identity_size + 1)
-
-        # Pass s through the element encoder
-        encoded = self.element_encoder(
-            s
-        )  # Shape: (batch_size, num_elements, element_encoding_size)
-
-        # Mask out the unobserved features with zeros
-        encoded = encoded * feature_mask.unsqueeze(
-            -1
-        )  # Shape: (batch_size, num_elements, element_encoding_size)
-
-        # Sum over num_elements dimension
-        encoding = torch.sum(
-            encoded, dim=-2
-        )  # Shape: (batch_size, element_encoding_size)
-
-        return encoding
-
-
 class PointNetType(Enum):
     POINTNET = 1
     POINTNETPLUS = 2
 
 
-class PointNetPlus(PointNetLike):
+class PointNet(PointNetLike):
     """
-    A PointNetPlus.
+    A PointNet(Plus).
     """
 
     def __init__(
         self,
         naive_identity_fn: NaiveIdentityFn,
         identity_network: nn.Module,
-        element_encoder: nn.Module,
+        feature_map_encoder: nn.Module,
         pointnet_type: PointNetType,
     ):
         """
         Args:
             naive_identity_fn: takes a FeatureMask as input and outputs a suitable location-like representation for each feature. Usually one-hot indices for 1D data and coordinates for 2D data.
             identity_network: transforms naive identity into a vector to be used with PNP
-            element_encoder: nn.Module
+            feature_map_encoder: nn.Module
             pointnet_type: PointNetType, either POINTNET or POINTNETPLUS
         """
         super().__init__()
 
         self.naive_identity_fn = naive_identity_fn  # naive e
         self.identity_network = identity_network  # learns e from naive e
-        self.element_encoder = element_encoder  # h in the paper
+        self.feature_map_encoder = feature_map_encoder  # h in the paper
         self.pointnet_type = pointnet_type
 
     def forward(
@@ -346,40 +281,40 @@ class PointNetPlus(PointNetLike):
         # Get coordinates of each feature (naive e)
         naive_identity = self.naive_identity_fn(
             feature_mask
-        )  # Shape: (batch_size, num_elements, naive_identity_size)
+        )  # Shape: (batch_size, n_features, naive_identity_size)
 
         # Pass it through the identity network to learn the identity
         identity = self.identity_network(
             naive_identity
-        )  # Shape: (batch_size, num_elements, identity_size)
+        )  # Shape: (batch_size, n_features, identity_size)
 
         # Could not think of a better name than s...
         if self.pointnet_type == PointNetType.POINTNETPLUS:
             # PointNetPlus does pointwise-multiplication between each identity vector and feature value
             s = (
                 masked_features.unsqueeze(-1) * identity
-            )  # Shape: (batch_size, num_elements, identity_size)
+            )  # Shape: (batch_size, n_features, identity_size)
         elif self.pointnet_type == PointNetType.POINTNET:
             # Normal PointNet concatenates feature value with identity vector
             s = torch.cat(
                 [masked_features.unsqueeze(-1), identity], dim=-1
-            )  # Shape: (batch_size, num_elements, identity_size + 1)
+            )  # Shape: (batch_size, n_features, identity_size + 1)
         else:
             raise ValueError(f"Unknown PointNet type: {self.pointnet_type}")
 
-        # Pass s through the element encoder
-        encoded = self.element_encoder(
+        # Pass s through the feature map encoder (h)
+        feature_maps = self.feature_map_encoder(
             s
-        )  # Shape: (batch_size, num_elements, element_encoding_size)
+        )  # Shape: (batch_size, n_features, feature_map_size)
 
         # Mask out the unobserved features with zeros
-        encoded = encoded * feature_mask.unsqueeze(
+        feature_maps = feature_maps * feature_mask.unsqueeze(
             -1
-        )  # Shape: (batch_size, num_elements, element_encoding_size)
+        )  # Shape: (batch_size, n_features, feature_map_size)
 
-        # Sum over num_elements dimension
+        # Sum over n_features dimension
         encoding = torch.sum(
-            encoded, dim=-2
+            feature_maps, dim=-2
         )  # Shape: (batch_size, element_encoding_size)
 
         return encoding
@@ -423,19 +358,31 @@ class PartialVAE(nn.Module):
 
 
 class Zannone2019PretrainingModel(pl.LightningModule):
-    def __init__(self, partial_vae: nn.Module, classifier: nn.Module, lr):
+    def __init__(
+        self,
+        partial_vae: nn.Module,
+        classifier: nn.Module,
+        lr: float,
+        max_masking_probability: float,
+        verbose=False,
+        image_shape=None,
+    ):
         super().__init__()
         self.partial_vae = partial_vae
         self.classifier = classifier
         self.lr = lr
+        self.max_masking_probability = max_masking_probability
+        self.verbose = verbose
+
+        # If image_shape is given, show reconstructed images at validation time
+        self.image_shape = image_shape
 
         # Initial masking probability
-        self.masking_probability = 0.5
-        self.log("masking_probability", self.masking_probability, sync_dist=True)
+        self.masking_probability = 0.0
 
     def on_train_epoch_start(self):
-        # Masking probability uniformly distributed between 0 and 0.7
-        self.masking_probability = torch.rand(1).item() * 0.7
+        # Masking probability uniformly distributed between 0 and self.max_masking_probability
+        self.masking_probability = torch.rand(1).item() * self.max_masking_probability
         self.log("masking_probability", self.masking_probability, sync_dist=True)
 
     def training_step(self, batch, batch_idx):
@@ -492,10 +439,65 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         total_loss = partial_vae_loss + classifier_loss
         self.log("val_loss", total_loss, sync_dist=True)
 
+        if self.verbose:
+            # Log the total L2 norm of all parameters in the autoencoder
+            norm_vae = torch.norm(
+                torch.stack(
+                    [
+                        torch.norm(p.detach())
+                        for p in self.partial_vae.parameters()
+                        if p.requires_grad
+                    ]
+                )
+            )
+            self.log("norm_vae", norm_vae, sync_dist=True)
+
+            # Log the total L2 norm of all parameters in the classifier
+            norm_classifier = torch.norm(
+                torch.stack(
+                    [
+                        torch.norm(p.detach())
+                        for p in self.classifier.parameters()
+                        if p.requires_grad
+                    ]
+                )
+            )
+            self.log("norm_classifier", norm_classifier, sync_dist=True)
+
+        # If self.image_shape is defined, plot 4 images, their reconstructions and the predicted labels
+        if self.image_shape and batch_idx == 0:
+            self.log_val_images(
+                features=masked_features,
+                estimated_features=estimated_features,
+                y_cls=y_cls,
+                y_pred=y_pred,
+            )
+
         return total_loss
 
+    @rank_zero_only
+    def log_val_images(self, features, estimated_features, y_cls, y_pred):
+        # Plot the first 4 images, their reconstructions and the predicted labels
+        fig, axs = plt.subplots(2, 4, figsize=(20, 6))
+        for i in range(4):
+            axs[0, i].imshow(
+                features[i].cpu().numpy().reshape(self.image_shape), cmap="gray"
+            )
+            axs[0, i].axis("off")
+            axs[1, i].imshow(
+                estimated_features[i].cpu().numpy().reshape(self.image_shape),
+                cmap="gray",
+            )
+            axs[1, i].axis("off")
+            # Labels as titles
+            axs[0, i].set_title(f"True: {y_cls[i].item()}")
+            axs[1, i].set_title(f"Pred: {y_pred[i].item()}")
+
+        wandb.log({"val_images": wandb.Image(fig)})
+        plt.close(fig)
+
     def partial_vae_loss_function(self, estimated_features, features, mu, logvar):
-        recon_loss = ((estimated_features - features) ** 2).mean()
+        recon_loss = ((estimated_features - features) ** 2).sum()
         kl_div = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
         return recon_loss + kl_div
 

@@ -14,7 +14,7 @@ import wandb
 from afa_rl.datasets import DataModuleFromDataset, MNISTDataModule
 from afa_rl.models import (
     PartialVAE,
-    PointNetPlus,
+    PointNet,
     PointNetType,
     Zannone2019PretrainingModel,
 )
@@ -58,6 +58,8 @@ def main():
             train_ratio=config.dataloader.train_ratio,
             num_workers=config.dataloader.num_workers,
         )
+        image_shape = None
+        assert config.pointnet.naive_identity_type == "1D"
         naive_identity_fn = get_1D_identity
         naive_identity_size = config.dataset.n_features  # onehot
     elif config.dataset.name == "mnist":
@@ -67,8 +69,18 @@ def main():
                 [transforms.ToTensor(), transforms.Lambda(lambda x: x.view(-1))]
             ),
         )
-        naive_identity_fn = partial(get_2D_identity, image_shape=(28, 28))
-        naive_identity_size = 2  # coordinates
+        image_shape = (28, 28)
+        # For 2D images we can either treat them as 2D coordinates or as 1D features
+        if config.pointnet.naive_identity_type == "1D":
+            naive_identity_fn = get_1D_identity
+            naive_identity_size = config.dataset.n_features
+        elif config.pointnet.naive_identity_type == "2D":
+            naive_identity_fn = partial(get_2D_identity, image_shape=image_shape)
+            naive_identity_size = 2  # coordinates
+        else:
+            raise ValueError(
+                f"Naive identity type {config.pointnet.naive_identity_type} not supported. Use '1D' or '2D'."
+            )
     else:
         raise ValueError(
             f"Dataset {config.dataset.name} not supported. Use 'cube' or 'mnist'."
@@ -77,14 +89,16 @@ def main():
     # PointNet or PointNetPlus
     if config.pointnet.type == "pointnet":
         pointnet_type = PointNetType.POINTNET
+        feature_map_encoder_input_size = config.pointnet.identity_size + 1
     elif config.pointnet.type == "pointnetplus":
         pointnet_type = PointNetType.POINTNETPLUS
+        feature_map_encoder_input_size = config.pointnet.identity_size
     else:
         raise ValueError(
             f"PointNet type {config.pointnet.type} not supported. Use 'pointnet' or 'pointnetplus'."
         )
 
-    pointnet = PointNetPlus(
+    pointnet = PointNet(
         naive_identity_fn=naive_identity_fn,
         identity_network=MLP(
             in_features=naive_identity_size,
@@ -92,10 +106,10 @@ def main():
             num_cells=config.pointnet.identity_network_num_cells,
             activation_class=nn.ReLU,
         ),
-        element_encoder=MLP(
-            in_features=config.pointnet.identity_size,
+        feature_map_encoder=MLP(
+            in_features=feature_map_encoder_input_size,
             out_features=config.pointnet.output_size,
-            num_cells=config.pointnet.element_encoder_num_cells,
+            num_cells=config.pointnet.feature_map_encoder_num_cells,
             activation_class=nn.ReLU,
         ),
         pointnet_type=pointnet_type,
@@ -116,9 +130,7 @@ def main():
                 num_cells=config.partial_vae.decoder_num_cells,
                 activation_class=nn.ReLU,
             ),
-            nn.Sigmoid()
-            if config.partial_vae.decoder_last_layer_sigmoid
-            else nn.Identity(),
+            nn.Sigmoid() if config.dataset.bounded_0_1 else nn.Identity(),
         ),
     )
     model = Zannone2019PretrainingModel(
@@ -130,6 +142,9 @@ def main():
             activation_class=nn.ReLU,
         ),
         lr=config.lr,
+        verbose=config.verbose,
+        image_shape=image_shape,
+        max_masking_probability=config.max_masking_probability,
     )
 
     logger = WandbLogger(project=config.wandb.project, save_dir="logs/afa_rl")
@@ -138,7 +153,6 @@ def main():
         logger=logger,
         accelerator=config.device,
         devices=1,  # Use only 1 GPU
-        strategy="ddp",
     )
     try:
         trainer.fit(model, datamodule)

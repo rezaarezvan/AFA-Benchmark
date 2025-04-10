@@ -7,10 +7,16 @@ from functools import partial
 
 import matplotlib.pyplot as plt
 import torch
+from torch import nn
 import yaml
 from torchrl.modules import MLP
 
-from afa_rl.models import PartialVAE, PointNetPlus, Zannone2019PretrainingModel
+from afa_rl.models import (
+    PartialVAE,
+    PointNetPlus,
+    PointNetType,
+    Zannone2019PretrainingModel,
+)
 from afa_rl.utils import dict_to_namespace, get_2D_identity
 
 
@@ -34,49 +40,59 @@ def main():
 
     naive_identity_fn = partial(get_2D_identity, image_shape=(28, 28))
     naive_identity_size = 2
+
+    # PointNet or PointNetPlus
+    if config.pointnet.type == "pointnet":
+        pointnet_type = PointNetType.POINTNET
+    elif config.pointnet.type == "pointnetplus":
+        pointnet_type = PointNetType.POINTNETPLUS
+    else:
+        raise ValueError(
+            f"PointNet type {config.pointnet.type} not supported. Use 'pointnet' or 'pointnetplus'."
+        )
+
     pointnet = PointNetPlus(
         naive_identity_fn=naive_identity_fn,
         identity_network=MLP(
             in_features=naive_identity_size,
             out_features=config.pointnet.identity_size,
             num_cells=config.pointnet.identity_network_num_cells,
+            activation_class=nn.ReLU,
         ),
         element_encoder=MLP(
             in_features=config.pointnet.identity_size,
             out_features=config.pointnet.output_size,
             num_cells=config.pointnet.element_encoder_num_cells,
+            activation_class=nn.ReLU,
         ),
+        pointnet_type=pointnet_type,
     )
     encoder = MLP(
         in_features=config.pointnet.output_size,
-        out_features=config.encoder.output_size,
+        out_features=2 * config.partial_vae.latent_size,
         num_cells=config.encoder.num_cells,
+        activation_class=nn.ReLU,
     )
     partial_vae = PartialVAE(
         pointnet=pointnet,
         encoder=encoder,
-        mu_net=MLP(
-            in_features=config.encoder.output_size,
-            out_features=config.partial_vae.latent_size,
-            num_cells=config.partial_vae.mu_net_num_cells,
-        ),
-        logvar_net=MLP(
-            in_features=config.encoder.output_size,
-            out_features=config.partial_vae.latent_size,
-            num_cells=config.partial_vae.logvar_net_num_cells,
-        ),
-        decoder=MLP(
-            in_features=config.partial_vae.latent_size,
-            out_features=config.dataset.n_features,
-            num_cells=config.partial_vae.decoder_num_cells,
+        decoder=nn.Sequential(
+            MLP(
+                in_features=config.partial_vae.latent_size,
+                out_features=config.dataset.n_features,
+                num_cells=config.partial_vae.decoder_num_cells,
+                activation_class=nn.ReLU,
+            ),
+            nn.Sigmoid() if config.dataset.bounded_0_1 else nn.Identity(),
         ),
     )
     model = Zannone2019PretrainingModel(
         partial_vae=partial_vae,
         classifier=MLP(
-            in_features=config.encoder.output_size,
+            in_features=config.partial_vae.latent_size,
             out_features=config.classifier.output_size,
             num_cells=config.classifier.num_cells,
+            activation_class=nn.ReLU,
         ),
         lr=config.lr,
     )
@@ -91,11 +107,11 @@ def main():
     with torch.no_grad():
         decoded_samples = model.partial_vae.decoder(latent_samples)
         # Pass the decoded samples through the partial VAE, as fully observed
-        encoding, mu, logvar, z, estimated_features = model.partial_vae(
+        mu, logvar, z, estimated_features = model.partial_vae(
             decoded_samples, torch.full_like(decoded_samples, 1, dtype=torch.bool)
         )
-        # Pass encoding through classifier
-        logits = model.classifier(encoding)
+        # Pass latent variable through classifier
+        logits = model.classifier(z)
     # Get predicted labels
     predicted_labels = logits.argmax(dim=1)
 
