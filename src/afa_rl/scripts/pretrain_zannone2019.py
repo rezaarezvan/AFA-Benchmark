@@ -141,7 +141,7 @@ def main():
     model = Zannone2019PretrainingModel(
         partial_vae=partial_vae,
         classifier=MLP(
-            in_features=config.partial_vae.latent_size,
+            in_features=2 * config.partial_vae.latent_size,
             out_features=config.classifier.output_size,
             num_cells=config.classifier.num_cells,
             activation_class=nn.ReLU,
@@ -150,6 +150,9 @@ def main():
         verbose=config.verbose,
         image_shape=image_shape,
         max_masking_probability=config.max_masking_probability,
+        recon_loss_type=config.recon_loss_type,
+        kl_scaling_factor=config.kl_scaling_factor,
+        validation_masking_probability=config.validation_masking_probability,
     )
 
     logger = WandbLogger(project=config.wandb.project, save_dir="logs/afa_rl")

@@ -2,25 +2,28 @@ epochs: 100
 checkpoint: "pretrain_zannone2019_cube.ckpt"
 lr: 0.001
 verbose: False
-max_masking_probability: 0.0
+max_masking_probability: 0.9
+validation_masking_probability: 0.0
+recon_loss_type: "squared error"
+kl_scaling_factor: 0.001
 
 dataset:
   name: "cube"
   n_features: 20 # ODIN paper
   size: 100000
   seed: 42
-  bounded_0_1: False
+  bounded_0_1: True
   non_informative_feature_mean: 0.5 # ODIN paper
-  # informative_feature_variance: 0.1 # ODIN paper
-  informative_feature_variance: 0.0 # ODIN paper
-  # non_informative_feature_variance: 0.3 # ODIN paper
-  non_informative_feature_variance: 0.0 # ODIN paper
+  informative_feature_variance: 0.1 # ODIN paper
+  # informative_feature_variance: 0.0
+  non_informative_feature_variance: 0.3 # ODIN paper
+  # non_informative_feature_variance: 0.0
 dataloader:
   batch_size: 100
   train_ratio: 0.8
 pointnet:
   naive_identity_type: "1D"
-  type: "pointnet" # ODIN paper does not mention which type they use
+  type: "pointnetplus" # ODIN paper does not mention which type they use
   identity_network_num_cells: [20,20] # just a guess
   identity_size: 20 # EDDI paper
   feature_map_encoder_num_cells: [500] # EDDI paper

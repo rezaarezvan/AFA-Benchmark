@@ -354,7 +354,7 @@ class PartialVAE(nn.Module):
         std = torch.exp(0.5 * logvar)
         z = mu + std * torch.randn_like(std)
         x_hat = self.decoder(z)
-        return mu, logvar, z, x_hat
+        return encoding, mu, logvar, z, x_hat
 
 
 class Zannone2019PretrainingModel(pl.LightningModule):
@@ -366,7 +366,9 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         max_masking_probability: float,
         validation_masking_probability=0.0,
         verbose=False,
+        kl_scaling_factor=1e-3,
         image_shape=None,
+        recon_loss_type="squared error",
     ):
         super().__init__()
         self.partial_vae = partial_vae
@@ -375,9 +377,16 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         self.max_masking_probability = max_masking_probability
         self.validation_masking_probability = validation_masking_probability
         self.verbose = verbose
+        self.kl_scaling_factor = kl_scaling_factor
 
         # If image_shape is given, show reconstructed images at validation time
         self.image_shape = image_shape
+
+        self.recon_loss_type = recon_loss_type
+        if recon_loss_type not in ["squared error", "cross entropy"]:
+            raise ValueError(
+                f"Unknown reconstruction loss type: {self.recon_loss_type}. Use 'squared error' or 'cross entropy'."
+            )
 
         # Initial masking probability
         self.masking_probability = 0.0
@@ -394,7 +403,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         masked_features, feature_mask = mask_data(features, p=self.masking_probability)
 
         # Pass masked features through VAE, returning estimated features but also encoding which will be passed through classifier
-        mu, logvar, z, estimated_features = self.partial_vae(
+        encoding, mu, logvar, z, estimated_features = self.partial_vae(
             masked_features, feature_mask
         )
         partial_vae_loss = self.partial_vae_loss_function(
@@ -403,7 +412,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         self.log("train_loss_vae", partial_vae_loss, sync_dist=True)
 
         # Pass the encoding through the classifier
-        classifier_output = self.classifier(z)
+        classifier_output = self.classifier(encoding)
         classifier_loss = F.cross_entropy(classifier_output, label.float())
         self.log("train_loss_classifier", classifier_loss, sync_dist=True)
 
@@ -422,7 +431,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         )
 
         # Pass masked features through VAE, returning estimated features but also encoding which will be passed through classifier
-        mu, logvar, z, estimated_features = self.partial_vae(
+        encoding, mu, logvar, z, estimated_features = self.partial_vae(
             masked_features, feature_mask
         )
         partial_vae_loss = self.partial_vae_loss_function(
@@ -431,7 +440,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         self.log("val_loss_vae", partial_vae_loss, sync_dist=True)
 
         # Pass the encoding through the classifier
-        logits = self.classifier(z)
+        logits = self.classifier(encoding)
         classifier_loss = F.cross_entropy(logits, label.float())
         self.log("val_loss_classifier", classifier_loss, sync_dist=True)
 
@@ -476,6 +485,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
                 self.log_val_images(
                     features=masked_features,
                     estimated_features=estimated_features,
+                    z=z,
                     y_cls=y_cls,
                     y_pred=y_pred,
                 )
@@ -484,6 +494,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
                 self.log_val_features(
                     features=masked_features,
                     estimated_features=estimated_features,
+                    z=z,
                     y_cls=y_cls,
                     y_pred=y_pred,
                 )
@@ -491,44 +502,57 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         return total_loss
 
     @rank_zero_only
-    def log_val_images(self, features, estimated_features, y_cls, y_pred):
+    def log_val_images(self, features, z, estimated_features, y_cls, y_pred):
         # Plot the first 4 images, their reconstructions and the predicted labels
-        fig, axs = plt.subplots(2, 4, figsize=(20, 6))
+        fig, axs = plt.subplots(3, 4, figsize=(20, 6))
         for i in range(4):
             axs[0, i].imshow(
                 features[i].cpu().numpy().reshape(self.image_shape), cmap="gray"
             )
             axs[0, i].axis("off")
-            axs[1, i].imshow(
+            axs[1, i].plot(z[i].cpu().numpy())
+            axs[1, i].set_title("Latent space")
+            axs[2, i].imshow(
                 estimated_features[i].cpu().numpy().reshape(self.image_shape),
                 cmap="gray",
             )
-            axs[1, i].axis("off")
+            axs[2, i].axis("off")
             # Labels as titles
             axs[0, i].set_title(f"True: {y_cls[i].item()}")
-            axs[1, i].set_title(f"Pred: {y_pred[i].item()}")
+            axs[2, i].set_title(f"Pred: {y_pred[i].item()}")
 
         wandb.log({"val_recon": wandb.Image(fig)})
         plt.close(fig)
 
     @rank_zero_only
-    def log_val_features(self, features, estimated_features, y_cls, y_pred):
+    def log_val_features(self, features, z, estimated_features, y_cls, y_pred):
         # Plot the first 4 samples
-        fig, axs = plt.subplots(2, 4, figsize=(20, 6))
+        fig, axs = plt.subplots(3, 4, figsize=(20, 10))
         for i in range(4):
             axs[0, i].plot(features[i].cpu().numpy())
-            axs[1, i].plot(estimated_features[i].cpu().numpy())
+            axs[1, i].plot(z[i].cpu().numpy())
+            axs[2, i].plot(estimated_features[i].cpu().numpy())
             # Labels as titles
             axs[0, i].set_title(f"True: {y_cls[i].item()}")
-            axs[1, i].set_title(f"Pred: {y_pred[i].item()}")
+            axs[1, i].set_title("Latent space")
+            axs[2, i].set_title(f"Pred: {y_pred[i].item()}")
 
         wandb.log({"val_recon": wandb.Image(fig)})
         plt.close(fig)
 
     def partial_vae_loss_function(self, estimated_features, features, mu, logvar):
-        recon_loss = ((estimated_features - features) ** 2).sum()
+        if self.recon_loss_type == "squared error":
+            recon_loss = ((estimated_features - features) ** 2).sum()
+        elif self.recon_loss_type == "cross entropy":
+            recon_loss = F.binary_cross_entropy(
+                estimated_features, features, reduction="sum"
+            )
+        else:
+            raise ValueError(
+                f"Unknown reconstruction loss type: {self.recon_loss_type}. Use 'squared error' or 'cross entropy'."
+            )
         kl_div = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-        return recon_loss + kl_div
+        return recon_loss + self.kl_scaling_factor * kl_div
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.lr)

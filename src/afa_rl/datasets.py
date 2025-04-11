@@ -145,6 +145,8 @@ class Zannone2019CubeDataset(Dataset):
         self.non_informative_feature_mean = non_informative_feature_mean
         self.informative_feature_variance = informative_feature_variance
         self.non_informative_feature_variance = non_informative_feature_variance
+
+        self._informative_feature_std = math.sqrt(informative_feature_variance)
         self._non_informative_feature_std = math.sqrt(
             self.non_informative_feature_variance
         )
@@ -164,7 +166,7 @@ class Zannone2019CubeDataset(Dataset):
         coords = coords.float()
         coords += (
             torch.randn(self.data_points, 3, dtype=torch.float32, generator=rng)
-            * self.informative_feature_variance
+            * self._informative_feature_std
         )
         # The final features are the coordinates offset according to the labels, and some noise added
         self.features = torch.zeros(
