@@ -1,15 +1,25 @@
 import torch
 from tensordict import TensorDictBase
-from tensordict.nn import TensorDictSequential
+from tensordict.nn import TensorDictModule, TensorDictSequential
 from torch import Tensor, nn, optim
+from torch.distributions import OneHotCategorical
 from torchrl.data import (
     LazyTensorStorage,
     PrioritizedSampler,
     TensorDictReplayBuffer,
     TensorSpec,
 )
-from torchrl.modules import MLP, EGreedyModule, QValueActor
-from torchrl.objectives import DQNLoss, SoftUpdate
+from torchrl.modules import (
+    MLP,
+    EGreedyModule,
+    ProbabilisticActor,
+    QValueActor,
+    ValueOperator,
+)
+from torchrl.objectives import ClipPPOLoss, DQNLoss, SoftUpdate
+
+from afa_rl.models import PartialVAE
+from common.custom_types import FeatureMask, MaskedFeatures
 
 
 class Shim2018ValueModule(nn.Module):
@@ -161,36 +171,95 @@ class Shim2018Agent:
 
         return loss.mean().item() / self.num_optim
 
-    # def save(self, filepath: str):
-    #     checkpoint = {
-    #         "embedding_size": self.embedding_size,
-    #         "action_spec": self.action_spec,  # Ensure action_spec is serializable
-    #         "lr": self.lr,
-    #         "update_tau": self.update_tau,
-    #         "eps": self.eps,
-    #         "device": str(self.device),  # Convert device to string for compatibility
-    #         "model_state_dict": self.value_module.state_dict(),
-    #         "optimizer_state_dict": self.optim.state_dict(),
-    #     }
-    #     torch.save(checkpoint, filepath)
 
-    # @staticmethod
-    # def load(filepath: str, device: torch.device) -> "ShimQAgent":
-    #     checkpoint = torch.load(filepath, map_location=device, weights_only=False)
+class Zannone2019ValueModule(nn.Module):
+    def __init__(self, partial_vae: PartialVAE, latent_size: int, n_actions: int):
+        super().__init__()
+        self.partial_vae = partial_vae
+        self.latent_size = latent_size
+        self.n_actions = n_actions
 
-    #     agent = ShimQAgent(
-    #         embedding_size=checkpoint["embedding_size"],
-    #         action_spec=checkpoint[
-    #             "action_spec"
-    #         ],  # Ensure action_spec is reconstructed properly
-    #         lr=checkpoint["lr"],
-    #         update_tau=checkpoint["update_tau"],
-    #         eps=checkpoint["eps"],
-    #         device=device,
-    #     )
+        self.net = nn.Linear(latent_size, n_actions)
 
-    #     # Load model and optimizer state
-    #     agent.value_module.load_state_dict(checkpoint["model_state_dict"])
-    #     agent.optim.load_state_dict(checkpoint["optimizer_state_dict"])
+    def forward(self, masked_features: MaskedFeatures, feature_mask: FeatureMask):
+        encoding, mu, logvar, z = self.partial_vae.encode(masked_features, feature_mask)
+        return self.net(mu)
 
-    #     return agent
+
+class Zannone2019PolicyModule(nn.Module):
+    def __init__(self, partial_vae: PartialVAE, latent_size: int, n_actions: int):
+        super().__init__()
+        self.partial_vae = partial_vae
+        self.latent_size = latent_size
+        self.n_actions = n_actions
+
+        self.net = nn.Linear(latent_size, n_actions)
+
+    def forward(self, masked_features: MaskedFeatures, feature_mask: FeatureMask):
+        encoding, mu, logvar, z = self.partial_vae.encode(masked_features, feature_mask)
+        return self.net(mu)
+
+
+class Zannone2019Agent:
+    def __init__(
+        self,
+        partial_vae: PartialVAE,  # Assumed to be frozen
+        lr: float,
+        update_tau: float,
+        device: torch.device,
+        latent_size: int,
+        action_spec: TensorSpec,
+    ):
+        self.partial_vae = partial_vae
+        self.lr = lr
+        self.update_tau = update_tau
+        self.device = device
+        self.latent_size = latent_size
+        self.action_spec = action_spec
+
+        self.actor_network = ProbabilisticActor(
+            module=TensorDictModule(
+                Zannone2019PolicyModule(
+                    partial_vae=self.partial_vae,
+                    latent_size=self.latent_size,
+                    n_actions=self.action_spec.n,
+                ),
+                in_keys=["masked_features", "feature_mask"],
+                out_keys=["logits"],
+            ),
+            spec=self.action_spec,
+            in_keys=["logits"],
+            distribution_class=OneHotCategorical,
+            return_log_prob=True,
+        )
+
+        self.critic_network = ValueOperator(
+            module=Zannone2019ValueModule(
+                partial_vae=self.partial_vae,
+                latent_size=self.latent_size,
+                n_actions=self.action_spec.n,
+            ),
+            in_keys=["masked_features", "feature_mask"],
+        )
+
+        self.loss_module = ClipPPOLoss(
+            actor_network=self.actor_network, critic_network=self.critic_network
+        )
+        self.optim = optim.Adam(self.loss_module.parameters(), lr=self.lr)
+        self.updater = SoftUpdate(self.loss_module, tau=self.update_tau)
+
+    def policy(self, td: TensorDictBase):
+        td = self.actor_network(td)
+        return td
+
+    def process_batch(self, td):
+        self.optim.zero_grad()
+
+        loss = self.loss_module(td)
+        loss_value = loss["value_loss"] + loss["entropy_loss"] + loss["policy_loss"]
+        loss_value.backward()
+
+        self.optim.step()
+        self.updater.step()
+
+        return loss_value.mean()

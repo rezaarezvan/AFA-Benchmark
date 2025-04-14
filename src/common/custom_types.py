@@ -95,14 +95,16 @@ class AFAMethod(Protocol):
 
 
 # A reward function will in general depend on
-# - masked features
-# - feature mask (the features that have been observed so far)
-# - the selection (the feature that was selected)
+# - masked features at time t
+# - feature mask (the features that have been observed so far) at time t
+# - masked features at time x_{t+1}
+# - feature mask (the features that have been observed so far) at time t+1
+# - the selection (the feature that was selected) at time t
 # - the ground truth features
 # - the ground truth label
 
 type AFAReward = Float[Tensor, "*batch 1"]
 type AFARewardFn = Callable[
-    [MaskedFeatures, FeatureMask, AFASelection, Features, Label],
+    [MaskedFeatures, FeatureMask, MaskedFeatures, FeatureMask, AFASelection, Features, Label],
     AFAReward,
 ]

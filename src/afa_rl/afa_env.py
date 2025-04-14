@@ -345,12 +345,12 @@ class AFAEnv(EnvBase):
                 "masked_features": masked_features,
                 "features": features,
                 "label": label,
-                "predicted_class": -1
-                * torch.ones(
-                    tensordict.batch_size + (1,),
-                    dtype=torch.int64,
-                    device=tensordict.device,
-                ),
+                # "predicted_class": -1
+                # * torch.ones(
+                #     tensordict.batch_size + (1,),
+                #     dtype=torch.int64,
+                #     device=tensordict.device,
+                # ),
             },
             batch_size=tensordict.batch_size,
             device=tensordict.device,
@@ -378,6 +378,8 @@ class AFAEnv(EnvBase):
         reward = self.reward_fn(
             tensordict["masked_features"],
             tensordict["feature_mask"],
+            new_masked_features,
+            new_feature_mask,
             tensordict["action"],
             tensordict["features"],
             tensordict["label"],

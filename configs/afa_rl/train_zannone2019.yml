@@ -1,0 +1,24 @@
+device: "cpu"
+generative_batch_size: 50
+
+dataset:
+  size: ?
+  sigma: ?
+  seed: ?
+
+acquisition_costs: ?
+batch_size: 64
+n_batches: 100
+
+agent:
+  lr: 0.001
+  update_tau: 0.01
+
+wandb:
+  entity: "your_wandb_entity"
+  project: "your_project_name"
+
+eval_episodes: 10
+eval_max_steps: 100
+
+afa_method_save_name: "afa_method_zannone2019.pt"

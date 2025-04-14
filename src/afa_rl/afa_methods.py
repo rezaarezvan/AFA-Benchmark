@@ -1,7 +1,7 @@
 import torch
 from tensordict import TensorDict
 from torchrl.data import TensorSpec
-from torchrl.modules import QValueActor
+from torchrl.modules import ProbabilisticActor, QValueActor
 
 from afa_rl.agents import Shim2018ValueModule
 from afa_rl.models import ReadProcessEncoder, ShimEmbedder
@@ -118,3 +118,29 @@ class Shim2018AFAMethod:
         embedder = ShimEmbedder(encoder)
 
         return Shim2018AFAMethod(value_network, embedder, data["action_spec"])
+
+
+class Zannone2019AFAMethod:
+    """
+    Implements the AFAMethod protocol for the Zannone2019 agent.
+    """
+
+    def __init__(
+        self,
+        actor_network: ProbabilisticActor,
+    ):
+        raise NotImplementedError("Zannone2019AFAMethod is not implemented yet.")
+
+    def __call__(
+        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+    ) -> AFASelection:
+        raise NotImplementedError("Zannone2019AFAMethod is not implemented yet.")
+
+    def save(self, path: str):
+        raise NotImplementedError("Saving Zannone2019AFAMethod is not implemented yet.")
+
+    @staticmethod
+    def load(path: str) -> "Zannone2019AFAMethod":
+        raise NotImplementedError(
+            "Loading Zannone2019AFAMethod is not implemented yet."
+        )

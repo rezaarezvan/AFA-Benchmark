@@ -4,9 +4,9 @@ from functools import partial
 
 import lightning as pl
 import torch
-from torch import nn
 import yaml
 from lightning.pytorch.loggers import WandbLogger
+from torch import nn
 from torchrl.modules import MLP
 from torchvision import transforms
 
@@ -25,55 +25,15 @@ from afa_rl.models import (
 from afa_rl.utils import dict_to_namespace, get_1D_identity, get_2D_identity
 
 
-def main():
-    torch.set_float32_matmul_precision("medium")
-
-    # Use argparse to choose config file
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--config", type=str, required=True)
-    args = parser.parse_args()
-
-    # Load config from yaml file
-    with open(args.config, "r") as file:
-        config_dict: dict = yaml.safe_load(file)
-
-    wandb.init(
-        entity=config_dict["wandb"]["entity"],
-        project=config_dict["wandb"]["project"],
-        config=config_dict,
-    )
-
-    config = dict_to_namespace(config_dict)
-
+def get_zannone2019_model_from_config(config):
     # Two different datasets possible: "cube" or "mnist"
     # This will also influence which PointNet to use
     if config.dataset.name == "cube":
-        dataset = Zannone2019CubeDataset(
-            n_features=config.dataset.n_features,
-            data_points=config.dataset.size,
-            seed=config.dataset.seed,
-            non_informative_feature_mean=config.dataset.non_informative_feature_mean,
-            informative_feature_variance=config.dataset.informative_feature_variance,
-            non_informative_feature_variance=config.dataset.non_informative_feature_variance,
-        )
-        dataset.generate_data()
-        datamodule = DataModuleFromDataset(
-            dataset=dataset,
-            batch_size=config.dataloader.batch_size,
-            train_ratio=config.dataloader.train_ratio,
-            num_workers=1,
-        )
         image_shape = None
         assert config.pointnet.naive_identity_type == "1D"
         naive_identity_fn = get_1D_identity
         naive_identity_size = config.dataset.n_features  # onehot
     elif config.dataset.name == "mnist":
-        datamodule = MNISTDataModule(
-            batch_size=config.dataloader.batch_size,
-            transform=transforms.Compose(
-                [transforms.ToTensor(), transforms.Lambda(lambda x: x.view(-1))]
-            ),
-        )
         image_shape = (28, 28)
         # For 2D images we can either treat them as 2D coordinates or as 1D features
         if config.pointnet.naive_identity_type == "1D":
@@ -154,6 +114,56 @@ def main():
         kl_scaling_factor=config.kl_scaling_factor,
         validation_masking_probability=config.validation_masking_probability,
     )
+    return model
+
+
+def main():
+    torch.set_float32_matmul_precision("medium")
+
+    # Use argparse to choose config file
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", type=str, required=True)
+    args = parser.parse_args()
+
+    # Load config from yaml file
+    with open(args.config, "r") as file:
+        config_dict: dict = yaml.safe_load(file)
+
+    wandb.init(
+        entity=config_dict["wandb"]["entity"],
+        project=config_dict["wandb"]["project"],
+        config=config_dict,
+    )
+
+    config = dict_to_namespace(config_dict)
+
+    # Two different datasets possible: "cube" or "mnist"
+    # This will also influence which PointNet to use
+    if config.dataset.name == "cube":
+        dataset = Zannone2019CubeDataset(
+            n_features=config.dataset.n_features,
+            data_points=config.dataset.size,
+            seed=config.dataset.seed,
+            non_informative_feature_mean=config.dataset.non_informative_feature_mean,
+            informative_feature_variance=config.dataset.informative_feature_variance,
+            non_informative_feature_variance=config.dataset.non_informative_feature_variance,
+        )
+        dataset.generate_data()
+        datamodule = DataModuleFromDataset(
+            dataset=dataset,
+            batch_size=config.dataloader.batch_size,
+            train_ratio=config.dataloader.train_ratio,
+            num_workers=1,
+        )
+    elif config.dataset.name == "mnist":
+        datamodule = MNISTDataModule(
+            batch_size=config.dataloader.batch_size,
+            transform=transforms.Compose(
+                [transforms.ToTensor(), transforms.Lambda(lambda x: x.view(-1))]
+            ),
+        )
+
+    model = get_zannone2019_model_from_config(config)
 
     logger = WandbLogger(project=config.wandb.project, save_dir="logs/afa_rl")
     trainer = pl.Trainer(

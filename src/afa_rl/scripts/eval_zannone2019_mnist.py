@@ -7,8 +7,8 @@ from functools import partial
 
 import matplotlib.pyplot as plt
 import torch
-from torch import nn
 import yaml
+from torch import nn
 from torchrl.modules import MLP
 
 from afa_rl.models import (

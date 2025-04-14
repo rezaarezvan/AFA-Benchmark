@@ -1,16 +1,16 @@
 from enum import Enum
-from lightning.fabric.utilities import rank_zero_only
-from matplotlib import pyplot as plt
 from typing import Tuple
 
 import lightning as pl
 import torch
 import torch.nn.functional as F
 from jaxtyping import Float, Shaped
+from lightning.fabric.utilities import rank_zero_only
+from matplotlib import pyplot as plt
 from torch import Tensor, nn, optim
 from torchrl.modules import MLP
-import wandb
 
+import wandb
 from afa_rl.custom_types import (
     Classifier,
     Embedder,
@@ -345,7 +345,7 @@ class PartialVAE(nn.Module):
         self.encoder = encoder
         self.decoder = decoder  # Maps from latent space to the original feature space
 
-    def forward(self, masked_features: MaskedFeatures, feature_mask: FeatureMask):
+    def encode(self, masked_features: MaskedFeatures, feature_mask: FeatureMask):
         pointnet_output = self.pointnet(masked_features, feature_mask)
         encoding = self.encoder(pointnet_output)
 
@@ -353,14 +353,23 @@ class PartialVAE(nn.Module):
         logvar = encoding[:, encoding.shape[1] // 2 :]
         std = torch.exp(0.5 * logvar)
         z = mu + std * torch.randn_like(std)
+
+        return encoding, mu, logvar, z
+
+    def forward(self, masked_features: MaskedFeatures, feature_mask: FeatureMask):
+        # Encode the masked features
+        encoding, mu, logvar, z = self.encode(masked_features, feature_mask)
+
+        # Decode
         x_hat = self.decoder(z)
+
         return encoding, mu, logvar, z, x_hat
 
 
 class Zannone2019PretrainingModel(pl.LightningModule):
     def __init__(
         self,
-        partial_vae: nn.Module,
+        partial_vae: PartialVAE,
         classifier: nn.Module,
         lr: float,
         max_masking_probability: float,
