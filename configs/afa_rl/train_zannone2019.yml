@@ -2,12 +2,14 @@ device: "cpu"
 generative_batch_size: 50
 
 dataset:
-  size: ?
-  sigma: ?
-  seed: ?
+  name: "cube"
+  train_path: "data/cube/apr14_train_small.pt"
+  val_path: "data/cube/apr14_val.pt"
+  n_features: 20
+  bounded_0_1: False
 
-acquisition_costs: ?
-batch_size: 64
+acquisition_cost: 0.05
+batch_size: 4
 n_batches: 100
 
 agent:
@@ -15,8 +17,8 @@ agent:
   update_tau: 0.01
 
 wandb:
-  entity: "your_wandb_entity"
-  project: "your_project_name"
+  entity: "valterschutz-chalmers-university-of-technology"
+  project: "train-zannone2019"
 
 eval_episodes: 10
 eval_max_steps: 100

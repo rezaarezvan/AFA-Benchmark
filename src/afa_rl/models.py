@@ -421,7 +421,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         self.log("train_loss_vae", partial_vae_loss, sync_dist=True)
 
         # Pass the encoding through the classifier
-        classifier_output = self.classifier(encoding)
+        classifier_output = self.classifier(z)  # TODO: mu might also work
         classifier_loss = F.cross_entropy(classifier_output, label.float())
         self.log("train_loss_classifier", classifier_loss, sync_dist=True)
 
@@ -449,7 +449,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         self.log("val_loss_vae", partial_vae_loss, sync_dist=True)
 
         # Pass the encoding through the classifier
-        logits = self.classifier(encoding)
+        logits = self.classifier(z)
         classifier_loss = F.cross_entropy(logits, label.float())
         self.log("val_loss_classifier", classifier_loss, sync_dist=True)
 
@@ -487,26 +487,26 @@ class Zannone2019PretrainingModel(pl.LightningModule):
             )
             self.log("norm_classifier", norm_classifier, sync_dist=True)
 
-        # If self.image_shape is defined, plot 4 images, their reconstructions and the predicted labels
-        if batch_idx == 0:
-            # If dataset consists of images, plot them
-            if self.image_shape:
-                self.log_val_images(
-                    features=masked_features,
-                    estimated_features=estimated_features,
-                    z=z,
-                    y_cls=y_cls,
-                    y_pred=y_pred,
-                )
-            # Otherwise plot features as 1D signals
-            else:
-                self.log_val_features(
-                    features=masked_features,
-                    estimated_features=estimated_features,
-                    z=z,
-                    y_cls=y_cls,
-                    y_pred=y_pred,
-                )
+            # If self.image_shape is defined, plot 4 images, their reconstructions and the predicted labels
+            if batch_idx == 0:
+                # If dataset consists of images, plot them
+                if self.image_shape:
+                    self.log_val_images(
+                        features=masked_features,
+                        estimated_features=estimated_features,
+                        z=z,
+                        y_cls=y_cls,
+                        y_pred=y_pred,
+                    )
+                # Otherwise plot features as 1D signals
+                else:
+                    self.log_val_features(
+                        features=masked_features,
+                        estimated_features=estimated_features,
+                        z=z,
+                        y_cls=y_cls,
+                        y_pred=y_pred,
+                    )
 
         return total_loss
 

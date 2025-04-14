@@ -17,7 +17,7 @@ from common.custom_types import (
     Features,
     Label,
 )
-from eval.registry import AFA_DATASET_REGISTRY, AFA_METHOD_REGISTRY
+from common.registry import AFA_DATASET_REGISTRY, AFA_METHOD_REGISTRY
 
 
 def evaluator(feature_mask_history: list[FeatureMask], label: torch.Tensor) -> dict:
@@ -71,13 +71,13 @@ def main():
         )
 
     # Load the AFA method
-    afa_method: AFAMethod = AFA_METHOD_REGISTRY[args.afa_method_name](
+    afa_method: AFAMethod = AFA_METHOD_REGISTRY[args.afa_method_name].load(
         args.afa_method_path
     )
     print(f"Loaded AFA method {args.afa_method_name} from {args.afa_method_path}")
 
     # Load the dataset
-    dataset: AFADataset = AFA_DATASET_REGISTRY[args.dataset_name](args.dataset_path)
+    dataset: AFADataset = AFA_DATASET_REGISTRY[args.dataset_name].load(args.dataset_path)
     print(f"Loaded dataset {args.dataset_name} from {args.dataset_path}")
 
     # Several metrics per sample in the dataset

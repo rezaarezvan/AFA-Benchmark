@@ -44,24 +44,20 @@ def get_afa_dataset_fn(features, labels) -> AFADatasetFn:
     return afa_dataset_fn
 
 
-class DataModuleFromDataset(pl.LightningDataModule):
-    def __init__(self, dataset, batch_size=32, train_ratio=0.8, num_workers=1):
+class DataModuleFromDatasets(pl.LightningDataModule):
+    def __init__(self, train_dataset, val_dataset, batch_size=32, num_workers=1):
         # TODO: does not work with num_workers > 1
         super().__init__()
-        self.dataset = dataset
+        self.train_dataset = train_dataset
+        self.val_dataset = val_dataset
         self.batch_size = batch_size
-        self.train_ratio = train_ratio
         self.num_workers = num_workers
 
     def prepare_data(self):
         pass
 
     def setup(self, stage: str):
-        train_size = int(self.train_ratio * len(self.dataset))
-        val_size = len(self.dataset) - train_size
-        self.train_dataset, self.val_dataset = torch.utils.data.random_split(
-            self.dataset, [train_size, val_size]
-        )
+        pass
 
     def train_dataloader(self):
         return DataLoader(

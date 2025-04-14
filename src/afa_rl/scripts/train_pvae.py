@@ -5,7 +5,7 @@ from lightning.pytorch.loggers import WandbLogger
 from torchvision import transforms
 
 import wandb
-from afa_rl.datasets import DataModuleFromDataset, MNISTDataModule
+from afa_rl.datasets import DataModuleFromDatasets, MNISTDataModule
 from afa_rl.models import (
     PartialVAE,
     PointNet1D,
@@ -24,7 +24,7 @@ def main1D():
         seed=42,
     )
     dataset.generate_data()
-    datamodule = DataModuleFromDataset(
+    datamodule = DataModuleFromDatasets(
         dataset=dataset, batch_size=128, train_ratio=0.8, num_workers=1
     )
 

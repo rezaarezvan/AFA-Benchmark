@@ -12,7 +12,7 @@ from torchvision import transforms
 
 import wandb
 from afa_rl.datasets import (
-    DataModuleFromDataset,
+    DataModuleFromDatasets,
     MNISTDataModule,
     Zannone2019CubeDataset,
 )
@@ -23,6 +23,8 @@ from afa_rl.models import (
     Zannone2019PretrainingModel,
 )
 from afa_rl.utils import dict_to_namespace, get_1D_identity, get_2D_identity
+from common.custom_types import AFADataset
+from common.registry import AFA_DATASET_REGISTRY
 
 
 def get_zannone2019_model_from_config(config):
@@ -100,8 +102,9 @@ def get_zannone2019_model_from_config(config):
     )
     model = Zannone2019PretrainingModel(
         partial_vae=partial_vae,
+        # Classifier acts on latent space
         classifier=MLP(
-            in_features=2 * config.partial_vae.latent_size,
+            in_features=config.partial_vae.latent_size,
             out_features=config.classifier.output_size,
             num_cells=config.classifier.num_cells,
             activation_class=nn.ReLU,
@@ -137,31 +140,15 @@ def main():
 
     config = dict_to_namespace(config_dict)
 
-    # Two different datasets possible: "cube" or "mnist"
-    # This will also influence which PointNet to use
-    if config.dataset.name == "cube":
-        dataset = Zannone2019CubeDataset(
-            n_features=config.dataset.n_features,
-            data_points=config.dataset.size,
-            seed=config.dataset.seed,
-            non_informative_feature_mean=config.dataset.non_informative_feature_mean,
-            informative_feature_variance=config.dataset.informative_feature_variance,
-            non_informative_feature_variance=config.dataset.non_informative_feature_variance,
-        )
-        dataset.generate_data()
-        datamodule = DataModuleFromDataset(
-            dataset=dataset,
-            batch_size=config.dataloader.batch_size,
-            train_ratio=config.dataloader.train_ratio,
-            num_workers=1,
-        )
-    elif config.dataset.name == "mnist":
-        datamodule = MNISTDataModule(
-            batch_size=config.dataloader.batch_size,
-            transform=transforms.Compose(
-                [transforms.ToTensor(), transforms.Lambda(lambda x: x.view(-1))]
-            ),
-        )
+    train_dataset: AFADataset = AFA_DATASET_REGISTRY[config.dataset.name].load(
+        config.dataset.train_path
+    )
+    val_dataset: AFADataset = AFA_DATASET_REGISTRY[config.dataset.name].load(
+        config.dataset.val_path
+    )
+    datamodule = DataModuleFromDatasets(
+        train_dataset, val_dataset, batch_size=config.dataloader.batch_size
+    )
 
     model = get_zannone2019_model_from_config(config)
 
@@ -179,12 +166,11 @@ def main():
     finally:
         # Move the best checkpoint to the desired location
         best_checkpoint = trainer.checkpoint_callback.best_model_path
-        # Create checkpoints directory if it doesn't exist
-        checkpoints_dir = "models/afa_rl"
-        os.makedirs(checkpoints_dir, exist_ok=True)
+        # Create parent directories if neccessary
+        os.makedirs(os.path.dirname(config.checkpoint_path), exist_ok=True)
         # Save
-        torch.save(torch.load(best_checkpoint), f"models/afa_rl/{config.checkpoint}")
-        print(f"Zannone2019PretrainingModel saved to models/afa_rl/{config.checkpoint}")
+        torch.save(torch.load(best_checkpoint), config.checkpoint_path)
+        print(f"Zannone2019PretrainingModel saved to {config.checkpoint_path}")
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 epochs: 100
-checkpoint: "pretrain_zannone2019_cube.ckpt"
+checkpoint_path: "models/afa_rl/pretrain_zannone2019_cube.ckpt"
 lr: 0.001
 verbose: False
 max_masking_probability: 0.9
@@ -9,18 +9,12 @@ kl_scaling_factor: 0.001
 
 dataset:
   name: "cube"
-  n_features: 20 # ODIN paper
-  size: 100000
-  seed: 42
-  bounded_0_1: True
-  non_informative_feature_mean: 0.5 # ODIN paper
-  informative_feature_variance: 0.1 # ODIN paper
-  # informative_feature_variance: 0.0
-  non_informative_feature_variance: 0.3 # ODIN paper
-  # non_informative_feature_variance: 0.0
+  train_path: "data/cube/apr14_train.pt"
+  val_path: "data/cube/apr14_val.pt"
+  n_features: 20
+  bounded_0_1: False
 dataloader:
   batch_size: 100
-  train_ratio: 0.8
 pointnet:
   naive_identity_type: "1D"
   type: "pointnetplus" # ODIN paper does not mention which type they use

@@ -267,6 +267,8 @@ class AFAEnv(EnvBase):
         reward_fn: AFARewardFn,
         device: torch.device,
         batch_size: torch.Size,
+        feature_size: int,
+        n_classes: int,
     ):
         # Do not allow empty batch sizes
         assert batch_size != torch.Size(()), "Batch size must be non-empty"
@@ -274,6 +276,8 @@ class AFAEnv(EnvBase):
 
         self.dataset_fn = dataset_fn
         self.reward_fn = reward_fn
+        self.feature_size = feature_size
+        self.n_classes = n_classes
 
         self._make_spec()
 
@@ -301,10 +305,10 @@ class AFAEnv(EnvBase):
                 dtype=torch.int64,
             ),
             # predicted_label is -1 until agent chooses to end episode
-            predicted_class=Unbounded(
-                shape=self.batch_size + torch.Size((1,)),
-                dtype=torch.int64,
-            ),
+            # predicted_class=Unbounded(
+            #     shape=self.batch_size + torch.Size((1,)),
+            #     dtype=torch.int64,
+            # ),
             batch_size=self.batch_size,
         )
         # action = 0 means stop, action = i means choose feature i

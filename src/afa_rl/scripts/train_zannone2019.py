@@ -6,7 +6,7 @@ from jaxtyping import Float
 from torch import Tensor, nn, optim
 from torch.nn import functional as F
 from torchrl.collectors import SyncDataCollector
-from torchrl.envs import ExplorationType, set_exploration_type
+from torchrl.envs import ExplorationType, check_env_specs, set_exploration_type
 from tqdm import tqdm
 
 import wandb
@@ -34,6 +34,7 @@ from common.custom_types import (
     MaskedFeatures,
 )
 from common.datasets import CubeDataset
+from common.registry import AFA_DATASET_REGISTRY
 
 
 def get_zannone2019_reward_fn(
@@ -96,6 +97,9 @@ def main(args):
 
     # Load pretrained model
     pretrained_model = get_zannone2019_model_from_config(pretrain_config)
+    # Freeze it
+    pretrained_model.requires_grad_(False)
+    pretrained_model.eval()
 
     # Generate data from generative model
     z = torch.randn(
@@ -105,27 +109,23 @@ def main(args):
     # Predicted labels
     yhat = pretrained_model.classifier(z)
 
-    # Prepare cube dataset for the format that AFAMDP expects
-    dataset = CubeDataset(
-        n_features=pretrain_config.n_features,
-        data_points=train_config.dataset.size,
-        sigma=train_config.dataset.sigma,
-        seed=train_config.dataset.seed,
+    # Load datasets
+    train_dataset: AFADataset = AFA_DATASET_REGISTRY[train_config.dataset.name].load(
+        train_config.dataset.train_path
     )
-    dataset.generate_data()
+    val_dataset: AFADataset = AFA_DATASET_REGISTRY[train_config.dataset.name].load(
+        train_config.dataset.val_path
+    )
 
     # Concatenate the generated data with the original dataset
-    combined_features = torch.cat((dataset.features, xhat), dim=0)
-    combined_labels = torch.cat((dataset.labels, yhat), dim=0)
+    combined_features = torch.cat((train_dataset.features, xhat), dim=0)
+    combined_labels = torch.cat((train_dataset.labels, yhat), dim=0)
 
     reward_fn = get_zannone2019_reward_fn(
         partial_vae=pretrained_model.partial_vae,
         classifier=pretrained_model.classifier,
-        acquisition_costs=torch.tensor(
-            data=train_config.acquisition_costs,
-            dtype=torch.float32,
-            device=device,
-        ),
+        acquisition_costs=train_config.acquisition_cost
+        * torch.ones(train_dataset.features.shape[1], dtype=torch.float32),
     )
 
     # Use original data and generated data for training
@@ -133,16 +133,20 @@ def main(args):
         dataset_fn=get_afa_dataset_fn(combined_features, combined_labels),
         reward_fn=reward_fn,
         device=device,
-        batch_size=train_config.batch_size,
+        batch_size=torch.Size((train_config.batch_size,)),
+        feature_size=train_dataset.features.shape[1],
+        n_classes=train_dataset.labels.shape[1],
     )
-    # check_env_specs(train_env)
+    check_env_specs(train_env)
 
-    # Evaluate only on original data
+    # Evaluate on validation data
     eval_env = AFAEnv(
-        dataset_fn=get_afa_dataset_fn(dataset.features, dataset.labels),
+        dataset_fn=get_afa_dataset_fn(val_dataset.features, val_dataset.labels),
         reward_fn=reward_fn,
         device=device,
-        batch_size=train_config.batch_size,
+        batch_size=torch.Size((train_config.batch_size,)),
+        feature_size=val_dataset.features.shape[1],
+        n_classes=val_dataset.labels.shape[1],
     )
 
     agent = Zannone2019Agent(

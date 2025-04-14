@@ -246,7 +246,7 @@ class Zannone2019Agent:
             actor_network=self.actor_network, critic_network=self.critic_network
         )
         self.optim = optim.Adam(self.loss_module.parameters(), lr=self.lr)
-        self.updater = SoftUpdate(self.loss_module, tau=self.update_tau)
+        # self.updater = SoftUpdate(self.loss_module, tau=self.update_tau)
 
     def policy(self, td: TensorDictBase):
         td = self.actor_network(td)
@@ -260,6 +260,6 @@ class Zannone2019Agent:
         loss_value.backward()
 
         self.optim.step()
-        self.updater.step()
+        # self.updater.step()
 
         return loss_value.mean()
