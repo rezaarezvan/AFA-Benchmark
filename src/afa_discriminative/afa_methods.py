@@ -3,7 +3,7 @@ import torch.nn as nn
 import numpy as np
 import torch.optim as optim
 from tqdm.auto import tqdm
-from afa_generative.utils import restore_parameters, make_onehot, ConcreteSelector
+from afa_discriminative.utils import restore_parameters, make_onehot, get_entropy, ind_to_onehot, ConcreteSelector
 from copy import deepcopy
 
 
@@ -336,4 +336,259 @@ class GreedyDynamicSelection(nn.Module):
                 score = metric(pred, y).item()
                 
         return score
+
+
+class CMIEstimator(nn.Module):
+    '''
+    Greedy CMI estimation module.
+    '''
+
+    def __init__(self,
+                 value_network,
+                 predictor,
+                 mask_layer):
+        super().__init__()
+
+        # Save network modules.
+        self.value_network = value_network
+        self.predictor = predictor
+        self.mask_layer = mask_layer
+
+    def set_stopping_criterion(self, budget=None, lam=None, confidence=None):
+        '''Set parameters for stopping criterion.'''
+        if sum([budget is None, lam is None, confidence is None]) != 2:
+            raise ValueError('Must specify exactly one of budget, lam, and confidence')
+        if budget is not None:
+            self.budget = budget
+            self.mode = 'budget'
+        elif lam is not None:
+            self.lam = lam
+            self.mode = 'penalized'
+        elif confidence is not None:
+            self.confidence = confidence
+            self.mode = 'confidence'
+
+    def fit(self,
+            train_loader,
+            val_loader,
+            lr,
+            nepochs,
+            max_features,
+            eps,
+            loss_fn,
+            val_loss_fn,
+            val_loss_mode,
+            factor=0.2,
+            patience=2,
+            min_lr=1e-6,
+            early_stopping_epochs=None,
+            eps_decay=0.2,
+            eps_steps=1,
+            feature_costs=None,
+            cmi_scaling='bounded',
+            verbose=True):
+        
+        if val_loss_fn is None:
+            val_loss_fn = loss_fn
+            val_loss_mode = 'min'
+        else:
+            if val_loss_mode is None:
+                raise ValueError('must specify val_loss_mode (min or max) when validation_loss_fn is specified')
+        if early_stopping_epochs is None:
+            early_stopping_epochs = patience + 1
+        
+        value_network = self.value_network
+        predictor = self.predictor
+        mask_layer = self.mask_layer
+
+        device = next(predictor.parameters()).device
+        val_loss_fn = val_loss_fn.to(device)
+        value_network = value_network.to(device)
+
+        if hasattr(mask_layer, 'mask_size') and (mask_layer.mask_size is not None):
+            mask_size = mask_layer.mask_size
+        else:
+            # Must be tabular (1d data).
+            x, y = next(iter(val_loader))
+            assert len(x.shape) == 2
+            mask_size = x.shape[1]
+
+        if feature_costs is None:
+            feature_costs = torch.ones(mask_size).to(device)
+        elif isinstance(feature_costs, np.ndarray):
+            feature_costs = torch.tensor(feature_costs).to(device)
+
+        opt = optim.Adam(set(list(value_network.parameters()) + list(predictor.parameters())), lr=lr)
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+            opt, mode=val_loss_mode, factor=factor, patience=patience,
+            min_lr=min_lr)
+        
+        # For tracking best models and early stopping.
+        best_value_network = deepcopy(value_network)
+        best_predictor = deepcopy(predictor)
+        num_bad_epochs = 0
+        num_epsilon_steps = 0
+
+        for epoch in range(nepochs):
+            # Switch models to training mode.
+            value_network.train()
+            predictor.train()
+            value_losses = []
+            pred_losses = []
+
+            for x, y in train_loader:
+                # Move to device.
+                x = x.to(device)
+                y = y.to(device)
+                
+                # Setup.
+                m = torch.zeros(len(x), mask_size, dtype=x.dtype, device=device)
+                value_network.zero_grad()
+                predictor.zero_grad()
+                value_network_loss_total = 0
+                pred_loss_total = 0
+
+                # Predictor loss with no features.
+                x_masked = self.mask_layer(x, m)
+                pred_without_next_feature = predictor(x_masked)
+                loss_without_next_feature = loss_fn(pred_without_next_feature, y)
+                pred_loss = loss_without_next_feature.mean()
+                pred_loss_total += pred_loss.detach()
+
+                (pred_loss / (max_features + 1)).backward()
+                pred_without_next_feature = pred_without_next_feature.detach()
+                loss_without_next_feature = loss_without_next_feature.detach()
+                
+                for _ in range(max_features):
+                    # Estimate CMI using value network.
+                    x_masked = mask_layer(x, m)
+                    if cmi_scaling == 'bounded':
+                        entropy = get_entropy(pred_without_next_feature).unsqueeze(1)
+                        pred_cmi = value_network(x_masked).sigmoid() * entropy
+                    elif cmi_scaling == 'positive':
+                        pred_cmi = torch.nn.functional.softplus(value_network(x_masked))
+                    else:
+                        pred_cmi = value_network(x_masked)
+                
+                    best = torch.argmax(pred_cmi / feature_costs, dim=1)
+                    random = torch.tensor(np.random.choice(mask_size, size=len(x)), device=x.device)
+                    exploit = (torch.rand(len(x), device=x.device) > eps).int()
+                    actions = exploit * best + (1 - exploit) * random
+                    m = torch.max(m, ind_to_onehot(actions, mask_size))
+
+                    # Predictor loss.
+                    x_masked = self.mask_layer(x, m)
+                    pred_with_next_feature = predictor(x_masked)
+                    loss_with_next_feature = loss_fn(pred_with_next_feature, y)
+
+                    # Value network loss.
+                    delta = loss_without_next_feature - loss_with_next_feature.detach()
+                    value_network_loss = nn.functional.mse_loss(pred_cmi[torch.arange(len(x)), actions], delta)
+
+                    # Calculate gradients.
+                    total_loss = torch.mean(value_network_loss) + torch.mean(loss_with_next_feature)
+                    (total_loss / (max_features + 1)).backward()
+
+                    # Updates.
+                    value_network_loss_total += torch.mean(value_network_loss)
+                    pred_loss_total += torch.mean(loss_with_next_feature)
+                    loss_without_next_feature = loss_with_next_feature.detach()
+                    pred_without_next_feature = pred_with_next_feature.detach()
+
+                # Take gradient step.
+                opt.step()
+                opt.zero_grad()
+
+                value_losses.append(value_network_loss_total / max_features)
+                pred_losses.append(pred_loss_total / (max_features + 1))
+                
+            # Calculate validation loss.
+            value_network.eval()
+            predictor.eval()
+            val_preds = [[] for _ in range(max_features + 1)]
+            val_targets = []
+
+            with torch.no_grad():
+                for x, y in val_loader:
+                    # Move to device.
+                    x = x.to(device)
+                    y = y.to(device)
+
+                    # Setup.
+                    m = torch.zeros(len(x), mask_size, dtype=x.dtype, device=device)
+                    x_masked = self.mask_layer(x, m)
+                    pred = predictor(x_masked)
+                    val_preds[0].append(pred)
+
+                    for i in range(1, max_features + 1):
+                        # Estimate CMI using value network.
+                        x_masked = mask_layer(x, m)
+                        if cmi_scaling == 'bounded':
+                            entropy = get_entropy(pred).unsqueeze(1)
+                            pred_cmi = value_network(x_masked).sigmoid() * entropy
+                        elif cmi_scaling == 'positive':
+                            pred_cmi = torch.nn.functional.softplus(value_network(x_masked))
+                        else:
+                            pred_cmi = value_network(x_masked)
+
+                        # Select next feature, ensure no repeats.
+                        pred_cmi -= 1e6 * m
+                        best_feature_index = torch.argmax(pred_cmi / feature_costs, dim=1)
+                        m = torch.max(m, ind_to_onehot(best_feature_index, mask_size))
+
+                        # Make prediction.
+                        x_masked = self.mask_layer(x, m)
+                        pred = self.predictor(x_masked)
+                        val_preds[i].append(pred)
+
+                    val_targets.append(y)
+
+                # Calculate mean loss.
+                y_val = torch.cat(val_targets)
+                preds_cat = [torch.cat(p) for p in val_preds]
+                pred_losses = [loss_fn(p, y_val).mean() for p in preds_cat]
+                val_scores = [val_loss_fn(p, y_val) for p in preds_cat]
+                val_loss_mean = torch.stack(pred_losses).mean()
+                val_perf_mean = torch.stack(val_scores).mean()
+                val_loss_final = pred_losses[-1]
+                val_perf_final = val_scores[-1]
+
+            # Print progress.
+            if verbose:
+                print(f'{"-"*8}Epoch {epoch+1}{"-"*8}')
+                print(f'Loss Val/Mean = {val_loss_mean}')
+                print(f'Perf Val/Mean = {val_perf_mean}')
+                print(f'Loss Val/Final = {val_loss_final}')
+                print(f'Perf Val/Final = {val_perf_final}')
+                print(f'Eps Value = {eps}\n')
+
+            # Update scheduler.
+            scheduler.step(val_loss_mean)
+
+            # Check if best model.
+            if val_loss_mean == scheduler.best:
+                best_value_network = deepcopy(value_network)
+                best_predictor = deepcopy(predictor)
+                num_bad_epochs = 0
+            else:
+                num_bad_epochs += 1
+                
+            # Decay epsilon.
+            if num_bad_epochs > early_stopping_epochs:
+                eps *= eps_decay
+                num_bad_epochs = 0
+                num_epsilon_steps += 1
+                print(f'Decaying eps to {eps:.5f}, step = {num_epsilon_steps}')
+
+                # Early stopping.
+                if num_epsilon_steps >= eps_steps:
+                    break
+            
+                # Reset optimizer learning rate. Could fully reset optimizer and scheduler, but this is simpler.
+                for g in opt.param_groups:
+                    g['lr'] = lr
+
+        # Copy parameters from best model.
+        restore_parameters(value_network, best_value_network)
+        restore_parameters(predictor, best_predictor)
 

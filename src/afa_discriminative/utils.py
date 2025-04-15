@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
-from torch.distributions import RelaxedOneHotCategorical
+import numpy as np
+from torch.distributions import RelaxedOneHotCategorical, Categorical
 
 
 def restore_parameters(model, best_model):
