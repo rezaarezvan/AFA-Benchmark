@@ -32,6 +32,8 @@ Maybe:
 15. Aditya Chattopadhyay, et al. Variational information pursuit for interpretable predictions. ICLR, 2023.
 16. Samrudhdhi B Rangrej et al. A probabilistic hard attention model for sequentially observed scenes. BMVC 2021. **(Extends EDDI to image data).**
 17. Ghosh et al. DiFA: Differentiable Feature Acquisition. AAAI 2023.
+18. Valancius et al. Acquisition conditioned oracle for nongreedy active feature acquisition, ICML 2024.
+
 
 ## State requirements per method at test time
 
