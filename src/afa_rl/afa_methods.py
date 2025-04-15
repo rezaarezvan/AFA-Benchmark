@@ -1,12 +1,42 @@
+from tensordict.nn import TensorDictModule
 import torch
 from tensordict import TensorDict
+from torch.distributions import Categorical
 from torchrl.data import TensorSpec
-from torchrl.modules import ProbabilisticActor, QValueActor
+from torchrl.envs import ExplorationType, set_exploration_type
+from torchrl.modules import MLP, ProbabilisticActor, QValueActor
 
-from afa_rl.agents import Shim2018ValueModule
-from afa_rl.models import ReadProcessEncoder, ShimEmbedder
+from afa_rl.agents import Shim2018ValueModule, Zannone2019PolicyModule, Zannone2019ValueModule
+from afa_rl.models import PointNet, ReadProcessEncoder, ShimEmbedder
 from afa_rl.utils import remove_module_prefix
 from common.custom_types import AFASelection, FeatureMask, MaskedFeatures
+
+
+def get_td_from_masked_features(
+    masked_features: MaskedFeatures,
+    feature_mask: FeatureMask,
+) -> TensorDict:
+    """
+    Creates a TensorDict from the masked features and the feature mask.
+    """
+    # The action mask is almost the same as the feature mask but with one extra element
+    action_mask = torch.ones(
+        masked_features.shape[0],
+        masked_features.shape[1] + 1,
+        dtype=torch.bool,
+    )
+    action_mask[:, 1:] = feature_mask
+
+    td = TensorDict(
+        {
+            "action_mask": action_mask,
+            "feature_values": masked_features,
+            "feature_mask": feature_mask,
+        },
+        batch_size=masked_features.shape[0],
+    )
+
+    return td
 
 
 class Shim2018AFAMethod:
@@ -37,30 +67,15 @@ class Shim2018AFAMethod:
         # The agent expects a tensordict with an "embedding" and "action mask" key
 
         # The embedding is produced by the embedder
-        embedding = self.embedder(masked_features, feature_mask)
+        with torch.no_grad():
+            embedding = self.embedder(masked_features, feature_mask)
 
-        # The action mask is almost the same as the feature mask but with one extra element
-        action_mask = torch.ones(
-            masked_features.shape[0],
-            masked_features.shape[1] + 1,
-            dtype=torch.bool,
-            device=self.device,
-        )
-        action_mask[:, 1:] = feature_mask
-
-        td = TensorDict(
-            {
-                "embedding": embedding,
-                "action_mask": action_mask,
-                "feature_values": masked_features,
-                "feature_mask": feature_mask,
-            },
-            batch_size=masked_features.shape[0],
-            device=self.device,
-        )
+        td = get_td_from_masked_features(masked_features, feature_mask)
+        td["embedding"] = embedding
 
         # Apply the agent's policy to the tensordict
-        td = self.value_network(td)
+        with torch.no_grad(), set_exploration_type(ExplorationType.DETERMINISTIC):
+            td = self.value_network(td)
 
         # Get the action from the tensordict
         afa_selection = td["action"].unsqueeze(-1)
@@ -129,18 +144,83 @@ class Zannone2019AFAMethod:
         self,
         actor_network: ProbabilisticActor,
     ):
-        raise NotImplementedError("Zannone2019AFAMethod is not implemented yet.")
+        self.actor_network = actor_network
+        self.device = actor_network.device
 
     def __call__(
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
     ) -> AFASelection:
-        raise NotImplementedError("Zannone2019AFAMethod is not implemented yet.")
+        masked_features = masked_features.to(self.device)
+        feature_mask = feature_mask.to(self.device)
+
+        td = get_td_from_masked_features(masked_features, feature_mask)
+
+        # Apply the agent's policy to the tensordict
+        with torch.no_grad(), set_exploration_type(ExplorationType.DETERMINISTIC):
+            td = self.actor_network(td)
+
+        # Get the action from the tensordict
+        afa_selection = td["action"].unsqueeze(-1)
+
+        return afa_selection
 
     def save(self, path: str):
-        raise NotImplementedError("Saving Zannone2019AFAMethod is not implemented yet.")
+        # We have to save two neural networks: the value module and the encoder
+        torch.save(
+            {
+                "action_spec": self.action_spec,
+                "value_module_config": {
+                    "embedding_size": self.value_network.module[0].embedding_size,
+                    "action_size": self.value_network.module[0].action_size,
+                    "num_cells": self.value_network.module[0].num_cells,
+                },
+                "value_module_state_dict": remove_module_prefix(
+                    self.value_network.module[0].state_dict()
+                ),
+                "encoder_config": {
+                    "feature_size": self.embedder.encoder.feature_size,
+                    "output_size": self.embedder.encoder.output_size,
+                    "reading_block_cells": self.embedder.encoder.reading_block_cells,
+                    "writing_block_cells": self.embedder.encoder.writing_block_cells,
+                    "memory_size": self.embedder.encoder.memory_size,
+                    "processing_steps": self.embedder.encoder.processing_steps,
+                },
+                "encoder_state_dict": self.embedder.encoder.state_dict(),
+                "device": str(self.device),
+            },
+            path,
+        )
 
     @staticmethod
     def load(path: str) -> "Zannone2019AFAMethod":
-        raise NotImplementedError(
-            "Loading Zannone2019AFAMethod is not implemented yet."
+        data = torch.load(path, weights_only=False)
+
+        identity_network = MLP(**data["identity_network_config"])
+        feature_map_encoder = MLP(**data["feature_map_encoder_config"])
+
+        pointnet = PointNet(
+            naive_identity_fn=data["pointnet_config"]["naive_identity_fn"],
+            identity_network=identity_network,
+            feature_map_encoder=feature_map_encoder,
+            pointnet_type=pointnet_type,
         )
+        encoder = MLP(
+            **data["encoder_config"],
+        )
+
+        policy_module = Zannone2019PolicyModule(pointnet=pointnet, encoder=encoder, **data["policy_module_config"])
+
+        actor_network = ProbabilisticActor(
+            module=TensorDictModule(
+                module=policy_module,
+                in_keys=["masked_features", "feature_mask", "action_mask"],
+                out_keys=["logits"],
+            ),
+            spec=data["action_spec"],
+            in_keys=["logits"],
+            distribution_class=Categorical,
+            return_log_prob=True,
+        )
+
+
+        return Zannone2019AFAMethod(actor_network)

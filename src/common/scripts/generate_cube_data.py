@@ -12,11 +12,14 @@ def main(args):
         n_features=args.n_features,
         data_points=args.data_points,
         sigma=args.sigma,
-        seed=args.seed
+        seed=args.seed,
     )
     dataset.generate_data()
     dataset.save(args.save_path)
-    print(f"Generated {args.data_points} data points with {args.n_features} features and saved to {args.save_path}")
+    print(
+        f"Generated {args.data_points} data points with {args.n_features} features and saved to {args.save_path}"
+    )
+
 
 if __name__ == "__main__":
     parser = ArgumentParser(description="Generate cube data and store it in a .pt file")

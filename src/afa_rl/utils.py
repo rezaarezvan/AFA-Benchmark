@@ -145,6 +145,36 @@ def get_2D_identity(
     return torch.stack(result)
 
 
+# def get_1D_identity(
+#     feature_mask: FeatureMask,
+# ) -> Integer[Tensor, "*batch n_features n_features"]:
+#     """
+#     Converts a feature mask to a onehot representation for each feature, but with all zeros for unobserved features.
+#     """
+#     batch_size, feature_size = feature_mask.shape
+
+#     feature_set = torch.zeros(
+#         (batch_size, feature_size, feature_size),
+#         device=feature_mask.device,
+#         dtype=torch.float,
+#     )
+
+#     # Generate one-hot indices
+#     one_hot_indices = torch.eye(
+#         feature_size, device=feature_mask.device
+#     )  # shape: (feature_size, feature_size)
+
+#     # Expand one-hot vectors only for observed features
+#     mask_expanded = feature_mask.unsqueeze(-1).expand(
+#         -1, -1, feature_size
+#     )  # shape: (batch, features, feature_size)
+#     feature_set[:, :, :] = (
+#         one_hot_indices.unsqueeze(0).expand(batch_size, -1, -1) * mask_expanded
+#     )
+
+#     return feature_set
+
+
 def get_1D_identity(
     feature_mask: FeatureMask,
 ) -> Integer[Tensor, "*batch n_features n_features"]:
@@ -153,24 +183,17 @@ def get_1D_identity(
     """
     batch_size, feature_size = feature_mask.shape
 
-    feature_set = torch.zeros(
-        (batch_size, feature_size, feature_size),
-        device=feature_mask.device,
-        dtype=torch.float,
-    )
+    # One-hot vectors for each feature (feature_size, feature_size)
+    one_hot = torch.eye(feature_size, device=feature_mask.device)
 
-    # Generate one-hot indices
-    one_hot_indices = torch.eye(
-        feature_size, device=feature_mask.device
-    )  # shape: (feature_size, feature_size)
+    # Expand to match batch: (batch, feature_size, feature_size)
+    one_hot_batch = one_hot.unsqueeze(0).expand(batch_size, -1, -1)
 
-    # Expand one-hot vectors only for observed features
-    mask_expanded = feature_mask.unsqueeze(-1).expand(
-        -1, -1, feature_size
-    )  # shape: (batch, features, feature_size)
-    feature_set[:, :, :] = (
-        one_hot_indices.unsqueeze(0).expand(batch_size, -1, -1) * mask_expanded
-    )
+    # Expand mask: (batch, feature_size, 1)
+    mask_expanded = feature_mask.unsqueeze(-1)
+
+    # Multiply to mask out unobserved features
+    feature_set = one_hot_batch * mask_expanded
 
     return feature_set
 

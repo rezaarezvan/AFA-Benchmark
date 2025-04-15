@@ -1,8 +1,9 @@
 import torch
+from jaxtyping import Bool
 from tensordict import TensorDictBase
 from tensordict.nn import TensorDictModule, TensorDictSequential
 from torch import Tensor, nn, optim
-from torch.distributions import OneHotCategorical
+from torch.distributions import Categorical
 from torchrl.data import (
     LazyTensorStorage,
     PrioritizedSampler,
@@ -17,8 +18,9 @@ from torchrl.modules import (
     ValueOperator,
 )
 from torchrl.objectives import ClipPPOLoss, DQNLoss, SoftUpdate
+from wandb.proto.wandb_generate_proto import p
 
-from afa_rl.models import PartialVAE
+from afa_rl.models import PartialVAE, PointNet
 from common.custom_types import FeatureMask, MaskedFeatures
 
 
@@ -173,72 +175,95 @@ class Shim2018Agent:
 
 
 class Zannone2019ValueModule(nn.Module):
-    def __init__(self, partial_vae: PartialVAE, latent_size: int, n_actions: int):
+    def __init__(self, pointnet: PointNet, encoder: nn.Module, latent_size: int, n_actions: int):
         super().__init__()
-        self.partial_vae = partial_vae
+        self.pointnet = pointnet
+        self.encoder = encoder
         self.latent_size = latent_size
         self.n_actions = n_actions
 
-        self.net = nn.Linear(latent_size, n_actions)
+        self.net = nn.Sequential(nn.Linear(latent_size, 1))
 
     def forward(self, masked_features: MaskedFeatures, feature_mask: FeatureMask):
-        encoding, mu, logvar, z = self.partial_vae.encode(masked_features, feature_mask)
+        pointnet_output = self.pointnet(
+            masked_features, feature_mask
+        )
+        encoding = self.encoder(pointnet_output)
+        mu = encoding[:, : encoding.shape[1] // 2]
         return self.net(mu)
 
 
 class Zannone2019PolicyModule(nn.Module):
-    def __init__(self, partial_vae: PartialVAE, latent_size: int, n_actions: int):
+    def __init__(self, pointnet: PointNet, encoder: nn.Module, latent_size: int, n_actions: int):
         super().__init__()
-        self.partial_vae = partial_vae
+        self.pointnet = pointnet
+        self.encoder = encoder
         self.latent_size = latent_size
         self.n_actions = n_actions
 
-        self.net = nn.Linear(latent_size, n_actions)
+        self.net = nn.Sequential(nn.Linear(latent_size, n_actions))
 
-    def forward(self, masked_features: MaskedFeatures, feature_mask: FeatureMask):
-        encoding, mu, logvar, z = self.partial_vae.encode(masked_features, feature_mask)
-        return self.net(mu)
+    def forward(
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        action_mask: Bool[Tensor, "batch n_actions"],
+    ):
+        pointnet_output = self.pointnet(
+            masked_features, feature_mask
+        )
+        encoding = self.encoder(pointnet_output)
+        mu = encoding[:, : encoding.shape[1] // 2]
+        action_logits = self.net(mu)
+        # By setting the logits of invalid actions to -inf, we prevent them from being selected.
+        action_logits[~action_mask] = float("-inf")
+        return action_logits
 
 
 class Zannone2019Agent:
     def __init__(
         self,
-        partial_vae: PartialVAE,  # Assumed to be frozen
+        pointnet: PointNet, # assumed to be frozen
+        encoder: nn.Module, # assumed to be frozen
         lr: float,
-        update_tau: float,
         device: torch.device,
         latent_size: int,
         action_spec: TensorSpec,
     ):
-        self.partial_vae = partial_vae
+        self.pointnet = pointnet
+        self.encoder = encoder
         self.lr = lr
-        self.update_tau = update_tau
+        # self.update_tau = update_tau
         self.device = device
         self.latent_size = latent_size
         self.action_spec = action_spec
 
+        self.policy_module = Zannone2019PolicyModule(
+            pointnet=self.pointnet,
+            encoder=self.encoder,
+            latent_size=self.latent_size,
+            n_actions=self.action_spec.n,
+        )
         self.actor_network = ProbabilisticActor(
             module=TensorDictModule(
-                Zannone2019PolicyModule(
-                    partial_vae=self.partial_vae,
-                    latent_size=self.latent_size,
-                    n_actions=self.action_spec.n,
-                ),
-                in_keys=["masked_features", "feature_mask"],
+                module=self.policy_module,
+                in_keys=["masked_features", "feature_mask", "action_mask"],
                 out_keys=["logits"],
             ),
             spec=self.action_spec,
             in_keys=["logits"],
-            distribution_class=OneHotCategorical,
+            distribution_class=Categorical,
             return_log_prob=True,
         )
 
+        self.value_module = Zannone2019ValueModule(
+            pointnet=self.pointnet,
+            encoder=self.encoder,
+            latent_size=self.latent_size,
+            n_actions=self.action_spec.n,
+        )
         self.critic_network = ValueOperator(
-            module=Zannone2019ValueModule(
-                partial_vae=self.partial_vae,
-                latent_size=self.latent_size,
-                n_actions=self.action_spec.n,
-            ),
+            module=self.value_module,
             in_keys=["masked_features", "feature_mask"],
         )
 
@@ -246,7 +271,6 @@ class Zannone2019Agent:
             actor_network=self.actor_network, critic_network=self.critic_network
         )
         self.optim = optim.Adam(self.loss_module.parameters(), lr=self.lr)
-        # self.updater = SoftUpdate(self.loss_module, tau=self.update_tau)
 
     def policy(self, td: TensorDictBase):
         td = self.actor_network(td)
@@ -256,7 +280,7 @@ class Zannone2019Agent:
         self.optim.zero_grad()
 
         loss = self.loss_module(td)
-        loss_value = loss["value_loss"] + loss["entropy_loss"] + loss["policy_loss"]
+        loss_value = loss["loss_critic"] + loss["loss_entropy"] + loss["loss_objective"]
         loss_value.backward()
 
         self.optim.step()

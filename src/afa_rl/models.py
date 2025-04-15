@@ -18,7 +18,6 @@ from afa_rl.custom_types import (
     Label,
     Logits,
     NaiveIdentityFn,
-    PointNetLike,
 )
 from afa_rl.utils import (
     get_feature_set,
@@ -241,7 +240,7 @@ class PointNetType(Enum):
     POINTNETPLUS = 2
 
 
-class PointNet(PointNetLike):
+class PointNet(nn.Module):
     """
     A PointNet(Plus).
     """
@@ -329,7 +328,7 @@ class PartialVAE(nn.Module):
 
     def __init__(
         self,
-        pointnet: PointNetLike,
+        pointnet: PointNet,
         encoder: nn.Module,
         decoder: nn.Module,
     ):
@@ -345,14 +344,22 @@ class PartialVAE(nn.Module):
         self.encoder = encoder
         self.decoder = decoder  # Maps from latent space to the original feature space
 
-    def encode(self, masked_features: MaskedFeatures, feature_mask: FeatureMask):
+    def encode(
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        deterministic=False,
+    ):
         pointnet_output = self.pointnet(masked_features, feature_mask)
         encoding = self.encoder(pointnet_output)
 
         mu = encoding[:, : encoding.shape[1] // 2]
         logvar = encoding[:, encoding.shape[1] // 2 :]
         std = torch.exp(0.5 * logvar)
-        z = mu + std * torch.randn_like(std)
+        if deterministic:
+            z = mu
+        else:
+            z = mu + std * torch.randn_like(std)
 
         return encoding, mu, logvar, z
 

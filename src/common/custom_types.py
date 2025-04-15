@@ -5,7 +5,8 @@ from torch import Tensor
 
 # AFA datasets return features and labels
 type Features = Float[Tensor, "*batch n_features"]
-type Label = Bool[Tensor, "*batch n_classes"]
+# We use float here since in general we can have probabilities, not only one-hot
+type Label = Float[Tensor, "*batch n_classes"]
 
 
 class AFADataset(Protocol):
@@ -105,6 +106,14 @@ class AFAMethod(Protocol):
 
 type AFAReward = Float[Tensor, "*batch 1"]
 type AFARewardFn = Callable[
-    [MaskedFeatures, FeatureMask, MaskedFeatures, FeatureMask, AFASelection, Features, Label],
+    [
+        MaskedFeatures,
+        FeatureMask,
+        MaskedFeatures,
+        FeatureMask,
+        AFASelection,
+        Features,
+        Label,
+    ],
     AFAReward,
 ]

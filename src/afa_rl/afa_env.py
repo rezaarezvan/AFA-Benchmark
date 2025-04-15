@@ -302,7 +302,7 @@ class AFAEnv(EnvBase):
             ),
             label=Unbounded(
                 shape=self.batch_size + torch.Size((self.n_classes,)),
-                dtype=torch.int64,
+                dtype=torch.float32,
             ),
             # predicted_label is -1 until agent chooses to end episode
             # predicted_class=Unbounded(

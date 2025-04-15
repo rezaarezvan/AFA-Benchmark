@@ -51,23 +51,6 @@ class AFADatasetFn(Protocol):
     ) -> tuple[Features, Label]: ...
 
 
-class PointNetLike(nn.Module, ABC):
-    """
-    PointNet as described in the paper "EDDI: Efficient Dynamic Discovery of High-Value Information with Partial VAE"
-
-    This is c(x_0) in the paper.
-    """
-
-    @abstractmethod
-    def forward(
-        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
-    ) -> Float[Tensor, "*batch pointnet_size"]: ...
-
-    def __call__(
-        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
-    ) -> Float[Tensor, "*batch pointnet_size"]:
-        return super().__call__(masked_features, feature_mask)
-
 
 type NaiveIdentity = Integer[Tensor, "*batch n_features naive_identity_size"]
 type NaiveIdentityFn = Callable[[FeatureMask], NaiveIdentity]
