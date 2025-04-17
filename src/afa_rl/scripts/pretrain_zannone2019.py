@@ -8,13 +8,10 @@ import yaml
 from lightning.pytorch.loggers import WandbLogger
 from torch import nn
 from torchrl.modules import MLP
-from torchvision import transforms
 
 import wandb
 from afa_rl.datasets import (
     DataModuleFromDatasets,
-    MNISTDataModule,
-    Zannone2019CubeDataset,
 )
 from afa_rl.models import (
     PartialVAE,

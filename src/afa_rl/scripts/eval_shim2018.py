@@ -9,7 +9,7 @@ import wandb
 from afa_rl.afa_env import Shim2018Env
 from afa_rl.agents import Shim2018Agent
 from afa_rl.models import (
-    MLPClassifier,
+    ShimMLPClassifier,
     ReadProcessEncoder,
     ShimEmbedder,
     ShimEmbedderClassifier,
@@ -48,7 +48,7 @@ def main():
                 processing_steps=5,
             ),
         ),
-        classifier=MLPClassifier(16, 8, [32, 32]),
+        classifier=ShimMLPClassifier(16, 8, [32, 32]),
         lr=1e-4,
     )
     embedder_and_classifier.load_state_dict(checkpoint["state_dict"])

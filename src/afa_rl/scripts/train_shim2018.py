@@ -14,7 +14,7 @@ from afa_rl.afa_methods import Shim2018AFAMethod
 from afa_rl.agents import Shim2018Agent
 from afa_rl.datasets import get_afa_dataset_fn
 from afa_rl.models import (
-    MLPClassifier,
+    ShimMLPClassifier,
     ReadProcessEncoder,
     ShimEmbedder,
     ShimEmbedderClassifier,
@@ -117,7 +117,7 @@ def main():
                 processing_steps=pretrain_config.encoder.processing_steps,
             ),
         ),
-        classifier=MLPClassifier(
+        classifier=ShimMLPClassifier(
             pretrain_config.encoder.output_size, 8, pretrain_config.classifier.num_cells
         ),
         lr=pretrain_config.embedder_classifier.lr,

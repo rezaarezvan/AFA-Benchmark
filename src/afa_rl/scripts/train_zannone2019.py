@@ -3,27 +3,23 @@ import argparse
 import torch
 import yaml
 from jaxtyping import Float
-from torch import Tensor, nn, optim
+from torch import Tensor, nn
 from torch.nn import functional as F
 from torchrl.collectors import SyncDataCollector
-from torchrl.envs import ExplorationType, check_env_specs, set_exploration_type
+from torchrl.envs import ExplorationType, set_exploration_type
 from tqdm import tqdm
 
 import wandb
-from afa_rl.afa_env import AFAEnv, Shim2018Env
-from afa_rl.afa_methods import Shim2018AFAMethod, Zannone2019AFAMethod
-from afa_rl.agents import Shim2018Agent, Zannone2019Agent
+from afa_rl.afa_env import AFAEnv
+from afa_rl.afa_methods import Zannone2019AFAMethod
+from afa_rl.agents import Zannone2019Agent
 from afa_rl.datasets import get_afa_dataset_fn
 from afa_rl.models import (
-    MLPClassifier,
     PartialVAE,
-    ReadProcessEncoder,
-    ShimEmbedder,
-    ShimEmbedderClassifier,
     Zannone2019PretrainingModel,
 )
 from afa_rl.scripts.pretrain_zannone2019 import get_zannone2019_model_from_config
-from afa_rl.utils import FloatWrapFn, dict_to_namespace, get_sequential_module_norm
+from afa_rl.utils import dict_to_namespace, get_sequential_module_norm
 from common.custom_types import (
     AFADataset,
     AFAReward,
@@ -34,7 +30,6 @@ from common.custom_types import (
     Label,
     MaskedFeatures,
 )
-from common.datasets import CubeDataset
 from common.registry import AFA_DATASET_REGISTRY
 
 
