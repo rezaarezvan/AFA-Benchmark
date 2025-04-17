@@ -10,7 +10,7 @@ from torchrl.envs import ExplorationType, set_exploration_type
 from tqdm import tqdm
 
 import wandb
-from afa_rl.afa_env import AFAEnv
+from afa_rl.afa_env import AFAEnv, get_zannone2019_reward_fn
 from afa_rl.afa_methods import Zannone2019AFAMethod
 from afa_rl.agents import Zannone2019Agent
 from afa_rl.datasets import get_afa_dataset_fn
@@ -61,51 +61,6 @@ def get_pretrained_model_accuracy(
     _, true_labels = labels.max(dim=-1)
     accuracy = (predicted_labels == true_labels).float().mean()
     return accuracy
-
-
-def get_zannone2019_reward_fn(
-    partial_vae: PartialVAE,
-    classifier: nn.Module,
-    acquisition_costs: Float[Tensor, "batch n_features"],
-) -> AFARewardFn:
-    """
-    Returns the reward function as defined in "ODIN: Optimal Discovery of High-value INformation Using Model-based Deep Reinforcement Learning"
-    """
-
-    def f(
-        masked_features: MaskedFeatures,
-        feature_mask: FeatureMask,
-        new_masked_features: MaskedFeatures,
-        new_feature_mask: FeatureMask,
-        afa_selection: AFASelection,
-        features: Features,
-        label: Label,
-    ) -> AFAReward:
-        reward = torch.zeros_like(afa_selection, dtype=torch.float32)
-        is_done = afa_selection.squeeze(-1) == 0
-
-        # If episode is finished, use negative probability of incorrect classification as reward
-
-        # The classifier expects to act on the latent space, so find the latent representation of the masked features but only pick the mean
-        encoding, mu, logvar, z = partial_vae.encode(
-            new_masked_features, new_feature_mask
-        )
-
-        # Get logits using classifier
-        logits = classifier(mu)
-
-        reward[is_done] = (
-            (F.softmax(logits[is_done], dim=-1) * label[is_done]).sum(-1).log()
-        )
-
-        # If episode is not finished, use negative acquisition cost as reward
-        # TODO: this should be indexed
-        acquisition_cost = acquisition_costs[afa_selection.squeeze(-1) - 1].sum()
-        reward[~is_done] = -acquisition_cost
-
-        return reward
-
-    return f
 
 
 def train_log(run, td, agent, agent_loss, batch_idx):
