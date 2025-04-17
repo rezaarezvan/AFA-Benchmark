@@ -51,12 +51,6 @@ class Shim2018AFAMethod:
         classifier: ShimMLPClassifier,
         action_spec: TensorSpec,
     ):
-        assert value_network.device == embedder.encoder.device, (
-            f"Value module and embedder must be on the same device, instead got {value_network.device} and {embedder.encoder.device} of types {type(value_network.device)} and {type(embedder.encoder.device)}"
-        )
-        assert value_network.device == classifier.device, (
-            f"Value module and classifier must be on the same device, instead got {value_network.device} and {classifier.device} of types {type(value_network.device)} and {type(classifier.device)}"
-        )
         self.device = value_network.device
         self.value_network = value_network
         self.embedder = embedder

@@ -1,9 +1,11 @@
 from typing import Callable
+import torch.nn.functional as F
 
 import torch
 from jaxtyping import Float
 from tensordict import TensorDict, TensorDictBase
 from torch import Tensor
+from torch import nn
 from torchrl.data import Binary, Categorical, Composite, Unbounded
 from torchrl.envs import EnvBase
 
@@ -14,8 +16,11 @@ from afa_rl.custom_types import (
     Embedding,
     Logits,
 )
+from afa_rl.models import PartialVAE, ShimEmbedder, ShimMLPClassifier
 from common.custom_types import (
+    AFAReward,
     AFARewardFn,
+    AFASelection,
     FeatureMask,
     Features,
     Label,
@@ -109,12 +114,12 @@ class Shim2018Env(EnvBase):
             ),
             label=Unbounded(
                 shape=self.batch_size + torch.Size((self.n_classes,)),
-                dtype=torch.int64,
+                dtype=torch.float32,
             ),
-            # predicted_label is -1 until agent chooses to end episode
+            # predicted_label is NaN until agent chooses to end episode
             predicted_class=Unbounded(
-                shape=self.batch_size + torch.Size((1,)),
-                dtype=torch.int64,
+                shape=self.batch_size + torch.Size((self.n_classes,)),
+                dtype=torch.float32,
             ),
             batch_size=self.batch_size,
         )
@@ -170,10 +175,10 @@ class Shim2018Env(EnvBase):
                 "invalid_action_reward": invalid_action_reward,
                 "features": features,
                 "label": label,
-                "predicted_class": -1
-                * torch.ones(
-                    tensordict.batch_size + (1,),
-                    dtype=torch.int64,
+                "predicted_class": torch.full(
+                    tensordict.batch_size + (self.n_classes,),
+                    float("nan"),
+                    dtype=torch.float32,
                     device=tensordict.device,
                 ),
             },
@@ -349,12 +354,6 @@ class AFAEnv(EnvBase):
                 "masked_features": masked_features,
                 "features": features,
                 "label": label,
-                # "predicted_class": -1
-                # * torch.ones(
-                #     tensordict.batch_size + (1,),
-                #     dtype=torch.int64,
-                #     device=tensordict.device,
-                # ),
             },
             batch_size=tensordict.batch_size,
             device=tensordict.device,
@@ -409,3 +408,85 @@ class AFAEnv(EnvBase):
     def _set_seed(self, seed: int | None):
         rng = torch.manual_seed(seed)  # type: ignore
         self.rng = rng
+
+def get_zannone2019_reward_fn(
+    partial_vae: PartialVAE,
+    classifier: nn.Module,
+    acquisition_costs: Float[Tensor, "batch n_features"],
+) -> AFARewardFn:
+    """
+    Returns the reward function as defined in "ODIN: Optimal Discovery of High-value INformation Using Model-based Deep Reinforcement Learning"
+    """
+    # TODO: currently the same as shim reward fn
+
+    def f(
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        new_masked_features: MaskedFeatures,
+        new_feature_mask: FeatureMask,
+        afa_selection: AFASelection,
+        features: Features,
+        label: Label,
+    ) -> AFAReward:
+        reward = torch.zeros_like(afa_selection, dtype=torch.float32)
+        is_done = afa_selection.squeeze(-1) == 0
+
+        # If episode is finished, use negative probability of incorrect classification as reward
+
+        # The classifier expects to act on the latent space, so find the latent representation of the masked features but only pick the mean
+        encoding, mu, logvar, z = partial_vae.encode(
+            new_masked_features, new_feature_mask
+        )
+
+        # Get logits using classifier
+        logits = classifier(mu)
+
+        reward[is_done] = (
+            (F.softmax(logits[is_done], dim=-1) * label[is_done]).sum(-1).log()
+        )
+
+        # If episode is not finished, use negative acquisition cost as reward
+        # TODO: this should be indexed
+        acquisition_cost = acquisition_costs[afa_selection.squeeze(-1) - 1].sum()
+        reward[~is_done] = -acquisition_cost
+
+        return reward
+
+    return f
+
+def get_shim2018_reward_fn(
+    embedder: ShimEmbedder,
+    classifier: ShimMLPClassifier,
+    acquisition_costs: Float[Tensor, "batch n_features"],
+) -> AFARewardFn:
+    """
+    Returns the reward function as defined in "Joint Active Feature Acquisition and Classification with Variable-Size Set Encoding"
+    """
+
+    def f(
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        new_masked_features: MaskedFeatures,
+        new_feature_mask: FeatureMask,
+        afa_selection: AFASelection,
+        features: Features,
+        label: Label,
+    ) -> AFAReward:
+        is_done = afa_selection == 0
+        reward = torch.zeros_like(afa_selection, dtype=torch.float32)
+
+        # If AFA stops, reward is negative cross entropy loss
+        logits = classifier(embedder(masked_features[is_done], feature_mask[is_done]))
+        reward[is_done] = -F.cross_entropy(
+            logits,
+            label[is_done],
+        )
+
+        # If AFA continues, reward is negative acquisition cost
+        reward[~is_done] = -acquisition_costs[
+            afa_selection[~is_done].squeeze(-1) - 1
+        ]
+
+        return reward
+
+    return f
