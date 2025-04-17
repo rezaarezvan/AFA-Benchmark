@@ -18,9 +18,8 @@ from torchrl.modules import (
     ValueOperator,
 )
 from torchrl.objectives import ClipPPOLoss, DQNLoss, SoftUpdate
-from wandb.proto.wandb_generate_proto import p
 
-from afa_rl.models import PartialVAE, PointNet
+from afa_rl.models import PointNet
 from common.custom_types import FeatureMask, MaskedFeatures
 
 
@@ -175,7 +174,9 @@ class Shim2018Agent:
 
 
 class Zannone2019ValueModule(nn.Module):
-    def __init__(self, pointnet: PointNet, encoder: nn.Module, latent_size: int, n_actions: int):
+    def __init__(
+        self, pointnet: PointNet, encoder: nn.Module, latent_size: int, n_actions: int
+    ):
         super().__init__()
         self.pointnet = pointnet
         self.encoder = encoder
@@ -185,16 +186,16 @@ class Zannone2019ValueModule(nn.Module):
         self.net = nn.Sequential(nn.Linear(latent_size, 1))
 
     def forward(self, masked_features: MaskedFeatures, feature_mask: FeatureMask):
-        pointnet_output = self.pointnet(
-            masked_features, feature_mask
-        )
+        pointnet_output = self.pointnet(masked_features, feature_mask)
         encoding = self.encoder(pointnet_output)
         mu = encoding[:, : encoding.shape[1] // 2]
         return self.net(mu)
 
 
 class Zannone2019PolicyModule(nn.Module):
-    def __init__(self, pointnet: PointNet, encoder: nn.Module, latent_size: int, n_actions: int):
+    def __init__(
+        self, pointnet: PointNet, encoder: nn.Module, latent_size: int, n_actions: int
+    ):
         super().__init__()
         self.pointnet = pointnet
         self.encoder = encoder
@@ -209,9 +210,7 @@ class Zannone2019PolicyModule(nn.Module):
         feature_mask: FeatureMask,
         action_mask: Bool[Tensor, "batch n_actions"],
     ):
-        pointnet_output = self.pointnet(
-            masked_features, feature_mask
-        )
+        pointnet_output = self.pointnet(masked_features, feature_mask)
         encoding = self.encoder(pointnet_output)
         mu = encoding[:, : encoding.shape[1] // 2]
         action_logits = self.net(mu)
@@ -223,8 +222,8 @@ class Zannone2019PolicyModule(nn.Module):
 class Zannone2019Agent:
     def __init__(
         self,
-        pointnet: PointNet, # assumed to be frozen
-        encoder: nn.Module, # assumed to be frozen
+        pointnet: PointNet,  # assumed to be frozen
+        encoder: nn.Module,  # assumed to be frozen
         lr: float,
         device: torch.device,
         latent_size: int,

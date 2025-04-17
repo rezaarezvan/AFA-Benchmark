@@ -61,23 +61,26 @@ type AFASelection = Integer[Tensor, "*batch 1"]
 
 class AFAMethod(Protocol):
     """
-    An AFA method is an object that can be called with
-    - a tensor of features, 0 for unobserved features
-    - a tensor of feature indices, 0 for unobserved features and 1 for observed features
-    and returns either
-    - 0, meaning that features should stop being collected
-    - i > 0, meaning that feature i should be collected
+    An AFA method is an object that can decide which features to collect next and also do predictions with the features it has seen so far.
 
-    Furthermore, the `load` method should be called on it after loading it from a pickle.
+    The `load` method should be called on it after loading it from a pickle.
     """
 
-    def __call__(
+    def select(
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
     ) -> AFASelection:
         """
         Returns the 1-based index of the feature to be collected next or 0 if no more features should be collected.
+        """
+        ...
+
+    def predict(
+        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+    ) -> Label:
+        """
+        Returns the predicted label for the features that have been observed so far.
         """
         ...
 

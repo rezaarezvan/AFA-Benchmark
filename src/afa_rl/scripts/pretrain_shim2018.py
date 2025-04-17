@@ -7,7 +7,7 @@ from lightning.pytorch.loggers import WandbLogger
 
 import wandb
 from afa_rl.models import (
-    MLPClassifier,
+    ShimMLPClassifier,
     ReadProcessEncoder,
     ShimEmbedder,
     ShimEmbedderClassifier,
@@ -58,7 +58,7 @@ def main():
         processing_steps=config.encoder.processing_steps,
     )
     embedder = ShimEmbedder(encoder)
-    classifier = MLPClassifier(
+    classifier = ShimMLPClassifier(
         config.encoder.output_size, 8, config.classifier.num_cells
     )
     model = ShimEmbedderClassifier(

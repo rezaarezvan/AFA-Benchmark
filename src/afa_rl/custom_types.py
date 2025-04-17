@@ -51,6 +51,5 @@ class AFADatasetFn(Protocol):
     ) -> tuple[Features, Label]: ...
 
 
-
 type NaiveIdentity = Integer[Tensor, "*batch n_features naive_identity_size"]
 type NaiveIdentityFn = Callable[[FeatureMask], NaiveIdentity]

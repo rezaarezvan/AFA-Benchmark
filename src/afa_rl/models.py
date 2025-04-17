@@ -150,9 +150,13 @@ class ShimEmbedder(Embedder):
         return self.encoder(feature_set)
 
 
-class MLPClassifier(Classifier):
+class ShimMLPClassifier(Classifier):
     def __init__(self, input_size: int, num_classes: int, num_cells):
         super().__init__()
+        self.input_size = input_size
+        self.num_classes = num_classes
+        self.num_cells = num_cells
+
         self.mlp = MLP(
             input_size, num_classes, num_cells=num_cells, activation_class=nn.ReLU
         )
@@ -166,7 +170,7 @@ class ShimEmbedderClassifier(pl.LightningModule):
     A module that combines the ShimEncoder with a classifier for pretraining.
     """
 
-    def __init__(self, embedder: ShimEmbedder, classifier: MLPClassifier, lr=1e-3):
+    def __init__(self, embedder: ShimEmbedder, classifier: ShimMLPClassifier, lr=1e-3):
         super().__init__()
         self.save_hyperparameters(ignore=["embedder", "classifier"])
         self.lr = lr
