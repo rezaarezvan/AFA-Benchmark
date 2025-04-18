@@ -28,6 +28,7 @@ def test_get_feature_set():
     s_hat = get_feature_set(x, z)
     assert torch.allclose(s_hat, s)
 
+
 def test_get_1D_identity():
     # First case
     feature_mask1 = torch.tensor([1, 0, 1], dtype=torch.bool)
@@ -93,6 +94,7 @@ def test_get_image_feature_set():
     # The order of rows matters because of how nonzero works (row-major)
     assert torch.equal(result, expected), f"\nExpected:\n{expected}\nGot:\n{result}"
 
+
 def test_get_2D_identity():
     image_shape = (3, 3)
 
@@ -135,7 +137,6 @@ def test_get_2D_identity():
 
     # The order of rows matters because of how nonzero works (row-major)
     assert torch.equal(result, expected), f"\nExpected:\n{expected}\nGot:\n{result}"
-
 
 
 def test_resample_invalid_actions():

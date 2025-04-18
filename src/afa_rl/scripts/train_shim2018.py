@@ -2,29 +2,22 @@ import argparse
 
 import torch
 import yaml
-from torch import nn, optim
+from torch import optim
 from torch.nn import functional as F
 from torchrl.collectors import SyncDataCollector
 from torchrl.envs import ExplorationType, set_exploration_type
 from tqdm import tqdm
 
 import wandb
-from afa_rl.afa_env import AFAEnv, Shim2018Env, get_shim2018_reward_fn
+from afa_rl.afa_env import AFAEnv, get_shim2018_reward_fn
 from afa_rl.afa_methods import Shim2018AFAMethod
 from afa_rl.agents import Shim2018Agent
 from afa_rl.datasets import get_afa_dataset_fn
-from afa_rl.models import (
-    ShimMLPClassifier,
-    ReadProcessEncoder,
-    ShimEmbedder,
-    ShimEmbedderClassifier,
-)
 from afa_rl.scripts.pretrain_shim2018 import get_shim2018_model_from_config
-from afa_rl.utils import FloatWrapFn, dict_to_namespace, get_sequential_module_norm
+from afa_rl.utils import dict_to_namespace, get_sequential_module_norm
 from common.custom_types import (
     AFADataset,
 )
-from common.datasets import CubeDataset
 from common.registry import AFA_DATASET_REGISTRY
 
 
@@ -93,7 +86,6 @@ def main():
         pretrain_config_dict: dict = yaml.safe_load(file)
     pretrain_config = dict_to_namespace(pretrain_config_dict)
 
-
     embedder_and_classifier = get_shim2018_model_from_config(pretrain_config)
     embedder_classifier_checkpoint = torch.load(
         pretrain_config.checkpoint_path, weights_only=True
@@ -126,20 +118,22 @@ def main():
     )
     val_dataset_fn = get_afa_dataset_fn(val_dataset.features, val_dataset.labels)
 
-
     # Check that embedder+classifier indeed have decent performance
     check_embedder_and_classifier(embedder_and_classifier, val_dataset)
 
     reward_fn = get_shim2018_reward_fn(
         embedder=embedder,
         classifier=classifier,
-        acquisition_costs=train_config.mdp.acquisition_cost*torch.ones(
-            (pretrain_config.n_features,), dtype=torch.float32, device=train_config.device
-        )
+        acquisition_costs=train_config.mdp.acquisition_cost
+        * torch.ones(
+            (pretrain_config.n_features,),
+            dtype=torch.float32,
+            device=train_config.device,
+        ),
     )
 
     train_env = AFAEnv(
-        dataset_fn=val_dataset_fn,
+        dataset_fn=train_dataset_fn,
         reward_fn=reward_fn,
         device=train_config.device,
         batch_size=torch.Size((1,)),
@@ -247,7 +241,9 @@ def main():
                             device=train_config.device,
                         ),
                         "is_correct_class": torch.zeros(
-                            train_config.eval_episodes, dtype=torch.bool, device=train_config.device
+                            train_config.eval_episodes,
+                            dtype=torch.bool,
+                            device=train_config.device,
                         ),
                         "predicted_classes": torch.zeros(
                             train_config.eval_episodes,
@@ -279,10 +275,13 @@ def main():
                             "feature_mask"
                         ][-1].sum()
                         # Check whether classification was correct
-                        logits = classifier(embedder(td_eval["masked_features"][-1:], td_eval["feature_mask"][-1:]))
-                        predicted_class = logits.argmax(
-                            dim=-1
+                        logits = classifier(
+                            embedder(
+                                td_eval["masked_features"][-1:],
+                                td_eval["feature_mask"][-1:],
+                            )
                         )
+                        predicted_class = logits.argmax(dim=-1)
                         eval_metrics["predicted_classes"][eval_episode] = (
                             predicted_class
                         )
@@ -322,7 +321,9 @@ def main():
     run.finish()
 
     # Convert the embedder+agent to an AFAMethod and save it
-    afa_method = Shim2018AFAMethod(agent.value_network, embedder, classifier, eval_env.action_spec)
+    afa_method = Shim2018AFAMethod(
+        agent.value_network, embedder, classifier, eval_env.action_spec
+    )
     afa_method.save(train_config.afa_method_save_path)
 
 
@@ -330,10 +331,16 @@ if __name__ == "__main__":
     # Use argparse to choose config file
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--pretrain-config", type=str, required=True, help="Path to YAML config file used for pretraining"
+        "--pretrain-config",
+        type=str,
+        required=True,
+        help="Path to YAML config file used for pretraining",
     )
     parser.add_argument(
-        "--train-config", type=str, required=True, help="Path to YAML config file for this training"
+        "--train-config",
+        type=str,
+        required=True,
+        help="Path to YAML config file for this training",
     )
     args = parser.parse_args()
 

@@ -252,3 +252,153 @@ class Zannone2019AFAMethod:
         )
 
         return Zannone2019AFAMethod(actor_network)
+
+
+class RandomDummyAFAMethod:
+    """
+    A dummy AFAMethod for testing purposes. Chooses a random feature to observe from the masked features.
+    """
+
+    def __init__(self, n_classes):
+        self.n_classes = n_classes
+
+    def select(
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+    ) -> AFASelection:
+        """
+        Chooses to observe a random feature from the masked features (or stop collecting features).
+        """
+        # Sample from unobserved features uniformly
+        probs = (~feature_mask).float()
+
+        # Avoid division by zero
+        row_sums = probs.sum(dim=1, keepdim=True)
+        probs = torch.where(
+            row_sums > 0, probs / row_sums, probs
+        )  # normalize or leave zeros
+
+        # Sample one index per row
+        sampled = torch.multinomial(probs, num_samples=1)
+        selection = sampled.squeeze(1)  # (B, 1) → (B,)
+
+        # Add 1 to the index to make it 1-based
+        selection = selection + 1
+
+        # With 1/n_features probability, select 0 (stop collecting features) for each sample
+        stop_collecting_mask = torch.rand(
+            selection.shape[0], device=masked_features.device
+        ) < (1 / masked_features.shape[1])
+
+        selection[stop_collecting_mask] = 0
+
+        return selection
+
+    def predict(
+        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+    ) -> Label:
+        """
+        Returns a random prediction from the classes.
+        """
+        # Pick a random class from the classes
+        prediction = torch.randint(
+            0,
+            self.n_classes,
+            (masked_features.shape[0],),
+            device=masked_features.device,
+        )
+        # One-hot encode the prediction
+        prediction = torch.nn.functional.one_hot(
+            prediction, num_classes=self.n_classes
+        ).float()
+
+        return prediction
+
+    def save(self, path: str) -> None:
+        """
+        Saves the method to a file.
+        """
+        torch.save(
+            {
+                "n_classes": self.n_classes,
+            },
+            path,
+        )
+
+    @staticmethod
+    def load(path: str) -> "RandomDummyAFAMethod":
+        """
+        Loads the method from a file.
+        """
+        data = torch.load(path)
+        return RandomDummyAFAMethod(data["n_classes"])
+
+
+class SequentialDummyAFAMethod:
+    """
+    A dummy AFAMethod for testing purposes. Always chooses the next feature to observe in order.
+    """
+
+    def __init__(self, n_classes):
+        self.n_classes = n_classes
+
+    def select(
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+    ) -> AFASelection:
+        # Choose the next unobserved feature
+        unobserved_features = (~feature_mask).nonzero(as_tuple=True)[1]
+        if unobserved_features.numel() == 0:
+            return torch.tensor(0, device=masked_features.device)
+        next_feature = unobserved_features[0] + 1
+        # With 1/n_features probability, select 0 (stop collecting features) for each sample
+        stop_collecting_mask = torch.rand(
+            masked_features.shape[0], device=masked_features.device
+        ) < (1 / masked_features.shape[1])
+        selection = torch.where(
+            stop_collecting_mask,
+            torch.tensor(0, device=masked_features.device),
+            next_feature,
+        )
+        return selection
+
+    def predict(
+        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+    ) -> Label:
+        """
+        Returns a random prediction from the classes.
+        """
+        # Pick a random class from the classes
+        prediction = torch.randint(
+            0,
+            self.n_classes,
+            (masked_features.shape[0],),
+            device=masked_features.device,
+        )
+        # One-hot encode the prediction
+        prediction = torch.nn.functional.one_hot(
+            prediction, num_classes=self.n_classes
+        ).float()
+
+        return prediction
+
+    def save(self, path: str) -> None:
+        """
+        Saves the method to a file.
+        """
+        torch.save(
+            {
+                "n_classes": self.n_classes,
+            },
+            path,
+        )
+
+    @staticmethod
+    def load(path: str) -> "SequentialDummyAFAMethod":
+        """
+        Loads the method from a file.
+        """
+        data = torch.load(path)
+        return SequentialDummyAFAMethod(data["n_classes"])
