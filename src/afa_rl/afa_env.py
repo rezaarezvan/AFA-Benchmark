@@ -409,6 +409,7 @@ class AFAEnv(EnvBase):
         rng = torch.manual_seed(seed)  # type: ignore
         self.rng = rng
 
+
 def get_zannone2019_reward_fn(
     partial_vae: PartialVAE,
     classifier: nn.Module,
@@ -454,6 +455,7 @@ def get_zannone2019_reward_fn(
 
     return f
 
+
 def get_shim2018_reward_fn(
     embedder: ShimEmbedder,
     classifier: ShimMLPClassifier,
@@ -483,9 +485,7 @@ def get_shim2018_reward_fn(
         )
 
         # If AFA continues, reward is negative acquisition cost
-        reward[~is_done] = -acquisition_costs[
-            afa_selection[~is_done].squeeze(-1) - 1
-        ]
+        reward[~is_done] = -acquisition_costs[afa_selection[~is_done].squeeze(-1) - 1]
 
         return reward
 

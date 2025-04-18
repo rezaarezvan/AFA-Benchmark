@@ -1,11 +1,9 @@
 """
 Evaluates an AFA method (as defined in common.custom_types) on a specific dataset.
-
-Prints out the average accuracy achieved, and the average number of features selected.
-
 """
 
 import argparse
+import os
 
 import torch
 from tqdm import tqdm
@@ -14,7 +12,6 @@ from common.custom_types import (
     AFADataset,
     AFAMethod,
     FeatureMask,
-    Features,
     Label,
 )
 from common.registry import AFA_DATASET_REGISTRY, AFA_METHOD_REGISTRY
@@ -39,7 +36,7 @@ def evaluator(
     for prediction_history, label in zip(prediction_history_all, labels_all):
         # Get the last prediction for this sample
         prediction = prediction_history[-1]
-        if prediction == label:
+        if prediction.argmax(-1) == label.argmax(-1):
             correct_predictions += 1
 
     accuracy = correct_predictions / num_samples
@@ -57,7 +54,11 @@ def evaluator(
     }
 
 
-def eval_afa_method(args: argparse.Namespace) -> None:
+def eval_afa_method(args: argparse.Namespace) -> dict[str, float]:
+    """
+    Evaluates an AFA method on a specific dataset and returns a dictionary of metrics.
+    """
+
     # Load the AFA method
     afa_method: AFAMethod = AFA_METHOD_REGISTRY[args.afa_method_name].load(
         args.afa_method_path
@@ -84,8 +85,8 @@ def eval_afa_method(args: argparse.Namespace) -> None:
         labels_all.append(label)
 
         # AFA methods expect a batch dimension
-        features: Features = features.unsqueeze(0)
-        label: Label = label.unsqueeze(0)
+        # features: Features = features.unsqueeze(0)
+        # label: Label = label.unsqueeze(0)
 
         # We will keep a history of which features have been observed, in case its relevant for evaluation
         feature_mask_history: list[FeatureMask] = []
@@ -94,23 +95,29 @@ def eval_afa_method(args: argparse.Namespace) -> None:
         prediction_history: list[Label] = []
 
         # Start with all features unobserved
-        feature_mask: FeatureMask = torch.zeros_like(features, dtype=torch.bool)
+        feature_mask = torch.zeros_like(features, dtype=torch.bool)
 
         # Let AFA method select features until it chooses to stop
         # or until all features are observed
         while True:
             # Always calculate a prediction
-            prediction_history.append(afa_method.predict(features, feature_mask))
+            prediction = afa_method.predict(
+                features.unsqueeze(0), feature_mask.unsqueeze(0)
+            ).squeeze(0)
+
+            prediction_history.append(prediction)
 
             # Select new features or stop
-            selection = afa_method.select(features, feature_mask)
+            selection = afa_method.select(
+                features.unsqueeze(0), feature_mask.unsqueeze(0)
+            ).squeeze(0)
 
             # If the AFA method chooses to stop, break
             if selection == 0:
                 break
 
             # Otherwise, update the feature mask
-            feature_mask[selection] = True
+            feature_mask[selection - 1] = True
             feature_mask_history.append(feature_mask.clone())
 
             # If all features have been selected, stop
@@ -122,12 +129,11 @@ def eval_afa_method(args: argparse.Namespace) -> None:
         prediction_history_all.append(prediction_history)
 
     # Now we have a history of feature masks and predictions for each sample in the dataset
-    metrics = evaluator(feature_mask_history_all, prediction_history_all, labels_all)
+    eval_results = evaluator(
+        feature_mask_history_all, prediction_history_all, labels_all
+    )
 
-    # Print the average metrics
-    print("Metrics:")
-    for key, value in metrics.items():
-        print(f"  {key}: {value}")
+    return eval_results
 
 
 if __name__ == "__main__":
@@ -160,6 +166,12 @@ if __name__ == "__main__":
         required=True,
         help="Path to a .pt file containing the AFADataset to evaluate the AFAMethod on",
     )
+    parser.add_argument(
+        "--eval_save_path",
+        type=str,
+        required=True,
+        help="Path to a .pt file to save the evaluation results",
+    )
     args = parser.parse_args()
 
     if args.afa_method_name not in AFA_METHOD_REGISTRY:
@@ -173,4 +185,9 @@ if __name__ == "__main__":
             + ", ".join(AFA_DATASET_REGISTRY.keys())
         )
 
-    eval_afa_method(args)
+    eval_results = eval_afa_method(args)
+
+    # Save the metrics to a file
+    os.makedirs(os.path.dirname(args.eval_save_path), exist_ok=True)
+    torch.save(eval_results, args.eval_save_path)
+    print(f"Saved metrics to {args.eval_save_path}")

@@ -24,7 +24,9 @@ from common.custom_types import FeatureMask, MaskedFeatures
 
 
 class Shim2018ValueModule(nn.Module):
-    def __init__(self, embedder: ShimEmbedder, embedding_size, action_size, num_cells, device):
+    def __init__(
+        self, embedder: ShimEmbedder, embedding_size, action_size, num_cells, device
+    ):
         super().__init__()
         self.embedder = embedder
         self.embedding_size = embedding_size
@@ -39,7 +41,9 @@ class Shim2018ValueModule(nn.Module):
             device=device,
         )
 
-    def forward(self, masked_features: MaskedFeatures, feature_mask: FeatureMask, action_mask):
+    def forward(
+        self, masked_features: MaskedFeatures, feature_mask: FeatureMask, action_mask
+    ):
         # We do not want to update the embedder weights using the Q-values, this is done separately in the training loop
         with torch.no_grad():
             embedding = self.embedder(masked_features, feature_mask)
@@ -67,7 +71,7 @@ class Shim2018Agent:
         replay_buffer_alpha: float,
         replay_buffer_beta: float,
     ):
-        self.embedder =embedder
+        self.embedder = embedder
         self.embedding_size = embedding_size
         self.action_spec = action_spec
         self.lr = lr

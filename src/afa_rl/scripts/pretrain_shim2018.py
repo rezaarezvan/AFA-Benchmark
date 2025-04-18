@@ -14,9 +14,9 @@ from afa_rl.models import (
 )
 from afa_rl.utils import dict_to_namespace
 from common.custom_types import AFADataset
-from common.datasets import CubeDataset
 from afa_rl.datasets import DataModuleFromDatasets
 from common.registry import AFA_DATASET_REGISTRY
+
 
 def get_shim2018_model_from_config(config):
     encoder = ReadProcessEncoder(
@@ -40,11 +40,9 @@ def get_shim2018_model_from_config(config):
 def main(args: argparse.Namespace):
     torch.set_float32_matmul_precision("medium")
 
-
     # Load config from yaml file
     with open(args.config, "r") as file:
         config_dict: dict = yaml.safe_load(file)
-
 
     config = dict_to_namespace(config_dict)
 
@@ -97,9 +95,7 @@ def main(args: argparse.Namespace):
         run.finish()
         # Move the best checkpoint to the desired location
         best_checkpoint = trainer.checkpoint_callback.best_model_path
-        torch.save(
-            torch.load(best_checkpoint), config.checkpoint_path
-        )
+        torch.save(torch.load(best_checkpoint), config.checkpoint_path)
         print(f"ShimEmbedderClassifier saved to {config.checkpoint_path}")
 
 
