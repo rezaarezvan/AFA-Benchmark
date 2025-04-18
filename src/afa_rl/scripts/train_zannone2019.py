@@ -2,39 +2,24 @@ import argparse
 
 import torch
 import yaml
-from jaxtyping import Float
-from torch import Tensor, nn, optim
 from torch.nn import functional as F
 from torchrl.collectors import SyncDataCollector
-from torchrl.envs import ExplorationType, check_env_specs, set_exploration_type
+from torchrl.envs import ExplorationType, set_exploration_type
 from tqdm import tqdm
 
 import wandb
-from afa_rl.afa_env import AFAEnv, Shim2018Env
-from afa_rl.afa_methods import Shim2018AFAMethod, Zannone2019AFAMethod
-from afa_rl.agents import Shim2018Agent, Zannone2019Agent
+from afa_rl.afa_env import AFAEnv, get_zannone2019_reward_fn
+from afa_rl.afa_methods import Zannone2019AFAMethod
+from afa_rl.agents import Zannone2019Agent
 from afa_rl.datasets import get_afa_dataset_fn
 from afa_rl.models import (
-    MLPClassifier,
-    PartialVAE,
-    ReadProcessEncoder,
-    ShimEmbedder,
-    ShimEmbedderClassifier,
     Zannone2019PretrainingModel,
 )
 from afa_rl.scripts.pretrain_zannone2019 import get_zannone2019_model_from_config
-from afa_rl.utils import FloatWrapFn, dict_to_namespace, get_sequential_module_norm
+from afa_rl.utils import dict_to_namespace, get_sequential_module_norm
 from common.custom_types import (
     AFADataset,
-    AFAReward,
-    AFARewardFn,
-    AFASelection,
-    FeatureMask,
-    Features,
-    Label,
-    MaskedFeatures,
 )
-from common.datasets import CubeDataset
 from common.registry import AFA_DATASET_REGISTRY
 
 
@@ -66,51 +51,6 @@ def get_pretrained_model_accuracy(
     _, true_labels = labels.max(dim=-1)
     accuracy = (predicted_labels == true_labels).float().mean()
     return accuracy
-
-
-def get_zannone2019_reward_fn(
-    partial_vae: PartialVAE,
-    classifier: nn.Module,
-    acquisition_costs: Float[Tensor, "batch n_features"],
-) -> AFARewardFn:
-    """
-    Returns the reward function as defined in "ODIN: Optimal Discovery of High-value INformation Using Model-based Deep Reinforcement Learning"
-    """
-
-    def f(
-        masked_features: MaskedFeatures,
-        feature_mask: FeatureMask,
-        new_masked_features: MaskedFeatures,
-        new_feature_mask: FeatureMask,
-        afa_selection: AFASelection,
-        features: Features,
-        label: Label,
-    ) -> AFAReward:
-        reward = torch.zeros_like(afa_selection, dtype=torch.float32)
-        is_done = afa_selection.squeeze(-1) == 0
-
-        # If episode is finished, use negative probability of incorrect classification as reward
-
-        # The classifier expects to act on the latent space, so find the latent representation of the masked features but only pick the mean
-        encoding, mu, logvar, z = partial_vae.encode(
-            new_masked_features, new_feature_mask
-        )
-
-        # Get logits using classifier
-        logits = classifier(mu)
-
-        reward[is_done] = (
-            (F.softmax(logits[is_done], dim=-1) * label[is_done]).sum(-1).log()
-        )
-
-        # If episode is not finished, use negative acquisition cost as reward
-        # TODO: this should be indexed
-        acquisition_cost = acquisition_costs[afa_selection.squeeze(-1) - 1].sum()
-        reward[~is_done] = -acquisition_cost
-
-        return reward
-
-    return f
 
 
 def train_log(run, td, agent, agent_loss, batch_idx):

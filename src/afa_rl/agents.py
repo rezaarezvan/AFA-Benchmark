@@ -18,15 +18,17 @@ from torchrl.modules import (
     ValueOperator,
 )
 from torchrl.objectives import ClipPPOLoss, DQNLoss, SoftUpdate
-from wandb.proto.wandb_generate_proto import p
 
-from afa_rl.models import PartialVAE, PointNet
+from afa_rl.models import PointNet, ShimEmbedder
 from common.custom_types import FeatureMask, MaskedFeatures
 
 
 class Shim2018ValueModule(nn.Module):
-    def __init__(self, embedding_size, action_size, num_cells, device):
+    def __init__(
+        self, embedder: ShimEmbedder, embedding_size, action_size, num_cells, device
+    ):
         super().__init__()
+        self.embedder = embedder
         self.embedding_size = embedding_size
         self.action_size = action_size
         self.num_cells = num_cells
@@ -39,7 +41,12 @@ class Shim2018ValueModule(nn.Module):
             device=device,
         )
 
-    def forward(self, embedding, action_mask):
+    def forward(
+        self, masked_features: MaskedFeatures, feature_mask: FeatureMask, action_mask
+    ):
+        # We do not want to update the embedder weights using the Q-values, this is done separately in the training loop
+        with torch.no_grad():
+            embedding = self.embedder(masked_features, feature_mask)
         qvalues = self.net(embedding)
         # By setting the Q-values of invalid actions to -inf, we prevent them from being selected greedily.
         qvalues[~action_mask] = float("-inf")
@@ -49,6 +56,7 @@ class Shim2018ValueModule(nn.Module):
 class Shim2018Agent:
     def __init__(
         self,
+        embedder: ShimEmbedder,
         embedding_size: int,
         action_spec: TensorSpec,
         lr: float,
@@ -63,6 +71,7 @@ class Shim2018Agent:
         replay_buffer_alpha: float,
         replay_buffer_beta: float,
     ):
+        self.embedder = embedder
         self.embedding_size = embedding_size
         self.action_spec = action_spec
         self.lr = lr
@@ -78,6 +87,7 @@ class Shim2018Agent:
         self.replay_buffer_beta = replay_buffer_beta
 
         self.value_module = Shim2018ValueModule(
+            embedder=self.embedder,
             embedding_size=self.embedding_size,
             action_size=self.action_spec.n,
             num_cells=[32, 32],
@@ -85,7 +95,7 @@ class Shim2018Agent:
         )
         self.value_network = QValueActor(
             module=self.value_module,
-            in_keys=["embedding", "action_mask"],
+            in_keys=["masked_features", "feature_mask", "action_mask"],
             spec=self.action_spec,
         )
         self.egreedy_module = EGreedyModule(
@@ -175,7 +185,9 @@ class Shim2018Agent:
 
 
 class Zannone2019ValueModule(nn.Module):
-    def __init__(self, pointnet: PointNet, encoder: nn.Module, latent_size: int, n_actions: int):
+    def __init__(
+        self, pointnet: PointNet, encoder: nn.Module, latent_size: int, n_actions: int
+    ):
         super().__init__()
         self.pointnet = pointnet
         self.encoder = encoder
@@ -185,16 +197,16 @@ class Zannone2019ValueModule(nn.Module):
         self.net = nn.Sequential(nn.Linear(latent_size, 1))
 
     def forward(self, masked_features: MaskedFeatures, feature_mask: FeatureMask):
-        pointnet_output = self.pointnet(
-            masked_features, feature_mask
-        )
+        pointnet_output = self.pointnet(masked_features, feature_mask)
         encoding = self.encoder(pointnet_output)
         mu = encoding[:, : encoding.shape[1] // 2]
         return self.net(mu)
 
 
 class Zannone2019PolicyModule(nn.Module):
-    def __init__(self, pointnet: PointNet, encoder: nn.Module, latent_size: int, n_actions: int):
+    def __init__(
+        self, pointnet: PointNet, encoder: nn.Module, latent_size: int, n_actions: int
+    ):
         super().__init__()
         self.pointnet = pointnet
         self.encoder = encoder
@@ -209,9 +221,7 @@ class Zannone2019PolicyModule(nn.Module):
         feature_mask: FeatureMask,
         action_mask: Bool[Tensor, "batch n_actions"],
     ):
-        pointnet_output = self.pointnet(
-            masked_features, feature_mask
-        )
+        pointnet_output = self.pointnet(masked_features, feature_mask)
         encoding = self.encoder(pointnet_output)
         mu = encoding[:, : encoding.shape[1] // 2]
         action_logits = self.net(mu)
@@ -223,8 +233,8 @@ class Zannone2019PolicyModule(nn.Module):
 class Zannone2019Agent:
     def __init__(
         self,
-        pointnet: PointNet, # assumed to be frozen
-        encoder: nn.Module, # assumed to be frozen
+        pointnet: PointNet,  # assumed to be frozen
+        encoder: nn.Module,  # assumed to be frozen
         lr: float,
         device: torch.device,
         latent_size: int,

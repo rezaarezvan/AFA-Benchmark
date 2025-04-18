@@ -1,3 +1,4 @@
+from collections import defaultdict
 from types import SimpleNamespace
 from typing import Any, Callable, Tuple
 
@@ -277,3 +278,13 @@ def mask_data(features: Features, p: float) -> Tuple[MaskedFeatures, FeatureMask
     feature_mask = torch.rand(features.shape, device=features.device) > p
     masked_features = features * feature_mask.float()
     return masked_features, feature_mask
+
+
+def recursive_defaultdict():
+    return defaultdict(recursive_defaultdict)
+
+
+def to_regular_dict(d) -> dict:
+    if isinstance(d, defaultdict):
+        d = {k: to_regular_dict(v) for k, v in d.items()}
+    return d
