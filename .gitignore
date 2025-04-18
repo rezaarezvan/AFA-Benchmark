@@ -183,10 +183,10 @@ logs
 wandb
 
 # Data folder
-data
+# data
 
 # Model folder, includes weights and other types of saved models
-models
+# models
 
 # Results folder, includes evaluation results and plots
 results
