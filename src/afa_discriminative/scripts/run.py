@@ -11,7 +11,7 @@ from torchvision.datasets import MNIST
 from torchmetrics import Accuracy, AUROC
 from afa_discriminative.utils import MaskLayer
 from afa_discriminative.datasets import load_spam, load_diabetes, load_miniboone, data_split
-from afa_discriminative.models import MaskingPretrainer
+from afa_discriminative.models import MaskingPretrainer, fc_Net
 from afa_discriminative.afa_methods import GreedyDynamicSelection, CMIEstimator
 
 
@@ -41,19 +41,6 @@ max_features_dict = {
     'diabetes': 35,
     'miniboone': 35,
 }
-
-
-# Helper function for network architecture.
-def get_network(d_in, d_out, hidden=128, dropout=0.3):
-    model = nn.Sequential(
-        nn.Linear(d_in, hidden),
-        nn.ReLU(),
-        nn.Dropout(dropout),
-        nn.Linear(hidden, hidden),
-        nn.ReLU(),
-        nn.Dropout(dropout),
-        nn.Linear(hidden, d_out))
-    return model
 
 
 if __name__ == '__main__':
@@ -126,8 +113,26 @@ if __name__ == '__main__':
         
         if args.method == 'GDFS':
             # Prepare networks.
-            predictor = get_network(d_in * 2, d_out)
-            selector = get_network(d_in * 2, d_in)
+            predictor = fc_Net(
+                input_dim=d_in * 2,
+                output_dim=d_out,
+                hidden_layer_num=2,
+                hidden_unit=[128, 128],
+                activations='ReLU',
+                drop_out_rate=0.3,
+                flag_drop_out=True,
+                flag_only_output_layer=False
+            )
+            selector = fc_Net(
+                input_dim=d_in * 2,
+                output_dim=d_in,
+                hidden_layer_num=2,
+                hidden_unit=[128, 128],
+                activations='ReLU',
+                drop_out_rate=0.3,
+                flag_drop_out=True,
+                flag_only_output_layer=False
+            )
             
             # Pretrain predictor.
             mask_layer = MaskLayer(append=True)
@@ -169,9 +174,27 @@ if __name__ == '__main__':
         
         elif args.method == "DIME":
             if args.dataset == "MNIST":
-                predictor = get_network(d_in * 2, d_out, hidden=512)
+                predictor = fc_Net(
+                    input_dim=d_in * 2,
+                    output_dim=d_out,
+                    hidden_layer_num=2,
+                    hidden_unit=[512, 512],
+                    activations='ReLU',
+                    drop_out_rate=0.3,
+                    flag_drop_out=True,
+                    flag_only_output_layer=False
+                )
                 # CMI Predictor
-                value_network = get_network(d_in * 2, d_in, hidden=512)
+                value_network = fc_Net(
+                    input_dim=d_in * 2,
+                    output_dim=d_in,
+                    hidden_layer_num=2,
+                    hidden_unit=[512, 512],
+                    activations='ReLU',
+                    drop_out_rate=0.3,
+                    flag_drop_out=True,
+                    flag_only_output_layer=False
+                )
                 # Tie weights
                 value_network[0] = predictor[0]
                 value_network[3] = predictor[3]

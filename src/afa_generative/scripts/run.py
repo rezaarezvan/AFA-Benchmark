@@ -7,8 +7,9 @@ import torch.nn as nn
 from tqdm.auto import tqdm
 from torch.utils.data import DataLoader
 from torchmetrics import Accuracy, AUROC
-from afa_generative import EDDI, PVAE, UniformSampler, IterativeSelector
-from afa_generative import MaskLayer
+from afa_generative.afa_methods import EDDI, UniformSampler, IterativeSelector
+from afa_generative.utils import MaskLayer
+from afa_generative.models import PVAE, fc_Net
 from afa_generative.datasets import load_spam, load_diabetes, load_miniboone, data_split, get_xy
 
 
@@ -38,21 +39,6 @@ max_features_dict = {
     'diabetes': 35,
     'miniboone': 35,
 }
-
-
-# Helper function for network architecture.
-def get_network(d_in, d_out):
-    hidden = 128
-    dropout = 0.3
-    model = nn.Sequential(
-        nn.Linear(d_in, hidden),
-        nn.ReLU(),
-        nn.Dropout(dropout),
-        nn.Linear(hidden, hidden),
-        nn.ReLU(),
-        nn.Dropout(dropout),
-        nn.Linear(hidden, d_out))
-    return model
 
 
 if __name__ == '__main__':
@@ -101,8 +87,26 @@ if __name__ == '__main__':
         if args.method == 'eddi':
             # Train PVAE.
             bottleneck = 16
-            encoder = get_network(d_in * 2, bottleneck * 2)
-            decoder = get_network(bottleneck, d_in)
+            encoder = fc_Net(
+                input_dim=d_in * 2,
+                output_dim=bottleneck * 2,
+                hidden_layer_num=2,
+                hidden_unit=[128, 128],
+                activations='ReLU',
+                drop_out_rate=0.3,
+                flag_drop_out=True,
+                flag_only_output_layer=False
+            )
+            decoder = fc_Net(
+                input_dim=bottleneck,
+                output_dim=d_in,
+                hidden_layer_num=2,
+                hidden_unit=[128, 128],
+                activations='ReLU',
+                drop_out_rate=0.3,
+                flag_drop_out=True,
+                flag_only_output_layer=False
+            )
             mask_layer = MaskLayer(append=True)
             pv = PVAE(encoder, decoder, mask_layer, 128, 'gaussian').to(device)
             pv.fit(
@@ -113,7 +117,16 @@ if __name__ == '__main__':
                 verbose=True)
             
             # Train masked predictor.
-            model = get_network(d_in * 2, d_out)
+            model = fc_Net(
+                input_dim=d_in * 2,
+                output_dim=d_out,
+                hidden_layer_num=2,
+                hidden_unit=[128, 128],
+                activations='ReLU',
+                drop_out_rate=0.3,
+                flag_drop_out=True,
+                flag_only_output_layer=False
+            )
             sampler = UniformSampler(get_xy(train_dataset)[0])  # TODO don't actually need sampler
             iterative = IterativeSelector(model, mask_layer, sampler).to(device)
             iterative.fit(
