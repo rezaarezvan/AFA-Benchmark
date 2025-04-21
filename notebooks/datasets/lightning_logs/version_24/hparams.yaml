@@ -1,0 +1,7 @@
+hidden_dims:
+- 128
+- 64
+- 32
+input_dim: 784
+learning_rate: 0.001
+output_dim: 10

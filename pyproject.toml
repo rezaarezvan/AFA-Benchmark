@@ -11,6 +11,8 @@ dependencies = [
     "pandas>=1.5.2",
     "torchvision>=0.21.0",
     "matplotlib>=3.10.1",
+    "scikit-learn>=1.6.1",
+    "seaborn>=0.13.2",
 ]
 
 [dependency-groups]
