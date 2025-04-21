@@ -7,6 +7,8 @@ from copy import deepcopy
 from torch.distributions.normal import Normal
 from torch.distributions.bernoulli import Bernoulli
 import collections
+import copy
+import math
 
 
 class BaseModel(nn.Module):
@@ -895,4 +897,193 @@ class fc_Net(nn.Module):
 
         self.out.weight.data=torch.tensor(w_new_mat.data,requires_grad=True)
         self.out.weight.bias=torch.tensor(bias_new_mat.data,requires_grad=True)
+
+
+class Point_Net_Plus_BNN_SGHMC(object):
+    def __init__(self,latent_dim,obs_dim,dim_before_agg,encoder_layer_num_before_agg=1,encoder_hidden_before_agg=None,encoder_layer_num_after_agg=1,
+               encoder_hidden_after_agg=[100],embedding_dim=10,decoder_layer_num=2,decoder_hidden=[50,100],pooling='Sum',output_const=1.,add_const=0.,sample_z=1,sample_W=1,W_sigma_prior=0.1, pooling_act='Sigmoid',flag_log_q=False
+               ):
+        # Store argument
+        self.latent_dim = latent_dim
+        self.encoder_layer_num_before_agg = encoder_layer_num_before_agg
+        self.encoder_layer_num_after_agg = encoder_layer_num_after_agg
+        self.encoder_hidden_before_agg = encoder_hidden_before_agg
+        self.encoder_hidden_after_agg = encoder_hidden_after_agg
+        self.embedding_dim = embedding_dim
+        self.obs_dim = obs_dim
+        self.dim_before_agg = dim_before_agg
+        self.decoder_layer_num = decoder_layer_num
+        self.decoder_hidden = decoder_hidden
+        self.output_const = output_const
+        self.pooling = pooling
+        self.sample_z = sample_z
+        self.sample_W=sample_W
+        self.W_sigma_prior=W_sigma_prior
+        self.pooling_act=pooling_act
+        self.add_const=add_const
+        self.flag_log_q=flag_log_q
+        self.flag_LV=False
+        # Default arguments
+        self.flag_encoder_before_agg=True
+
+        # Define Pooling function
+        if pooling=='Sum':
+            self.pool=torch.sum
+        elif pooling=='Mean':
+            self.pool=torch.mean
+        elif pooling=='Max':
+            pass
+        else:
+            raise NotImplemented
+        if self.pooling_act=='ReLU':
+            self.act_pool=F.relu
+        elif self.pooling_act=='Sigmoid':
+            self.act_pool=F.sigmoid
+        elif self.pooling_act=='Tanh':
+            self.act_pool=F.tanh
+        elif type(self.pooling_act)==type(None):
+            self.act_pool=None
+        elif self.pooling_act=='Softplus':
+            self.act_pool=F.softplus
+        else:
+            raise NotImplementedError
+        self.encode_embedding,self.encode_bias=self._generate_default_embedding() # 1 x obs_dim x embed_dim and 1 x obs_dim x 1
+
+        # BNN Decoder network
+        self.decoder=fc_Net(self.latent_dim,self.obs_dim,hidden_layer_num=decoder_layer_num,hidden_unit=decoder_hidden,activations='ReLU',activations_output=None,flag_only_output_layer=False,drop_out_rate=0.,flag_drop_out=False,
+                                        output_const=output_const,add_const=add_const,flag_LV=self.flag_LV)
+
+        # Whether apply the transform before pooling function
+        if type(self.encoder_layer_num_before_agg)==type(None):
+            self.flag_encoder_before_agg=False
+            self.dim_before_agg=self.embedding_dim
+        else:
+            self.encoder_before_agg = fc_Net(self.embedding_dim + 2, output_dim=self.dim_before_agg,
+                                                         hidden_layer_num=self.encoder_layer_num_before_agg,
+                                                         hidden_unit=self.encoder_hidden_before_agg
+                                                         , activations='ReLU', flag_only_output_layer=False,
+                                                         activations_output='ReLU')
+        # Apply after pooling
+        self.encoder_after_agg = fc_Net(self.dim_before_agg, output_dim=2 * self.latent_dim,
+                                                    hidden_layer_num=self.encoder_layer_num_after_agg,
+                                                    hidden_unit=self.encoder_hidden_after_agg,
+                                                    activations='ReLU', flag_only_output_layer=False,
+                                                    activations_output=None
+                                                    )
+
+    def _extract_state_dict(self):
+        decoder_state=copy.deepcopy(self.decoder.state_dict())
+        encoder_before_state=copy.deepcopy(self.encoder_before_agg.state_dict())
+        encoder_after_state=copy.deepcopy(self.encoder_after_agg.state_dict())
+        embedding_state,embedding_bias=self.encode_embedding.clone().detach(),self.encode_bias.clone().detach()
+        return decoder_state,encoder_before_state,encoder_after_state,embedding_state,embedding_bias
+
+    def _load_state_dict(self,decoder_state,encoder_before_state,encoder_after_state,embedding_state,embedding_bias):
+        self.decoder.load_state_dict(decoder_state)
+        self.encoder_before_agg.load_state_dict(encoder_before_state)
+        self.encoder_after_agg.load_state_dict(encoder_after_state)
+        self.encode_embedding=embedding_state.clone().detach()
+        self.encode_embedding.requires_grad=True
+        self.encode_bias=embedding_bias.clone().detach()
+        self.encode_bias.requires_grad=True
+
+    def _generate_default_embedding(self):
+        '''
+        Generate the initial embeddings and bias with shape 1 x obs_dim x embedding_dim and 1 x obs_dim x 1
+        :return: embedding,bias
+        :rtype: Tensor, Tensor
+        '''
+        embedding=torch.randn(self.obs_dim,self.embedding_dim)
+        embedding=torch.unsqueeze(embedding,dim=0) # 1 x obs_dim x embed_dim
+        # embedding=torch.tensor(embedding.data,requires_grad=True)
+        embedding = embedding.clone().detach().requires_grad_(True)
+
+        bias=torch.randn(self.obs_dim,1)
+        bias=torch.unsqueeze(bias,dim=0) # 1 x obs_dim x 1
+        # bias=torch.tensor(bias.data,requires_grad=True)
+        bias = bias.clone().detach().requires_grad_(True)
+        return embedding,bias
+    
+    def _encoding(self,X,mask):
+        batch_size=X.shape[0] # N x obs_dim
+        mask=torch.unsqueeze(mask,dim=len(mask.shape)) # N x obs x 1
+        X_expand=torch.unsqueeze(X,dim=len(X.shape))  # N x obs x 1
+        # Multiplicate embedding
+        if len(self.encode_embedding.shape)!=len(X_expand.shape):
+            encode_embedding=torch.unsqueeze(self.encode_embedding,dim=0)
+        else:
+            encode_embedding=self.encode_embedding
+        X_embedding=X_expand*encode_embedding # N x obs x embed_dim
+
+        if len(self.encode_bias.shape)!=len(X_embedding.shape):
+            X_bias=self.encode_bias.expand_as(X_embedding)
+            X_bias=torch.index_select(X_bias,dim=-1,index=torch.tensor([0]))
+        else:
+            X_bias=self.encode_bias.repeat(batch_size,1,1) # N x obs x 1
+
+        if self.flag_encoder_before_agg==True:
+            X_aug=torch.cat((X_expand,X_embedding,X_bias),dim=len(X_expand.shape)-1) # N x obs_dim x (embed+2)
+            output_before_agg=1*self.encoder_before_agg.forward(X_aug) # N x obs x dim_before_agg
+        else:
+            output_before_agg=X_embedding+X_bias # N x obs x dim_before_agg
+
+        mask_output_before_agg=mask*output_before_agg # N x obs x dim_before_agg
+
+        if self.pooling != 'Max':
+            agg_mask_output=self.pool(mask_output_before_agg, dim=len(mask_output_before_agg.shape)-2)
+            if self.act_pool:
+                agg_mask_output = self.act_pool(agg_mask_output)  # N x dim_before_agg
+        elif self.pooling == 'Max':
+            agg_mask_output=torch.max(mask_output_before_agg,dim=len(mask_output_before_agg.shape)-2)[0]
+            if self.act_pool:
+                agg_mask_output=self.act_pool(agg_mask_output)
+        encoding=self.encoder_after_agg.forward(agg_mask_output)
+        # Encoding -3
+        encoding[:,self.latent_dim:]=encoding[:,self.latent_dim:]-0.
+        return encoding
+
+    def sample_latent_variable(self,X,mask,size=10):
+        batch_size = X.shape[0]
+        encoding = self._encoding(X, mask)
+        mean = encoding[:, :self.latent_dim]
+        if self.flag_log_q == True:
+            sigma = torch.clamp(torch.sqrt(torch.exp(encoding[:, self.latent_dim:])),min=1e-5,max=300.)
+        else:
+            sigma = torch.clamp(torch.sqrt(torch.clamp((encoding[:, self.latent_dim:]) ** 2,min=1e-8)),min=1e-5,max=300.)
+
+        if size == 1:
+            eps = torch.randn(batch_size, self.latent_dim, requires_grad=True)
+            z = mean + sigma * eps  # N x latent_dim
+        elif size > 1:
+            eps = torch.randn(size, batch_size, self.latent_dim, requires_grad=True)  # size x N  x latent_dim
+            z = torch.unsqueeze(mean, dim=0) + torch.unsqueeze(sigma, dim=0) * eps  # size x N x latent_dim
+        else:
+            raise NotImplementedError
+        return z, encoding
+
+    def _KL_encoder(self,mean,sigma,z_sigma_prior=1.):
+        KL_z = 0.5 * (
+                    math.log(z_sigma_prior ** 2) - torch.sum(torch.log(sigma ** 2), dim=1) - sigma.shape[1] + torch.sum(
+                sigma ** 2 / (z_sigma_prior ** 2), dim=1) + torch.sum(mean ** 2 / (z_sigma_prior ** 2), dim=1))  # N
+
+        return KL_z  # N
+    def test_log_likelihood(self,Infer_model,X_in,X_test,W_sample,mask,sigma_out,size=10):
+        mean_pred_log_likelihood,tot_pred_ll=Infer_model.test_log_likelihood(X_in, X_test, W_sample, mask, sigma_out, size=size)
+        return mean_pred_log_likelihood,tot_pred_ll
+    
+    def completion(self,Infer_model,X,mask,W_sample,size_Z=10,record_memory=False):
+        complete=Infer_model.completion(X,mask,W_sample,size_Z=size_Z,record_memory=False)
+        return complete
+    
+    def _KL_encoder_target_ELBO(self,q_mean_XUy, q_sigma_XUy, q_mean_Xdy, q_sigma_Xdy):
+        # clamp to avoid zero
+        sigma = torch.clamp(torch.abs(q_sigma_XUy), min=0.001, max=10.)
+        sigma_Xdy = torch.clamp(torch.abs(q_sigma_Xdy), min=0.001, max=10.)
+        KL_z = torch.log(torch.abs(sigma_Xdy) / torch.abs(sigma)) + 0.5 * (sigma ** 2) / (sigma_Xdy ** 2) + 0.5 * (
+                    (q_mean_XUy - q_mean_Xdy) ** 2) / (sigma_Xdy ** 2) - 0.5 # N x latent_dim
+        return torch.sum(KL_z, dim=1)
+
+    def decoding(self,Infer_model,z,W_sample):
+        X=Infer_model.sample_X(z,W_sample)
+        return X
 

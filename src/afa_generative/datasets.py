@@ -2,7 +2,9 @@ import os
 import torch
 import numpy as np
 import pandas as pd
-from torch.utils.data import Subset, TensorDataset
+from torch.utils.data import Subset, TensorDataset, Dataset
+from sklearn import preprocessing
+from sklearn.utils import shuffle
 
 
 GITHUB_URL = 'https://raw.githubusercontent.com/iancovert/dynamic-selection/main/datasets/'
@@ -130,3 +132,44 @@ def load_miniboone(features=None):
     dataset.output_size = len(np.unique(y))
     return dataset
 
+
+class Boston(object):
+    def __init__(self, root_dir):
+        '''
+        This is to load the Boston data as a whole
+        :param root_dir: The path where UCI data are stored
+        :type root_dir: Str
+        :param rs: The random seed for splitting the training/test data
+        :type rs: Int
+        '''
+        self.path = os.path.join(root_dir, 'boston.csv')
+        self.Data = pd.read_csv(self.path)
+        self.Data_mat = self.Data.values
+        self.obs_dim = self.Data_mat.shape[1]
+        # Normalize the data between 1 and 2
+        Data_std = preprocessing.scale(self.Data_mat)
+        Data_std[Data_std == 0] = 0.01
+        self.Data_mat = Data_std
+        
+        self.Data_mat=shuffle(self.Data_mat,random_state=42)
+
+
+class base_UCI_Dataset(Dataset):
+    '''
+    Most simple dataset by explicit giving train and test data
+    '''
+    def __init__(self,data,transform=None,flag_GPU=True):
+        self.Data=data
+        self.flag_GPU=flag_GPU
+        self.transform=transform
+    def __len__(self):
+        return self.Data.shape[0]
+    def __getitem__(self, idx):
+        sample=self.Data[idx,:]
+        if self.transform and self.flag_GPU==True:
+            sample=self.transform(sample)
+            sample=sample.cuda()
+        elif self.transform and not self.flag_GPU:
+            sample=self.transform(sample)
+        return sample
+    
