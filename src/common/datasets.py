@@ -429,10 +429,93 @@ class DiabetesDataset(Dataset):
         dataset.feature_names = data["feature_names"]
         return dataset
 
-
-
-
-
+class PhysionetDataset(Dataset):
+    """
+    Physionet dataset wrapped to follow the AFADataset protocol.
+    
+    This dataset contains medical measurements from ICU patients.
+    The target variable has 2 classes (0, 1) representing different outcomes.
+    """
+    def __init__(
+        self,
+        data_path: str = "datasets/physionet_data.csv",
+        seed: int = 123,
+    ):
+        super().__init__()
+        self.data_path = data_path
+        self.seed = seed
+        
+        # Placeholder attributes
+        self.features = None
+        self.labels = None
+        self.feature_names = None
+            
+    def generate_data(self) -> None:
+        """Load and preprocess the Physionet dataset."""
+        # Set random seed for reproducibility
+        torch.manual_seed(self.seed)
+        
+        # Check if file exists
+        if not os.path.exists(self.data_path):
+            raise FileNotFoundError(f"Physionet dataset not found at {self.data_path}")
+        
+        # Load the dataset
+        df = pd.read_csv(self.data_path)
+        
+        # Extract features and labels
+        # The last column is the target variable (Outcome)
+        features_df = df.iloc[:, :-1]
+        labels_df = df.iloc[:, -1]
+        
+        # Handle missing values by filling with column means
+        features_df = features_df.fillna(features_df.mean())
+        
+        # Convert to tensors
+        self.features = torch.tensor(features_df.values, dtype=torch.float32)
+        self.labels = torch.tensor(labels_df.values, dtype=torch.float32)
+        
+        # Store feature names
+        self.feature_names = features_df.columns.tolist()
+        
+        print(f"Loaded Physionet dataset with {len(self.features)} samples and {self.features.shape[1]} features")
+        print(f"Class distribution: {torch.bincount(self.labels.long(), minlength=2)}")
+    
+    def __getitem__(self, idx: int) -> tuple[Features, Label]:
+        """Return a single sample from the dataset."""
+        return self.features[idx], self.labels[idx]
+    
+    def __len__(self) -> int:
+        """Return the number of samples in the dataset."""
+        return len(self.features)
+    
+    def get_all_data(self) -> tuple[Features, Label]:
+        """Return all features and labels."""
+        return self.features, self.labels
+    
+    def save(self, path: str) -> None:
+        """Save the dataset to a file."""
+        torch.save(
+            {
+                "features": self.features,
+                "labels": self.labels,
+                "feature_names": self.feature_names,
+                "config": {
+                    "data_path": self.data_path,
+                    "seed": self.seed,
+                },
+            },
+            path,
+        )
+    
+    @staticmethod
+    def load(path: str) -> "PhysionetDataset":
+        """Load a dataset from a file."""
+        data = torch.load(path)
+        dataset = PhysionetDataset(**data["config"])
+        dataset.features = data["features"]
+        dataset.labels = data["labels"]
+        dataset.feature_names = data["feature_names"]
+        return dataset
 
 #class CubeDatasetOld(Dataset):
 #    """

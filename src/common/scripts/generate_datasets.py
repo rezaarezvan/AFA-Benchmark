@@ -175,6 +175,10 @@ def main():
             kwargs = {
                 "data_path": "datasets/diabetes.csv"
             }
+        elif dataset_name == "physionet":
+            kwargs = {
+                "data_path": "datasets/physionet_data.csv"
+            }
         else:
             print(f"Warning: Unknown dataset type {dataset_name}, skipping...")
             continue

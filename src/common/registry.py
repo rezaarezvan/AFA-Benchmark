@@ -3,7 +3,7 @@ from afa_rl.afa_methods import (
     RandomDummyAFAMethod,
     SequentialDummyAFAMethod,
 )
-from common.datasets import CubeDataset, AFAContextDataset, MNISTDataset, DiabetesDataset
+from common.datasets import CubeDataset, AFAContextDataset, MNISTDataset, DiabetesDataset, PhysionetDataset
 
 # Add each AFA method here
 AFA_METHOD_REGISTRY = {
@@ -17,7 +17,8 @@ AFA_DATASET_REGISTRY = {
     "cube": CubeDataset,
     "AFAContext": AFAContextDataset,
     "MNIST": MNISTDataset,
-    "diabetes": DiabetesDataset
+    "diabetes": DiabetesDataset,
+    "physionet": PhysionetDataset
 }
 
 # Mapping of AFA dataset names to their paths
