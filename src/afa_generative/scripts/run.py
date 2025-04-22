@@ -384,7 +384,7 @@ if __name__ == '__main__':
                                                  flag_reset_optim=flag_reset_optim,W_dict_init=W_dict_init, 
                                                  valid_data=valid_data_input_tensor,
                                                  valid_data_target=valid_data_target_tensor,sigma_out=sigma_out,
-                                                 scale_data=args.scale_data,noisy_update=args.noisy_update)
+                                                 scale_data=scale_data,noisy_update=noisy_update)
 
                 # Evaluation code
                 # RMSE_BALD_BALD, MAE_BALD_BALD, NLL_BALD_BALD = test_UCI_AL(

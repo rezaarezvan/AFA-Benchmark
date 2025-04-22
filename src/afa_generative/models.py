@@ -626,7 +626,6 @@ class PVAE(nn.Module):
 class fc_Net(nn.Module):
     '''
     This class implements the base network structure for fully connected encoder/decoder/predictor.
-    This also support the dynamically adding new nodes at the output layer for decoder.
     '''
     def __init__(self,input_dim,output_dim,hidden_layer_num=2,hidden_unit=[100,50],activations='ReLU',activations_output=None,flag_only_output_layer=False,drop_out_rate=0.,flag_drop_out=False,flag_LV=False,output_const=1.,add_const=0.):
         '''
@@ -865,38 +864,6 @@ class fc_Net(nn.Module):
         if self.flag_LV:
             output=torch.cat((output,output_LV),dim=-1)
         return output
-
-
-    def _add_new_node_last_random(self,new_dimension):
-        '''
-        This is to add new node at the output layer (Used for streaming train only)
-        :param new_dimension:
-        :type new_dimension:
-        :return:
-        :rtype:
-        '''
-        if self.flag_LV:
-            raise NotImplementedError
-        current_out_weight=self.out.weight.data
-        current_out_bias=self.out.bias.data
-
-        # new weight matrix and bias
-        w_new=0.01*torch.randn(new_dimension,self.hidden_unit[-1])
-        bias_new=0.01*torch.randn(new_dimension)
-
-        # concat to old matrix and bias
-        w_new_mat=torch.cat((current_out_weight,w_new),dim=0)
-
-        bias_new_mat=torch.cat((current_out_bias,bias_new),dim=0)
-
-        # set current weight/bias to new weight/bias
-        if self.flag_only_output_layer == False:
-            self.out=nn.Linear(self.hidden_unit[-1],self.output_dim+new_dimension)
-        else:
-            self.out = nn.Linear(self.input_dim, self.output_dim+new_dimension)
-
-        self.out.weight.data=torch.tensor(w_new_mat.data,requires_grad=True)
-        self.out.weight.bias=torch.tensor(bias_new_mat.data,requires_grad=True)
 
 
 class Point_Net_Plus_BNN_SGHMC(object):

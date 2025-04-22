@@ -289,28 +289,6 @@ def BALD_Select(BALD):
     _, idx = torch.sort(BALD.view(1, -1), descending=True)  # Flattened idx # 1 x tot
     return idx,num_unobserved
 
-def Random_select_idx(pool_data_cp,obs,step):
-    flat_pool_data = pool_data_cp.view(1, -1)
-
-    idx_obs = (torch.abs(flat_pool_data) > 0.).nonzero()
-    if len(idx_obs) == 0:
-        return [],0,True
-    else:
-        idx_obs = idx_obs[:, 1]
-        if idx_obs.shape[0] <= step:
-            idx_selected = idx_obs
-            num_selected = idx_obs.shape[0]
-        else:
-            idx_random = torch.randperm(idx_obs.shape[0])
-            idx_selected = idx_obs[idx_random]
-            idx_selected = idx_selected[0:step]
-            num_selected = step
-
-        row = (idx_selected / obs).view(-1, 1)
-        column = (idx_selected % obs).view(-1, 1)
-        idx = torch.cat((row, column), dim=1)
-        return idx,num_selected,False
-
 
 class MaskLayer(nn.Module):
     '''

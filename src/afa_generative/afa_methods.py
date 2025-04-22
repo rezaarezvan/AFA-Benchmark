@@ -11,7 +11,6 @@ from tqdm.auto import tqdm
 from scipy.stats import bernoulli
 from sklearn.model_selection import train_test_split
 from sklearn.utils import shuffle
-# from afa_generative.utils import generate_uniform_mask, restore_parameters, square_dict, get_mask, base_generate_mask_incomplete, grap_modify_grad, zero_grad, assign_grad, MaskLayerGrouped
 from afa_generative.utils import *
 from afa_generative.datasets import base_UCI_Dataset
 
@@ -1126,10 +1125,6 @@ class SGHMC(base_Infer):
         else:
             return W_sample,W_dict
 
-    def sample_pos_Z(self,X,mask,size_Z=10):
-        z, encoding = self.model.sample_latent_variable(X, mask, size=size_Z) # N_z x N x latent_dim
-        return z,encoding
-
     def completion(self,X,mask,W_sample,size_Z=10,record_memory=False):
         # Imputing all missing values
         X = X.clone().detach()
@@ -1487,40 +1482,6 @@ class base_Active_Learning_SGHMC(object):
         self.train_pool_tensor = self.train_data_tensor.clone().detach()
         if self.flag_clear_target_train==True:
             self.train_pool_tensor[:,target_dim]=0. # Remove the target variable
-
-    def _save_data(self,filepathname):
-        # Save train data
-        np.save(filepathname+'train_data.npy',self.train_data)
-        # Test data
-        np.save(filepathname+'test_input_data.npy',self.test_input)
-        np.save(filepathname+'test_target_data.npy',self.test_target)
-        # Store valid data
-        np.save(filepathname+'valid_data.npy',self.valid_data)
-        np.save(filepathname+'valid_data_input.npy',self.valid_data_input)
-        np.save(filepathname+'valid_data_target.npy',self.valid_data_target)
-    
-    def _load_data(self,filepathname,target_dim=-1):
-        self.train_data=np.load(filepathname+'train_data.npy')
-        self.train_data_tensor = torch.from_numpy(self.train_data).float().cuda()
-        self.test_input=np.load(filepathname+'test_input_data.npy')
-        self.test_input_tensor = torch.from_numpy(self.test_input).float().cuda()
-        self.test_target=np.load(filepathname+'test_target_data.npy')
-        self.test_target_tensor = torch.from_numpy(self.test_target).float().cuda()
-
-        self.valid_data=np.load(filepathname+'valid_data.npy')
-        self.valid_data_tensor=torch.from_numpy(self.valid_data).float().cuda()
-
-        self.valid_data_input=np.load(filepathname+'valid_data_input.npy')
-        self.valid_data_input_tensor = torch.from_numpy(self.valid_data_input).float().cuda()
-
-        self.valid_data_target=np.load(filepathname+'valid_data_target.npy')
-        self.valid_data_target_tensor=torch.from_numpy(self.valid_data_target).float().cuda()
-
-        self.init_observed_train = np.zeros(self.train_data_tensor.shape)
-        self.init_observed_train_tensor = torch.from_numpy(self.init_observed_train).float().cuda()
-        self.train_pool_tensor = torch.tensor(self.train_data_tensor.data)
-        if self.flag_clear_target_train == True:
-            self.train_pool_tensor[:, target_dim] = 0.  # Remove the target variable
 
     def train_BNN(self,observed_train,eps=0.01,max_sample_size=20,tot_epoch=100,thinning=50,hyper_param_update=200,sample_int=1,flag_hybrid=False,flag_reset_optim=True,flag_imputation=False,W_dict_init=None,**kwargs):
         if flag_reset_optim==True:
@@ -2347,165 +2308,6 @@ class base_Active_Learning_SGHMC_Decoder(base_Active_Learning_SGHMC):
 
         return observed_train,pool_data,flag_full,num_selected
 
-    def base_BALD_select_row(self, split=30, **kwargs):
-        print('Strong Baseline by traditional BALD')
-        step = kwargs['step']  # this is the number of points to select
-        pool_data = kwargs['pool_data']
-        W_sample = kwargs['W_sample']
-        # copy
-        pool_data_cp = pool_data.clone().detach()
-        observed_train = kwargs['observed_train']
-
-        # now compute the BALD
-        if split > 1 and split < pool_data.shape[0]:
-            batch_size = int(math.ceil(pool_data.shape[0] / split))
-            pre_idx = 0
-            counter = 0
-            for counter_idx in range(split + 1):
-                idx = min((counter_idx + 1) * batch_size, pool_data.shape[0])
-                if pre_idx == idx:
-                    break
-
-                pool_data_split = pool_data_cp[pre_idx:idx, :]
-                observed_train_split = observed_train[pre_idx:idx, :]
-                # Get pool data mask
-                pool_mask = get_mask(pool_data_split)
-
-                # compute p(y|x_i) where x_i from pool data
-                z, _ = self.model.sample_latent_variable(pool_data_split, pool_mask,
-                                                         size=10)  # size_z x N_split x latent
-                # now sample y|z,w
-                decode = self.Infer_model.sample_X(z, W_sample)  # N_w x Nz x N x obs
-                # Decode label
-                decode_label = torch.index_select(decode, -1,
-                                                  torch.tensor([decode.shape[-1] - 1]))  # nw x nz x n x 1
-                comp_mean = decode_label.clone().detach()
-                decode_label_flat = torch.unsqueeze(
-                    decode_label.view(-1, decode_label.shape[2], decode_label.shape[3]), dim=1)  # nwnz x 1 x n x 1
-                comp_mean_flat = torch.unsqueeze(comp_mean.view(-1, decode_label.shape[2], decode_label.shape[3]),
-                                                 dim=0)  # 1 x nwnz x n x 1
-
-                # now compute marginal p(y_in|x_in)
-                log_likelihood = -0.5 * math.log(2 * np.pi) - 0.5 * math.log(self.sigma_out ** 2) - 1. / (
-                        2 * self.sigma_out ** 2) * (
-                                         decode_label_flat - comp_mean_flat) ** 2  # nwnz x nwnz x n x 1
-                marginal_log_likelihood = torch.logsumexp(log_likelihood, dim=1) - math.log(
-                    float(log_likelihood.shape[0]))  # nwnz x n x 1
-                # Compute entropy H[p(y_|x_i)]
-                entropy = -torch.mean(marginal_log_likelihood, dim=0)  # n x 1
-
-                # Now compute H[p(y_i,x_i,W)]
-
-                decode_label_exp = torch.unsqueeze(decode_label, dim=2)  # nw x nz x 1 x n x 1
-                comp_mean_exp = torch.unsqueeze(comp_mean, dim=1)  # nw x 1 x nz x n x 1
-                # now compute marginal p(y_in|x_in,W)
-                log_likelihood_W = -0.5 * math.log(2 * np.pi) - 0.5 * math.log(self.sigma_out ** 2) - 1. / (
-                        2 * self.sigma_out ** 2) * (
-                                           decode_label_exp - comp_mean_exp) ** 2  # nw x nz x nz x n x 1
-                marginal_log_likelihood_W = torch.logsumexp(log_likelihood_W, dim=2) - math.log(
-                    float(log_likelihood_W.shape[2]))  # nw x nz x n x 1
-                # now compute H[p(y_i|x_i,W)]
-                entropy_W = -torch.mean(marginal_log_likelihood_W, dim=1)  # nw x n x 1
-                E_entropy = torch.mean(entropy_W, dim=0)  # n x 1
-                BALD_split = entropy - E_entropy  # n x 1
-
-                if counter == 0:
-                    BALD = BALD_split.clone().detach()
-                else:
-                    BALD = torch.cat((BALD, BALD_split), dim=0)  # N_tot x 1
-
-                counter += 1
-                pre_idx = idx
-        else:
-            raise NotImplementedError
-
-        # Now active select
-        # excluding the observed train
-        non_zero_row_idx = torch.sum(get_mask(pool_data_cp), dim=1).nonzero()  # N_non_zero
-        zero_row_idx = (torch.sum(get_mask(pool_data_cp), dim=1) == 0).nonzero()  # N_zero
-        accumu_data_points = 0
-        if non_zero_row_idx.nelement() != 0:
-            BALD = torch.squeeze(BALD)  # N_tot
-            BALD[zero_row_idx] = -(1e5)
-
-            _, idx_select = torch.sort(BALD, descending=True)
-
-            for num_row in range(idx_select.shape[0]):
-                row_idx = idx_select[num_row]
-                num_feature_row = torch.sum(torch.abs(pool_data[row_idx, :]) > 0)
-                observed_train[row_idx, :] = pool_data[row_idx, :]
-                pool_data[row_idx, :] = 0.
-                accumu_data_points += num_feature_row
-                if accumu_data_points > step:
-                    break
-            return observed_train, pool_data, False
-        else:
-            print('No more Pool data for row selection')
-            return observed_train, pool_data, True
-
-    def base_random_select_training(self,balance_prop=0.25,Select_Split=True,flag_initial=False,**kwargs):
-        # Random feature-wise selection
-        observed_train = kwargs['observed_train']
-        pool_data = kwargs['pool_data']
-        pool_data_cp=torch.tensor(pool_data.data)
-        step = kwargs['step']  # This is to define how many data points to select for each active learning
-
-        obs=observed_train.shape[1]
-        selection_scheme=kwargs['selection_scheme']
-        if selection_scheme=='overall':
-            print('%s selection scheme with Select_Split %s'%(selection_scheme,Select_Split))
-        else:
-            raise NotImplementedError
-        if selection_scheme=='overall':
-            if not flag_initial:
-                if Select_Split==True:
-                    print('%s Explore'%(self.model_name))
-
-                    step_new=int((1-balance_prop)*step)
-                    #Select from new
-                    pool_data_cp_un=assign_zero_row_2D_with_target_reverse(pool_data_cp,observed_train)
-                    idx_un,num_selected_un,flag_full_un=Random_select_idx(pool_data_cp_un,obs,step_new)
-                    if flag_full_un:
-                        print('%s No more new user'%(self.model_name))
-                        step_old=step
-                    else:
-                        step_old=step-num_selected_un
-                    # Select from old
-                    pool_data_cp_ob = assign_zero_row_2D_with_target(pool_data_cp, observed_train)
-                    idx_ob,num_selected_ob,flag_full_ob=Random_select_idx(pool_data_cp_ob,obs,step_old)
-
-                    if flag_full_ob:
-                        print('No more Old user')
-                    if not flag_full_un:
-                        flag_full=False
-                        if not flag_full_ob:
-                            idx = torch.cat((idx_ob, idx_un), dim=0)
-                        else:
-                            idx=idx_un
-                    elif not flag_full_ob:
-                        flag_full = False
-                        if not flag_full_un:
-                            idx = torch.cat((idx_ob, idx_un), dim=0)
-                        else:
-                            idx = idx_ob
-                    else:
-                        flag_full=True
-
-                    num_selected=num_selected_ob+num_selected_un
-                else:
-                    idx, num_selected, flag_full = Random_select_idx(pool_data_cp, obs, step)
-
-            else:
-                idx,num_selected,flag_full=Random_select_idx(pool_data_cp,obs,step)
-
-
-            if not flag_full:
-                observed_train,pool_data=self._apply_selected_idx(observed_train, pool_data, idx)
-        else:
-            raise NotImplementedError
-
-        return observed_train,pool_data,flag_full,num_selected
-    
 
 def train_SGHMC(Infer_model,observed_train,eps=0.01,max_sample_size=20,tot_epoch=100,thinning=50,hyper_param_update=200,sample_int=1,flag_hybrid=False,flag_results=True,W_dict_init=None,flag_imputation=False,**kwargs):
     # This is the function to train the model with SGHMC methods
