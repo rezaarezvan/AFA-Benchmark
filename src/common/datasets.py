@@ -42,9 +42,6 @@ class CubeDataset(Dataset):
         self.labels = None
         self.feature_names = None
         
-        # Generate upon initialization
-        self.generate_data()
-
     def generate_data(self) -> None:
         rng = torch.Generator()
         rng.manual_seed(self.seed)
@@ -165,9 +162,6 @@ class AFAContextDataset(Dataset):
         self.features = None
         self.labels = None
         self.costs = None
-
-        # Generate upon initialization
-        self.generate_data()
 
     def generate_data(self) -> None:
         rng = torch.Generator()
