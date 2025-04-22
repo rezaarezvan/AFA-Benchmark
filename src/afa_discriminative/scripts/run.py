@@ -196,8 +196,8 @@ if __name__ == '__main__':
                     flag_only_output_layer=False
                 )
                 # Tie weights
-                value_network[0] = predictor[0]
-                value_network[3] = predictor[3]
+                value_network.hidden[0] = predictor.hidden[0]
+                value_network.hidden[1] = predictor.hidden[1]
                 mask_layer = MaskLayer(mask_size=d_in, append=True)
 
                 # Pretrain predictor.

@@ -24,6 +24,16 @@ def make_onehot(x):
     onehot[torch.arange(len(x)), argmax] = 1
     return onehot
 
+def get_entropy(pred):
+    '''Calculate entropy, assuming logit predictions.'''
+    return Categorical(logits=pred).entropy()
+
+def ind_to_onehot(inds, n):
+    '''Convert index to one-hot encoding.'''
+    onehot = torch.zeros(len(inds), n, dtype=torch.float32, device=inds.device)
+    onehot[torch.arange(len(inds)), inds] = 1
+    return onehot
+
 
 class MaskLayer(nn.Module):
     '''
