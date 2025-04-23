@@ -16,6 +16,10 @@ class AFADataset(Protocol):
     Notably, the __init__ constructor should *not* generate data. Instead, generate_data() should be called. This makes it possible to call load if deterministic data is desired.
     """
 
+    # Used by AFADatasetFn
+    features: Features|None # batched
+    labels: Label|None # batched
+
     def generate_data(self) -> None:
         """
         Generates the data for the dataset. This should be called after __init__.

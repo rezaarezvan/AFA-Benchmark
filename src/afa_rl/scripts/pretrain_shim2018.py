@@ -43,23 +43,11 @@ def main(args: argparse.Namespace):
     torch.set_float32_matmul_precision("medium")
 
     # Load config from yaml file
-    with open(args.config, "r") as file:
+    with open(args.pretrain_config, "r") as file:
         config_dict: dict = yaml.safe_load(file)
 
     config = dict_to_namespace(config_dict)
 
-    # dataset = CubeDataset(
-    #     n_features=config.n_features,
-    #     data_points=config.dataset.size,
-    #     sigma=config.dataset.sigma,
-    #     seed=config.dataset.seed,
-    # )
-    # datamodule = DataModuleFromDatasets(
-    #     dataset=dataset,
-    #     batch_size=config.dataloader.batch_size,
-    #     train_ratio=config.dataloader.train_ratio,
-    #     num_workers=config.dataloader.num_workers,
-    # )
     train_dataset: AFADataset = AFA_DATASET_REGISTRY[args.dataset_type].load(
         args.dataset_train_path
     )
@@ -112,11 +100,11 @@ def main(args: argparse.Namespace):
 if __name__ == "__main__":
     # Use argparse to choose config file
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", type=str, required=True)
+    parser.add_argument("--pretrain_config", type=str, required=True)
     parser.add_argument("--dataset_type", type=str, required=True, choices=AFA_DATASET_REGISTRY.keys())
     parser.add_argument("--dataset_train_path", type=str, required=True)
     parser.add_argument("--dataset_val_path", type=str, required=True)
-    parser.add_argument("--save_path", type=str, required=True)
+    parser.add_argument("--pretrained_model_save_path", type=str, required=True)
     args = parser.parse_args()
 
     main(args)
