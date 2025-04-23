@@ -1,11 +1,6 @@
-epochs: 1000
-checkpoint_path: "models/afa_rl/pretrain_shim2018.ckpt"
+epochs: 10
 n_features: 20
 
-dataset:
-  name: "cube"
-  train_path: "data/cube/train_10000.pt"
-  val_path: "data/cube/val_1000.pt"
 dataloader:
   batch_size: 128
   num_workers: 1
