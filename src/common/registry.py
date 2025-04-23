@@ -24,11 +24,21 @@ AFA_DATASET_REGISTRY = {
 # Mapping of AFA dataset names to their paths
 AFA_DATASET_PATH_REGISTRY = {
     "cube": [
-        "data/cube/cube_train_100.pt",
-        "data/cube/cube_train_1000.pt",
-        "data/cube/cube_train_10000.pt",
-        "data/cube/cube_val_100.pt",
-        "data/cube/cube_val_1000.pt",
+        "data/cube/train_split_1.pt",
+        "data/cube/train_split_2.pt",
+        "data/cube/train_split_3.pt",
+        "data/cube/train_split_4.pt",
+        "data/cube/train_split_5.pt",
+        "data/cube/val_split_1.pt",
+        "data/cube/val_split_2.pt",
+        "data/cube/val_split_3.pt",
+        "data/cube/val_split_4.pt",
+        "data/cube/val_split_5.pt",
+        "data/cube/test_split_1.pt",
+        "data/cube/test_split_2.pt",
+        "data/cube/test_split_3.pt",
+        "data/cube/test_split_4.pt",
+        "data/cube/test_split_5.pt",
     ]
 }
 

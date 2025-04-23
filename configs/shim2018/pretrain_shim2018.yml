@@ -1,5 +1,4 @@
-epochs: 10
-n_features: 20
+epochs: 2000
 
 dataloader:
   batch_size: 128
@@ -13,7 +12,7 @@ encoder:
 classifier:
   num_cells: [32, 32]
 embedder_classifier:
-  lr: 0.0001
+  lr: 0.001
 wandb:
   entity: "valterschutz-chalmers-university-of-technology"
   project: "pretrain-shim2018"

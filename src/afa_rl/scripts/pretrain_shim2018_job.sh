@@ -2,15 +2,8 @@
 #SBATCH --account=NAISS2025-22-448 -p alvis
 #SBATCH -N 1 --gpus-per-node=T4:1
 #SBATCH -t 24:00:00
-#SBATCH --array=1-5
 
-split=$SLURM_ARRAY_TASK_ID
-
-# Ensure the split variable is set correctly
-if [ -z "$split" ]; then
-    echo "Error: SLURM_ARRAY_TASK_ID is not set. Please run this script as part of a job array."
-    exit 1
-fi
+split=1
 
 echo "Pretraining model for split $split..."
 uv run src/afa_rl/scripts/pretrain_shim2018.py \

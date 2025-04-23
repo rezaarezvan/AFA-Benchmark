@@ -94,9 +94,8 @@ def main():
     )
 
     # Get the number of features and classes from the dataset
-    dummy_features, dummy_label = train_dataset[0]
-    n_features = dummy_features.shape[-1]
-    n_classes = dummy_label.shape[-1]
+    n_features = train_dataset.features.shape[-1]
+    n_classes = train_dataset.labels.shape[-1]
 
     embedder_and_classifier = get_shim2018_model_from_config(pretrain_config, n_features, n_classes)
     embedder_classifier_checkpoint = torch.load(
@@ -128,7 +127,7 @@ def main():
         classifier=classifier,
         acquisition_costs=train_config.mdp.acquisition_cost
         * torch.ones(
-            (pretrain_config.n_features,),
+            (n_features,),
             dtype=torch.float32,
             device=train_config.device,
         ),
@@ -147,8 +146,8 @@ def main():
         reward_fn=reward_fn,
         device=train_config.device,
         batch_size=torch.Size((1,)),
-        feature_size=train_dataset.features.shape[-1],
-        n_classes=train_dataset.labels.shape[-1],
+        feature_size=n_features,
+        n_classes=n_classes,
     )
     # check_env_specs(train_env)
 
@@ -157,8 +156,8 @@ def main():
         reward_fn=reward_fn,
         device=train_config.device,
         batch_size=torch.Size((1,)),
-        feature_size=val_dataset.features.shape[-1],
-        n_classes=val_dataset.labels.shape[-1],
+        feature_size=n_features,
+        n_classes=n_classes,
     )
 
     agent = Shim2018Agent(
@@ -327,14 +326,16 @@ def main():
                     )
     except KeyboardInterrupt:
         pass
+    finally:
 
-    run.finish()
+        run.finish()
 
-    # Convert the embedder+agent to an AFAMethod and save it
-    afa_method = Shim2018AFAMethod(
-        agent.value_network, embedder, classifier, eval_env.action_spec
-    )
-    afa_method.save(args.afa_method_save_path)
+        # Convert the embedder+agent to an AFAMethod and save it
+        afa_method = Shim2018AFAMethod(
+            agent.value_network, embedder, classifier, eval_env.action_spec
+        )
+        afa_method.save(args.afa_method_save_path)
+        print(f"Shim2018AFAMethod saved to {args.afa_method_save_path}")
 
 
 if __name__ == "__main__":

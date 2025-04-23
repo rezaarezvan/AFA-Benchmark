@@ -59,9 +59,8 @@ def main(args: argparse.Namespace):
     )
 
     # Get the number of features and classes from the dataset
-    dummy_features, dummy_label = train_dataset[0]
-    n_features = dummy_features.shape[-1]
-    n_classes = dummy_label.shape[-1]
+    n_features = train_dataset.features.shape[-1]
+    n_classes = train_dataset.labels.shape[-1]
 
 
     model = get_shim2018_model_from_config(config, n_features, n_classes)
@@ -92,9 +91,9 @@ def main(args: argparse.Namespace):
         # Move the best checkpoint to the desired location
         best_checkpoint = trainer.checkpoint_callback.best_model_path
         # Create directory if it doesn't exist
-        os.makedirs(os.path.dirname(args.save_path), exist_ok=True)
-        torch.save(torch.load(best_checkpoint), args.save_path)
-        print(f"ShimEmbedderClassifier saved to {args.save_path}")
+        os.makedirs(os.path.dirname(args.pretrained_model_save_path), exist_ok=True)
+        torch.save(torch.load(best_checkpoint), args.pretrained_model_save_path)
+        print(f"ShimEmbedderClassifier saved to {args.pretrained_model_save_path}")
 
 
 if __name__ == "__main__":
