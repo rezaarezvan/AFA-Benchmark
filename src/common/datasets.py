@@ -51,7 +51,7 @@ class CubeDataset(Dataset):
         
         # Binary codes for labels (8×3)
         binary_codes = torch.stack([
-            torch.tensor([int(b) for b in format(i, '03b')], dtype=torch.float32)
+            torch.tensor([int(b) for b in format(i, '03b')])
             for i in range(self.n_classes)
         ], dim=0)
         
@@ -89,6 +89,7 @@ class CubeDataset(Dataset):
         
         # Labels
         self.labels = y_int
+        self.labels = torch.nn.functional.one_hot(self.labels, num_classes=self.n_classes).float()
 
     def __getitem__(self, idx: int) -> tuple[MaskedFeatures, FeatureMask]:
         return self.features[idx], self.labels[idx]
@@ -173,7 +174,7 @@ class AFAContextDataset(Dataset):
 
         # Binary codes for labels (8×3)
         binary_codes = torch.stack([
-            torch.tensor([int(b) for b in format(i, '03b')], dtype=torch.float32)
+            torch.tensor([int(b) for b in format(i, '03b')])
             for i in range(self.n_classes)
         ], dim=0)
 
@@ -236,8 +237,8 @@ class AFAContextDataset(Dataset):
         self.costs = costs
 
         # One-hot labels
-        #self.labels = torch.nn.functional.one_hot(y_int, num_classes=self.n_classes).float()
         self.labels = y_int
+        self.labels = torch.nn.functional.one_hot(self.labels, num_classes=self.n_classes).float()
 
     def __getitem__(self, idx: int):
         return self.features[idx], self.labels[idx]
@@ -293,6 +294,7 @@ class MNISTDataset(Dataset):
         self.train = train
         self.transform = transform if transform is not None else transforms.ToTensor()
         self.download = download
+        self.n_classes = 10
         self.root = root
         self.dataset = None
         self.features = None
@@ -313,6 +315,7 @@ class MNISTDataset(Dataset):
         #    num_classes=10
         #).float()
         self.labels = torch.tensor([x[1] for x in self.dataset])
+        self.labels = torch.nn.functional.one_hot(self.labels, num_classes=self.n_classes).float()
 
     def __getitem__(self, idx: int) -> tuple[Features, Label]:
         return self.features[idx], self.labels[idx]
@@ -364,6 +367,7 @@ class DiabetesDataset(Dataset):
         self.features = None
         self.labels = None
         self.feature_names = None
+        self.n_classes = 3
             
     def generate_data(self) -> None:
         """Load and preprocess the diabetes dataset."""
@@ -383,14 +387,15 @@ class DiabetesDataset(Dataset):
         labels_df = df.iloc[:, -1]
         
         # Convert to tensors
-        self.features = torch.tensor(features_df.values, dtype=torch.float32)
-        self.labels = torch.tensor(labels_df.values, dtype=torch.float32)
+        self.features = torch.tensor(features_df.values)
+        self.labels = torch.tensor(labels_df.values, dtype=torch.long)
+        self.labels = torch.nn.functional.one_hot(self.labels, num_classes=self.n_classes).float()
         
         # Store feature names
         self.feature_names = features_df.columns.tolist()
         
         print(f"Loaded Diabetes dataset with {len(self.features)} samples and {self.features.shape[1]} features")
-        print(f"Class distribution: {torch.bincount(self.labels.long(), minlength=3)}")
+        #print(f"Class distribution: {torch.bincount(self.labels.long(), minlength=3)}")
     
     def __getitem__(self, idx: int) -> tuple[Features, Label]:
         """Return a single sample from the dataset."""
@@ -449,6 +454,7 @@ class PhysionetDataset(Dataset):
         self.features = None
         self.labels = None
         self.feature_names = None
+        self.n_classes = 2
             
     def generate_data(self) -> None:
         """Load and preprocess the Physionet dataset."""
@@ -471,14 +477,16 @@ class PhysionetDataset(Dataset):
         features_df = features_df.fillna(features_df.mean())
         
         # Convert to tensors
-        self.features = torch.tensor(features_df.values, dtype=torch.float32)
-        self.labels = torch.tensor(labels_df.values, dtype=torch.float32)
-        
+        self.features = torch.tensor(features_df.values)
+        # Convert labels to LongTensor for one_hot encoding
+        self.labels = torch.tensor(labels_df.values, dtype=torch.long)
+        self.labels = torch.nn.functional.one_hot(self.labels, num_classes=self.n_classes).float()
+
         # Store feature names
         self.feature_names = features_df.columns.tolist()
         
         print(f"Loaded Physionet dataset with {len(self.features)} samples and {self.features.shape[1]} features")
-        print(f"Class distribution: {torch.bincount(self.labels.long(), minlength=2)}")
+        #print(f"Class distribution: {torch.bincount(self.labels, minlength=2)}")
     
     def __getitem__(self, idx: int) -> tuple[Features, Label]:
         """Return a single sample from the dataset."""
