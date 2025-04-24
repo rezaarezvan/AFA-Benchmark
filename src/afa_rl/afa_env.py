@@ -429,11 +429,6 @@ def get_zannone2019_reward_fn(
         features: Features,
         label: Label,
     ) -> AFAReward:
-        reward = torch.zeros_like(afa_selection, dtype=torch.float32)
-        is_done = afa_selection.squeeze(-1) == 0
-
-        # If episode is finished, use negative probability of incorrect classification as reward
-
         # The classifier expects to act on the latent space, so find the latent representation of the masked features but only pick the mean
         encoding, mu, logvar, z = partial_vae.encode(
             new_masked_features, new_feature_mask
@@ -442,14 +437,15 @@ def get_zannone2019_reward_fn(
         # Get logits using classifier
         logits = classifier(mu)
 
-        reward[is_done] = (
-            (F.softmax(logits[is_done], dim=-1) * label[is_done]).sum(-1).log()
+        # First reward term is the negative log probability of the correct class
+        reward = (
+            (F.softmax(logits, dim=-1) * label).sum(-1).log()
         )
 
-        # If episode is not finished, use negative acquisition cost as reward
-        # TODO: this should be indexed
+
+        # Second term is acquisition cost
         acquisition_cost = acquisition_costs[afa_selection.squeeze(-1) - 1].sum()
-        reward[~is_done] = -acquisition_cost
+        reward += -acquisition_cost
 
         return reward
 

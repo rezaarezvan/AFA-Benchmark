@@ -108,13 +108,6 @@ def main():
     embedder = embedder_and_classifier.embedder
     classifier = embedder_and_classifier.classifier
 
-    # Freeze embedder weights if necessary
-    # embedder.requires_grad_(False)
-    # embedder.eval()
-    # Freeze classifier weights
-    # classifier.requires_grad_(False)
-    # classifier.eval()
-
     embedder_classifier_optim = optim.Adam(
         embedder_and_classifier.parameters(), lr=train_config.embedder_classifier.lr
     )
@@ -182,6 +175,7 @@ def main():
         agent.policy,
         frames_per_batch=train_config.batch_size,
         total_frames=train_config.n_batches * train_config.batch_size,
+        device=train_config.device,
     )
 
     # Use WandB for logging
@@ -356,8 +350,8 @@ if __name__ == "__main__":
     parser.add_argument("--dataset_type", type=str, required=True, choices=AFA_DATASET_REGISTRY.keys())
     parser.add_argument("--dataset_train_path", type=str, required=True)
     parser.add_argument("--dataset_val_path", type=str, required=True)
-    parser.add_argument("--pretrained_model_save_path", type=str, required=True)
-    parser.add_argument("--afa_method_save_path", type=str, required=True)
+    parser.add_argument("--pretrained_model_path", type=str, required=True)
+    parser.add_argument("--afa_method_path", type=str, required=True)
     args = parser.parse_args()
 
     main()

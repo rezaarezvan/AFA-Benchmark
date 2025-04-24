@@ -186,15 +186,16 @@ class Shim2018Agent:
 
 class Zannone2019ValueModule(nn.Module):
     def __init__(
-        self, pointnet: PointNet, encoder: nn.Module, latent_size: int, n_actions: int
+        self, pointnet: PointNet, encoder: nn.Module, latent_size: int, n_actions: int, device: torch.device
     ):
         super().__init__()
-        self.pointnet = pointnet
-        self.encoder = encoder
+        self.pointnet = pointnet.to(device)
+        self.encoder = encoder.to(device)
         self.latent_size = latent_size
         self.n_actions = n_actions
+        self.device = device
 
-        self.net = nn.Sequential(nn.Linear(latent_size, 1))
+        self.net = nn.Sequential(nn.Linear(latent_size, 1)).to(self.device)
 
     def forward(self, masked_features: MaskedFeatures, feature_mask: FeatureMask):
         pointnet_output = self.pointnet(masked_features, feature_mask)
@@ -205,15 +206,16 @@ class Zannone2019ValueModule(nn.Module):
 
 class Zannone2019PolicyModule(nn.Module):
     def __init__(
-        self, pointnet: PointNet, encoder: nn.Module, latent_size: int, n_actions: int
+        self, pointnet: PointNet, encoder: nn.Module, latent_size: int, n_actions: int, device: torch.device
     ):
         super().__init__()
-        self.pointnet = pointnet
-        self.encoder = encoder
+        self.pointnet = pointnet.to(device)
+        self.encoder = encoder.to(device)
         self.latent_size = latent_size
         self.n_actions = n_actions
+        self.device = device
 
-        self.net = nn.Sequential(nn.Linear(latent_size, n_actions))
+        self.net = nn.Sequential(nn.Linear(latent_size, n_actions)).to(self.device)
 
     def forward(
         self,
@@ -253,6 +255,7 @@ class Zannone2019Agent:
             encoder=self.encoder,
             latent_size=self.latent_size,
             n_actions=self.action_spec.n,
+            device=self.device
         )
         self.actor_network = ProbabilisticActor(
             module=TensorDictModule(
@@ -271,6 +274,7 @@ class Zannone2019Agent:
             encoder=self.encoder,
             latent_size=self.latent_size,
             n_actions=self.action_spec.n,
+            device=self.device
         )
         self.critic_network = ValueOperator(
             module=self.value_module,

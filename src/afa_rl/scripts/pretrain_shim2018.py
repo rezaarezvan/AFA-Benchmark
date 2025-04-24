@@ -103,7 +103,7 @@ if __name__ == "__main__":
     parser.add_argument("--dataset_type", type=str, required=True, choices=AFA_DATASET_REGISTRY.keys())
     parser.add_argument("--dataset_train_path", type=str, required=True)
     parser.add_argument("--dataset_val_path", type=str, required=True)
-    parser.add_argument("--pretrained_model_save_path", type=str, required=True)
+    parser.add_argument("--pretrained_model_path", type=str, required=True)
     args = parser.parse_args()
 
     main(args)

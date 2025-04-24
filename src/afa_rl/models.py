@@ -387,7 +387,6 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         validation_masking_probability=0.0,
         verbose=False,
         kl_scaling_factor=1e-3,
-        image_shape=None,
         recon_loss_type="squared error",
     ):
         super().__init__()
@@ -398,9 +397,6 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         self.validation_masking_probability = validation_masking_probability
         self.verbose = verbose
         self.kl_scaling_factor = kl_scaling_factor
-
-        # If image_shape is given, show reconstructed images at validation time
-        self.image_shape = image_shape
 
         self.recon_loss_type = recon_loss_type
         if recon_loss_type not in ["squared error", "cross entropy"]:
@@ -500,49 +496,15 @@ class Zannone2019PretrainingModel(pl.LightningModule):
 
             # If self.image_shape is defined, plot 4 images, their reconstructions and the predicted labels
             if batch_idx == 0:
-                # If dataset consists of images, plot them
-                if self.image_shape:
-                    self.log_val_images(
-                        features=masked_features,
-                        estimated_features=estimated_features,
-                        z=z,
-                        y_cls=y_cls,
-                        y_pred=y_pred,
-                    )
-                # Otherwise plot features as 1D signals
-                else:
-                    self.log_val_features(
-                        features=masked_features,
-                        estimated_features=estimated_features,
-                        z=z,
-                        y_cls=y_cls,
-                        y_pred=y_pred,
-                    )
+                self.log_val_features(
+                    features=masked_features,
+                    estimated_features=estimated_features,
+                    z=z,
+                    y_cls=y_cls,
+                    y_pred=y_pred,
+                )
 
         return total_loss
-
-    @rank_zero_only
-    def log_val_images(self, features, z, estimated_features, y_cls, y_pred):
-        # Plot the first 4 images, their reconstructions and the predicted labels
-        fig, axs = plt.subplots(3, 4, figsize=(20, 6))
-        for i in range(4):
-            axs[0, i].imshow(
-                features[i].cpu().numpy().reshape(self.image_shape), cmap="gray"
-            )
-            axs[0, i].axis("off")
-            axs[1, i].plot(z[i].cpu().numpy())
-            axs[1, i].set_title("Latent space")
-            axs[2, i].imshow(
-                estimated_features[i].cpu().numpy().reshape(self.image_shape),
-                cmap="gray",
-            )
-            axs[2, i].axis("off")
-            # Labels as titles
-            axs[0, i].set_title(f"True: {y_cls[i].item()}")
-            axs[2, i].set_title(f"Pred: {y_pred[i].item()}")
-
-        wandb.log({"val_recon": wandb.Image(fig)})
-        plt.close(fig)
 
     @rank_zero_only
     def log_val_features(self, features, z, estimated_features, y_cls, y_pred):

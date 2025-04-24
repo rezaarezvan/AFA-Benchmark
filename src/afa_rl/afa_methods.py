@@ -195,25 +195,31 @@ class Zannone2019AFAMethod:
         # We have to save two neural networks: the value module and the encoder
         torch.save(
             {
-                "action_spec": self.action_spec,
-                "value_module_config": {
-                    "embedding_size": self.value_network.module[0].embedding_size,
-                    "action_size": self.value_network.module[0].action_size,
-                    "num_cells": self.value_network.module[0].num_cells,
+                "device": str(self.device),
+                "identity_network_config": {
+                    "in_features": self.naive_identity_size,
+                    "out_features": self.identity_size,
+                    "num_cells"
                 },
-                "value_module_state_dict": remove_module_prefix(
-                    self.value_network.module[0].state_dict()
-                ),
+                "identity_network_state_dict": X,
+                "feature_map_encoder_config": {
+
+                },
+                "feature_map_encoder_state_dict": X,
+                "pointnet_config": {
+                    "naive_identity_fn": self.actor_network.module.pointnet.naive_identity_fn,
+                    "pointnet_type": self.actor_network.module.pointnet.pointnet_type,
+                },
+                "pointnet_state_dict": X,
                 "encoder_config": {
-                    "feature_size": self.embedder.encoder.feature_size,
-                    "output_size": self.embedder.encoder.output_size,
-                    "reading_block_cells": self.embedder.encoder.reading_block_cells,
-                    "writing_block_cells": self.embedder.encoder.writing_block_cells,
-                    "memory_size": self.embedder.encoder.memory_size,
-                    "processing_steps": self.embedder.encoder.processing_steps,
                 },
                 "encoder_state_dict": self.embedder.encoder.state_dict(),
-                "device": str(self.device),
+                "policy_module_config": {
+                    "latent_size": X,
+                    "n_actions": X
+                },
+
+                "action_spec": self.actor_network.spec,
             },
             path,
         )
@@ -223,17 +229,29 @@ class Zannone2019AFAMethod:
         data = torch.load(path, weights_only=False)
 
         identity_network = MLP(**data["identity_network_config"])
+        identity_network.load_state_dict(data["identity_network_state_dict"])
+        identity_network = identity_network.to(data["device"])
+        identity_network.eval()
+
         feature_map_encoder = MLP(**data["feature_map_encoder_config"])
+        feature_map_encoder.load_state_dict(
+            data["feature_map_encoder_state_dict"]
+        )
+        feature_map_encoder = feature_map_encoder.to(data["device"])
+        feature_map_encoder.eval()
 
         pointnet = PointNet(
-            naive_identity_fn=data["pointnet_config"]["naive_identity_fn"],
             identity_network=identity_network,
             feature_map_encoder=feature_map_encoder,
-            pointnet_type=pointnet_type,
+            **data["pointnet_config"],
         )
+
         encoder = MLP(
             **data["encoder_config"],
         )
+        encoder.load_state_dict(data["encoder_state_dict"])
+        encoder = encoder.to(data["device"])
+        encoder.eval()
 
         policy_module = Zannone2019PolicyModule(
             pointnet=pointnet, encoder=encoder, **data["policy_module_config"]
