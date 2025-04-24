@@ -25,20 +25,18 @@ from common.custom_types import FeatureMask, MaskedFeatures
 
 class Shim2018ValueModule(nn.Module):
     def __init__(
-        self, embedder: ShimEmbedder, embedding_size, action_size, num_cells, device
+        self, embedder: ShimEmbedder, embedding_size, action_size, num_cells
     ):
         super().__init__()
         self.embedder = embedder
         self.embedding_size = embedding_size
         self.action_size = action_size
         self.num_cells = num_cells
-        self.device = device
 
         self.net = MLP(
             in_features=embedding_size,
             out_features=action_size,
             num_cells=num_cells,
-            device=device,
         )
 
     def forward(
@@ -56,6 +54,7 @@ class Shim2018ValueModule(nn.Module):
 class Shim2018Agent:
     def __init__(
         self,
+        device: torch.device,
         embedder: ShimEmbedder,
         embedding_size: int,
         action_spec: TensorSpec,
@@ -64,14 +63,14 @@ class Shim2018Agent:
         eps_init: float,
         eps_end: float,
         eps_steps: int,
-        device: torch.device,
         replay_buffer_batch_size: int,  # batch size when sampling from replay buffer
         replay_buffer_size: int,  # how large the replay buffer is
         num_optim: int,  # number of times to sample from the replay buffer and train the agent
         replay_buffer_alpha: float,
         replay_buffer_beta: float,
     ):
-        self.embedder = embedder
+        self.device = device
+        self.embedder = embedder.to(self.device)
         self.embedding_size = embedding_size
         self.action_spec = action_spec
         self.lr = lr
@@ -79,7 +78,6 @@ class Shim2018Agent:
         self.eps_init = eps_init
         self.eps_end = eps_end
         self.eps_steps = eps_steps
-        self.device = device
         self.replay_buffer_batch_size = replay_buffer_batch_size
         self.replay_buffer_size = replay_buffer_size
         self.num_optim = num_optim
@@ -91,8 +89,7 @@ class Shim2018Agent:
             embedding_size=self.embedding_size,
             action_size=self.action_spec.n,
             num_cells=[32, 32],
-            device=self.device,
-        )
+        ).to(self.device)
         self.value_network = QValueActor(
             module=self.value_module,
             in_keys=["masked_features", "feature_mask", "action_mask"],
@@ -233,18 +230,17 @@ class Zannone2019PolicyModule(nn.Module):
 class Zannone2019Agent:
     def __init__(
         self,
+        device: torch.device,
         pointnet: PointNet,  # assumed to be frozen
         encoder: nn.Module,  # assumed to be frozen
         lr: float,
-        device: torch.device,
         latent_size: int,
         action_spec: TensorSpec,
     ):
-        self.pointnet = pointnet
-        self.encoder = encoder
-        self.lr = lr
-        # self.update_tau = update_tau
         self.device = device
+        self.pointnet = pointnet.to(self.device)
+        self.encoder = encoder.to(self.device)
+        self.lr = lr
         self.latent_size = latent_size
         self.action_spec = action_spec
 
@@ -253,7 +249,8 @@ class Zannone2019Agent:
             encoder=self.encoder,
             latent_size=self.latent_size,
             n_actions=self.action_spec.n,
-        )
+        ).to(self.device)
+
         self.actor_network = ProbabilisticActor(
             module=TensorDictModule(
                 module=self.policy_module,
@@ -271,7 +268,7 @@ class Zannone2019Agent:
             encoder=self.encoder,
             latent_size=self.latent_size,
             n_actions=self.action_spec.n,
-        )
+        ).to(self.device)
         self.critic_network = ValueOperator(
             module=self.value_module,
             in_keys=["masked_features", "feature_mask"],

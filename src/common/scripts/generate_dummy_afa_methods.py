@@ -4,6 +4,7 @@ Generates .pt files for the two dummy methods SequentialDummyAFAMethod and Rando
 
 
 import argparse
+import torch
 from tqdm import tqdm
 import os
 
@@ -18,6 +19,7 @@ def main(args: argparse.Namespace):
     os.makedirs(os.path.join(args.models_folder, "random_dummy"), exist_ok=True)
     for i in tqdm(range(1, 6)):
         method = SequentialDummyAFAMethod(
+            device=torch.device("cpu"),
             n_classes=args.n_classes,
         )
         method.save(
@@ -29,6 +31,7 @@ def main(args: argparse.Namespace):
         )
 
         method = RandomDummyAFAMethod(
+            device=torch.device("cpu"),
             n_classes=args.n_classes,
         )
         method.save(

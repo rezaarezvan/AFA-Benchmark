@@ -23,7 +23,7 @@ def get_wrapped_batch(
     return repeated[idx : idx + numel]
 
 
-def get_afa_dataset_fn(features, labels) -> AFADatasetFn:
+def get_afa_dataset_fn(features: Features, labels: Label) -> AFADatasetFn:
     """
     Given features and labels, return a function that can be used to get batches of AFA data.
     """

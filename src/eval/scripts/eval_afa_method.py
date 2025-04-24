@@ -80,9 +80,9 @@ def eval_afa_method(args: argparse.Namespace) -> dict[str, float]:
     Evaluates an AFA method on a specific dataset and returns a dictionary of metrics.
     """
 
-    # Load the AFA method
+    # Load the AFA method on the CPU
     afa_method: AFAMethod = AFA_METHOD_REGISTRY[args.afa_method_name].load(
-        args.afa_method_path
+        args.afa_method_path, torch.device("cpu")
     )
     print(f"Loaded AFA method {args.afa_method_name} from {args.afa_method_path}")
 

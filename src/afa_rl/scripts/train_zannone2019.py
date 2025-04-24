@@ -19,36 +19,44 @@ from afa_rl.scripts.pretrain_zannone2019 import get_zannone2019_model_from_confi
 from afa_rl.utils import dict_to_namespace, get_sequential_module_norm
 from common.custom_types import (
     AFADataset,
+    Features,
+    Label,
 )
 from common.registry import AFA_DATASET_REGISTRY
 
 
 def get_pretrained_model_accuracy(
     pretrained_model: Zannone2019PretrainingModel,
-    dataset: AFADataset,
+    features: Features,
+    labels: Label,
     mask_probability: float,
     n_samples=100,
 ) -> float:
     """
     Return accuracy of the pretrained model on a masked dataset, using n_samples samples.
+
+    Assumes there is enough space on pretrained_model.device to hold the entire dataset.
     """
 
     # Sample n_samples from the train and val datasets
-    indices = torch.randint(0, len(dataset), (n_samples,))
-    features, labels = dataset[indices]
+    indices = torch.randint(0, features.shape[0], (n_samples,))
+    sampled_features = features[indices]
+    sampled_labels = labels[indices]
     # Create a feature mask with mask_probability
-    feature_mask = torch.rand(features.shape) > mask_probability
+    feature_mask = torch.rand(sampled_features.shape) > mask_probability
     # Mask the features
-    masked_features = features * feature_mask
+    masked_features = sampled_features * feature_mask
     # Get the latent representation of the masked features
-    encoding, mu, logvar, z = pretrained_model.partial_vae.encode(
-        masked_features, feature_mask
-    )
-    # Get logits using classifier
-    logits = pretrained_model.classifier(mu)
+    with torch.no_grad():
+        encoding, mu, logvar, z = pretrained_model.partial_vae.encode(
+            masked_features.to(pretrained_model.device), feature_mask.to(pretrained_model.device)
+        )
+        # Get logits using classifier
+        logits = pretrained_model.classifier(mu.to(pretrained_model.device))
+    logits = logits.cpu()
     # Calculate accuracy
     _, predicted_labels = logits.max(dim=-1)
-    _, true_labels = labels.max(dim=-1)
+    _, true_labels = sampled_labels.max(dim=-1)
     accuracy = (predicted_labels == true_labels).float().mean()
     return accuracy
 
@@ -175,13 +183,25 @@ def main(args):
         f" (n_generative_samples: {train_config.n_generative_samples}, generative_batch_size: {train_config.generative_batch_size})"
     )
 
+    # Load datasets
+    train_dataset: AFADataset = AFA_DATASET_REGISTRY[args.dataset_type].load(
+        args.dataset_train_path
+    )
+    val_dataset: AFADataset = AFA_DATASET_REGISTRY[args.dataset_type].load(
+        args.dataset_val_path
+    )
+
+    # Get the number of features and classes from the dataset
+    n_features = train_dataset.features.shape[-1]
+    n_classes = train_dataset.labels.shape[-1]
+
     device = torch.device(train_config.device)
 
     # Init pretrained model
-    pretrained_model = get_zannone2019_model_from_config(pretrain_config)
+    pretrained_model = get_zannone2019_model_from_config(pretrain_config, n_features, n_classes)
     # Load checkpoint
     pretrained_model_checkpoint = torch.load(
-        pretrain_config.checkpoint_path, weights_only=True
+        args.pretrained_model_path, weights_only=True
     )
     pretrained_model.load_state_dict(pretrained_model_checkpoint["state_dict"])
     pretrained_model = pretrained_model.to(device)
@@ -189,26 +209,19 @@ def main(args):
     pretrained_model.requires_grad_(False)
     pretrained_model.eval()
 
-    # Load datasets
-    train_dataset: AFADataset = AFA_DATASET_REGISTRY[train_config.dataset.name].load(
-        train_config.dataset.train_path
-    )
-    val_dataset: AFADataset = AFA_DATASET_REGISTRY[train_config.dataset.name].load(
-        train_config.dataset.val_path
-    )
 
     # Verify that the model has decent performance on the datasets
     train_acc_50 = get_pretrained_model_accuracy(
-        pretrained_model, train_dataset, 0.5, n_samples=100
+        pretrained_model, train_dataset.features, train_dataset.labels, 0.5, n_samples=len(train_dataset)
     )
     train_acc_100 = get_pretrained_model_accuracy(
-        pretrained_model, train_dataset, 0.0, n_samples=100
+        pretrained_model, train_dataset.features, train_dataset.labels, 0.0, n_samples=len(train_dataset)
     )
     val_acc_50 = get_pretrained_model_accuracy(
-        pretrained_model, val_dataset, 0.5, n_samples=100
+        pretrained_model, val_dataset.features, val_dataset.labels, 0.5, n_samples=len(val_dataset)
     )
     val_acc_100 = get_pretrained_model_accuracy(
-        pretrained_model, val_dataset, 0.0, n_samples=100
+        pretrained_model, val_dataset.features, val_dataset.labels, 0.0, n_samples=len(val_dataset)
     )
     print(f"Train accuracy (50% mask): {train_acc_50:.4f}")
     print(f"Train accuracy (100% mask): {train_acc_100:.4f}")
@@ -224,44 +237,64 @@ def main(args):
         z = torch.randn(
             train_config.generative_batch_size, pretrain_config.partial_vae.latent_size
         )
-        xhat = pretrained_model.partial_vae.decoder(z)
+        with torch.no_grad():
+            xhat = pretrained_model.partial_vae.decoder(z.to(pretrained_model.device)).cpu()
         xhats.append(xhat)
         # Predicted labels, keeping all probabilities!
-        yhat = F.softmax(pretrained_model.classifier(z), -1)
+        with torch.no_grad():
+            yhat = F.softmax(pretrained_model.classifier(z.to(pretrained_model.device)), -1).cpu()
         yhats.append(yhat)
+    xhats = torch.cat(xhats, dim=0)
+    yhats = torch.cat(yhats, dim=0)
+
+    # Check what the performance is on the generated data
+    gen_acc_50 = get_pretrained_model_accuracy(
+        pretrained_model, xhats, yhats, 0.5, n_samples=xhats.shape[0]
+    )
+    gen_acc_100 = get_pretrained_model_accuracy(
+        pretrained_model, xhats, yhats, 0.0, n_samples=xhats.shape[0]
+    )
+    print(f"Gen accuracy (50% mask): {gen_acc_50:.4f}")
+    print(f"Gen accuracy (100% mask): {gen_acc_100:.4f}")
 
     # Concatenate the generated data with the original dataset
-    combined_features = torch.cat((train_dataset.features, xhat), dim=0)
-    combined_labels = torch.cat((train_dataset.labels, yhat), dim=0)
+    assert train_dataset.features is not None
+    assert train_dataset.labels is not None
+    combined_train_features = torch.cat((train_dataset.features, xhats), dim=0)
+    combined_train_labels = torch.cat((train_dataset.labels, yhats), dim=0)
 
+    # Zannone2019 reward function
     reward_fn = get_zannone2019_reward_fn(
         partial_vae=pretrained_model.partial_vae,
         classifier=pretrained_model.classifier,
         acquisition_costs=train_config.acquisition_cost
-        * torch.ones(train_dataset.features.shape[1], dtype=torch.float32),
+        * torch.ones(n_features, dtype=torch.float32, device=device),
     )
+
+    # MDP expects special dataset functions
+    train_dataset_fn = get_afa_dataset_fn(combined_train_features, combined_train_labels)
+    assert val_dataset.features is not None
+    assert val_dataset.labels is not None
+    val_dataset_fn = get_afa_dataset_fn(val_dataset.features, val_dataset.labels)
 
     # Use original data and generated data for training
     train_env = AFAEnv(
-        dataset_fn=get_afa_dataset_fn(combined_features, combined_labels),
+        dataset_fn=train_dataset_fn,
         reward_fn=reward_fn,
         device=device,
         batch_size=torch.Size((train_config.n_agents,)),
         feature_size=train_dataset.features.shape[1],
         n_classes=train_dataset.labels.shape[1],
     )
-    td = train_env.reset()
-    td = train_env.rand_step(td)
-    # check_env_specs(train_env)
 
     # Evaluate on validation data
     eval_env = AFAEnv(
-        dataset_fn=get_afa_dataset_fn(val_dataset.features, val_dataset.labels),
+        dataset_fn=val_dataset_fn,
         reward_fn=reward_fn,
         device=device,
         batch_size=torch.Size((1,)),
-        feature_size=val_dataset.features.shape[1],
-        n_classes=val_dataset.labels.shape[1],
+        feature_size=n_features,
+        n_classes=n_classes,
     )
 
     agent = Zannone2019Agent(
@@ -278,6 +311,7 @@ def main(args):
         agent.policy,
         frames_per_batch=train_config.batch_size,
         total_frames=train_config.n_batches * train_config.batch_size,
+        device=device,
     )
 
     # Use WandB for logging
@@ -296,7 +330,8 @@ def main(args):
             agent_loss = agent.process_batch(td)
 
             # Logging
-            train_log(run, td, agent, agent_loss, batch_idx)
+            if args.verbose:
+                train_log(run, td, agent, agent_loss, batch_idx)
 
             # Evaluation sometimes
             if batch_idx != 0 and batch_idx % train_config.eval_every_n_batches == 0:
@@ -310,27 +345,36 @@ def main(args):
                 eval_log(run, eval_metrics, batch_idx)
     except KeyboardInterrupt:
         pass
+    finally:
+        run.finish()
 
-    # Convert the embedder+agent to an AFAMethod and save it
-    afa_method = Zannone2019AFAMethod(agent.actor_network)
-    afa_method.save(f"models/afa_rl/{train_config.afa_method_save_name}")
+        # Convert the embedder+agent to an AFAMethod and save it
+        afa_method = Zannone2019AFAMethod(device, agent.actor_network, pretrained_model)
+        afa_method.save(args.afa_method_path)
+        print(f"Zannone2019AFAMethod saved to {args.afa_method_path}")
 
 
 if __name__ == "__main__":
     # Use argparse to choose config file
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--pretrain-config",
+        "--pretrain_config",
         type=str,
         required=True,
         help="Path to YAML config file for pretraining",
     )
     parser.add_argument(
-        "--train-config",
+        "--train_config",
         type=str,
         required=True,
         help="Path to YAML config file for training",
     )
+    parser.add_argument("--dataset_type", type=str, required=True, choices=AFA_DATASET_REGISTRY.keys())
+    parser.add_argument("--dataset_train_path", type=str, required=True)
+    parser.add_argument("--dataset_val_path", type=str, required=True)
+    parser.add_argument("--pretrained_model_path", type=str, required=True)
+    parser.add_argument("--afa_method_path", type=str, required=True)
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
     args = parser.parse_args()
 
     main(args)

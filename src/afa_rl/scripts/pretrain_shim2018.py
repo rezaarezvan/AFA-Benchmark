@@ -1,4 +1,6 @@
 import argparse
+import os
+from types import SimpleNamespace
 
 import lightning as pl
 import torch
@@ -18,9 +20,9 @@ from afa_rl.datasets import DataModuleFromDatasets
 from common.registry import AFA_DATASET_REGISTRY
 
 
-def get_shim2018_model_from_config(config):
+def get_shim2018_model_from_config(config: SimpleNamespace, n_features: int, n_classes: int):
     encoder = ReadProcessEncoder(
-        feature_size=config.n_features + 1,  # state contains one value and one index
+        feature_size=n_features + 1,  # state contains one value and one index
         output_size=config.encoder.output_size,
         reading_block_cells=config.encoder.reading_block_cells,
         writing_block_cells=config.encoder.writing_block_cells,
@@ -29,7 +31,7 @@ def get_shim2018_model_from_config(config):
     )
     embedder = ShimEmbedder(encoder)
     classifier = ShimMLPClassifier(
-        config.encoder.output_size, 8, config.classifier.num_cells
+        config.encoder.output_size, n_classes, config.classifier.num_cells
     )
     model = ShimEmbedderClassifier(
         embedder=embedder, classifier=classifier, lr=config.embedder_classifier.lr
@@ -41,34 +43,27 @@ def main(args: argparse.Namespace):
     torch.set_float32_matmul_precision("medium")
 
     # Load config from yaml file
-    with open(args.config, "r") as file:
+    with open(args.pretrain_config, "r") as file:
         config_dict: dict = yaml.safe_load(file)
 
     config = dict_to_namespace(config_dict)
 
-    # dataset = CubeDataset(
-    #     n_features=config.n_features,
-    #     data_points=config.dataset.size,
-    #     sigma=config.dataset.sigma,
-    #     seed=config.dataset.seed,
-    # )
-    # datamodule = DataModuleFromDatasets(
-    #     dataset=dataset,
-    #     batch_size=config.dataloader.batch_size,
-    #     train_ratio=config.dataloader.train_ratio,
-    #     num_workers=config.dataloader.num_workers,
-    # )
-    train_dataset: AFADataset = AFA_DATASET_REGISTRY[config.dataset.name].load(
-        config.dataset.train_path
+    train_dataset: AFADataset = AFA_DATASET_REGISTRY[args.dataset_type].load(
+        args.dataset_train_path
     )
-    val_dataset: AFADataset = AFA_DATASET_REGISTRY[config.dataset.name].load(
-        config.dataset.val_path
+    val_dataset: AFADataset = AFA_DATASET_REGISTRY[args.dataset_type].load(
+        args.dataset_val_path
     )
     datamodule = DataModuleFromDatasets(
         train_dataset, val_dataset, batch_size=config.dataloader.batch_size
     )
 
-    model = get_shim2018_model_from_config(config)
+    # Get the number of features and classes from the dataset
+    n_features = train_dataset.features.shape[-1]
+    n_classes = train_dataset.labels.shape[-1]
+
+
+    model = get_shim2018_model_from_config(config, n_features, n_classes)
     model = model.to(config.device)
 
     run = wandb.init(
@@ -95,14 +90,20 @@ def main(args: argparse.Namespace):
         run.finish()
         # Move the best checkpoint to the desired location
         best_checkpoint = trainer.checkpoint_callback.best_model_path
-        torch.save(torch.load(best_checkpoint), config.checkpoint_path)
-        print(f"ShimEmbedderClassifier saved to {config.checkpoint_path}")
+        # Create directory if it doesn't exist
+        os.makedirs(os.path.dirname(args.pretrained_model_path), exist_ok=True)
+        torch.save(torch.load(best_checkpoint), args.pretrained_model_path)
+        print(f"ShimEmbedderClassifier saved to {args.pretrained_model_path}")
 
 
 if __name__ == "__main__":
     # Use argparse to choose config file
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", type=str, required=True)
+    parser.add_argument("--pretrain_config", type=str, required=True)
+    parser.add_argument("--dataset_type", type=str, required=True, choices=AFA_DATASET_REGISTRY.keys())
+    parser.add_argument("--dataset_train_path", type=str, required=True)
+    parser.add_argument("--dataset_val_path", type=str, required=True)
+    parser.add_argument("--pretrained_model_path", type=str, required=True)
     args = parser.parse_args()
 
     main(args)

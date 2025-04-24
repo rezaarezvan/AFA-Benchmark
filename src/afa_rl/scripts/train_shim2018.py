@@ -73,50 +73,45 @@ def check_embedder_and_classifier(embedder_and_classifier, dataset: AFADataset):
         print(f"Average cross-entropy loss with 50% features: {loss_half.item():.4f}")
 
 
-def main():
+def main(args: argparse.Namespace):
     torch.set_float32_matmul_precision("medium")
 
     # Load train config
     with open(args.train_config, "r") as file:
         train_config_dict: dict = yaml.safe_load(file)
     train_config = dict_to_namespace(train_config_dict)
+    device = torch.device(train_config.device)
 
     # Load pretrain config
     with open(args.pretrain_config, "r") as file:
         pretrain_config_dict: dict = yaml.safe_load(file)
     pretrain_config = dict_to_namespace(pretrain_config_dict)
 
-    embedder_and_classifier = get_shim2018_model_from_config(pretrain_config)
+    train_dataset: AFADataset = AFA_DATASET_REGISTRY[args.dataset_type].load(
+        args.dataset_train_path
+    )
+    val_dataset: AFADataset = AFA_DATASET_REGISTRY[args.dataset_type].load(
+        args.dataset_val_path
+    )
+
+    # Get the number of features and classes from the dataset
+    n_features = train_dataset.features.shape[-1]
+    n_classes = train_dataset.labels.shape[-1]
+
+    embedder_and_classifier = get_shim2018_model_from_config(pretrain_config, n_features, n_classes)
     embedder_classifier_checkpoint = torch.load(
-        pretrain_config.checkpoint_path, weights_only=True
+        args.pretrained_model_path, weights_only=True
     )
     embedder_and_classifier.load_state_dict(
         embedder_classifier_checkpoint["state_dict"]
     )
-    embedder_and_classifier = embedder_and_classifier.to(train_config.device)
-    # embedder_and_classifier.eval()
+    embedder_and_classifier = embedder_and_classifier.to(device)
     embedder = embedder_and_classifier.embedder
     classifier = embedder_and_classifier.classifier
-
-    # Freeze embedder weights if necessary
-    # embedder.requires_grad_(False)
-    # embedder.eval()
-    # Freeze classifier weights
-    # classifier.requires_grad_(False)
-    # classifier.eval()
 
     embedder_classifier_optim = optim.Adam(
         embedder_and_classifier.parameters(), lr=train_config.embedder_classifier.lr
     )
-
-    train_dataset: AFADataset = AFA_DATASET_REGISTRY[train_config.dataset.name].load(
-        train_config.dataset.train_path
-    )
-    train_dataset_fn = get_afa_dataset_fn(train_dataset.features, train_dataset.labels)
-    val_dataset: AFADataset = AFA_DATASET_REGISTRY[train_config.dataset.name].load(
-        train_config.dataset.val_path
-    )
-    val_dataset_fn = get_afa_dataset_fn(val_dataset.features, val_dataset.labels)
 
     # Check that embedder+classifier indeed have decent performance
     check_embedder_and_classifier(embedder_and_classifier, val_dataset)
@@ -126,29 +121,37 @@ def main():
         classifier=classifier,
         acquisition_costs=train_config.mdp.acquisition_cost
         * torch.ones(
-            (pretrain_config.n_features,),
+            (n_features,),
             dtype=torch.float32,
-            device=train_config.device,
+            device=device,
         ),
     )
+
+    # MDP expects special dataset functions
+    assert train_dataset.features is not None
+    assert train_dataset.labels is not None
+    train_dataset_fn = get_afa_dataset_fn(train_dataset.features, train_dataset.labels)
+    assert val_dataset.features is not None
+    assert val_dataset.labels is not None
+    val_dataset_fn = get_afa_dataset_fn(val_dataset.features, val_dataset.labels)
 
     train_env = AFAEnv(
         dataset_fn=train_dataset_fn,
         reward_fn=reward_fn,
-        device=train_config.device,
+        device=device,
         batch_size=torch.Size((1,)),
-        feature_size=train_dataset.features.shape[-1],
-        n_classes=train_dataset.labels.shape[-1],
+        feature_size=n_features,
+        n_classes=n_classes,
     )
     # check_env_specs(train_env)
 
     eval_env = AFAEnv(
         dataset_fn=val_dataset_fn,
         reward_fn=reward_fn,
-        device=train_config.device,
+        device=device,
         batch_size=torch.Size((1,)),
-        feature_size=val_dataset.features.shape[-1],
-        n_classes=val_dataset.labels.shape[-1],
+        feature_size=n_features,
+        n_classes=n_classes,
     )
 
     agent = Shim2018Agent(
@@ -160,7 +163,7 @@ def main():
         eps_init=train_config.agent.eps_init,
         eps_end=train_config.agent.eps_end,
         eps_steps=train_config.agent.eps_steps,
-        device=torch.device(train_config.device),
+        device=device,
         replay_buffer_batch_size=train_config.agent.replay_buffer_batch_size,
         replay_buffer_size=train_config.agent.replay_buffer_size,
         num_optim=train_config.agent.num_optim,
@@ -173,6 +176,7 @@ def main():
         agent.policy,
         frames_per_batch=train_config.batch_size,
         total_frames=train_config.n_batches * train_config.batch_size,
+        device=device,
     )
 
     # Use WandB for logging
@@ -201,30 +205,31 @@ def main():
             embedder_classifier_optim.step()
 
             # Logging
-            run.log(
-                {
-                    "train/agent_loss": agent_loss,
-                    "train/reward": td["next", "reward"].mean().item(),
-                    "train/qvalue norm": get_sequential_module_norm(
-                        agent.value_module.net
-                    ),
-                    "train/classifier_norm": get_sequential_module_norm(classifier.mlp),
-                    "train/embedder_norm~": get_sequential_module_norm(
-                        embedder.encoder.write_block
-                    ),
-                    "train/eps": agent.egreedy_module.eps.item(),
-                    # acquired_features might be NaN if no agent in the batch has a finished episode
-                    "train/acquired_features": td["feature_mask"][
-                        td["next", "done"].squeeze(-1)
-                    ]
-                    .sum(dim=-1)
-                    .float()
-                    .mean()
-                    .item(),
-                    "train/replay buffer size": len(agent.replay_buffer),
-                    "train/batch_idx": batch_idx,
-                }
-            )
+            if args.verbose:
+                run.log(
+                    {
+                        "train/agent_loss": agent_loss,
+                        "train/reward": td["next", "reward"].mean().item(),
+                        "train/qvalue norm": get_sequential_module_norm(
+                            agent.value_module.net
+                        ),
+                        "train/classifier_norm": get_sequential_module_norm(classifier.mlp),
+                        "train/embedder_norm~": get_sequential_module_norm(
+                            embedder.encoder.write_block
+                        ),
+                        "train/eps": agent.egreedy_module.eps.item(),
+                        # acquired_features might be NaN if no agent in the batch has a finished episode
+                        "train/acquired_features": td["feature_mask"][
+                            td["next", "done"].squeeze(-1)
+                        ]
+                        .sum(dim=-1)
+                        .float()
+                        .mean()
+                        .item(),
+                        "train/replay buffer size": len(agent.replay_buffer),
+                        "train/batch_idx": batch_idx,
+                    }
+                )
 
             if batch_idx != 0 and batch_idx % train_config.eval_every_n_batches == 0:
                 with (
@@ -238,27 +243,27 @@ def main():
                         "acquired_features": torch.zeros(
                             train_config.eval_episodes,
                             dtype=torch.int64,
-                            device=train_config.device,
+                            device=device,
                         ),
                         "is_correct_class": torch.zeros(
                             train_config.eval_episodes,
                             dtype=torch.bool,
-                            device=train_config.device,
+                            device=device,
                         ),
                         "predicted_classes": torch.zeros(
                             train_config.eval_episodes,
                             dtype=torch.int64,
-                            device=train_config.device,
+                            device=device,
                         ),
                         "reward": torch.zeros(
                             train_config.eval_episodes,
                             dtype=torch.float32,
-                            device=train_config.device,
+                            device=device,
                         ),
                         "traj_len": torch.zeros(
                             train_config.eval_episodes,
                             dtype=torch.int64,
-                            device=train_config.device,
+                            device=device,
                         ),
                     }
                     for eval_episode in tqdm(
@@ -317,31 +322,39 @@ def main():
                     )
     except KeyboardInterrupt:
         pass
+    finally:
 
-    run.finish()
+        run.finish()
 
-    # Convert the embedder+agent to an AFAMethod and save it
-    afa_method = Shim2018AFAMethod(
-        agent.value_network, embedder, classifier, eval_env.action_spec
-    )
-    afa_method.save(train_config.afa_method_save_path)
+        # Convert the embedder+agent to an AFAMethod and save it
+        afa_method = Shim2018AFAMethod(
+            device, agent.value_network, embedder, classifier
+        )
+        afa_method.save(args.afa_method_path)
+        print(f"Shim2018AFAMethod saved to {args.afa_method_path}")
 
 
 if __name__ == "__main__":
     # Use argparse to choose config file
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--pretrain-config",
+        "--pretrain_config",
         type=str,
         required=True,
         help="Path to YAML config file used for pretraining",
     )
     parser.add_argument(
-        "--train-config",
+        "--train_config",
         type=str,
         required=True,
         help="Path to YAML config file for this training",
     )
+    parser.add_argument("--dataset_type", type=str, required=True, choices=AFA_DATASET_REGISTRY.keys())
+    parser.add_argument("--dataset_train_path", type=str, required=True)
+    parser.add_argument("--dataset_val_path", type=str, required=True)
+    parser.add_argument("--pretrained_model_path", type=str, required=True)
+    parser.add_argument("--afa_method_path", type=str, required=True)
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
     args = parser.parse_args()
 
-    main()
+    main(args)
