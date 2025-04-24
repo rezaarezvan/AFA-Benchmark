@@ -139,10 +139,10 @@ def main(args: argparse.Namespace):
         # Move the best checkpoint to the desired location
         best_checkpoint = trainer.checkpoint_callback.best_model_path
         # Create parent directories if neccessary
-        os.makedirs(os.path.dirname(args.pretrained_model_save_path), exist_ok=True)
+        os.makedirs(os.path.dirname(args.pretrained_model_path), exist_ok=True)
         # Save
-        torch.save(torch.load(best_checkpoint), args.pretrained_model_save_path)
-        print(f"Zannone2019PretrainingModel saved to {args.pretrained_model_save_path}")
+        torch.save(torch.load(best_checkpoint), args.pretrained_model_path)
+        print(f"Zannone2019PretrainingModel saved to {args.pretrained_model_path}")
 
 
 if __name__ == "__main__":

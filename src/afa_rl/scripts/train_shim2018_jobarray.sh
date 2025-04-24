@@ -19,6 +19,6 @@ uv run src/afa_rl/scripts/train_shim2018.py \
     --dataset_type "cube" \
     --dataset_train_path "data/cube/train_split_$split.pt" \
     --dataset_val_path "data/cube/val_split_$split.pt" \
-    --pretrained_model_save_path "models/shim2018/pretrained/shim2018-cube_train_split_$split" \
-    --afa_method_save_path "models/shim2018/shim2018-cube_train_split_$split"
+    --pretrained_model_save_path "models/shim2018/pretrained/shim2018-cube_train_split_$split.pt" \
+    --afa_method_save_path "models/shim2018/shim2018-cube_train_split_$split.pt"
 echo "Finished training agent for split $split."

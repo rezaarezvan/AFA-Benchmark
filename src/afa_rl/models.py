@@ -82,11 +82,11 @@ class ReadProcessEncoder(pl.LightningModule):
             self.reading_block(input_set)
         )
         h = torch.zeros(
-            1, batch_size, 2 * self.memory_size, device=self.device
+            1, batch_size, 2 * self.memory_size, device=input_set.device
         )  # initial hidden state
         for _ in range(self.processing_steps):
             q: Float[Tensor, "{batch_size} 1 {2*self.memory_size}"] = self.rnn(
-                torch.zeros(batch_size, 1, 1, device=self.device), h
+                torch.zeros(batch_size, 1, 1, device=input_set.device), h
             )[0]
             q: Float[Tensor, "{batch_size} {self.memory_size}"] = self.proj(
                 q.squeeze(1)
@@ -196,9 +196,9 @@ class ShimEmbedderClassifier(pl.LightningModule):
         feature_values, y = batch
         # Half of the samples will 50% probability of each feature being observed
         # The other half will have fully observed features
-        feature_mask = torch.ones_like(feature_values, dtype=torch.bool)
+        feature_mask = torch.ones_like(feature_values, dtype=torch.bool, device=feature_values.device)
         feature_mask[: feature_mask.shape[0] // 2] = torch.randint(
-            0, 2, feature_mask[: feature_mask.shape[0] // 2].shape, device=self.device
+            0, 2, feature_mask[: feature_mask.shape[0] // 2].shape
         )
         feature_values[feature_mask == 0] = 0
         _, y_hat = self(feature_values, feature_mask)
@@ -211,10 +211,10 @@ class ShimEmbedderClassifier(pl.LightningModule):
 
         # Half of the samples will 50% probability of each feature being observed
         # The other half will have fully observed features
-        feature_mask = torch.ones_like(feature_values, dtype=torch.bool)
+        feature_mask = torch.ones_like(feature_values, dtype=torch.bool, device=feature_values.device)
         n = feature_mask.shape[0] // 2
         feature_mask[:n] = torch.randint(
-            0, 2, feature_mask[:n].shape, device=self.device
+            0, 2, feature_mask[:n].shape
         )
         feature_values[feature_mask == 0] = 0
 

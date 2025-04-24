@@ -91,9 +91,9 @@ def main(args: argparse.Namespace):
         # Move the best checkpoint to the desired location
         best_checkpoint = trainer.checkpoint_callback.best_model_path
         # Create directory if it doesn't exist
-        os.makedirs(os.path.dirname(args.pretrained_model_save_path), exist_ok=True)
-        torch.save(torch.load(best_checkpoint), args.pretrained_model_save_path)
-        print(f"ShimEmbedderClassifier saved to {args.pretrained_model_save_path}")
+        os.makedirs(os.path.dirname(args.pretrained_model_path), exist_ok=True)
+        torch.save(torch.load(best_checkpoint), args.pretrained_model_path)
+        print(f"ShimEmbedderClassifier saved to {args.pretrained_model_path}")
 
 
 if __name__ == "__main__":
