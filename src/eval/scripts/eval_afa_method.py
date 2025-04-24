@@ -57,20 +57,18 @@ def evaluator(
                 total += 1
                 if preds[step_idx].argmax(-1) == lbl.argmax(-1):
                     correct += 1
-        # Guard against division-by-zero (only happens if *no* sample has step_idx)
         accuracy_all.append(correct / total if total else 0.0)
 
     # ------------------------------------------------------------------
-    # 3) average number of feature masks produced per sample
+    # 3) number of features selected per sample
     # ------------------------------------------------------------------
-    avg_features_selected = sum(
-        len(mask_hist) for mask_hist in feature_mask_history_all
-    ) / num_samples
+
+    num_features_selected = [len(mask_hist) for mask_hist in feature_mask_history_all]
 
     return {
         "accuracy": accuracy,
         "accuracy_all": accuracy_all,
-        "avg_features_selected": avg_features_selected,
+        "num_features_selected": num_features_selected,
         "feature_mask_history_all": feature_mask_history_all,
     }
 

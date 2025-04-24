@@ -98,46 +98,25 @@ TRAINING_REGISTRY = {
 # Add evaluation results here
 EVALUATION_REGISTRY = {
     # sequential_dummy
-    (
-        "models/sequential_dummy/sequential_dummy-cube_train_split_1.pt",
-        "data/cube/val_split_1.pt",
-    ): "results/evaluation/sequential_dummy/sequential_dummy-cube_train_split_1-cube_val_split_1.pt",
-    (
-        "models/sequential_dummy/sequential_dummy-cube_train_split_2.pt",
-        "data/cube/val_split_2.pt",
-    ): "results/evaluation/sequential_dummy/sequential_dummy-cube_train_split_2-cube_val_split_2.pt",
-    (
-        "models/sequential_dummy/sequential_dummy-cube_train_split_3.pt",
-        "data/cube/val_split_3.pt",
-    ): "results/evaluation/sequential_dummy/sequential_dummy-cube_train_split_3-cube_val_split_3.pt",
-    (
-        "models/sequential_dummy/sequential_dummy-cube_train_split_4.pt",
-        "data/cube/val_split_4.pt",
-    ): "results/evaluation/sequential_dummy/sequential_dummy-cube_train_split_4-cube_val_split_4.pt",
-    (
-        "models/sequential_dummy/sequential_dummy-cube_train_split_5.pt",
-        "data/cube/val_split_5.pt",
-    ): "results/evaluation/sequential_dummy/sequential_dummy-cube_train_split_5-cube_val_split_5.pt",
-    # random_dummy
-    (
-        "models/random_dummy/random_dummy-cube_train_split_1.pt",
-        "data/cube/val_split_1.pt",
-    ): "results/evaluation/random_dummy/random_dummy-cube_train_split_1-cube_val_split_1.pt",
-    (
-        "models/random_dummy/random_dummy-cube_train_split_2.pt",
-        "data/cube/val_split_2.pt",
-    ): "results/evaluation/random_dummy/random_dummy-cube_train_split_2-cube_val_split_2.pt",
-    (
-        "models/random_dummy/random_dummy-cube_train_split_3.pt",
-        "data/cube/val_split_3.pt",
-    ): "results/evaluation/random_dummy/random_dummy-cube_train_split_3-cube_val_split_3.pt",
-    (
-        "models/random_dummy/random_dummy-cube_train_split_4.pt",
-        "data/cube/val_split_4.pt",
-    ): "results/evaluation/random_dummy/random_dummy-cube_train_split_4-cube_val_split_4.pt",
-    (
-        "models/random_dummy/random_dummy-cube_train_split_5.pt",
-        "data/cube/val_split_5.pt",
-    ): "results/evaluation/random_dummy/random_dummy-cube_train_split_5-cube_val_split_5.pt",
-    # shim2018
+    "datasets": {
+        "cube": {
+            "methods": {
+                "sequential_dummy": [
+                    "results/evaluation/sequential_dummy/sequential_dummy-cube_train_split_1-cube_val_split_1.pt",
+                    "results/evaluation/sequential_dummy/sequential_dummy-cube_train_split_2-cube_val_split_2.pt",
+                    "results/evaluation/sequential_dummy/sequential_dummy-cube_train_split_3-cube_val_split_3.pt",
+                    "results/evaluation/sequential_dummy/sequential_dummy-cube_train_split_4-cube_val_split_4.pt",
+                    "results/evaluation/sequential_dummy/sequential_dummy-cube_train_split_5-cube_val_split_5.pt",
+                ],
+                "random_dummy": [
+                    "results/evaluation/random_dummy/random_dummy-cube_train_split_1-cube_val_split_1.pt",
+                    "results/evaluation/random_dummy/random_dummy-cube_train_split_2-cube_val_split_2.pt",
+                    "results/evaluation/random_dummy/random_dummy-cube_train_split_3-cube_val_split_3.pt",
+                    "results/evaluation/random_dummy/random_dummy-cube_train_split_4-cube_val_split_4.pt",
+                    "results/evaluation/random_dummy/random_dummy-cube_train_split_5-cube_val_split_5.pt",
+                ]
+            }
+        }
+    }
 }
+
