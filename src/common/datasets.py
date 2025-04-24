@@ -22,15 +22,15 @@ class CubeDataset(Dataset):
         n_samples: int = 20000,
         seed: int = 123,
         non_informative_feature_mean: float = 0.5,
-        informative_feature_variance: float = 0.1,
-        non_informative_feature_variance: float = 0.3,
+        informative_feature_std: float = 0.1,
+        non_informative_feature_std: float = 0.3,
     ):
         super().__init__()
         self.n_samples = n_samples
         self.seed = seed
-        self.non_info_mean = non_informative_feature_mean
-        self.non_info_std = non_informative_feature_variance
-        self.informative_feature_std = informative_feature_variance
+        self.non_informative_feature_mean = non_informative_feature_mean
+        self.non_informative_feature_std = non_informative_feature_std
+        self.informative_feature_std = informative_feature_std
         
         # Constants
         self.n_classes = 8
@@ -57,15 +57,15 @@ class CubeDataset(Dataset):
         
         # Initialize feature blocks
         X_cube = torch.normal(
-            mean=self.non_info_mean,
-            std=self.non_info_std,
+            mean=self.non_informative_feature_mean,
+            std=self.non_informative_feature_std,
             size=(self.n_samples, self.n_cube_features),
             generator=rng,
         )
 
         X_dummy = torch.normal(
-            mean=self.non_info_mean,
-            std=self.non_info_std,
+            mean=self.non_informative_feature_mean,
+            std=self.non_informative_feature_std,
             size=(self.n_samples, self.n_dummy_features),
             generator=rng,
         )
@@ -109,9 +109,9 @@ class CubeDataset(Dataset):
                     "n_features": self.n_cube_features + self.n_dummy_features,
                     "n_samples": self.n_samples,
                     "seed": self.seed,
-                    "non_informative_feature_mean": self.non_info_mean,
-                    "non_informative_feature_variance": self.non_info_std ** 2,
-                    "informative_feature_variance": self.informative_feature_std ** 2,
+                    "non_informative_feature_mean": self.non_informative_feature_mean,
+                    "non_informative_feature_std": self.non_informative_feature_std,
+                    "informative_feature_std": self.informative_feature_std,
                 },
             },
             path,
@@ -134,23 +134,23 @@ class AFAContextDataset(Dataset):
     def __init__(
         self,
         n_samples: int = 1000,
-        sigma_bin: float = 0.1,
-        sigma_cube: float = 1.0,
+        std_bin: float = 0.1,
+        std_cube: float = 1.0,
         bin_feature_cost: float = 5.0,
         n_dummy_features: int = 10,
         seed: int = 123,
         non_informative_feature_mean: float = 0.5,
-        non_informative_feature_variance: float = 0.3,
+        non_informative_feature_std: float = 0.3,
     ):
         super().__init__()
         self.n_samples = n_samples
-        self.sigma_bin = sigma_bin
-        self.sigma_cube = sigma_cube
+        self.std_bin = std_bin
+        self.std_cube = std_cube
         self.bin_feature_cost = bin_feature_cost
         self.n_dummy_features = n_dummy_features
         self.seed = seed
-        self.non_info_mean = non_informative_feature_mean
-        self.non_info_std = non_informative_feature_variance
+        self.non_informative_feature_mean = non_informative_feature_mean
+        self.non_informative_feature_std = non_informative_feature_std
 
         # Constants
         self.n_classes = 8
@@ -182,22 +182,22 @@ class AFAContextDataset(Dataset):
         X_context = S.unsqueeze(1).float()
 
         X_bin = torch.normal(
-            mean=self.non_info_mean,
-            std=self.non_info_std,
+            mean=self.non_informative_feature_mean,
+            std=self.non_informative_feature_std,
             size=(self.n_samples, self.n_bin_features),
             generator=rng,
         )
 
         X_cube = torch.normal(
-            mean=self.non_info_mean,
-            std=self.non_info_std,
+            mean=self.non_informative_feature_mean,
+            std=self.non_informative_feature_std,
             size=(self.n_samples, self.n_cube_features),
             generator=rng,
         )
 
         X_dummy = torch.normal(
-            mean=self.non_info_mean,
-            std=self.non_info_std,
+            mean=self.non_informative_feature_mean,
+            std=self.non_informative_feature_std,
             size=(self.n_samples, self.n_dummy_features),
             generator=rng,
         )
@@ -213,7 +213,7 @@ class AFAContextDataset(Dataset):
             end = start + self.group_size
             X_bin[i, start:end] = torch.normal(
                 mean=0.0,
-                std=self.sigma_bin,
+                std=self.std_bin,
                 size=(self.group_size,),
                 generator=rng
             ) + mu_bin
@@ -222,7 +222,7 @@ class AFAContextDataset(Dataset):
             idxs = [(lbl + j) for j in range(3)]
             X_cube[i, idxs] = torch.normal(
                 mean=0.0,
-                std=self.sigma_cube,
+                std=self.std_cube,
                 size=(3,),
                 generator=rng
             ) + mu_bin
@@ -257,13 +257,13 @@ class AFAContextDataset(Dataset):
                 'costs': self.costs,
                 'config': {
                     'n_samples': self.n_samples,
-                    'sigma_bin': self.sigma_bin,
-                    'sigma_cube': self.sigma_cube,
+                    'std_bin': self.std_bin,
+                    'std_cube': self.std_cube,
                     'bin_feature_cost': self.bin_feature_cost,
                     'n_dummy_features': self.n_dummy_features,
                     'seed': self.seed,
-                    'non_informative_feature_mean': self.non_info_mean,
-                    'non_informative_feature_variance': self.non_info_std ** 2,
+                    'non_informative_feature_mean': self.non_informative_feature_mean,
+                    'non_informative_feature_std': self.non_informative_feature_std,
                 },
             },
             path,

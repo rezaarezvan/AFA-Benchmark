@@ -150,19 +150,19 @@ def main():
             kwargs = {
                 "n_features": 20,
                 "n_samples": 1000,
-                "informative_feature_variance": 0.2,
+                "informative_feature_std": 0.2,
                 "non_informative_feature_mean": 0.5,
-                "non_informative_feature_variance": 0.3
+                "non_informative_feature_std": 0.3
             }
         elif dataset_name == "AFAContext":
             kwargs = {
                 "n_samples": 1000,
-                "sigma_bin": 0.1,
-                "sigma_cube": 0.3,
+                "std_bin": 0.1,
+                "std_cube": 0.3,
                 "bin_feature_cost": 5.0,
                 "n_dummy_features": 10,
                 "non_informative_feature_mean": 0.5,
-                "non_informative_feature_variance": 0.3
+                "non_informative_feature_std": 0.3
             }
         elif dataset_name == "MNIST":
             kwargs = {
