@@ -72,6 +72,122 @@ def check_embedder_and_classifier(embedder_and_classifier, dataset: AFADataset):
         )
         print(f"Average cross-entropy loss with 50% features: {loss_half.item():.4f}")
 
+def train_log(run, agent_loss, td, agent, classifier, embedder, batch_idx):
+    run.log(
+        {
+            "train/agent_loss": agent_loss,
+            "train/reward": td["next", "reward"].mean().item(),
+            "train/qvalue norm": get_sequential_module_norm(
+                agent.value_module.net
+            ),
+            "train/classifier_norm": get_sequential_module_norm(classifier.mlp),
+            "train/embedder_norm~": get_sequential_module_norm(
+                embedder.encoder.write_block
+            ),
+            "train/eps": agent.egreedy_module.eps.item(),
+            # acquired_features might be NaN if no agent in the batch has a finished episode
+            "train/acquired_features": td["feature_mask"][
+                td["next", "done"].squeeze(-1)
+            ]
+            .sum(dim=-1)
+            .float()
+            .mean()
+            .item(),
+            "train/replay buffer size": len(agent.replay_buffer),
+            "train/batch_idx": batch_idx,
+        }
+    )
+
+def eval_log(run, eval_metrics, batch_idx):
+    run.log(
+        {
+            "eval/acquired_features": eval_metrics["acquired_features"]
+            .float()
+            .mean()
+            .item(),
+            "eval/accuracy": eval_metrics["is_correct_class"]
+            .float()
+            .mean()
+            .item(),
+            "eval/predicted_class": wandb.Histogram(
+                eval_metrics["predicted_classes"].cpu().numpy(),
+            ),
+            "eval/reward": eval_metrics["reward"].mean().item(),
+            "eval/traj_len": eval_metrics["traj_len"]
+            .float()
+            .mean()
+            .item(),
+            "eval/batch_idx": batch_idx,
+        }
+    )
+
+def get_eval_metrics(agent, eval_env, train_config, device, classifier, embedder, train_env):
+    # HACK: Set the action spec of the agent to the eval env action spec
+    # EGreedyModule insists on having the same batch size all the time
+    agent.egreedy_module._spec = eval_env.action_spec
+    eval_metrics = {
+        "acquired_features": torch.zeros(
+            train_config.eval_episodes,
+            dtype=torch.int64,
+            device=device,
+        ),
+        "is_correct_class": torch.zeros(
+            train_config.eval_episodes,
+            dtype=torch.bool,
+            device=device,
+        ),
+        "predicted_classes": torch.zeros(
+            train_config.eval_episodes,
+            dtype=torch.int64,
+            device=device,
+        ),
+        "reward": torch.zeros(
+            train_config.eval_episodes,
+            dtype=torch.float32,
+            device=device,
+        ),
+        "traj_len": torch.zeros(
+            train_config.eval_episodes,
+            dtype=torch.int64,
+            device=device,
+        ),
+    }
+    for eval_episode in tqdm(
+        range(train_config.eval_episodes), desc="Evaluating agent..."
+    ):
+        # Evaluate agent
+        td_eval = eval_env.rollout(
+            max_steps=train_config.eval_max_steps, policy=agent.policy
+        )
+        # Squeeze batch dimension
+        td_eval = td_eval.squeeze(0)
+        # Calculate acquired features
+        eval_metrics["acquired_features"][eval_episode] = td_eval[
+            "feature_mask"
+        ][-1].sum()
+        # Check whether classification was correct
+        logits = classifier(
+            embedder(
+                td_eval["masked_features"][-1:],
+                td_eval["feature_mask"][-1:],
+            )
+        )
+        predicted_class = logits.argmax(dim=-1)
+        eval_metrics["predicted_classes"][eval_episode] = (
+            predicted_class
+        )
+        eval_metrics["is_correct_class"][eval_episode] = (
+            predicted_class == td_eval["label"][-1].argmax(dim=-1)
+        )
+        eval_metrics["reward"][eval_episode] = td_eval[
+            "next", "reward"
+        ].mean()
+        eval_metrics["traj_len"][eval_episode] = len(td_eval)
+    # Reset the action spec of the agent to the train env action spec
+    agent.egreedy_module._spec = train_env.action_spec
+
+    return eval_metrics
+
 
 def main(args: argparse.Namespace):
     torch.set_float32_matmul_precision("medium")
@@ -119,7 +235,7 @@ def main(args: argparse.Namespace):
     reward_fn = get_shim2018_reward_fn(
         embedder=embedder,
         classifier=classifier,
-        acquisition_costs=train_config.mdp.acquisition_cost
+        acquisition_costs=train_config.acquisition_cost
         * torch.ones(
             (n_features,),
             dtype=torch.float32,
@@ -139,11 +255,10 @@ def main(args: argparse.Namespace):
         dataset_fn=train_dataset_fn,
         reward_fn=reward_fn,
         device=device,
-        batch_size=torch.Size((1,)),
+        batch_size=torch.Size((train_config.n_agents,)),
         feature_size=n_features,
         n_classes=n_classes,
     )
-    # check_env_specs(train_env)
 
     eval_env = AFAEnv(
         dataset_fn=val_dataset_fn,
@@ -206,120 +321,16 @@ def main(args: argparse.Namespace):
 
             # Logging
             if args.verbose:
-                run.log(
-                    {
-                        "train/agent_loss": agent_loss,
-                        "train/reward": td["next", "reward"].mean().item(),
-                        "train/qvalue norm": get_sequential_module_norm(
-                            agent.value_module.net
-                        ),
-                        "train/classifier_norm": get_sequential_module_norm(classifier.mlp),
-                        "train/embedder_norm~": get_sequential_module_norm(
-                            embedder.encoder.write_block
-                        ),
-                        "train/eps": agent.egreedy_module.eps.item(),
-                        # acquired_features might be NaN if no agent in the batch has a finished episode
-                        "train/acquired_features": td["feature_mask"][
-                            td["next", "done"].squeeze(-1)
-                        ]
-                        .sum(dim=-1)
-                        .float()
-                        .mean()
-                        .item(),
-                        "train/replay buffer size": len(agent.replay_buffer),
-                        "train/batch_idx": batch_idx,
-                    }
-                )
+                train_log(run, agent_loss, td, agent, classifier, embedder, batch_idx)
 
             if batch_idx != 0 and batch_idx % train_config.eval_every_n_batches == 0:
                 with (
                     torch.no_grad(),
                     set_exploration_type(ExplorationType.DETERMINISTIC),
                 ):
-                    # HACK: Set the action spec of the agent to the eval env action spec
-                    # EGreedyModule insists on having the same batch size all the time
-                    agent.egreedy_module._spec = eval_env.action_spec
-                    eval_metrics = {
-                        "acquired_features": torch.zeros(
-                            train_config.eval_episodes,
-                            dtype=torch.int64,
-                            device=device,
-                        ),
-                        "is_correct_class": torch.zeros(
-                            train_config.eval_episodes,
-                            dtype=torch.bool,
-                            device=device,
-                        ),
-                        "predicted_classes": torch.zeros(
-                            train_config.eval_episodes,
-                            dtype=torch.int64,
-                            device=device,
-                        ),
-                        "reward": torch.zeros(
-                            train_config.eval_episodes,
-                            dtype=torch.float32,
-                            device=device,
-                        ),
-                        "traj_len": torch.zeros(
-                            train_config.eval_episodes,
-                            dtype=torch.int64,
-                            device=device,
-                        ),
-                    }
-                    for eval_episode in tqdm(
-                        range(train_config.eval_episodes), desc="Evaluating agent..."
-                    ):
-                        # Evaluate agent
-                        td_eval = eval_env.rollout(
-                            max_steps=train_config.eval_max_steps, policy=agent.policy
-                        )
-                        # Squeeze batch dimension
-                        td_eval = td_eval.squeeze(0)
-                        # Calculate acquired features
-                        eval_metrics["acquired_features"][eval_episode] = td_eval[
-                            "feature_mask"
-                        ][-1].sum()
-                        # Check whether classification was correct
-                        logits = classifier(
-                            embedder(
-                                td_eval["masked_features"][-1:],
-                                td_eval["feature_mask"][-1:],
-                            )
-                        )
-                        predicted_class = logits.argmax(dim=-1)
-                        eval_metrics["predicted_classes"][eval_episode] = (
-                            predicted_class
-                        )
-                        eval_metrics["is_correct_class"][eval_episode] = (
-                            predicted_class == td_eval["label"][-1].argmax(dim=-1)
-                        )
-                        eval_metrics["reward"][eval_episode] = td_eval[
-                            "next", "reward"
-                        ].mean()
-                        eval_metrics["traj_len"][eval_episode] = len(td_eval)
-                    # Reset the action spec of the agent to the train env action spec
-                    agent.egreedy_module._spec = train_env.action_spec
-                    wandb.log(
-                        {
-                            "eval/acquired_features": eval_metrics["acquired_features"]
-                            .float()
-                            .mean()
-                            .item(),
-                            "eval/accuracy": eval_metrics["is_correct_class"]
-                            .float()
-                            .mean()
-                            .item(),
-                            "eval/predicted_class": wandb.Histogram(
-                                eval_metrics["predicted_classes"].cpu().numpy(),
-                            ),
-                            "eval/reward": eval_metrics["reward"].mean().item(),
-                            "eval/traj_len": eval_metrics["traj_len"]
-                            .float()
-                            .mean()
-                            .item(),
-                            "eval/batch_idx": batch_idx,
-                        }
-                    )
+                    eval_metrics = get_eval_metrics(agent, eval_env, train_config, device, classifier, embedder, train_env)
+                eval_log(run, eval_metrics, batch_idx)
+
     except KeyboardInterrupt:
         pass
     finally:
