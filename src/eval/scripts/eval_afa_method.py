@@ -16,41 +16,62 @@ from common.custom_types import (
 )
 from common.registry import AFA_DATASET_REGISTRY, AFA_METHOD_REGISTRY
 
-
 def evaluator(
     feature_mask_history_all: list[list[FeatureMask]],
     prediction_history_all: list[list[Label]],
     labels_all: list[Label],
 ) -> dict:
     """
-    Calculates accuracy (using last prediction before afa was stopped) and average number of features selected for each sample in the dataset.
+    Calculates
+      • accuracy using the **final** prediction of every sample
+      • per-step accuracy (``accuracy_all``) so it lines up with the
+        longest prediction history in the batch
+      • the average number of feature masks produced per sample
     """
     assert (
         len(feature_mask_history_all) == len(prediction_history_all) == len(labels_all)
     ), "All three lists must have the same length"
 
-    num_samples = len(feature_mask_history_all)
+    num_samples = len(prediction_history_all)
 
-    # Calculate accuracy
-    correct_predictions = 0
-    for prediction_history, label in zip(prediction_history_all, labels_all):
-        # Get the last prediction for this sample
-        prediction = prediction_history[-1]
-        if prediction.argmax(-1) == label.argmax(-1):
-            correct_predictions += 1
+    # ------------------------------------------------------------------
+    # 1) final-step accuracy (identical to the original implementation)
+    # ------------------------------------------------------------------
+    correct_final = sum(
+        1
+        for preds, lbl in zip(prediction_history_all, labels_all)
+        if preds[-1].argmax(-1) == lbl.argmax(-1)
+    )
+    accuracy = correct_final / num_samples
 
-    accuracy = correct_predictions / num_samples
+    # ------------------------------------------------------------------
+    # 2) per-step accuracy across **all** available predictions
+    # ------------------------------------------------------------------
+    max_len = max(len(preds) for preds in prediction_history_all)
+    accuracy_all: list[float] = []
 
-    # Calculate average number of features selected
-    total_features_selected = 0
-    for feature_mask_history in feature_mask_history_all:
-        total_features_selected += len(feature_mask_history)
+    for step_idx in range(max_len):
+        correct, total = 0, 0
+        for preds, lbl in zip(prediction_history_all, labels_all):
+            if step_idx < len(preds):           # sample has a prediction at this step
+                total += 1
+                if preds[step_idx].argmax(-1) == lbl.argmax(-1):
+                    correct += 1
+        # Guard against division-by-zero (only happens if *no* sample has step_idx)
+        accuracy_all.append(correct / total if total else 0.0)
 
-    avg_features_selected = total_features_selected / num_samples
+    # ------------------------------------------------------------------
+    # 3) average number of feature masks produced per sample
+    # ------------------------------------------------------------------
+    avg_features_selected = sum(
+        len(mask_hist) for mask_hist in feature_mask_history_all
+    ) / num_samples
 
     return {
         "accuracy": accuracy,
+        "accuracy_all": accuracy_all,
         "avg_features_selected": avg_features_selected,
+        "feature_mask_history_all": feature_mask_history_all,
     }
 
 

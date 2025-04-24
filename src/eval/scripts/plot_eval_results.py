@@ -49,7 +49,6 @@ def get_result_mapping():
 
     return result_mapping
 
-
 def main():
     result_mapping = get_result_mapping()
 
@@ -57,15 +56,20 @@ def main():
         train_data_stem = Path(train_data_path).stem
         fig, ax = plt.subplots()
         for afa_method_name, eval_pairs in methods.items():
+            #print(eval_pairs)
             accuracy = np.zeros(len(eval_pairs))
             avg_features_selected = np.zeros(len(eval_pairs))
             for i, (val_data_path, eval_results_path) in enumerate(eval_pairs):
                 # Load the evaluation results
                 eval_results = torch.load(eval_results_path)
+                print(i)
+                print(eval_results_path)
+                #print(eval_results["accuracy_all"])
 
                 # Extract the metrics
                 accuracy[i] = eval_results["accuracy"]
                 avg_features_selected[i] = eval_results["avg_features_selected"]
+            print("@@@@")
 
             # Plot, one color per AFA method
             ax.plot(avg_features_selected, accuracy, label=afa_method_name)
