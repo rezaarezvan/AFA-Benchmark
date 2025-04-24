@@ -2,6 +2,7 @@ from typing import Callable, Protocol
 
 from jaxtyping import Bool, Float, Integer
 from torch import Tensor
+import torch
 
 # AFA datasets return features and labels
 type Features = Float[Tensor, "*batch n_features"]
@@ -15,6 +16,10 @@ class AFADataset(Protocol):
 
     Notably, the __init__ constructor should *not* generate data. Instead, generate_data() should be called. This makes it possible to call load if deterministic data is desired.
     """
+
+    # Used by AFADatasetFn
+    features: Features|None # batched
+    labels: Label|None # batched
 
     def generate_data(self) -> None:
         """
@@ -91,9 +96,9 @@ class AFAMethod(Protocol):
         ...
 
     @staticmethod
-    def load(path: str) -> "AFAMethod":
+    def load(path: str, device: torch.device) -> "AFAMethod":
         """
-        Loads the method from a file.
+        Loads the method from a file, placing it on the given device.
         """
         ...
 

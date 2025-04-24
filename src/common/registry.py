@@ -2,12 +2,14 @@ from afa_rl.afa_methods import (
     Shim2018AFAMethod,
     RandomDummyAFAMethod,
     SequentialDummyAFAMethod,
+    Zannone2019AFAMethod,
 )
 from common.datasets import CubeDataset, AFAContextDataset, MNISTDataset, DiabetesDataset, PhysionetDataset
 
 # Add each AFA method here
 AFA_METHOD_REGISTRY = {
     "shim2018": Shim2018AFAMethod,
+    "zannone2019": Zannone2019AFAMethod,
     "sequential_dummy": SequentialDummyAFAMethod,  # For testing
     "random_dummy": RandomDummyAFAMethod,  # For testing
 }
@@ -24,11 +26,21 @@ AFA_DATASET_REGISTRY = {
 # Mapping of AFA dataset names to their paths
 AFA_DATASET_PATH_REGISTRY = {
     "cube": [
-        "data/cube/cube_train_100.pt",
-        "data/cube/cube_train_1000.pt",
-        "data/cube/cube_train_10000.pt",
-        "data/cube/cube_val_100.pt",
-        "data/cube/cube_val_1000.pt",
+        "data/cube/train_split_1.pt",
+        "data/cube/train_split_2.pt",
+        "data/cube/train_split_3.pt",
+        "data/cube/train_split_4.pt",
+        "data/cube/train_split_5.pt",
+        "data/cube/val_split_1.pt",
+        "data/cube/val_split_2.pt",
+        "data/cube/val_split_3.pt",
+        "data/cube/val_split_4.pt",
+        "data/cube/val_split_5.pt",
+        "data/cube/test_split_1.pt",
+        "data/cube/test_split_2.pt",
+        "data/cube/test_split_3.pt",
+        "data/cube/test_split_4.pt",
+        "data/cube/test_split_5.pt",
     ]
 }
 

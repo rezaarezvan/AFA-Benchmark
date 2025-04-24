@@ -1,11 +1,5 @@
-epochs: 1000
-checkpoint_path: "models/afa_rl/pretrain_shim2018.ckpt"
-n_features: 20
+epochs: 2000
 
-dataset:
-  name: "cube"
-  train_path: "data/cube/train_10000.pt"
-  val_path: "data/cube/val_1000.pt"
 dataloader:
   batch_size: 128
   num_workers: 1
@@ -18,7 +12,7 @@ encoder:
 classifier:
   num_cells: [32, 32]
 embedder_classifier:
-  lr: 0.0001
+  lr: 0.001
 wandb:
   entity: "valterschutz-chalmers-university-of-technology"
   project: "pretrain-shim2018"

@@ -19,36 +19,14 @@ from afa_rl.models import (
     PointNetType,
     Zannone2019PretrainingModel,
 )
-from afa_rl.utils import dict_to_namespace, get_1D_identity, get_2D_identity
+from afa_rl.utils import dict_to_namespace, get_1D_identity
 from common.custom_types import AFADataset
 from common.registry import AFA_DATASET_REGISTRY
 
 
-def get_zannone2019_model_from_config(config):
-    # Two different datasets possible: "cube" or "mnist"
-    # This will also influence which PointNet to use
-    if config.dataset.name == "cube":
-        image_shape = None
-        assert config.pointnet.naive_identity_type == "1D"
-        naive_identity_fn = get_1D_identity
-        naive_identity_size = config.dataset.n_features  # onehot
-    elif config.dataset.name == "mnist":
-        image_shape = (28, 28)
-        # For 2D images we can either treat them as 2D coordinates or as 1D features
-        if config.pointnet.naive_identity_type == "1D":
-            naive_identity_fn = get_1D_identity
-            naive_identity_size = config.dataset.n_features
-        elif config.pointnet.naive_identity_type == "2D":
-            naive_identity_fn = partial(get_2D_identity, image_shape=image_shape)
-            naive_identity_size = 2  # coordinates
-        else:
-            raise ValueError(
-                f"Naive identity type {config.pointnet.naive_identity_type} not supported. Use '1D' or '2D'."
-            )
-    else:
-        raise ValueError(
-            f"Dataset {config.dataset.name} not supported. Use 'cube' or 'mnist'."
-        )
+def get_zannone2019_model_from_config(config, n_features, n_classes):
+    naive_identity_fn = get_1D_identity
+    naive_identity_size = n_features  # onehot
 
     # PointNet or PointNetPlus
     if config.pointnet.type == "pointnet":
@@ -90,11 +68,11 @@ def get_zannone2019_model_from_config(config):
         decoder=nn.Sequential(
             MLP(
                 in_features=config.partial_vae.latent_size,
-                out_features=config.dataset.n_features,
+                out_features=n_features,
                 num_cells=config.partial_vae.decoder_num_cells,
                 activation_class=nn.ReLU,
             ),
-            nn.Sigmoid() if config.dataset.bounded_0_1 else nn.Identity(),
+            nn.Identity(),
         ),
     )
     model = Zannone2019PretrainingModel(
@@ -102,13 +80,12 @@ def get_zannone2019_model_from_config(config):
         # Classifier acts on latent space
         classifier=MLP(
             in_features=config.partial_vae.latent_size,
-            out_features=config.classifier.output_size,
+            out_features=n_classes,
             num_cells=config.classifier.num_cells,
             activation_class=nn.ReLU,
         ),
         lr=config.lr,
         verbose=config.verbose,
-        image_shape=image_shape,
         max_masking_probability=config.max_masking_probability,
         recon_loss_type=config.recon_loss_type,
         kl_scaling_factor=config.kl_scaling_factor,
@@ -117,37 +94,35 @@ def get_zannone2019_model_from_config(config):
     return model
 
 
-def main():
+def main(args: argparse.Namespace):
     torch.set_float32_matmul_precision("medium")
 
-    # Use argparse to choose config file
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--config", type=str, required=True)
-    args = parser.parse_args()
-
     # Load config from yaml file
-    with open(args.config, "r") as file:
+    with open(args.pretrain_config, "r") as file:
         config_dict: dict = yaml.safe_load(file)
 
-    wandb.init(
-        entity=config_dict["wandb"]["entity"],
-        project=config_dict["wandb"]["project"],
-        config=config_dict,
-    )
 
     config = dict_to_namespace(config_dict)
 
-    train_dataset: AFADataset = AFA_DATASET_REGISTRY[config.dataset.name].load(
-        config.dataset.train_path
+    train_dataset: AFADataset = AFA_DATASET_REGISTRY[args.dataset_type].load(
+        args.dataset_train_path
     )
-    val_dataset: AFADataset = AFA_DATASET_REGISTRY[config.dataset.name].load(
-        config.dataset.val_path
+    val_dataset: AFADataset = AFA_DATASET_REGISTRY[args.dataset_type].load(
+        args.dataset_val_path
     )
     datamodule = DataModuleFromDatasets(
         train_dataset, val_dataset, batch_size=config.dataloader.batch_size
     )
 
-    model = get_zannone2019_model_from_config(config)
+    n_features = train_dataset.features.shape[-1]
+    n_classes = train_dataset.labels.shape[-1]
+    model = get_zannone2019_model_from_config(config, n_features, n_classes)
+
+    run = wandb.init(
+        entity=config_dict["wandb"]["entity"],
+        project=config_dict["wandb"]["project"],
+        config=config_dict,
+    )
 
     logger = WandbLogger(project=config.wandb.project, save_dir="logs/afa_rl")
     trainer = pl.Trainer(
@@ -164,11 +139,18 @@ def main():
         # Move the best checkpoint to the desired location
         best_checkpoint = trainer.checkpoint_callback.best_model_path
         # Create parent directories if neccessary
-        os.makedirs(os.path.dirname(config.checkpoint_path), exist_ok=True)
+        os.makedirs(os.path.dirname(args.pretrained_model_path), exist_ok=True)
         # Save
-        torch.save(torch.load(best_checkpoint), config.checkpoint_path)
-        print(f"Zannone2019PretrainingModel saved to {config.checkpoint_path}")
+        torch.save(torch.load(best_checkpoint), args.pretrained_model_path)
+        print(f"Zannone2019PretrainingModel saved to {args.pretrained_model_path}")
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--pretrain_config", type=str, required=True)
+    parser.add_argument("--dataset_type", type=str, required=True, choices=AFA_DATASET_REGISTRY.keys())
+    parser.add_argument("--dataset_train_path", type=str, required=True)
+    parser.add_argument("--dataset_val_path", type=str, required=True)
+    parser.add_argument("--pretrained_model_path", type=str, required=True)
+    args = parser.parse_args()
+    main(args)
