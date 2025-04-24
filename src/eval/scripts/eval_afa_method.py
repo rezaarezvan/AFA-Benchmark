@@ -66,10 +66,10 @@ def eval_afa_method(args: argparse.Namespace) -> dict[str, float]:
     print(f"Loaded AFA method {args.afa_method_name} from {args.afa_method_path}")
 
     # Load the dataset
-    dataset: AFADataset = AFA_DATASET_REGISTRY[args.dataset_name].load(
-        args.dataset_path
+    dataset: AFADataset = AFA_DATASET_REGISTRY[args.dataset_type].load(
+        args.dataset_val_path
     )
-    print(f"Loaded dataset {args.dataset_name} from {args.dataset_path}")
+    print(f"Loaded dataset {args.dataset_type} from {args.dataset_val_path}")
 
     # Store feature mask history, label prediction history, and true label for each sample in the dataset
     feature_mask_history_all: list[list[FeatureMask]] = []
@@ -154,17 +154,17 @@ if __name__ == "__main__":
         help="Path that will be passed to the AFAMethod's load method. ",
     )
     parser.add_argument(
-        "--dataset_name",
+        "--dataset_type",
         type=str,
         required=True,
         help="Name of the AFADataset to evaluate. Must be one of: "
         + ", ".join(AFA_DATASET_REGISTRY.keys()),
     )
     parser.add_argument(
-        "--dataset_path",
+        "--dataset_val_path",
         type=str,
         required=True,
-        help="Path to a .pt file containing the AFADataset to evaluate the AFAMethod on",
+        help="Path to a .pt file containing the validation AFADataset to evaluate the AFAMethod on",
     )
     parser.add_argument(
         "--eval_save_path",
@@ -179,9 +179,9 @@ if __name__ == "__main__":
             f"Method {args.afa_method_name} not in registry. Must be one of: "
             + ", ".join(AFA_METHOD_REGISTRY.keys())
         )
-    if args.dataset_name not in AFA_DATASET_REGISTRY:
+    if args.dataset_type not in AFA_DATASET_REGISTRY:
         raise ValueError(
-            f"Method {args.afa_dataset_name} not in registry. Must be one of: "
+            f"Method {args.afa_dataset_type} not in registry. Must be one of: "
             + ", ".join(AFA_DATASET_REGISTRY.keys())
         )
 

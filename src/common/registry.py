@@ -34,34 +34,98 @@ AFA_DATASET_PATH_REGISTRY = {
 
 # Add saved AFA methods here
 TRAINING_REGISTRY = {
+    # sequential_dummy
     (
         "sequential_dummy",
-        "data/cube/cube_train_10000.pt",
-    ): "models/afa_rl/sequential_dummy-cube_train_10000.pt",
+        "data/cube/train_split_1.pt",
+    ): "models/sequential_dummy/sequential_dummy-cube_train_split_1.pt",
+    (
+        "sequential_dummy",
+        "data/cube/train_split_2.pt",
+    ): "models/sequential_dummy/sequential_dummy-cube_train_split_2.pt",
+    (
+        "sequential_dummy",
+        "data/cube/train_split_3.pt",
+    ): "models/sequential_dummy/sequential_dummy-cube_train_split_3.pt",
+    (
+        "sequential_dummy",
+        "data/cube/train_split_4.pt",
+    ): "models/sequential_dummy/sequential_dummy-cube_train_split_4.pt",
+    (
+        "sequential_dummy",
+        "data/cube/train_split_5.pt",
+    ): "models/sequential_dummy/sequential_dummy-cube_train_split_5.pt",
+    # random_dummy
     (
         "random_dummy",
-        "data/cube/cube_train_10000.pt",
-    ): "models/afa_rl/random_dummy-cube_train_10000.pt",
+        "data/cube/train_split_1.pt",
+    ): "models/random_dummy/random_dummy-cube_train_split_1.pt",
+    (
+        "random_dummy",
+        "data/cube/train_split_2.pt",
+    ): "models/random_dummy/random_dummy-cube_train_split_2.pt",
+    (
+        "random_dummy",
+        "data/cube/train_split_3.pt",
+    ): "models/random_dummy/random_dummy-cube_train_split_3.pt",
+    (
+        "random_dummy",
+        "data/cube/train_split_4.pt",
+    ): "models/random_dummy/random_dummy-cube_train_split_4.pt",
+    (
+        "random_dummy",
+        "data/cube/train_split_5.pt",
+    ): "models/random_dummy/random_dummy-cube_train_split_5.pt",
+    # shim2018
+    (
+        "shim2018",
+        "data/cube/train_split_1.pt",
+    ): "models/shim2018/shim2018-cube_train_split_1.pt",
 }
 
 # Add evaluation results here
 EVALUATION_REGISTRY = {
-    # SequentialDummyAFAMethod
+    # sequential_dummy
     (
-        "models/afa_rl/sequential_dummy-cube_train_10000.pt",
-        "data/cube/cube_val_1000.pt",
-    ): "results/evaluation/sequential_dummy-cube_train_10000-cube_val_1000.pt",
+        "models/sequential_dummy/sequential_dummy-cube_train_split_1.pt",
+        "data/cube/val_split_1.pt",
+    ): "results/evaluation/sequential_dummy/sequential_dummy-cube_train_split_1-cube_val_split_1.pt",
     (
-        "models/afa_rl/sequential_dummy-cube_train_10000.pt",
-        "data/cube/cube_val_100.pt",
-    ): "results/evaluation/sequential_dummy-cube_train_10000-cube_val_100.pt",
-    # RandomDummyAFAMethod
+        "models/sequential_dummy/sequential_dummy-cube_train_split_2.pt",
+        "data/cube/val_split_2.pt",
+    ): "results/evaluation/sequential_dummy/sequential_dummy-cube_train_split_2-cube_val_split_2.pt",
     (
-        "models/afa_rl/random_dummy-cube_train_10000.pt",
-        "data/cube/cube_val_1000.pt",
-    ): "results/evaluation/random_dummy-cube_train_10000-cube_val_1000.pt",
+        "models/sequential_dummy/sequential_dummy-cube_train_split_3.pt",
+        "data/cube/val_split_3.pt",
+    ): "results/evaluation/sequential_dummy/sequential_dummy-cube_train_split_3-cube_val_split_3.pt",
     (
-        "models/afa_rl/random_dummy-cube_train_10000.pt",
-        "data/cube/cube_val_100.pt",
-    ): "results/evaluation/random_dummy-cube_train_10000-cube_val_100.pt",
+        "models/sequential_dummy/sequential_dummy-cube_train_split_4.pt",
+        "data/cube/val_split_4.pt",
+    ): "results/evaluation/sequential_dummy/sequential_dummy-cube_train_split_4-cube_val_split_4.pt",
+    (
+        "models/sequential_dummy/sequential_dummy-cube_train_split_5.pt",
+        "data/cube/val_split_5.pt",
+    ): "results/evaluation/sequential_dummy/sequential_dummy-cube_train_split_5-cube_val_split_5.pt",
+    # random_dummy
+    (
+        "models/random_dummy/random_dummy-cube_train_split_1.pt",
+        "data/cube/val_split_1.pt",
+    ): "results/evaluation/random_dummy/random_dummy-cube_train_split_1-cube_val_split_1.pt",
+    (
+        "models/random_dummy/random_dummy-cube_train_split_2.pt",
+        "data/cube/val_split_2.pt",
+    ): "results/evaluation/random_dummy/random_dummy-cube_train_split_2-cube_val_split_2.pt",
+    (
+        "models/random_dummy/random_dummy-cube_train_split_3.pt",
+        "data/cube/val_split_3.pt",
+    ): "results/evaluation/random_dummy/random_dummy-cube_train_split_3-cube_val_split_3.pt",
+    (
+        "models/random_dummy/random_dummy-cube_train_split_4.pt",
+        "data/cube/val_split_4.pt",
+    ): "results/evaluation/random_dummy/random_dummy-cube_train_split_4-cube_val_split_4.pt",
+    (
+        "models/random_dummy/random_dummy-cube_train_split_5.pt",
+        "data/cube/val_split_5.pt",
+    ): "results/evaluation/random_dummy/random_dummy-cube_train_split_5-cube_val_split_5.pt",
+    # shim2018
 }
