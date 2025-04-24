@@ -176,6 +176,8 @@ def main(args):
 
     pretrain_config = dict_to_namespace(pretrain_config_dict)
     train_config = dict_to_namespace(train_config_dict)
+    device = torch.device(train_config.device)
+
     assert (
         train_config.n_generative_samples % train_config.generative_batch_size == 0
     ), (
@@ -195,7 +197,6 @@ def main(args):
     n_features = train_dataset.features.shape[-1]
     n_classes = train_dataset.labels.shape[-1]
 
-    device = torch.device(train_config.device)
 
     # Init pretrained model
     pretrained_model = get_zannone2019_model_from_config(pretrain_config, n_features, n_classes)
@@ -283,8 +284,8 @@ def main(args):
         reward_fn=reward_fn,
         device=device,
         batch_size=torch.Size((train_config.n_agents,)),
-        feature_size=train_dataset.features.shape[1],
-        n_classes=train_dataset.labels.shape[1],
+        feature_size=n_features,
+        n_classes=n_classes,
     )
 
     # Evaluate on validation data

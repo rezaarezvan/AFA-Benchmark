@@ -12,13 +12,11 @@ if [ -z "$split" ]; then
     exit 1
 fi
 
-echo "Training agent for split $split..."
-uv run src/afa_rl/scripts/train_shim2018.py \
-    --pretrain_config configs/shim2018/pretrain_shim2018.yml \
-    --train_config configs/shim2018/train_shim2018.yml \
+echo "Pretraining model for split $split..."
+uv run src/afa_rl/scripts/pretrain_zannone2019.py \
+    --pretrain_config configs/zannone2019/pretrain_zannone2019.yml \
     --dataset_type "cube" \
     --dataset_train_path "data/cube/train_split_$split.pt" \
     --dataset_val_path "data/cube/val_split_$split.pt" \
-    --pretrained_model_save_path "models/shim2018/pretrained/shim2018-cube_train_split_$split.pt" \
-    --afa_method_save_path "models/shim2018/shim2018-cube_train_split_$split.pt"
-echo "Finished training agent for split $split."
+    --pretrained_model_path "models/zannone2019/pretrained/zannone2019-cube_train_split_$split.pt"
+echo "Finished pretraining model for split $split."
