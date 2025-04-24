@@ -1,6 +1,4 @@
-mdp:
-  acquisition_cost: 0.05
-  invalid_action_cost: 42 # since invalid actions should never be selected, this should have no impact
+acquisition_cost: 0.05
 
 embedder_classifier:
   lr: 0.001
@@ -13,16 +11,16 @@ agent:
   eps_steps: 5000
   replay_buffer_batch_size: 128
   replay_buffer_size: 500000
-  num_optim: 4 # how many times to sample from replay buffer for each batch of data received
-  replay_buffer_alpha: 0.0 # turn off prioritization for now
-  replay_buffer_beta: 0.5
+  # num_optim: 4 # how many times to sample from replay buffer for each batch of data received
+  num_optim: 1 # how many times to sample from replay buffer for each batch of data received
+  replay_buffer_alpha: 0.0 # Disable replay buffer
+  replay_buffer_beta: 0.4
 
-n_batches: 100
-# n_batches: 100
+n_batches: 10000
 n_agents: 128
 batch_size: 512
 device: "cuda"
-eval_every_n_batches: 50
+eval_every_n_batches: 1000
 eval_episodes: 100
 eval_max_steps: 30
 
