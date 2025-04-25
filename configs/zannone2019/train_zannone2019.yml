@@ -4,12 +4,12 @@ generative_batch_size: 128
 
 acquisition_cost: 0.05
 # acquisition_cost: 0.08
-n_batches: 50000
+n_batches: 10000
 n_agents: 128
 batch_size: 512
 
 agent:
-  lr: 0.01
+  lr: 0.001
   # update_tau: 0.01
 
 wandb:

@@ -1,10 +1,10 @@
-acquisition_cost: 0.01
+acquisition_cost: 0.05
 
 embedder_classifier:
-  lr: 0.01
+  lr: 0.001
 
 agent:
-  lr: 0.01
+  lr: 0.001
   update_tau: 0.05
   eps_init: 1.0
   eps_end: 0.1
@@ -17,7 +17,7 @@ agent:
   replay_buffer_alpha: 0.6
   replay_buffer_beta: 0.4
 
-n_batches: 50000
+n_batches: 10000
 n_agents: 128
 batch_size: 512
 device: "cuda"

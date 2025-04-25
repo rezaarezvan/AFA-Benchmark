@@ -36,7 +36,14 @@ def get_afa_dataset_fn(features: Features, labels: Label) -> AFADatasetFn:
         local_features = get_wrapped_batch(features, idx, batch_size.numel())
         local_labels = get_wrapped_batch(labels, idx, batch_size.numel())
         if move_on:
-            idx = (idx + batch_size.numel()) % len(features)
+            idx = (idx + batch_size.numel())
+            # Reset idx if needed, also shuffling the dataset
+            if idx >= len(features):
+                idx = 0
+                # Shuffle the dataset
+                perm = torch.randperm(len(features))
+                features = features[perm]
+                labels = labels[perm]
         local_features = local_features.reshape(*batch_size, local_features.shape[-1])
         local_labels = local_labels.reshape(*batch_size, local_labels.shape[-1])
         return local_features, local_labels
