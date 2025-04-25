@@ -18,6 +18,7 @@ from torchrl.modules import (
     ValueOperator,
 )
 from torchrl.objectives import ClipPPOLoss, DQNLoss, SoftUpdate
+from torchrl.objectives.value import GAE
 
 from afa_rl.models import PointNet, ShimEmbedder
 from common.custom_types import FeatureMask, MaskedFeatures
@@ -278,11 +279,17 @@ class Zannone2019Agent:
         )
         self.optim = optim.Adam(self.loss_module.parameters(), lr=self.lr)
 
+        # self.advantage_module = GAE(
+        #     gamma=1, lmbda=0, value_network=self.critic_network, average_gae=True
+        # )
+
     def policy(self, td: TensorDictBase):
         td = self.actor_network(td)
         return td
 
     def process_batch(self, td):
+        # self.advantage_module(td)
+
         self.optim.zero_grad()
 
         loss = self.loss_module(td)

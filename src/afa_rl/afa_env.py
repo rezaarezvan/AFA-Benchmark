@@ -413,7 +413,7 @@ class AFAEnv(EnvBase):
 def get_zannone2019_reward_fn(
     partial_vae: PartialVAE,
     classifier: nn.Module,
-    acquisition_costs: Float[Tensor, "batch n_features"],
+    acquisition_cost: float
 ) -> AFARewardFn:
     """
     Returns the reward function as defined in "ODIN: Optimal Discovery of High-value INformation Using Model-based Deep Reinforcement Learning"
@@ -441,9 +441,8 @@ def get_zannone2019_reward_fn(
             (F.softmax(logits, dim=-1) * label).sum(-1)
         )
 
-        # Second term is acquisition cost
-        acquisition_cost = acquisition_costs[afa_selection.squeeze(-1) - 1].sum()
-        reward += -acquisition_cost
+        # Second term is acquisition cost, multipled by the number of observed features
+        reward += -acquisition_cost * new_feature_mask.sum(-1)
 
         return reward
 
