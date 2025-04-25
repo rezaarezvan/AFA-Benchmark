@@ -331,8 +331,7 @@ def main(args):
             agent_loss = agent.process_batch(td)
 
             # Logging
-            if args.verbose:
-                train_log(run, td, agent, agent_loss, batch_idx)
+            train_log(run, td, agent, agent_loss, batch_idx)
 
             # Evaluation sometimes
             if batch_idx != 0 and batch_idx % train_config.eval_every_n_batches == 0:
@@ -375,7 +374,6 @@ if __name__ == "__main__":
     parser.add_argument("--dataset_val_path", type=str, required=True)
     parser.add_argument("--pretrained_model_path", type=str, required=True)
     parser.add_argument("--afa_method_path", type=str, required=True)
-    parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
     args = parser.parse_args()
 
     main(args)

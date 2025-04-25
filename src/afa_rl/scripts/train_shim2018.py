@@ -320,8 +320,7 @@ def main(args: argparse.Namespace):
             embedder_classifier_optim.step()
 
             # Logging
-            if args.verbose:
-                train_log(run, agent_loss, td, agent, classifier, embedder, batch_idx)
+            train_log(run, agent_loss, td, agent, classifier, embedder, batch_idx)
 
             if batch_idx != 0 and batch_idx % train_config.eval_every_n_batches == 0:
                 with (
@@ -365,7 +364,6 @@ if __name__ == "__main__":
     parser.add_argument("--dataset_val_path", type=str, required=True)
     parser.add_argument("--pretrained_model_path", type=str, required=True)
     parser.add_argument("--afa_method_path", type=str, required=True)
-    parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
     args = parser.parse_args()
 
     main(args)
