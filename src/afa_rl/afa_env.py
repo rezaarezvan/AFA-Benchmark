@@ -418,7 +418,6 @@ def get_zannone2019_reward_fn(
     """
     Returns the reward function as defined in "ODIN: Optimal Discovery of High-value INformation Using Model-based Deep Reinforcement Learning"
     """
-    # TODO: currently the same as shim reward fn
 
     def f(
         masked_features: MaskedFeatures,
@@ -437,11 +436,10 @@ def get_zannone2019_reward_fn(
         # Get logits using classifier
         logits = classifier(mu)
 
-        # First reward term is the negative log probability of the correct class
+        # First reward term is the probability of the correct class
         reward = (
-            (F.softmax(logits, dim=-1) * label).sum(-1).log()
+            (F.softmax(logits, dim=-1) * label).sum(-1)
         )
-
 
         # Second term is acquisition cost
         acquisition_cost = acquisition_costs[afa_selection.squeeze(-1) - 1].sum()
