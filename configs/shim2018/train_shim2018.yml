@@ -10,10 +10,9 @@ agent:
   eps_end: 0.1
   eps_steps: 5000
   replay_buffer_batch_size: 128
-  replay_buffer_size: 500000
-  # num_optim: 4 # how many times to sample from replay buffer for each batch of data received
-  num_optim: 1 # how many times to sample from replay buffer for each batch of data received
-  replay_buffer_alpha: 0.0 # Disable replay buffer
+  replay_buffer_size: 512 # same as batch size because original paper does not use replay buffer
+  num_optim: 4 # how many times to sample from replay buffer for each batch of data received
+  replay_buffer_alpha: 0.0 # Disable prioritized replay buffer
   replay_buffer_beta: 0.4
 
 n_batches: 10000
