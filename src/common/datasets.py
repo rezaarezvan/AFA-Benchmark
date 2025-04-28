@@ -53,7 +53,7 @@ class CubeDataset(Dataset):
         binary_codes = torch.stack([
             torch.tensor([int(b) for b in format(i, '03b')])
             for i in range(self.n_classes)
-        ], dim=0)
+        ], dim=0).flip(-1)
         
         # Initialize feature blocks
         X_cube = torch.normal(
@@ -176,7 +176,7 @@ class AFAContextDataset(Dataset):
         binary_codes = torch.stack([
             torch.tensor([int(b) for b in format(i, '03b')])
             for i in range(self.n_classes)
-        ], dim=0)
+        ], dim=0).flip(-1)
 
         # Initialize feature blocks
         X_context = S.unsqueeze(1).float()
