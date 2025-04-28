@@ -43,7 +43,7 @@ def save_dummy_method(method_name, hard_budget, dataset_train_path, dataset_val_
         )
         # Also save a yaml file with params
         with open(
-            (args.models_folder / method_name / timestr / "params.yaml"), "w"
+            (args.models_folder / method_name / timestr / "params.yml"), "w"
         ) as f:
             f.write(f"hard_budget: {hard_budget}\n")
             f.write(f"train_dataset_path: {dataset_train_path}\n")
@@ -57,6 +57,7 @@ def main(args: argparse.Namespace):
     # Training and validation datasets should have the same type
     assert args.dataset_type == args.dataset_val_path.parent.name
 
+    print("Generating dummy methods...")
     save_dummy_method(
         "sequential_dummy",
         args.hard_budget,

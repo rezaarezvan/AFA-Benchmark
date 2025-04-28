@@ -1,12 +1,13 @@
 """
-Evaluates an AFA method (as defined in common.custom_types) on a specific dataset.
+Evaluates all trained AFA methods.
 """
 
 import argparse
-import os
+from pathlib import Path
 
 import torch
 from tqdm import tqdm
+import yaml
 
 from common.custom_types import (
     AFADataset,
@@ -73,22 +74,10 @@ def evaluator(
     }
 
 
-def eval_afa_method(args: argparse.Namespace) -> dict[str, float]:
+def eval_afa_method(afa_method: AFAMethod, dataset: AFADataset, hard_budget: int) -> dict[str, float]:
     """
-    Evaluates an AFA method on a specific dataset and returns a dictionary of metrics.
+    Evaluates an AFA method on a specific dataset and hard budget, and returns a dictionary of metrics.
     """
-
-    # Load the AFA method on the CPU
-    afa_method: AFAMethod = AFA_METHOD_REGISTRY[args.afa_method_name].load(
-        args.afa_method_path, torch.device("cpu")
-    )
-    print(f"Loaded AFA method {args.afa_method_name} from {args.afa_method_path}")
-
-    # Load the dataset
-    dataset: AFADataset = AFA_DATASET_REGISTRY[args.dataset_type].load(
-        args.dataset_val_path
-    )
-    print(f"Loaded dataset {args.dataset_type} from {args.dataset_val_path}")
 
     # Store feature mask history, label prediction history, and true label for each sample in the dataset
     feature_mask_history_all: list[list[FeatureMask]] = []
@@ -115,7 +104,7 @@ def eval_afa_method(args: argparse.Namespace) -> dict[str, float]:
         masked_features[~feature_mask] = 0.0
 
         # Let AFA method select features for a fixed number of steps
-        for _ in range(args.hard_budget):
+        for _ in range(hard_budget):
             # Always calculate a prediction
             prediction = afa_method.predict(
                 masked_features.unsqueeze(0), feature_mask.unsqueeze(0)
@@ -145,65 +134,80 @@ def eval_afa_method(args: argparse.Namespace) -> dict[str, float]:
     return eval_results
 
 
+def main(model_folder: Path, results_folder: Path, dataset_fraction_name: str):
+    # Loop through each method type in the models folder
+    for method_type_path in model_folder.iterdir():
+        method_name = method_type_path.name
+        method_cls = AFA_METHOD_REGISTRY[method_name]
+        # Loop through each trained instance
+        for trained_instance_path in method_type_path.iterdir():
+            trained_instance_name = trained_instance_path.name
+            # There should be two files in each directory: model.pt and params.yml
+
+            # model.pt can be used to load the AFA method
+            saved_model_path = trained_instance_path / "model.pt"
+            afa_method = method_cls.load(saved_model_path, torch.device("cpu"))
+            print(f"Loaded AFA method {method_name} from {trained_instance_path}")
+
+            # The params.yml file should contain the hard budget and dataset paths
+            params_path = trained_instance_path / "params.yml"
+
+            # Params file should contain the hard budget and dataset paths
+            # Open it as yaml
+            with open(params_path, "r") as file:
+                params_dict: dict = yaml.safe_load(file)
+            # Use the same hard budget during evaluation as during training
+            hard_budget = params_dict["hard_budget"]
+
+            # The dataset we want to use during evaluation should be the same split as the one used during training,
+            # but possible using a different fraction of the dataset (i.e. val or test)
+            train_dataset_path = Path(params_dict["train_dataset_path"])
+            dataset_type = train_dataset_path.parent.name
+            eval_dataset_name = train_dataset_path.name.replace("train", dataset_fraction_name)
+            eval_dataset_path = train_dataset_path.parent / eval_dataset_name
+            eval_dataset = AFA_DATASET_REGISTRY[dataset_type].load(
+                eval_dataset_path
+            )
+            print(f"Loaded dataset {dataset_type} from {eval_dataset_path}")
+
+            # Do the evaluation
+            metrics = eval_afa_method(afa_method, eval_dataset, hard_budget)
+
+            # Save the metrics to the results folder
+            (results_folder / method_name / trained_instance_name).mkdir(
+                parents=True, exist_ok=True
+            )
+
+            # Save the metrics to a .pt file
+            torch.save(
+                metrics,
+                results_folder / method_name / trained_instance_name / "results.pt",
+            )
+
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Evaluate an AFAMethod on a specific AFADataset"
+        description="Evaluate all trained AFA methods",
     )
     parser.add_argument(
-        "--afa_method_name",
+        "--models_folder",
+        type=Path,
+        default="models",
+        help="Path to the models folder",
+    )
+    parser.add_argument(
+        "--results_folder",
+        type=Path,
+        default="results",
+        help="Path to the evaluation results folder",
+    )
+    parser.add_argument(
+        "--dataset_fraction_name",
         type=str,
-        required=True,
-        help="Name of the AFAMethod to evaluate. Must be one of: "
-        + ", ".join(AFA_METHOD_REGISTRY.keys()),
+        default="val",
+        help="Which part of the dataset to use for evaluation. Commonly 'val' or 'test'",
     )
-    parser.add_argument(
-        "--afa_method_path",
-        type=str,
-        required=True,
-        help="Path that will be passed to the AFAMethod's load method. ",
-    )
-    parser.add_argument(
-        "--dataset_type",
-        type=str,
-        required=True,
-        help="Name of the AFADataset to evaluate. Must be one of: "
-        + ", ".join(AFA_DATASET_REGISTRY.keys()),
-    )
-    parser.add_argument(
-        "--dataset_val_path",
-        type=str,
-        required=True,
-        help="Path to a .pt file containing the validation AFADataset to evaluate the AFAMethod on",
-    )
-    parser.add_argument(
-        "--eval_save_path",
-        type=str,
-        required=True,
-        help="Path to a .pt file to save the evaluation results",
-    )
-    parser.add_argument(
-        "--hard_budget",
-        type=int,
-        required=True,
-        help="How many features the AFA method is allowed to select",
-    )
-
     args = parser.parse_args()
 
-    if args.afa_method_name not in AFA_METHOD_REGISTRY:
-        raise ValueError(
-            f"Method {args.afa_method_name} not in registry. Must be one of: "
-            + ", ".join(AFA_METHOD_REGISTRY.keys())
-        )
-    if args.dataset_type not in AFA_DATASET_REGISTRY:
-        raise ValueError(
-            f"Method {args.afa_dataset_type} not in registry. Must be one of: "
-            + ", ".join(AFA_DATASET_REGISTRY.keys())
-        )
-
-    eval_results = eval_afa_method(args)
-
-    # Save the metrics to a file
-    os.makedirs(os.path.dirname(args.eval_save_path), exist_ok=True)
-    torch.save(eval_results, args.eval_save_path)
-    print(f"Saved metrics to {args.eval_save_path}")
+    main(args.models_folder, args.results_folder, args.dataset_fraction_name)
