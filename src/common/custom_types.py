@@ -1,4 +1,4 @@
-from typing import Callable, Protocol
+from typing import Callable, ClassVar, Protocol
 
 from jaxtyping import Bool, Float, Integer
 from torch import Tensor
@@ -20,6 +20,9 @@ class AFADataset(Protocol):
     # Used by AFADatasetFn
     features: Features|None # batched
     labels: Label|None # batched
+
+    # Used by evaluation scripts to avoid loading the dataset
+    n_classes: ClassVar[int]
 
     def generate_data(self) -> None:
         """
