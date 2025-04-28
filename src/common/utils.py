@@ -12,3 +12,15 @@ def set_seed(seed: int):
     torch.cuda.manual_seed_all(seed)  # For multi-GPU setups
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
+
+from jaxtyping import Float, Bool
+from torch import Tensor
+
+
+def get_class_probabilities(labels: Bool[Tensor, "*batch n_classes"]) -> Float[Tensor, "n_classes"]:
+    """
+    Returns the class probabilities for a given set of labels.
+    """
+    class_counts = labels.float().sum(dim=0)
+    class_probabilities = class_counts / class_counts.sum()
+    return class_probabilities

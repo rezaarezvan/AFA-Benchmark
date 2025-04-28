@@ -12,6 +12,7 @@ from torchrl.modules import MLP
 
 import wandb
 from afa_rl.custom_types import (
+    AFAClassifier,
     Classifier,
     Embedder,
     Embedding,
@@ -178,7 +179,7 @@ class ShimEmbedderClassifier(pl.LightningModule):
         self.classifier = classifier
 
     def forward(
-        self, feature_values: MaskedFeatures, feature_mask: FeatureMask
+        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
     ) -> Tuple[Embedding, Logits]:
         """
         Args:
@@ -188,7 +189,7 @@ class ShimEmbedderClassifier(pl.LightningModule):
             embedding: the embedding of the input features
             classifier_output: the output of the classifier
         """
-        embedding = self.embedder(feature_values, feature_mask)
+        embedding = self.embedder(masked_features, feature_mask)
         classifier_output = self.classifier(embedding)
         return embedding, classifier_output
 

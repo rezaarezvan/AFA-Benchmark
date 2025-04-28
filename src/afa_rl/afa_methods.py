@@ -7,7 +7,7 @@ from torchrl.envs import ExplorationType, set_exploration_type
 from torchrl.modules import MLP, ProbabilisticActor, QValueActor
 
 from afa_rl.agents import Shim2018ValueModule, Zannone2019PolicyModule
-from afa_rl.models import PointNet, ReadProcessEncoder, ShimEmbedder, ShimMLPClassifier, Zannone2019PretrainingModel
+from afa_rl.models import PointNet, ReadProcessEncoder, ShimEmbedder, ShimEmbedderClassifier, ShimMLPClassifier, Zannone2019PretrainingModel
 from afa_rl.utils import remove_module_prefix
 from common.custom_types import AFAMethod, AFASelection, FeatureMask, Label, MaskedFeatures
 
@@ -52,13 +52,17 @@ class Shim2018AFAMethod(AFAMethod):
         self,
         device: torch.device,
         qvalue_actor: QValueActor,
-        embedder: ShimEmbedder, # reference to the embedder, even though it's already contained within the qvalue_actor
-        classifier: ShimMLPClassifier,
+        embedder_and_classifier: ShimEmbedderClassifier, # contains a reference to the embedder, even though it's already contained within the qvalue_actor
     ):
         self.device = device
+
+        # Load models, set them to eval mode and disable gradients
         self.qvalue_actor = qvalue_actor.to(self.device)
-        self.embedder = embedder.to(self.device)
-        self.classifier = classifier.to(self.device)
+        self.qvalue_actor.eval()
+        self.qvalue_actor.requires_grad_(False)
+        self.embedder_and_classifier = embedder_and_classifier.to(self.device)
+        self.embedder_and_classifier.eval()
+        self.embedder_and_classifier.requires_grad_(False)
 
     def select(
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
@@ -69,7 +73,8 @@ class Shim2018AFAMethod(AFAMethod):
         td = get_td_from_masked_features(masked_features, feature_mask)
 
         # Apply the agent's policy to the tensordict
-        with torch.no_grad(), set_exploration_type(ExplorationType.DETERMINISTIC):
+        # with torch.no_grad(), set_exploration_type(ExplorationType.DETERMINISTIC):
+        with set_exploration_type(ExplorationType.DETERMINISTIC):
             td = self.qvalue_actor(td)
 
         # Get the action from the tensordict
@@ -83,9 +88,8 @@ class Shim2018AFAMethod(AFAMethod):
         masked_features = masked_features.to(self.device)
         feature_mask = feature_mask.to(self.device)
 
-        with torch.no_grad():
-            embedding = self.embedder(masked_features, feature_mask)
-            logits = self.classifier(embedding)
+        # with torch.no_grad():
+        embedding, logits = self.embedder_and_classifier(masked_features, feature_mask)
         probs: Label = logits.softmax(dim=-1)
         return probs
 
@@ -93,8 +97,7 @@ class Shim2018AFAMethod(AFAMethod):
         torch.save(
             {
                 "qvalue_actor": self.qvalue_actor.cpu(),
-                "embedder": self.embedder.cpu(),
-                "classifier": self.classifier.cpu(),
+                "embedder_and_classifier": self.embedder_and_classifier.cpu(),
             },
             path,
         )
@@ -107,14 +110,12 @@ class Shim2018AFAMethod(AFAMethod):
         data = torch.load(path, weights_only=False, map_location=device)
 
         qvalue_actor = data["qvalue_actor"].to(device)
-        embedder = data["embedder"].to(device)
-        classifier = data["classifier"].to(device)
+        embedder_and_classifier = data["embedder_and_classifier"].to(device)
 
         return Shim2018AFAMethod(
             device=device,
             qvalue_actor=qvalue_actor,
-            embedder=embedder,
-            classifier=classifier,
+            embedder_and_classifier=embedder_and_classifier,
         )
 
 

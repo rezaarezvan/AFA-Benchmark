@@ -12,7 +12,7 @@ type State = Float[
 ]  # A state is a concatenation of feature values and feature indices
 type Embedding = Float[Tensor, "*batch embedding_size"]
 type FeatureSet = Float[
-    Tensor, "batch n_features set_size"
+    Tensor, "*batch n_features set_size"
 ]  # A feature set is the set version of State. Each element-index tuple becomes a vector.
 
 
@@ -38,6 +38,12 @@ class Classifier(nn.Module, ABC):
 
     def __call__(self, embedding: Embedding) -> Logits:
         return super().__call__(embedding)
+
+class AFAClassifier(Protocol):
+    """
+    A function that returns class logits given a set of features and a feature mask.
+    """
+    def __call__(self, masked_features: MaskedFeatures, feature_mask: FeatureMask) -> Logits: ...
 
 
 class AFADatasetFn(Protocol):

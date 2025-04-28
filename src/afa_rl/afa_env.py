@@ -10,6 +10,7 @@ from torchrl.data import Binary, Categorical, Composite, Unbounded
 from torchrl.envs import EnvBase
 
 from afa_rl.custom_types import (
+    AFAClassifier,
     AFADatasetFn,
     Classifier,
     Embedder,
@@ -479,6 +480,38 @@ def get_shim2018_reward_fn(
 
         # If AFA continues, reward is negative acquisition cost
         reward[~is_done] = -acquisition_costs[afa_selection[~is_done].squeeze(-1) - 1]
+
+        return reward
+
+    return f
+
+def get_common_reward_fn(
+    classifier: AFAClassifier,
+    loss_fn: Callable[[Logits, Label], AFAReward]
+) -> AFARewardFn:
+    """
+    A standard AFA-RL reward function where the only reward the agent receives is the negative
+    classification loss at the end.
+    """
+
+    def f(
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        new_masked_features: MaskedFeatures,
+        new_feature_mask: FeatureMask,
+        afa_selection: AFASelection,
+        features: Features,
+        label: Label,
+    ) -> AFAReward:
+        is_done = afa_selection == 0
+        reward = torch.zeros_like(afa_selection, dtype=torch.float32)
+
+        # If AFA stops, reward is negative loss
+        logits = classifier(masked_features[is_done], feature_mask[is_done])
+        reward[is_done] = -loss_fn(
+            logits,
+            label[is_done],
+        )
 
         return reward
 

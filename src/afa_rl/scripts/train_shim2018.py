@@ -1,6 +1,8 @@
 import argparse
+from functools import partial
 
 import torch
+from torch import Tensor
 import yaml
 from torch import optim
 from torch.nn import functional as F
@@ -9,17 +11,22 @@ from torchrl.envs import ExplorationType, set_exploration_type
 from tqdm import tqdm
 
 import wandb
-from afa_rl.afa_env import AFAEnv, get_shim2018_reward_fn
+from afa_rl.afa_env import AFAEnv, Float, get_common_reward_fn, get_shim2018_reward_fn
 from afa_rl.afa_methods import Shim2018AFAMethod
 from afa_rl.agents import Shim2018Agent
+from afa_rl.custom_types import AFAClassifier, Logits
 from afa_rl.datasets import get_afa_dataset_fn
+from afa_rl.models import ShimEmbedderClassifier
 from afa_rl.scripts.pretrain_shim2018 import get_shim2018_model_from_config
 from afa_rl.utils import dict_to_namespace, get_sequential_module_norm
 from common.custom_types import (
     AFADataset,
+    MaskedFeatures,
+    FeatureMask,
 )
 from common.registry import AFA_DATASET_REGISTRY
 from common.utils import set_seed
+from common.utils import get_class_probabilities
 
 
 def check_embedder_and_classifier(embedder_and_classifier, dataset: AFADataset):
@@ -189,6 +196,19 @@ def get_eval_metrics(agent, eval_env, train_config, device, classifier, embedder
 
     return eval_metrics
 
+class Shim2018AFAClassifier(AFAClassifier):
+    """
+    An adapter for the AFAClassifier interface to be used with the reward function.
+    """
+    def __init__(self, embedder_and_classifier: ShimEmbedderClassifier):
+        # Direct reference to the embedder and classifier
+        self.embedder_and_classifier: ShimEmbedderClassifier = embedder_and_classifier
+
+    def __call__(self, masked_features: MaskedFeatures, feature_mask: FeatureMask) -> Logits:
+        with torch.no_grad():
+            embedding, logits = self.embedder_and_classifier.forward(masked_features, feature_mask)
+        return logits
+
 
 def main(args: argparse.Namespace):
     set_seed(args.seed)
@@ -238,15 +258,22 @@ def main(args: argparse.Namespace):
     # Check that embedder+classifier indeed have decent performance
     check_embedder_and_classifier(embedder_and_classifier, val_dataset)
 
-    reward_fn = get_shim2018_reward_fn(
-        embedder=embedder,
-        classifier=classifier,
-        acquisition_costs=train_config.acquisition_cost
-        * torch.ones(
-            (n_features,),
-            dtype=torch.float32,
-            device=device,
-        ),
+    # The RL reward function depends on a specific AFAClassifier
+
+    # reward_fn = get_shim2018_reward_fn(
+    #     embedder=embedder,
+    #     classifier=classifier,
+    #     acquisition_costs=train_config.acquisition_cost
+    #     * torch.ones(
+    #         (n_features,),
+    #         dtype=torch.float32,
+    #         device=device,
+    #     ),
+    # )
+
+    reward_fn = get_common_reward_fn(
+        Shim2018AFAClassifier(embedder_and_classifier),
+        loss_fn=partial(F.cross_entropy, weight=1/get_class_probabilities(train_dataset.labels)),
     )
 
     # MDP expects special dataset functions
@@ -342,13 +369,21 @@ def main(args: argparse.Namespace):
 
         run.finish()
 
+        # Check that embedder+classifier still have decent performance
+        check_embedder_and_classifier(embedder_and_classifier, val_dataset)
+
         # Convert the embedder+agent to an AFAMethod and save it
         afa_method = Shim2018AFAMethod(
-            device, agent.value_network, embedder, classifier
+            device, agent.value_network, embedder_and_classifier,
         )
         afa_method.save(args.afa_method_path)
         print(f"Shim2018AFAMethod saved to {args.afa_method_path / "model.pt"}")
         # Save params.yml file
+
+        # Now load the method
+        afa_method = Shim2018AFAMethod.load(args.afa_method_path, device)
+        # Extract the classifier and embedder and check that they still have decent performance
+        check_embedder_and_classifier(afa_method.embedder_and_classifier, val_dataset)
 
 
 if __name__ == "__main__":
