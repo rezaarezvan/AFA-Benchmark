@@ -16,6 +16,8 @@ class CubeDataset(Dataset):
     Implements the AFADataset protocol.
     """
 
+    n_classes = 8
+
     def __init__(
         self,
         n_features: int = 20,
@@ -131,6 +133,9 @@ class AFAContextDataset(Dataset):
 
     Implements the AFADataset protocol.
     """
+    
+    n_classes = 8
+
     def __init__(
         self,
         n_samples: int = 1000,
@@ -283,6 +288,9 @@ class MNISTDataset(Dataset):
     """
     MNIST dataset wrapped to follow the AFADataset protocol.
     """
+    
+    n_classes = 10
+
     def __init__(
         self,
         train: bool = True,
@@ -354,6 +362,9 @@ class DiabetesDataset(Dataset):
     This dataset contains medical measurements and indicators for diabetes classification.
     The target variable has 3 classes (0, 1, 2) representing different diabetes outcomes.
     """
+    
+    n_classes = 3
+
     def __init__(
         self,
         data_path: str = "datasets/diabetes.csv",
@@ -441,6 +452,9 @@ class PhysionetDataset(Dataset):
     This dataset contains medical measurements from ICU patients.
     The target variable has 2 classes (0, 1) representing different outcomes.
     """
+
+    n_classes = 2
+
     def __init__(
         self,
         data_path: str = "datasets/physionet_data.csv",
