@@ -9,6 +9,7 @@ from tqdm import tqdm
 import os
 
 from afa_rl.afa_methods import RandomDummyAFAMethod, SequentialDummyAFAMethod
+from common.registry import AFA_DATASET_REGISTRY
 
 
 def main(args: argparse.Namespace):
@@ -55,7 +56,8 @@ if __name__ == "__main__":
         "--dataset_type",
         type=str,
         required=True,
-        help="Name of the dataset",
+        choices=AFA_DATASET_REGISTRY.keys(),
+        help="Name of the dataset (must be one of the registered types)",
     )
     parser.add_argument(
         "--n_classes",

@@ -81,7 +81,7 @@ def train_log(run, agent_loss, td, agent, classifier, embedder, batch_idx):
                 agent.value_module.net
             ),
             "train/classifier_norm": get_sequential_module_norm(classifier.mlp),
-            "train/embedder_norm~": get_sequential_module_norm(
+            "train/embedder_norm": get_sequential_module_norm(
                 embedder.encoder.write_block
             ),
             "train/eps": agent.egreedy_module.eps.item(),
@@ -112,7 +112,7 @@ def eval_log(run, eval_metrics, batch_idx):
             "eval/predicted_class": wandb.Histogram(
                 eval_metrics["predicted_classes"].cpu().numpy(),
             ),
-            "eval/reward": eval_metrics["reward"].mean().item(),
+            "eval/reward sum": eval_metrics["reward sum"].mean().item(),
             "eval/traj_len": eval_metrics["traj_len"]
             .float()
             .mean()
@@ -141,7 +141,7 @@ def get_eval_metrics(agent, eval_env, train_config, device, classifier, embedder
             dtype=torch.int64,
             device=device,
         ),
-        "reward": torch.zeros(
+        "reward sum": torch.zeros(
             train_config.eval_episodes,
             dtype=torch.float32,
             device=device,
@@ -179,9 +179,9 @@ def get_eval_metrics(agent, eval_env, train_config, device, classifier, embedder
         eval_metrics["is_correct_class"][eval_episode] = (
             predicted_class == td_eval["label"][-1].argmax(dim=-1)
         )
-        eval_metrics["reward"][eval_episode] = td_eval[
+        eval_metrics["reward sum"][eval_episode] = td_eval[
             "next", "reward"
-        ].mean()
+        ].sum()
         eval_metrics["traj_len"][eval_episode] = len(td_eval)
     # Reset the action spec of the agent to the train env action spec
     agent.egreedy_module._spec = train_env.action_spec
@@ -320,8 +320,7 @@ def main(args: argparse.Namespace):
             embedder_classifier_optim.step()
 
             # Logging
-            if args.verbose:
-                train_log(run, agent_loss, td, agent, classifier, embedder, batch_idx)
+            train_log(run, agent_loss, td, agent, classifier, embedder, batch_idx)
 
             if batch_idx != 0 and batch_idx % train_config.eval_every_n_batches == 0:
                 with (
@@ -365,7 +364,6 @@ if __name__ == "__main__":
     parser.add_argument("--dataset_val_path", type=str, required=True)
     parser.add_argument("--pretrained_model_path", type=str, required=True)
     parser.add_argument("--afa_method_path", type=str, required=True)
-    parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
     args = parser.parse_args()
 
     main(args)

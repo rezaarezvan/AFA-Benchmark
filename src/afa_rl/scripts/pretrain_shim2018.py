@@ -3,6 +3,7 @@ import os
 from types import SimpleNamespace
 
 import lightning as pl
+from lightning.pytorch.callbacks import ModelCheckpoint
 import torch
 import yaml
 from lightning.pytorch.loggers import WandbLogger
@@ -66,10 +67,14 @@ def main(args: argparse.Namespace):
     model = get_shim2018_model_from_config(config, n_features, n_classes)
     model = model.to(config.device)
 
-    run = wandb.init(
-        entity=config_dict["wandb"]["entity"],
-        project=config_dict["wandb"]["project"],
-        config=config_dict,
+
+    # ModelCheckpoint callback
+    checkpoint_callback = ModelCheckpoint(
+        monitor="val_loss",  # Replace "val_loss" with the appropriate validation metric
+        save_top_k=1,
+        mode="min",
+        dirpath="models",  # Directory to save checkpoints
+        filename="best-checkpoint"
     )
 
     logger = WandbLogger(project=config.wandb.project, save_dir="logs/afa_rl")
@@ -81,6 +86,13 @@ def main(args: argparse.Namespace):
         # strategy="ddp",
         # accelerator=config.device,
         devices=1,  # Use only 1 GPU
+        callbacks=[checkpoint_callback],
+    )
+
+    run = wandb.init(
+        entity=config_dict["wandb"]["entity"],
+        project=config_dict["wandb"]["project"],
+        config=config_dict,
     )
     try:
         trainer.fit(model, datamodule)

@@ -115,20 +115,22 @@ def eval_afa_method(args: argparse.Namespace) -> dict[str, float]:
 
         # Start with all features unobserved
         feature_mask = torch.zeros_like(features, dtype=torch.bool)
+        masked_features = features.clone()
+        masked_features[~feature_mask] = 0.0
 
         # Let AFA method select features until it chooses to stop
         # or until all features are observed
         while True:
             # Always calculate a prediction
             prediction = afa_method.predict(
-                features.unsqueeze(0), feature_mask.unsqueeze(0)
+                masked_features.unsqueeze(0), feature_mask.unsqueeze(0)
             ).squeeze(0)
 
             prediction_history.append(prediction)
 
             # Select new features or stop
             selection = afa_method.select(
-                features.unsqueeze(0), feature_mask.unsqueeze(0)
+                masked_features.unsqueeze(0), feature_mask.unsqueeze(0)
             ).squeeze(0)
 
             # If the AFA method chooses to stop, break
@@ -137,6 +139,7 @@ def eval_afa_method(args: argparse.Namespace) -> dict[str, float]:
 
             # Otherwise, update the feature mask
             feature_mask[selection - 1] = True
+            masked_features[~feature_mask] = 0.0
             feature_mask_history.append(feature_mask.clone())
 
             # If all features have been selected, stop

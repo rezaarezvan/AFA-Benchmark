@@ -108,7 +108,7 @@ def get_eval_metrics(train_config, eval_env, agent, pretrained_model):
             dtype=torch.int64,
             device=train_config.device,
         ),
-        "reward": torch.zeros(
+        "reward sum": torch.zeros(
             train_config.eval_episodes,
             dtype=torch.float32,
             device=train_config.device,
@@ -142,7 +142,7 @@ def get_eval_metrics(train_config, eval_env, agent, pretrained_model):
         eval_metrics["is_correct_class"][eval_episode] = predicted_class == td_eval[
             "label"
         ][-1].argmax(dim=-1)
-        eval_metrics["reward"][eval_episode] = td_eval["next", "reward"].mean()
+        eval_metrics["reward sum"][eval_episode] = td_eval["next", "reward"].sum()
         eval_metrics["traj_len"][eval_episode] = len(td_eval)
     return eval_metrics
 
@@ -158,7 +158,7 @@ def eval_log(run, eval_metrics, batch_idx):
             "eval/predicted_class": wandb.Histogram(
                 eval_metrics["predicted_classes"].cpu().numpy(),
             ),
-            "eval/reward": eval_metrics["reward"].mean().item(),
+            "eval/reward sum": eval_metrics["reward sum"].mean().item(),
             "eval/traj_len": eval_metrics["traj_len"].float().mean().item(),
             "eval/batch_idx": batch_idx,
         }
@@ -178,13 +178,6 @@ def main(args):
     train_config = dict_to_namespace(train_config_dict)
     device = torch.device(train_config.device)
 
-    assert (
-        train_config.n_generative_samples % train_config.generative_batch_size == 0
-    ), (
-        "Number of generative samples must be divisible by the generative batch size"
-        f" (n_generative_samples: {train_config.n_generative_samples}, generative_batch_size: {train_config.generative_batch_size})"
-    )
-
     # Load datasets
     train_dataset: AFADataset = AFA_DATASET_REGISTRY[args.dataset_type].load(
         args.dataset_train_path
@@ -192,6 +185,7 @@ def main(args):
     val_dataset: AFADataset = AFA_DATASET_REGISTRY[args.dataset_type].load(
         args.dataset_val_path
     )
+    print(f"Old dataset size: {train_dataset.features.shape[0]}")
 
     # Get the number of features and classes from the dataset
     n_features = train_dataset.features.shape[-1]
@@ -230,10 +224,11 @@ def main(args):
     print(f"Val accuracy (100% mask): {val_acc_100:.4f}")
 
     # Generate data from generative model, using specified batch size
+    # Always generate as much data as the original dataset, making it twice as large
     xhats = []
     yhats = []
     for _ in range(
-        train_config.n_generative_samples // train_config.generative_batch_size
+        len(train_dataset) // train_config.generative_batch_size
     ):
         z = torch.randn(
             train_config.generative_batch_size, pretrain_config.partial_vae.latent_size
@@ -245,8 +240,27 @@ def main(args):
         with torch.no_grad():
             yhat = F.softmax(pretrained_model.classifier(z.to(pretrained_model.device)), -1).cpu()
         yhats.append(yhat)
+    # There might be a remainder, so we need to pad the last batch
+    if len(train_dataset) % train_config.generative_batch_size != 0:
+        z = torch.randn(
+            len(train_dataset) % train_config.generative_batch_size,
+            pretrain_config.partial_vae.latent_size,
+        )
+        with torch.no_grad():
+            xhat = pretrained_model.partial_vae.decoder(z.to(pretrained_model.device)).cpu()
+        xhats.append(xhat)
+        # Predicted labels, keeping all probabilities!
+        with torch.no_grad():
+            yhat = F.softmax(pretrained_model.classifier(z.to(pretrained_model.device)), -1).cpu()
+        yhats.append(yhat)
+
     xhats = torch.cat(xhats, dim=0)
     yhats = torch.cat(yhats, dim=0)
+
+    # Shuffle xhats and yhats
+    indices = torch.randperm(xhats.shape[0])
+    xhats = xhats[indices]
+    yhats = yhats[indices]
 
     # Check what the performance is on the generated data
     gen_acc_50 = get_pretrained_model_accuracy(
@@ -263,13 +277,13 @@ def main(args):
     assert train_dataset.labels is not None
     combined_train_features = torch.cat((train_dataset.features, xhats), dim=0)
     combined_train_labels = torch.cat((train_dataset.labels, yhats), dim=0)
+    print(f"New dataset size: {combined_train_features.shape[0]}")
 
     # Zannone2019 reward function
     reward_fn = get_zannone2019_reward_fn(
         partial_vae=pretrained_model.partial_vae,
         classifier=pretrained_model.classifier,
-        acquisition_costs=train_config.acquisition_cost
-        * torch.ones(n_features, dtype=torch.float32, device=device),
+        acquisition_cost=train_config.acquisition_cost,
     )
 
     # MDP expects special dataset functions
@@ -331,8 +345,7 @@ def main(args):
             agent_loss = agent.process_batch(td)
 
             # Logging
-            if args.verbose:
-                train_log(run, td, agent, agent_loss, batch_idx)
+            train_log(run, td, agent, agent_loss, batch_idx)
 
             # Evaluation sometimes
             if batch_idx != 0 and batch_idx % train_config.eval_every_n_batches == 0:
@@ -375,7 +388,6 @@ if __name__ == "__main__":
     parser.add_argument("--dataset_val_path", type=str, required=True)
     parser.add_argument("--pretrained_model_path", type=str, required=True)
     parser.add_argument("--afa_method_path", type=str, required=True)
-    parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
     args = parser.parse_args()
 
     main(args)

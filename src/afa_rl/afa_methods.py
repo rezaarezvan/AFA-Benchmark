@@ -23,13 +23,13 @@ def get_td_from_masked_features(
     - "feature_mask"
     from the masked features and the feature mask.
     """
-    # The action mask is almost the same as the feature mask but with one extra element
+    # The action mask is almost the same as the negated feature mask but with one extra element
     action_mask = torch.ones(
         masked_features.shape[0],
         masked_features.shape[1] + 1,
         dtype=torch.bool,
     )
-    action_mask[:, 1:] = feature_mask
+    action_mask[:, 1:] = ~feature_mask
 
     td = TensorDict(
         {

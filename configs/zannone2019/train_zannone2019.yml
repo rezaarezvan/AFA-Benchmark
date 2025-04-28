@@ -1,9 +1,9 @@
 device: "cuda"
-generative_batch_size: 50
-n_generative_samples: 1000
+generative_batch_size: 128
+# n_generative_samples: 1000
 
-# acquisition_cost: 0.05
-acquisition_cost: 0.001
+acquisition_cost: 0.05
+# acquisition_cost: 0.08
 n_batches: 10000
 n_agents: 128
 batch_size: 512
@@ -16,6 +16,6 @@ wandb:
   entity: "valterschutz-chalmers-university-of-technology"
   project: "train-zannone2019"
 
-eval_episodes: 10
+eval_episodes: 100
 eval_max_steps: 30
 eval_every_n_batches: 1000

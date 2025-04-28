@@ -1,5 +1,4 @@
 epochs: 1000
-checkpoint_path: "models/zannone2019/pretrain_zannone2019_cube.ckpt"
 lr: 0.001
 verbose: False
 max_masking_probability: 0.9
@@ -24,7 +23,9 @@ partial_vae:
   decoder_num_cells: [200, 500, 500] # EDDI paper
 classifier:
   num_cells: [64, 64] # just a guess
+
 wandb:
   entity: "valterschutz-chalmers-university-of-technology"
   project: "pretrain-zannone2019-cube"
+
 device: "cuda"
