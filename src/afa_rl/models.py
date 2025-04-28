@@ -16,7 +16,6 @@ from afa_rl.custom_types import (
     Classifier,
     Embedder,
     Embedding,
-    Label,
     Logits,
     NaiveIdentityFn,
 )
@@ -24,7 +23,7 @@ from afa_rl.utils import (
     get_feature_set,
     mask_data,
 )
-from common.custom_types import FeatureMask, Features, MaskedFeatures
+from common.custom_types import FeatureMask, Features, MaskedFeatures, Label
 
 
 class ReadProcessEncoder(pl.LightningModule):
@@ -171,12 +170,14 @@ class ShimEmbedderClassifier(pl.LightningModule):
     A module that combines the ShimEncoder with a classifier for pretraining.
     """
 
-    def __init__(self, embedder: ShimEmbedder, classifier: ShimMLPClassifier, lr=1e-3):
+    def __init__(self, embedder: ShimEmbedder, classifier: ShimMLPClassifier, class_probabilities: Float[Tensor, "n_classes"], lr=1e-3):
         super().__init__()
         self.save_hyperparameters(ignore=["embedder", "classifier"])
         self.lr = lr
         self.embedder = embedder
         self.classifier = classifier
+        self.class_weight = 1 / class_probabilities
+        self.class_weight = self.class_weight / torch.sum(self.class_weight)
 
     def forward(
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
@@ -203,7 +204,7 @@ class ShimEmbedderClassifier(pl.LightningModule):
         )
         feature_values[feature_mask == 0] = 0
         _, y_hat = self(feature_values, feature_mask)
-        loss = F.cross_entropy(y_hat, y)
+        loss = F.cross_entropy(y_hat, y, weight=self.class_weight.to(y_hat.device))
         self.log("train_loss", loss)
         return loss
 
@@ -220,7 +221,7 @@ class ShimEmbedderClassifier(pl.LightningModule):
         feature_values[feature_mask == 0] = 0
 
         _, y_hat = self(feature_values, feature_mask)
-        loss = F.cross_entropy(y_hat, y)
+        loss = F.cross_entropy(y_hat, y, weight=self.class_weight.to(y_hat.device))
         self.log("val_loss", loss)
 
         y_pred = torch.argmax(y_hat, dim=1)
@@ -353,7 +354,6 @@ class PartialVAE(nn.Module):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        deterministic=False,
     ):
         pointnet_output = self.pointnet(masked_features, feature_mask)
         encoding = self.encoder(pointnet_output)
@@ -361,10 +361,7 @@ class PartialVAE(nn.Module):
         mu = encoding[:, : encoding.shape[1] // 2]
         logvar = encoding[:, encoding.shape[1] // 2 :]
         std = torch.exp(0.5 * logvar)
-        if deterministic:
-            z = mu
-        else:
-            z = mu + std * torch.randn_like(std)
+        z = mu + std * torch.randn_like(std)
 
         return encoding, mu, logvar, z
 
@@ -385,6 +382,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         classifier: nn.Module,
         lr: float,
         max_masking_probability: float,
+        class_probabilities: Float[Tensor, "n_classes"],
         validation_masking_probability=0.0,
         verbose=False,
         kl_scaling_factor=1e-3,
@@ -395,6 +393,8 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         self.classifier = classifier
         self.lr = lr
         self.max_masking_probability = max_masking_probability
+        self.class_weights = 1 / class_probabilities
+        self.class_weights = self.class_weights / torch.sum(self.class_weights)
         self.validation_masking_probability = validation_masking_probability
         self.verbose = verbose
         self.kl_scaling_factor = kl_scaling_factor
@@ -429,8 +429,8 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         self.log("train_loss_vae", partial_vae_loss, sync_dist=True)
 
         # Pass the encoding through the classifier
-        classifier_output = self.classifier(z)  # TODO: mu might also work
-        classifier_loss = F.cross_entropy(classifier_output, label.float())
+        logits = self.classifier(z)  # TODO: mu might also work
+        classifier_loss = F.cross_entropy(logits, label.float(), weight=self.class_weights.to(logits.device))
         self.log("train_loss_classifier", classifier_loss, sync_dist=True)
 
         total_loss = partial_vae_loss + classifier_loss
@@ -458,7 +458,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
 
         # Pass the encoding through the classifier
         logits = self.classifier(z)
-        classifier_loss = F.cross_entropy(logits, label.float())
+        classifier_loss = F.cross_entropy(logits, label.float(), weight=self.class_weights.to(logits.device))
         self.log("val_loss_classifier", classifier_loss, sync_dist=True)
 
         # For validation, additionally calculate accuracy

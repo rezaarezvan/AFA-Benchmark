@@ -1,10 +1,12 @@
 import argparse
+from jaxtyping import Float
 import os
 from types import SimpleNamespace
 
 import lightning as pl
 from lightning.pytorch.callbacks import ModelCheckpoint
 import torch
+from torch import Tensor
 import yaml
 from lightning.pytorch.loggers import WandbLogger
 
@@ -19,9 +21,10 @@ from afa_rl.utils import dict_to_namespace
 from common.custom_types import AFADataset
 from afa_rl.datasets import DataModuleFromDatasets
 from common.registry import AFA_DATASET_REGISTRY
+from common.utils import get_class_probabilities
 
 
-def get_shim2018_model_from_config(config: SimpleNamespace, n_features: int, n_classes: int):
+def get_shim2018_model_from_config(config: SimpleNamespace, n_features: int, n_classes: int, class_probabiities: Float[Tensor, "n_classes"]):
     encoder = ReadProcessEncoder(
         feature_size=n_features + 1,  # state contains one value and one index
         output_size=config.encoder.output_size,
@@ -35,7 +38,10 @@ def get_shim2018_model_from_config(config: SimpleNamespace, n_features: int, n_c
         config.encoder.output_size, n_classes, config.classifier.num_cells
     )
     model = ShimEmbedderClassifier(
-        embedder=embedder, classifier=classifier, lr=config.embedder_classifier.lr
+        embedder=embedder,
+        classifier=classifier,
+        class_probabilities=class_probabiities,
+        lr=config.embedder_classifier.lr
     )
     return model
 
@@ -64,7 +70,9 @@ def main(args: argparse.Namespace):
     n_classes = train_dataset.labels.shape[-1]
 
 
-    model = get_shim2018_model_from_config(config, n_features, n_classes)
+    train_class_probabilities = get_class_probabilities(train_dataset.labels)
+    print(f"Class probabilities in training set: {train_class_probabilities}")
+    model = get_shim2018_model_from_config(config, n_features, n_classes, train_class_probabilities)
     model = model.to(config.device)
 
 

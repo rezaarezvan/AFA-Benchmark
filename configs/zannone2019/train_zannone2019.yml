@@ -1,16 +1,19 @@
 device: "cuda"
 generative_batch_size: 128
-# n_generative_samples: 1000
 
-acquisition_cost: 0.05
-# acquisition_cost: 0.08
-n_batches: 10000
+n_batches: 20000
 n_agents: 128
 batch_size: 512
 
 agent:
   lr: 0.001
-  # update_tau: 0.01
+  lmbda: 0.5
+  clip_epsilon: 0.2
+  entropy_bonus: True
+  entropy_coef: 0.01
+
+env:
+  hard_budget: 10
 
 wandb:
   entity: "valterschutz-chalmers-university-of-technology"

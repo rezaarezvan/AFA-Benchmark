@@ -1,16 +1,19 @@
 import argparse
+import copy
+from functools import partial
 
 import torch
 import yaml
 from torch.nn import functional as F
 from torchrl.collectors import SyncDataCollector
-from torchrl.envs import ExplorationType, set_exploration_type
+from torchrl.envs import ExplorationType, check_env_specs, set_exploration_type
 from tqdm import tqdm
 
 import wandb
-from afa_rl.afa_env import AFAEnv, get_zannone2019_reward_fn
+from afa_rl.afa_env import AFAEnv, get_common_reward_fn
 from afa_rl.afa_methods import Zannone2019AFAMethod
 from afa_rl.agents import Zannone2019Agent
+from afa_rl.custom_types import AFAClassifier, Logits
 from afa_rl.datasets import get_afa_dataset_fn
 from afa_rl.models import (
     Zannone2019PretrainingModel,
@@ -19,10 +22,13 @@ from afa_rl.scripts.pretrain_zannone2019 import get_zannone2019_model_from_confi
 from afa_rl.utils import dict_to_namespace, get_sequential_module_norm
 from common.custom_types import (
     AFADataset,
+    FeatureMask,
     Features,
     Label,
+    MaskedFeatures,
 )
 from common.registry import AFA_DATASET_REGISTRY
+from common.utils import get_class_probabilities
 
 
 def get_pretrained_model_accuracy(
@@ -39,7 +45,7 @@ def get_pretrained_model_accuracy(
     """
 
     # Sample n_samples from the train and val datasets
-    indices = torch.randint(0, features.shape[0], (n_samples,))
+    indices = torch.randperm(features.shape[0])[:n_samples]
     sampled_features = features[indices]
     sampled_labels = labels[indices]
     # Create a feature mask with mask_probability
@@ -68,25 +74,11 @@ def train_log(run, td, agent, agent_loss, batch_idx):
             # "train/action": td["action"].item(),
             "train/reward": td["next", "reward"].mean().item(),
             # "train/episode_idx": episode_idx,
-            "train/acquired_features": td["feature_mask"][
-                td["next", "done"].squeeze(-1)
-            ]
-            .sum(dim=-1)
-            .float()
-            .mean()
-            .item(),
-            # "train/accuracy": td["label"][td["next", "done"].squeeze(-1)]
-            # .argmax(dim=-1)
-            # .eq(td["next", "predicted_class"][td["next", "done"].squeeze(-1)])
-            # .float()
-            # .mean()
-            # .item(),
-            # "train/replay buffer size": len(agent.replay_buffer),
-            "train/agent_value_net_norm": get_sequential_module_norm(
-                agent.value_module.net
+            "train/agent_value_head_norm": get_sequential_module_norm(
+                agent.value_head.net
             ),
-            "train/agent_policy_net_norm": get_sequential_module_norm(
-                agent.policy_module.net
+            "train/agent_policy_head_norm": get_sequential_module_norm(
+                agent.policy_head.net
             ),
             "train/batch_idx": batch_idx,
         }
@@ -124,9 +116,8 @@ def get_eval_metrics(train_config, eval_env, agent, pretrained_model):
     ):
         # Evaluate agent
         td_eval = eval_env.rollout(
-            max_steps=train_config.eval_max_steps, policy=agent.policy
+            max_steps=9001, policy=agent.policy
         )
-        # TODO: decide whether rollouts can be longer than n_features
         # Squeeze batch dimension
         td_eval = td_eval.squeeze(0)
         # Calculate acquired features
@@ -164,6 +155,54 @@ def eval_log(run, eval_metrics, batch_idx):
         }
     )
 
+def check_pretrained_model_accuracy(pretrained_model, train_dataset, val_dataset, gen_features, gen_labels) -> None:
+    train_acc_50 = get_pretrained_model_accuracy(
+        pretrained_model, train_dataset.features, train_dataset.labels, 0.5, n_samples=len(train_dataset)
+    )
+    train_acc_100 = get_pretrained_model_accuracy(
+        pretrained_model, train_dataset.features, train_dataset.labels, 0.0, n_samples=len(train_dataset)
+    )
+    val_acc_50 = get_pretrained_model_accuracy(
+        pretrained_model, val_dataset.features, val_dataset.labels, 0.5, n_samples=len(val_dataset)
+    )
+    val_acc_100 = get_pretrained_model_accuracy(
+        pretrained_model, val_dataset.features, val_dataset.labels, 0.0, n_samples=len(val_dataset)
+    )
+    gen_acc_50 = get_pretrained_model_accuracy(
+        pretrained_model, gen_features, gen_labels, 0.5, n_samples=len(gen_features)
+    )
+    gen_acc_100 = get_pretrained_model_accuracy(
+        pretrained_model, gen_features, gen_labels, 0.0, n_samples=len(gen_features)
+    )
+    print(f"Train accuracy (50% mask): {train_acc_50:.4f}")
+    print(f"Train accuracy (100% mask): {train_acc_100:.4f}")
+    print(f"Val accuracy (50% mask): {val_acc_50:.4f}")
+    print(f"Val accuracy (100% mask): {val_acc_100:.4f}")
+    print(f"Gen accuracy (50% mask): {gen_acc_50:.4f}")
+    print(f"Gen accuracy (100% mask): {gen_acc_100:.4f}")
+
+class Zannone2019AFAClassifier(AFAClassifier):
+    def __init__(self, model: Zannone2019PretrainingModel):
+        self.model = model
+
+    def __call__(self, masked_features: MaskedFeatures, feature_mask: FeatureMask) -> Logits:
+        with torch.no_grad():
+            encoding, mu, logvar, z = self.model.partial_vae.encode(
+                masked_features, feature_mask
+            )
+            logits = self.model.classifier(mu)
+        return logits
+
+def assert_deterministic_pretrained_model(pretrained_model, features):
+    z1 = pretrained_model.partial_vae.encoder(features.to(pretrained_model.device), torch.ones_like(features).to(pretrained_model.device))
+    mu1 = z1[:, :z1.shape[1] // 2]
+    logits1 = pretrained_model.classifier(mu1)
+    z2 = pretrained_model.partial_vae.encoder(features.to(pretrained_model.device), torch.ones_like(features).to(pretrained_model.device))
+    mu2 = z2[:, :z2.shape[1] // 2]
+    logits2 = pretrained_model.classifier(mu2)
+    assert torch.allclose(z1, z2)
+    assert torch.allclose(logits1, logits2)
+
 
 def main(args):
     torch.set_float32_matmul_precision("medium")
@@ -191,9 +230,11 @@ def main(args):
     n_features = train_dataset.features.shape[-1]
     n_classes = train_dataset.labels.shape[-1]
 
+    class_probabilities = get_class_probabilities(train_dataset.labels)
+
 
     # Init pretrained model
-    pretrained_model = get_zannone2019_model_from_config(pretrain_config, n_features, n_classes)
+    pretrained_model = get_zannone2019_model_from_config(pretrain_config, n_features, n_classes, class_probabilities)
     # Load checkpoint
     pretrained_model_checkpoint = torch.load(
         args.pretrained_model_path, weights_only=True
@@ -204,24 +245,8 @@ def main(args):
     pretrained_model.requires_grad_(False)
     pretrained_model.eval()
 
-
-    # Verify that the model has decent performance on the datasets
-    train_acc_50 = get_pretrained_model_accuracy(
-        pretrained_model, train_dataset.features, train_dataset.labels, 0.5, n_samples=len(train_dataset)
-    )
-    train_acc_100 = get_pretrained_model_accuracy(
-        pretrained_model, train_dataset.features, train_dataset.labels, 0.0, n_samples=len(train_dataset)
-    )
-    val_acc_50 = get_pretrained_model_accuracy(
-        pretrained_model, val_dataset.features, val_dataset.labels, 0.5, n_samples=len(val_dataset)
-    )
-    val_acc_100 = get_pretrained_model_accuracy(
-        pretrained_model, val_dataset.features, val_dataset.labels, 0.0, n_samples=len(val_dataset)
-    )
-    print(f"Train accuracy (50% mask): {train_acc_50:.4f}")
-    print(f"Train accuracy (100% mask): {train_acc_100:.4f}")
-    print(f"Val accuracy (50% mask): {val_acc_50:.4f}")
-    print(f"Val accuracy (100% mask): {val_acc_100:.4f}")
+    # We want a deterministic model
+    assert_deterministic_pretrained_model(pretrained_model, val_dataset.features)
 
     # Generate data from generative model, using specified batch size
     # Always generate as much data as the original dataset, making it twice as large
@@ -257,33 +282,28 @@ def main(args):
     xhats = torch.cat(xhats, dim=0)
     yhats = torch.cat(yhats, dim=0)
 
-    # Shuffle xhats and yhats
-    indices = torch.randperm(xhats.shape[0])
-    xhats = xhats[indices]
-    yhats = yhats[indices]
 
-    # Check what the performance is on the generated data
-    gen_acc_50 = get_pretrained_model_accuracy(
-        pretrained_model, xhats, yhats, 0.5, n_samples=xhats.shape[0]
-    )
-    gen_acc_100 = get_pretrained_model_accuracy(
-        pretrained_model, xhats, yhats, 0.0, n_samples=xhats.shape[0]
-    )
-    print(f"Gen accuracy (50% mask): {gen_acc_50:.4f}")
-    print(f"Gen accuracy (100% mask): {gen_acc_100:.4f}")
+    # Verify that the model has decent performance on the datasets
+    check_pretrained_model_accuracy(pretrained_model, train_dataset, val_dataset, xhats, yhats)
 
     # Concatenate the generated data with the original dataset
     assert train_dataset.features is not None
     assert train_dataset.labels is not None
     combined_train_features = torch.cat((train_dataset.features, xhats), dim=0)
     combined_train_labels = torch.cat((train_dataset.labels, yhats), dim=0)
+    # Shuffle once in the beginning, but is also done after each epoch
+    indices = torch.randperm(combined_train_features.shape[0])
+    combined_train_features = combined_train_features[indices]
+    combined_train_labels = combined_train_labels[indices]
     print(f"New dataset size: {combined_train_features.shape[0]}")
 
     # Zannone2019 reward function
-    reward_fn = get_zannone2019_reward_fn(
-        partial_vae=pretrained_model.partial_vae,
-        classifier=pretrained_model.classifier,
-        acquisition_cost=train_config.acquisition_cost,
+    class_weights = 1.0 / class_probabilities
+    class_weights = class_weights / class_weights.sum()
+    class_weights_device = class_weights.to(device)
+    reward_fn = get_common_reward_fn(
+        classifier=Zannone2019AFAClassifier(pretrained_model),
+        loss_fn=partial(F.cross_entropy, weight=class_weights_device)
     )
 
     # MDP expects special dataset functions
@@ -300,7 +320,9 @@ def main(args):
         batch_size=torch.Size((train_config.n_agents,)),
         feature_size=n_features,
         n_classes=n_classes,
+        hard_budget=train_config.env.hard_budget,
     )
+    check_env_specs(train_env)
 
     # Evaluate on validation data
     eval_env = AFAEnv(
@@ -310,6 +332,7 @@ def main(args):
         batch_size=torch.Size((1,)),
         feature_size=n_features,
         n_classes=n_classes,
+        hard_budget=train_config.env.hard_budget,
     )
 
     agent = Zannone2019Agent(
@@ -319,6 +342,10 @@ def main(args):
         device=device,
         latent_size=pretrain_config.partial_vae.latent_size,
         action_spec=train_env.action_spec,
+        lmbda=train_config.agent.lmbda,
+        clip_epsilon=train_config.agent.clip_epsilon,
+        entropy_bonus=train_config.agent.entropy_bonus,
+        entropy_coef=train_config.agent.entropy_coef,
     )
 
     collector = SyncDataCollector(
@@ -363,9 +390,14 @@ def main(args):
         run.finish()
 
         # Convert the embedder+agent to an AFAMethod and save it
-        afa_method = Zannone2019AFAMethod(device, agent.actor_network, pretrained_model)
+        afa_method = Zannone2019AFAMethod(device, agent.probabilistic_policy_module, pretrained_model)
         afa_method.save(args.afa_method_path)
         print(f"Zannone2019AFAMethod saved to {args.afa_method_path}")
+
+        # Load it just to check that it works
+        afa_method = Zannone2019AFAMethod.load(args.afa_method_path, device)
+        print(f"Zannone2019AFAMethod loaded from {args.afa_method_path}")
+        check_pretrained_model_accuracy(afa_method.pretrained_model, train_dataset, val_dataset, xhats, yhats)
 
 
 if __name__ == "__main__":

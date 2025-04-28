@@ -129,6 +129,7 @@ type AFARewardFn = Callable[
         AFASelection,
         Features,
         Label,
+        Bool[Tensor, "*batch 1"], # done key
     ],
     AFAReward,
 ]

@@ -12,6 +12,8 @@ from torchrl.data import (
 )
 from torchrl.modules import (
     MLP,
+    ActorCriticOperator,
+    ActorValueOperator,
     EGreedyModule,
     ProbabilisticActor,
     QValueActor,
@@ -183,30 +185,22 @@ class Shim2018Agent:
 
 class Zannone2019ValueModule(nn.Module):
     def __init__(
-        self, pointnet: PointNet, encoder: nn.Module, latent_size: int, n_actions: int
+        self, latent_size: int
     ):
         super().__init__()
-        self.pointnet = pointnet
-        self.encoder = encoder
         self.latent_size = latent_size
-        self.n_actions = n_actions
 
         self.net = nn.Sequential(nn.Linear(latent_size, 1))
 
-    def forward(self, masked_features: MaskedFeatures, feature_mask: FeatureMask):
-        pointnet_output = self.pointnet(masked_features, feature_mask)
-        encoding = self.encoder(pointnet_output)
-        mu = encoding[:, : encoding.shape[1] // 2]
+    def forward(self, mu: Tensor):
         return self.net(mu)
 
 
 class Zannone2019PolicyModule(nn.Module):
     def __init__(
-        self, pointnet: PointNet, encoder: nn.Module, latent_size: int, n_actions: int
+        self, latent_size: int, n_actions: int
     ):
         super().__init__()
-        self.pointnet = pointnet
-        self.encoder = encoder
         self.latent_size = latent_size
         self.n_actions = n_actions
 
@@ -214,86 +208,126 @@ class Zannone2019PolicyModule(nn.Module):
 
     def forward(
         self,
-        masked_features: MaskedFeatures,
-        feature_mask: FeatureMask,
+        mu: Tensor,
         action_mask: Bool[Tensor, "batch n_actions"],
     ):
-        pointnet_output = self.pointnet(masked_features, feature_mask)
-        encoding = self.encoder(pointnet_output)
-        mu = encoding[:, : encoding.shape[1] // 2]
         action_logits = self.net(mu)
         # By setting the logits of invalid actions to -inf, we prevent them from being selected.
         action_logits[~action_mask] = float("-inf")
         return action_logits
+
+class Zannone2019CommonModule(nn.Module):
+    def __init__(
+        self, pointnet: PointNet, encoder: nn.Module
+    ):
+        super().__init__()
+        self.pointnet = pointnet
+        self.encoder = encoder
+
+    def forward(self, masked_features: MaskedFeatures, feature_mask: FeatureMask):
+        pointnet_output = self.pointnet(masked_features, feature_mask)
+        encoding = self.encoder(pointnet_output)
+        mu = encoding[:, : encoding.shape[1] // 2]
+        return mu
+
 
 
 class Zannone2019Agent:
     def __init__(
         self,
         device: torch.device,
-        pointnet: PointNet,  # assumed to be frozen
-        encoder: nn.Module,  # assumed to be frozen
+        pointnet: PointNet,
+        encoder: nn.Module,
         lr: float,
         latent_size: int,
         action_spec: TensorSpec,
+        lmbda: float,
+        clip_epsilon: float,
+        entropy_bonus: bool,
+        entropy_coef: float,
     ):
         self.device = device
+
         self.pointnet = pointnet.to(self.device)
         self.encoder = encoder.to(self.device)
+
         self.lr = lr
         self.latent_size = latent_size
         self.action_spec = action_spec
+        self.lmbda = lmbda
+        self.clip_epsilon = clip_epsilon
+        self.entropy_bonus = entropy_bonus
+        self.entropy_coef = entropy_coef
 
-        self.policy_module = Zannone2019PolicyModule(
+        self.common_backbone = Zannone2019CommonModule(
             pointnet=self.pointnet,
             encoder=self.encoder,
+        )
+
+        self.policy_head = Zannone2019PolicyModule(
             latent_size=self.latent_size,
             n_actions=self.action_spec.n,
+        )
+        self.value_head = Zannone2019ValueModule(
+            latent_size=self.latent_size,
+        )
+
+        actor_value_operator = ActorValueOperator(
+            TensorDictModule(
+                self.common_backbone,
+                in_keys=["masked_features", "feature_mask"],
+                out_keys=["mu"],
+            ),
+            TensorDictModule(
+                self.policy_head,
+                in_keys=["mu", "action_mask"],
+                out_keys=["logits"]
+            ),
+            TensorDictModule(
+                self.value_head,
+                in_keys=["mu"],
+                out_keys=["state_value"]
+            ),
         ).to(self.device)
 
-        self.actor_network = ProbabilisticActor(
-            module=TensorDictModule(
-                module=self.policy_module,
-                in_keys=["masked_features", "feature_mask", "action_mask"],
-                out_keys=["logits"],
-            ),
+        self.policy_module = actor_value_operator.get_policy_operator()
+        self.value_module = actor_value_operator.get_value_operator()
+
+        self.probabilistic_policy_module = ProbabilisticActor(
+            module=self.policy_module,
             spec=self.action_spec,
             in_keys=["logits"],
             distribution_class=Categorical,
             return_log_prob=True,
         )
 
-        self.value_module = Zannone2019ValueModule(
-            pointnet=self.pointnet,
-            encoder=self.encoder,
-            latent_size=self.latent_size,
-            n_actions=self.action_spec.n,
-        ).to(self.device)
-        self.critic_network = ValueOperator(
-            module=self.value_module,
-            in_keys=["masked_features", "feature_mask"],
-        )
-
         self.loss_module = ClipPPOLoss(
-            actor_network=self.actor_network, critic_network=self.critic_network
+            actor_network=self.probabilistic_policy_module,
+            critic_network=self.value_module,
+            clip_epsilon=self.clip_epsilon,
+            entropy_bonus=self.entropy_bonus,
+            entropy_coef=self.entropy_coef,
         )
+        self.loss_keys = ["loss_critic", "loss_objective"]
+        if self.entropy_bonus:
+            self.loss_keys.append("loss_entropy")
         self.optim = optim.Adam(self.loss_module.parameters(), lr=self.lr)
 
-        # self.advantage_module = GAE(
-        #     gamma=1, lmbda=0, value_network=self.critic_network, average_gae=True
-        # )
+        self.advantage_module = GAE(
+            gamma=1, lmbda=self.lmbda, value_network=self.value_module, average_gae=True
+        )
 
     def policy(self, td: TensorDictBase):
-        td = self.actor_network(td)
+        td = self.probabilistic_policy_module(td)
         return td
 
     def process_batch(self, td):
-        # self.advantage_module(td)
-
         self.optim.zero_grad()
 
+        self.advantage_module(td)
+
         loss = self.loss_module(td)
-        loss_value = loss["loss_critic"] + loss["loss_entropy"] + loss["loss_objective"]
+        loss_value = sum(loss[loss_key] for loss_key in self.loss_keys)
         loss_value.backward()
 
         self.optim.step()

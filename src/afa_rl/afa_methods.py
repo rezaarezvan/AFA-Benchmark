@@ -127,11 +127,11 @@ class Zannone2019AFAMethod(AFAMethod):
     def __init__(
         self,
         device: torch.device,
-        actor_network: ProbabilisticActor,
+        probabilistic_policy_module: ProbabilisticActor,
         pretrained_model: Zannone2019PretrainingModel
     ):
         self.device = device
-        self.actor_network = actor_network
+        self.probabilistic_policy_module = probabilistic_policy_module
         self.pretrained_model = pretrained_model
 
     def select(
@@ -146,7 +146,7 @@ class Zannone2019AFAMethod(AFAMethod):
 
         # Apply the agent's policy to the tensordict
         with torch.no_grad(), set_exploration_type(ExplorationType.DETERMINISTIC):
-            td = self.actor_network(td)
+            td = self.probabilistic_policy_module(td)
 
         # Get the action from the tensordict
         afa_selection = td["action"].unsqueeze(-1)
@@ -167,7 +167,7 @@ class Zannone2019AFAMethod(AFAMethod):
     def save(self, path: str):
         torch.save(
             {
-                "actor_network": self.actor_network.cpu(),
+                "probabilistic_policy_module": self.probabilistic_policy_module.cpu(),
                 "pretrained_model": self.pretrained_model.cpu(),
             },
             path,
@@ -180,12 +180,12 @@ class Zannone2019AFAMethod(AFAMethod):
         """
         data = torch.load(path, weights_only=False, map_location=device)
 
-        actor_network = data["actor_network"].to(device)
+        probabilistic_policy_module = data["probabilistic_policy_module"].to(device)
         pretrained_model = data["pretrained_model"].to(device)
 
         return Zannone2019AFAMethod(
             device=device,
-            actor_network=actor_network,
+            probabilistic_policy_module=probabilistic_policy_module,
             pretrained_model=pretrained_model,
         )
 

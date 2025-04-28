@@ -7,11 +7,11 @@ import yaml
 from torch import optim
 from torch.nn import functional as F
 from torchrl.collectors import SyncDataCollector
-from torchrl.envs import ExplorationType, set_exploration_type
+from torchrl.envs import ExplorationType, StepCounter, TransformedEnv, check_env_specs, set_exploration_type
 from tqdm import tqdm
 
 import wandb
-from afa_rl.afa_env import AFAEnv, Float, get_common_reward_fn, get_shim2018_reward_fn
+from afa_rl.afa_env import AFAEnv, Float, get_common_reward_fn
 from afa_rl.afa_methods import Shim2018AFAMethod
 from afa_rl.agents import Shim2018Agent
 from afa_rl.custom_types import AFAClassifier, Logits
@@ -29,7 +29,7 @@ from common.utils import set_seed
 from common.utils import get_class_probabilities
 
 
-def check_embedder_and_classifier(embedder_and_classifier, dataset: AFADataset):
+def check_embedder_and_classifier(embedder_and_classifier, dataset: AFADataset, class_weights: Float[Tensor, "n_classes"]):
     """
     Check that the embedder and classifier have decent performance on Cube dataset
     """
@@ -70,7 +70,7 @@ def check_embedder_and_classifier(embedder_and_classifier, dataset: AFADataset):
         )
 
         # Calculate the loss for the 50% feature case. Useful for setting acquisition costs
-        loss_half = F.cross_entropy(predictions_half, labels.float())
+        loss_half = F.cross_entropy(predictions_half, labels.float(), weight=class_weights)
 
         print(
             f"Embedder and classifier accuracy with all features: {accuracy_all.item() * 100:.2f}%"
@@ -165,7 +165,8 @@ def get_eval_metrics(agent, eval_env, train_config, device, classifier, embedder
     ):
         # Evaluate agent
         td_eval = eval_env.rollout(
-            max_steps=train_config.eval_max_steps, policy=agent.policy
+            max_steps=9001,
+            policy=agent.policy
         )
         # Squeeze batch dimension
         td_eval = td_eval.squeeze(0)
@@ -240,7 +241,9 @@ def main(args: argparse.Namespace):
     n_features = train_dataset.features.shape[-1]
     n_classes = train_dataset.labels.shape[-1]
 
-    embedder_and_classifier = get_shim2018_model_from_config(pretrain_config, n_features, n_classes)
+    train_class_probabilities = get_class_probabilities(train_dataset.labels)
+    print(f"Class probabilities in training set: {train_class_probabilities}")
+    embedder_and_classifier = get_shim2018_model_from_config(pretrain_config, n_features, n_classes, train_class_probabilities)
     embedder_classifier_checkpoint = torch.load(
         args.pretrained_model_path, weights_only=True
     )
@@ -256,24 +259,15 @@ def main(args: argparse.Namespace):
     )
 
     # Check that embedder+classifier indeed have decent performance
-    check_embedder_and_classifier(embedder_and_classifier, val_dataset)
+    class_weights = 1 / train_class_probabilities
+    class_weights = class_weights / class_weights.sum()
+    class_weights_device = class_weights.to(device)
+    check_embedder_and_classifier(embedder_and_classifier, val_dataset, class_weights_device)
 
     # The RL reward function depends on a specific AFAClassifier
-
-    # reward_fn = get_shim2018_reward_fn(
-    #     embedder=embedder,
-    #     classifier=classifier,
-    #     acquisition_costs=train_config.acquisition_cost
-    #     * torch.ones(
-    #         (n_features,),
-    #         dtype=torch.float32,
-    #         device=device,
-    #     ),
-    # )
-
     reward_fn = get_common_reward_fn(
         Shim2018AFAClassifier(embedder_and_classifier),
-        loss_fn=partial(F.cross_entropy, weight=1/get_class_probabilities(train_dataset.labels)),
+        loss_fn=partial(F.cross_entropy, weight=class_weights_device)
     )
 
     # MDP expects special dataset functions
@@ -284,6 +278,7 @@ def main(args: argparse.Namespace):
     assert val_dataset.labels is not None
     val_dataset_fn = get_afa_dataset_fn(val_dataset.features, val_dataset.labels)
 
+
     train_env = AFAEnv(
         dataset_fn=train_dataset_fn,
         reward_fn=reward_fn,
@@ -291,7 +286,13 @@ def main(args: argparse.Namespace):
         batch_size=torch.Size((train_config.n_agents,)),
         feature_size=n_features,
         n_classes=n_classes,
+        hard_budget=train_config.env.hard_budget,
     )
+    check_env_specs(train_env)
+
+    # td = train_env.reset()
+    # td = train_env.rand_step(td)
+
 
     eval_env = AFAEnv(
         dataset_fn=val_dataset_fn,
@@ -300,6 +301,7 @@ def main(args: argparse.Namespace):
         batch_size=torch.Size((1,)),
         feature_size=n_features,
         n_classes=n_classes,
+        hard_budget=train_config.env.hard_budget,
     )
 
     agent = Shim2018Agent(
@@ -348,7 +350,7 @@ def main(args: argparse.Namespace):
             embedder_classifier_optim.zero_grad()
             embedding = embedder(td["masked_features"], td["feature_mask"])
             logits = classifier(embedding)
-            class_loss = F.cross_entropy(logits, td["label"]).mean()
+            class_loss = F.cross_entropy(logits, td["label"], weight=class_weights_device)
             class_loss.mean().backward()
             embedder_classifier_optim.step()
 
@@ -370,7 +372,7 @@ def main(args: argparse.Namespace):
         run.finish()
 
         # Check that embedder+classifier still have decent performance
-        check_embedder_and_classifier(embedder_and_classifier, val_dataset)
+        check_embedder_and_classifier(embedder_and_classifier, val_dataset, class_weights_device)
 
         # Convert the embedder+agent to an AFAMethod and save it
         afa_method = Shim2018AFAMethod(
@@ -383,7 +385,7 @@ def main(args: argparse.Namespace):
         # Now load the method
         afa_method = Shim2018AFAMethod.load(args.afa_method_path, device)
         # Extract the classifier and embedder and check that they still have decent performance
-        check_embedder_and_classifier(afa_method.embedder_and_classifier, val_dataset)
+        check_embedder_and_classifier(afa_method.embedder_and_classifier, val_dataset, class_weights_device)
 
 
 if __name__ == "__main__":

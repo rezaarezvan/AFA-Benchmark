@@ -4,7 +4,9 @@ from functools import partial
 
 import lightning as pl
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
+from sklearn.metrics import classification_report
 import torch
+from torch import Tensor
 import yaml
 from lightning.pytorch.loggers import WandbLogger
 from torch import nn
@@ -23,9 +25,12 @@ from afa_rl.models import (
 from afa_rl.utils import dict_to_namespace, get_1D_identity
 from common.custom_types import AFADataset
 from common.registry import AFA_DATASET_REGISTRY
+from jaxtyping import Float
+
+from common.utils import get_class_probabilities
 
 
-def get_zannone2019_model_from_config(config, n_features, n_classes):
+def get_zannone2019_model_from_config(config, n_features: int, n_classes: int, class_probabilities: Float[Tensor, "n_classes"]):
     naive_identity_fn = get_1D_identity
     naive_identity_size = n_features  # onehot
 
@@ -88,6 +93,7 @@ def get_zannone2019_model_from_config(config, n_features, n_classes):
         lr=config.lr,
         verbose=config.verbose,
         max_masking_probability=config.max_masking_probability,
+        class_probabilities=class_probabilities,
         recon_loss_type=config.recon_loss_type,
         kl_scaling_factor=config.kl_scaling_factor,
         validation_masking_probability=config.validation_masking_probability,
@@ -117,7 +123,8 @@ def main(args: argparse.Namespace):
 
     n_features = train_dataset.features.shape[-1]
     n_classes = train_dataset.labels.shape[-1]
-    model = get_zannone2019_model_from_config(config, n_features, n_classes)
+    train_class_probabilities = get_class_probabilities(train_dataset.labels)
+    model = get_zannone2019_model_from_config(config, n_features, n_classes, train_class_probabilities)
 
 
     # ModelCheckpoint callback
