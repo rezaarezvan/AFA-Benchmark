@@ -10,6 +10,8 @@ import torch
 from tqdm import tqdm
 import os
 
+import yaml
+
 from afa_rl.afa_methods import RandomDummyAFAMethod, SequentialDummyAFAMethod
 from common.registry import AFA_DATASET_REGISTRY, AFA_METHOD_REGISTRY
 
@@ -45,9 +47,14 @@ def save_dummy_method(method_name, hard_budget, dataset_train_path, dataset_val_
         with open(
             (args.models_folder / method_name / timestr / "params.yml"), "w"
         ) as f:
-            f.write(f"hard_budget: {hard_budget}\n")
-            f.write(f"train_dataset_path: {dataset_train_path}\n")
-            f.write(f"val_dataset_path: {dataset_val_path}\n")
+            # f.write(f"hard_budget: {hard_budget}\n")
+            # f.write(f"train_dataset_path: {dataset_train_path}\n")
+            # f.write(f"val_dataset_path: {dataset_val_path}\n")
+            yaml.dump({
+                "hard_budget": hard_budget,
+                "train_dataset_path": str(dataset_train_path),
+                "val_dataset_path": str(dataset_val_path),
+            }, f, default_flow_style=False)
 
 
 

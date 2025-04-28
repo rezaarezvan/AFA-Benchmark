@@ -184,6 +184,20 @@ def main(model_folder: Path, results_folder: Path, dataset_fraction_name: str):
                 results_folder / method_name / trained_instance_name / "results.pt",
             )
 
+            # The only config parameter in evaluation is which dataset we used and the hard budget (though it should be the same as during training)
+            with open(
+                results_folder / method_name / trained_instance_name / "params.yml",
+                "w",
+            ) as file:
+                yaml.dump(
+                    {
+                        "eval_dataset_path": str(eval_dataset_path),
+                        "hard_budget": hard_budget,
+                    },
+                    file,
+                    default_flow_style=False,
+                )
+
 
 
 if __name__ == "__main__":
