@@ -89,15 +89,15 @@ TRAINING_REGISTRY = {
         "data/cube/train_split_5.pt",
     ): "models/random_dummy/random_dummy-cube_train_split_5.pt",
     # shim2018
-    (
-        "shim2018",
-        "data/cube/train_split_1.pt",
-    ): "models/shim2018/shim2018-cube_train_split_1.pt",
+    # (
+    #     "shim2018",
+    #     "data/cube/train_split_1.pt",
+    # ): "models/shim2018/shim2018-cube_train_split_1.pt",
     # zannone2019
-    (
-        "zannone2019",
-        "data/cube/train_split_1.pt",
-    ): "models/zannone2019/zannone2019-cube_train_split_1.pt",
+    # (
+    #     "zannone2019",
+    #     "data/cube/train_split_1.pt",
+    # ): "models/zannone2019/zannone2019-cube_train_split_1.pt",
 }
 
 # Add evaluation results here
@@ -120,12 +120,12 @@ EVALUATION_REGISTRY = {
                     "results/evaluation/random_dummy/random_dummy-cube_train_split_4-cube_val_split_4.pt",
                     "results/evaluation/random_dummy/random_dummy-cube_train_split_5-cube_val_split_5.pt",
                 ],
-                "shim2018": [
-                    "results/evaluation/shim2018/shim2018-cube_train_split_1-cube_val_split_1.pt",
-                ],
-                "zannone2019": [
-                    "results/evaluation/zannone2019/zannone2019-cube_train_split_1-cube_val_split_1.pt",
-                ],
+                # "shim2018": [
+                #     "results/evaluation/shim2018/shim2018-cube_train_split_1-cube_val_split_1.pt",
+                # ],
+                # "zannone2019": [
+                #     "results/evaluation/zannone2019/zannone2019-cube_train_split_1-cube_val_split_1.pt",
+                # ],
             }
         }
     }

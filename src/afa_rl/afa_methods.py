@@ -222,16 +222,6 @@ class RandomDummyAFAMethod(AFAMethod):
         sampled = torch.multinomial(probs, num_samples=1)
         selection = sampled.squeeze(1)  # (B, 1) → (B,)
 
-        # Add 1 to the index to make it 1-based
-        selection = selection + 1
-
-        # With 1/n_features probability, select 0 (stop collecting features) for each sample
-        stop_collecting_mask = torch.rand(
-            selection.shape[0], device=masked_features.device
-        ) < (1 / masked_features.shape[1])
-
-        selection[stop_collecting_mask] = 0
-
         return selection
 
     def predict(
@@ -298,16 +288,8 @@ class SequentialDummyAFAMethod(AFAMethod):
         unobserved_features = (~feature_mask).nonzero(as_tuple=True)[1]
         if unobserved_features.numel() == 0:
             return torch.tensor(0, device=masked_features.device)
-        next_feature = unobserved_features[0] + 1
-        # With 1/n_features probability, select 0 (stop collecting features) for each sample
-        stop_collecting_mask = torch.rand(
-            masked_features.shape[0], device=masked_features.device
-        ) < (1 / masked_features.shape[1])
-        selection = torch.where(
-            stop_collecting_mask,
-            torch.tensor(0, device=masked_features.device),
-            next_feature,
-        )
+        selection = unobserved_features[0] + 1
+
         return selection
 
     def predict(

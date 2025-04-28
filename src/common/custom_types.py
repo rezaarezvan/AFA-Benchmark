@@ -60,7 +60,8 @@ class AFADataset(Protocol):
 type MaskedFeatures = Integer[Tensor, "*batch n_features"]
 type FeatureMask = Bool[Tensor, "*batch n_features"]
 
-# Outputs of AFA methods. 0 means stop collecting features, i > 0 means collect feature i.
+# Outputs of AFA methods, representing which feature to collect next.
+# It is not possible to choose to stop collecting features, since we use a hard budget.
 type AFASelection = Integer[Tensor, "*batch 1"]
 
 

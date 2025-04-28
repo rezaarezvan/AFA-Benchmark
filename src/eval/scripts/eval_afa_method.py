@@ -103,10 +103,6 @@ def eval_afa_method(args: argparse.Namespace) -> dict[str, float]:
         # Immediately store the true label for this sample
         labels_all.append(label)
 
-        # AFA methods expect a batch dimension
-        # features: Features = features.unsqueeze(0)
-        # label: Label = label.unsqueeze(0)
-
         # We will keep a history of which features have been observed, in case its relevant for evaluation
         feature_mask_history: list[FeatureMask] = []
 
@@ -118,9 +114,8 @@ def eval_afa_method(args: argparse.Namespace) -> dict[str, float]:
         masked_features = features.clone()
         masked_features[~feature_mask] = 0.0
 
-        # Let AFA method select features until it chooses to stop
-        # or until all features are observed
-        while True:
+        # Let AFA method select features for a fixed number of steps
+        for _ in range(args.hard_budget):
             # Always calculate a prediction
             prediction = afa_method.predict(
                 masked_features.unsqueeze(0), feature_mask.unsqueeze(0)
@@ -128,23 +123,15 @@ def eval_afa_method(args: argparse.Namespace) -> dict[str, float]:
 
             prediction_history.append(prediction)
 
-            # Select new features or stop
+            # Select new features
             selection = afa_method.select(
                 masked_features.unsqueeze(0), feature_mask.unsqueeze(0)
             ).squeeze(0)
 
-            # If the AFA method chooses to stop, break
-            if selection == 0:
-                break
-
-            # Otherwise, update the feature mask
+            # Update the feature mask
             feature_mask[selection - 1] = True
             masked_features[~feature_mask] = 0.0
             feature_mask_history.append(feature_mask.clone())
-
-            # If all features have been selected, stop
-            if feature_mask.all():
-                break
 
         # Add the feature mask history and prediction history of this sample to the overall history
         feature_mask_history_all.append(feature_mask_history)
@@ -194,6 +181,13 @@ if __name__ == "__main__":
         required=True,
         help="Path to a .pt file to save the evaluation results",
     )
+    parser.add_argument(
+        "--hard_budget",
+        type=int,
+        required=True,
+        help="How many features the AFA method is allowed to select",
+    )
+
     args = parser.parse_args()
 
     if args.afa_method_name not in AFA_METHOD_REGISTRY:
