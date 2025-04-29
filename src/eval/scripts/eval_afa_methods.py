@@ -119,6 +119,7 @@ def eval_afa_method(afa_method: AFAMethod, dataset: AFADataset, hard_budget: int
 
             # Update the feature mask
             feature_mask[selection - 1] = True
+            masked_features = features.clone()
             masked_features[~feature_mask] = 0.0
             feature_mask_history.append(feature_mask.clone())
 
