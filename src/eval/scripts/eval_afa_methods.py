@@ -16,60 +16,71 @@ from common.custom_types import (
     Label,
 )
 from common.registry import AFA_DATASET_REGISTRY, AFA_METHOD_REGISTRY
+from sklearn.metrics import accuracy_score, f1_score
+import numpy as np
+
+def aggregate_metrics(prediction_history_all, y_true):
+    """
+    Compute accuracy and F1 across feature-selection budgets.
+
+    If y_true contains exactly two unique classes   → average="binary"
+    Otherwise                                       → average="weighted"
+
+    Parameters
+    ----------
+    prediction_history_all : list[list[int | float]]
+        Outer list: one entry per test sample.
+        Inner list: predictions for that sample after 1 … B selected features.
+    y_true : array-like
+        Ground-truth labels, same order as prediction_history_all.
+
+    Returns
+    -------
+    accuracy_all : list[float]
+    f1_all       : list[float]
+    """
+    if not prediction_history_all:
+        return [], []
+
+    B = len(prediction_history_all[0])
+    if any(len(row) != B for row in prediction_history_all):
+        raise ValueError("All inner lists must have the same length (budget B).")
+
+    # Decide the F1 averaging mode
+    classes = np.unique(y_true)
+    if len(classes) == 2:
+        f1_kwargs = {"average": "binary"}  # treat the larger label as positive
+    else:
+        f1_kwargs = {"average": "weighted"}
+
+    accuracy_all, f1_all = [], []
+    for i in range(B):
+        preds_i = [torch.argmax(row[i]) for row in prediction_history_all]
+        accuracy_all.append(accuracy_score(y_true, preds_i))
+        f1_all.append(f1_score(y_true, preds_i, **f1_kwargs))
+
+    return accuracy_all, f1_all
+
 
 def evaluator(
     feature_mask_history_all: list[list[FeatureMask]],
     prediction_history_all: list[list[Label]],
     labels_all: list[Label],
 ) -> dict:
-    """
-    Calculates
-      • accuracy using the **final** prediction of every sample
-      • per-step accuracy (``accuracy_all``) so it lines up with the
-        longest prediction history in the batch
-      • the average number of feature masks produced per sample
-    """
+
     assert (
         len(feature_mask_history_all) == len(prediction_history_all) == len(labels_all)
     ), "All three lists must have the same length"
 
-    num_samples = len(prediction_history_all)
+    #labels_all = [label.argmax(-1) for label in labels_all]
+    labels_all = torch.stack(labels_all)
+    labels_all = torch.argmax(labels_all, dim=1)
 
-    # ------------------------------------------------------------------
-    # 1) final-step accuracy (identical to the original implementation)
-    # ------------------------------------------------------------------
-    correct_final = sum(
-        1
-        for preds, lbl in zip(prediction_history_all, labels_all)
-        if preds[-1].argmax(-1) == lbl.argmax(-1)
-    )
-    accuracy = correct_final / num_samples
-
-    # ------------------------------------------------------------------
-    # 2) per-step accuracy across **all** available predictions
-    # ------------------------------------------------------------------
-    max_len = max(len(preds) for preds in prediction_history_all)
-    accuracy_all: list[float] = []
-
-    for step_idx in range(max_len):
-        correct, total = 0, 0
-        for preds, lbl in zip(prediction_history_all, labels_all):
-            if step_idx < len(preds):           # sample has a prediction at this step
-                total += 1
-                if preds[step_idx].argmax(-1) == lbl.argmax(-1):
-                    correct += 1
-        accuracy_all.append(correct / total if total else 0.0)
-
-    # ------------------------------------------------------------------
-    # 3) number of features selected per sample
-    # ------------------------------------------------------------------
-
-    num_features_selected = [len(mask_hist) for mask_hist in feature_mask_history_all]
+    accuracy_all, f1_all = aggregate_metrics(prediction_history_all, labels_all)
 
     return {
-        "accuracy": accuracy,
         "accuracy_all": accuracy_all,
-        "num_features_selected": num_features_selected,
+        "f1_all": f1_all,
         "feature_mask_history_all": feature_mask_history_all,
     }
 
@@ -109,7 +120,7 @@ def eval_afa_method(afa_method: AFAMethod, dataset: AFADataset, hard_budget: int
             prediction = afa_method.predict(
                 masked_features.unsqueeze(0), feature_mask.unsqueeze(0)
             ).squeeze(0)
-
+            
             prediction_history.append(prediction)
 
             # Select new features
