@@ -86,7 +86,7 @@ def evaluator(
     }
 
 
-def eval_afa_method(afa_method: AFAMethod, dataset: AFADataset, hard_budget: int, classifier: AFAClassifier) -> dict[str, float]:
+def eval_afa_method(afa_method: AFAMethod, dataset: AFADataset, hard_budget: int, afa_classifier: AFAClassifier) -> dict[str, float]:
     """
     Evaluates an AFA method.
 
@@ -130,7 +130,7 @@ def eval_afa_method(afa_method: AFAMethod, dataset: AFADataset, hard_budget: int
             # prediction = afa_method.predict(
             #     masked_features.unsqueeze(0), feature_mask.unsqueeze(0)
             # ).squeeze(0)
-            prediction = classifier(masked_features.unsqueeze(0), feature_mask.unsqueeze(0)).squeeze(0)
+            prediction = afa_classifier(masked_features.unsqueeze(0), feature_mask.unsqueeze(0)).squeeze(0)
 
             prediction_history.append(prediction)
 
@@ -139,10 +139,11 @@ def eval_afa_method(afa_method: AFAMethod, dataset: AFADataset, hard_budget: int
                 masked_features.unsqueeze(0), feature_mask.unsqueeze(0)
             ).squeeze(0)
 
-            # Update the feature mask
-            feature_mask[selection - 1] = True
-            masked_features = features.clone()
-            masked_features[~feature_mask] = 0.0
+            # Update the feature mask and masked features
+            feature_mask[selection] = True
+            masked_features[selection] = features[selection]
+
+            # Store a copy of the feature mask in history
             feature_mask_history.append(feature_mask.clone())
 
         # Add the feature mask history and prediction history of this sample to the overall history
@@ -183,7 +184,7 @@ def main(model_folder: Path, results_folder: Path, dataset_fraction_name: str):
             hard_budget = params_dict["hard_budget"]
 
             # The dataset we want to use during evaluation should be the same split as the one used during training,
-            # but possible using a different fraction of the dataset (i.e. val or test)
+            # but possibly using a different fraction of the dataset (i.e. val or test)
             train_dataset_path = Path(params_dict["train_dataset_path"])
             dataset_type = train_dataset_path.parent.name
             eval_dataset_name = train_dataset_path.name.replace("train", dataset_fraction_name)
@@ -196,7 +197,7 @@ def main(model_folder: Path, results_folder: Path, dataset_fraction_name: str):
             # Loop through each classifier that has been trained on this dataset
 
             # Do the evaluation
-            metrics = eval_afa_method(afa_method, eval_dataset, hard_budget)
+            metrics = eval_afa_method(afa_method, eval_dataset, hard_budget, class)
 
             # Save the metrics to the results folder
             (results_folder / method_name / trained_instance_name).mkdir(

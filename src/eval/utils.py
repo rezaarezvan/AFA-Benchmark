@@ -4,7 +4,8 @@ import torch
 from torch import Tensor
 import yaml
 
-from common.custom_types import AFADataset, AFAMethod, FeatureMask
+from common.custom_types import AFAClassifier, AFADataset, AFAMethod, FeatureMask
+from common.registry import AFA_CLASSIFIER_REGISTRY
 
 def yaml_file_matches_mapping(yaml_file_path: Path, mapping: dict[str, Any]) -> bool:
     """
@@ -21,7 +22,7 @@ def yaml_file_matches_mapping(yaml_file_path: Path, mapping: dict[str, Any]) -> 
 
     return True
 
-def get_afa_methods_with_fixed_keys(afa_method_name: str, fixed_train_params_mapping: dict[str, Any]={}, fixed_eval_params_mapping: dict[str, Any]={}, results_path=Path("results"), models_path=Path("models")) -> list[Tensor]:
+def get_eval_results_with_fixed_keys(afa_method_name: str, fixed_train_params_mapping: dict[str, Any]={}, fixed_eval_params_mapping: dict[str, Any]={}, results_path=Path("results"), models_path=Path("models")) -> list[Tensor]:
     """
     Return all evaluation results (as Tensors) for AFAMethods of a specific type that have specific params values (both training and evaluation).
     The remaining keys are allowed to take any value.
@@ -62,3 +63,24 @@ def get_afa_methods_with_fixed_keys(afa_method_name: str, fixed_train_params_map
         )
 
     return valid_instance_results
+
+def get_classifiers_trained_on_data(train_dataset_path: Path, classifier_folder = Path("models/classifiers")) -> list[AFAClassifier]:
+    """
+    Get all classifiers trained on a specific dataset.
+    """
+
+    valid_classifiers: list[AFAClassifier] = []
+    for classifier_type_path in classifier_folder.iterdir():
+        classifier_name = classifier_type_path.name
+        classifier_cls = AFA_CLASSIFIER_REGISTRY[classifier_name]
+        # Loop through each trained instance
+        for trained_instance_path in classifier_type_path.iterdir():
+            # The params.yml file should contain which dataset was used
+            params_path = trained_instance_path / "params.yml"
+            with open(params_path, "r") as file:
+                params_dict: dict = yaml.safe_load(file)
+
+            # Return classifier if it was trained on the same dataset
+            if params_dict["train_dataset_path"] == train_dataset_path:
+                afa_classifier = classifier_cls.load(trained_instance_path / "model.pt", torch.device("cpu"))
+                valid_classifiers.append(afa_classifier)
