@@ -13,6 +13,7 @@ dependencies = [
     "matplotlib>=3.10.1",
     "scikit-learn>=1.6.1",
     "seaborn>=0.13.2",
+    "coolname>=2.2.0",
 ]
 
 [dependency-groups]
