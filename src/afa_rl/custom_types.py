@@ -5,9 +5,8 @@ import torch
 from jaxtyping import Float, Integer
 from torch import Tensor, nn
 
-from common.custom_types import FeatureMask, Features, Label, MaskedFeatures
+from common.custom_types import FeatureMask, Features, Label, Logits, MaskedFeatures
 
-type Logits = Float[Tensor, "batch model_output_size"]
 type State = Float[
     Tensor, "*batch state_size"
 ]  # A state is a concatenation of feature values and feature indices

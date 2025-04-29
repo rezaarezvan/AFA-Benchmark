@@ -10,6 +10,7 @@ from tqdm import tqdm
 import yaml
 
 from common.custom_types import (
+    AFAClassifier,
     AFADataset,
     AFAMethod,
     FeatureMask,
@@ -85,9 +86,18 @@ def evaluator(
     }
 
 
-def eval_afa_method(afa_method: AFAMethod, dataset: AFADataset, hard_budget: int) -> dict[str, float]:
+def eval_afa_method(afa_method: AFAMethod, dataset: AFADataset, hard_budget: int, classifier: AFAClassifier) -> dict[str, float]:
     """
-    Evaluates an AFA method on a specific dataset and hard budget, and returns a dictionary of metrics.
+    Evaluates an AFA method.
+
+    Args:
+        afa_method (AFAMethod): The AFA method to evaluate.
+        dataset (AFADataset): The dataset to evaluate on.
+        hard_budget (int): The number of features to select.
+        classifier (AFAClassifier): The classifier to use for evaluation.
+
+    Returns:
+        dict[str, float]: A dictionary containing the evaluation results.
     """
 
     # Store feature mask history, label prediction history, and true label for each sample in the dataset
@@ -117,10 +127,11 @@ def eval_afa_method(afa_method: AFAMethod, dataset: AFADataset, hard_budget: int
         # Let AFA method select features for a fixed number of steps
         for _ in range(hard_budget):
             # Always calculate a prediction
-            prediction = afa_method.predict(
-                masked_features.unsqueeze(0), feature_mask.unsqueeze(0)
-            ).squeeze(0)
-            
+            # prediction = afa_method.predict(
+            #     masked_features.unsqueeze(0), feature_mask.unsqueeze(0)
+            # ).squeeze(0)
+            prediction = classifier(masked_features.unsqueeze(0), feature_mask.unsqueeze(0)).squeeze(0)
+
             prediction_history.append(prediction)
 
             # Select new features
@@ -181,6 +192,8 @@ def main(model_folder: Path, results_folder: Path, dataset_fraction_name: str):
                 eval_dataset_path
             )
             print(f"Loaded dataset {dataset_type} from {eval_dataset_path}")
+
+            # Loop through each classifier that has been trained on this dataset
 
             # Do the evaluation
             metrics = eval_afa_method(afa_method, eval_dataset, hard_budget)

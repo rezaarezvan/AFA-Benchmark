@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Callable, ClassVar, Protocol
 
 from jaxtyping import Bool, Float, Integer
@@ -8,6 +9,8 @@ import torch
 type Features = Float[Tensor, "*batch n_features"]
 # We use float here since in general we can have probabilities, not only one-hot
 type Label = Float[Tensor, "*batch n_classes"]
+
+type Logits = Float[Tensor, "*batch model_output_size"]
 
 
 class AFADataset(Protocol):
@@ -44,7 +47,7 @@ class AFADataset(Protocol):
         """
         ...
 
-    def save(self, path: str) -> None:
+    def save(self, path: Path) -> None:
         """
         Saves the dataset to a file. The file should be in a format that can be loaded by the dataset.
         This enables deterministic loading of datasets.
@@ -52,7 +55,7 @@ class AFADataset(Protocol):
         ...
 
     @staticmethod
-    def load(path: str) -> "AFADataset":
+    def load(path: Path) -> "AFADataset":
         """
         Loads the dataset from a file. The file should contain the dataset in a format that can be loaded by the dataset.
         This enables deterministic loading of datasets.
@@ -93,14 +96,14 @@ class AFAMethod(Protocol):
         """
         ...
 
-    def save(self, path: str) -> None:
+    def save(self, path: Path) -> None:
         """
         Saves the method to a file. The file should be in a format that can be loaded by the method.
         """
         ...
 
     @staticmethod
-    def load(path: str, device: torch.device) -> "AFAMethod":
+    def load(path: Path, device: torch.device) -> "AFAMethod":
         """
         Loads the method from a file, placing it on the given device.
         """
@@ -129,3 +132,32 @@ type AFARewardFn = Callable[
     ],
     AFAReward,
 ]
+
+class AFAClassifier(Protocol):
+    """
+    An AFA classifier is an object that can perform classification on masked features.
+
+    """
+
+    def __call__(
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+    ) -> Logits:
+        """
+        Returns the predicted logits for the features that have been observed so far.
+        """
+        ...
+
+    def save(self, path: Path) -> None:
+        """
+        Saves the classifier to a file. The file should be in a format that can be loaded by the method.
+        """
+        ...
+
+    @staticmethod
+    def load(path: Path, device: torch.device) -> "AFAClassifier":
+        """
+        Loads the classifier from a file, placing it on the given device.
+        """
+        ...

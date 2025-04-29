@@ -13,12 +13,11 @@ import os
 
 import yaml
 
-from afa_rl.afa_methods import RandomDummyAFAMethod, SequentialDummyAFAMethod
 from common.registry import AFA_DATASET_REGISTRY, AFA_METHOD_REGISTRY
 from coolname import generate_slug
 
 
-def save_dummy_method(method_name: str, hard_budget: int, dataset_train_path: Path, dataset_val_path: Path, seed: int):
+def save_dummy_method(method_name: str, hard_budget: int, dataset_train_path: Path, dataset_val_path: Path, seed: int, method_folder: Path):
     # Find method class using registry
     method_cls = AFA_METHOD_REGISTRY[method_name]
 
@@ -29,7 +28,7 @@ def save_dummy_method(method_name: str, hard_budget: int, dataset_train_path: Pa
 
     # Generate a unique datetime string and create folders
     timestr = generate_slug(2)
-    (args.models_folder / method_name / timestr).mkdir(
+    (method_folder / method_name / timestr).mkdir(
         parents=True, exist_ok=True
     )
 
@@ -37,12 +36,13 @@ def save_dummy_method(method_name: str, hard_budget: int, dataset_train_path: Pa
         device=torch.device("cpu"),
         n_classes=dataset_cls.n_classes,
     )
+
     method.save(
-        (args.models_folder / method_name / timestr / "model.pt")
+        method_folder / method_name / timestr / "model.pt"
     )
     # Also save a yaml file with params
     with open(
-        (args.models_folder / method_name / timestr / "params.yml"), "w"
+        (method_folder / method_name / timestr / "params.yml"), "w"
     ) as f:
         yaml.dump({
             "hard_budget": hard_budget,
@@ -72,7 +72,8 @@ def main(args: argparse.Namespace):
                 args.hard_budget,
                 train_path,
                 val_path,
-                seed
+                seed,
+                method_folder=args.method_folder,
             )
 
             save_dummy_method(
@@ -80,16 +81,17 @@ def main(args: argparse.Namespace):
                 args.hard_budget,
                 train_path,
                 val_path,
-                seed
+                seed,
+                method_folder=args.method_folder,
             )
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--models_folder",
+        "--method_folder",
         type=Path,
-        default="models",
-        help="Path to the models folder",
+        default="models/methods",
+        help="Path to the method folder",
     )
     parser.add_argument(
         "--dataset_folder",
