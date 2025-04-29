@@ -41,9 +41,10 @@ def save_dummy_classifier(classifier_name: str, dataset_train_path: Path, datase
         (classifier_folder / classifier_name / timestr / "params.yml"), "w"
     ) as f:
         yaml.dump({
+            "seed": seed,
+            "dataset_type": dataset_type,
             "train_dataset_path": str(dataset_train_path),
             "val_dataset_path": str(dataset_val_path),
-            "seed": seed,
         }, f, default_flow_style=False)
 
 

@@ -161,3 +161,8 @@ class AFAClassifier(Protocol):
         Loads the classifier from a file, placing it on the given device.
         """
         ...
+
+# What we assume during evaluation. Includes both AFAClassifiers and AFAMethod.predict
+type AFAClassifierFn = Callable[
+    [MaskedFeatures, FeatureMask], Logits
+]

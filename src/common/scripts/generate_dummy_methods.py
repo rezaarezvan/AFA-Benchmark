@@ -46,9 +46,10 @@ def save_dummy_method(method_name: str, hard_budget: int, dataset_train_path: Pa
     ) as f:
         yaml.dump({
             "hard_budget": hard_budget,
+            "seed": seed,
+            "dataset_type": dataset_type,
             "train_dataset_path": str(dataset_train_path),
             "val_dataset_path": str(dataset_val_path),
-            "seed": seed,
         }, f, default_flow_style=False)
 
 
