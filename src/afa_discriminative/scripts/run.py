@@ -1,16 +1,12 @@
 import os
 import torch
-import pickle
 import argparse
-import numpy as np
+import yaml
 import torch.nn as nn
 from tqdm.auto import tqdm
 from torch.utils.data import DataLoader
-from torchvision import transforms
-from torchvision.datasets import MNIST
 from torchmetrics import Accuracy, AUROC
 from afa_discriminative.utils import MaskLayer
-from afa_discriminative.datasets import load_spam, load_diabetes, load_miniboone, data_split
 from afa_discriminative.models import MaskingPretrainer, fc_Net
 from afa_discriminative.afa_methods import GreedyDynamicSelection, CMIEstimator
 from common.custom_types import AFADataset
@@ -24,7 +20,6 @@ parser.add_argument("--dataset_val_path", type=str, required=True)
 parser.add_argument("--dataset_test_path", type=str, required=True)
 parser.add_argument('--method', type=str, choices=['GDFS', 'DIME'], required=True)
 parser.add_argument('--num_trials', type=int, default=1)
-parser.add_argument('--num_restarts', type=int, default=1)
 
 
 # num_features_dict = {
@@ -67,17 +62,17 @@ if __name__ == '__main__':
     test_dataset.labels = test_dataset.labels.argmax(dim=1).long()
     # num_features = list(range(d_in))
 
-    if args.method == "GDFS":
-        train_mean = train_dataset.features.mean(dim=0)
-        train_std = torch.clamp(train_dataset.features.std(dim=0), min=1e-3)
-        val_mean = val_dataset.features.mean(dim=0)
-        val_std = torch.clamp(val_dataset.features.std(dim=0), min=1e-3)
-        test_mean = train_dataset.features.mean(dim=0)
-        test_std = torch.clamp(train_dataset.features.std(dim=0), min=1e-3)
+    # if args.method == "GDFS":
+    #     train_mean = train_dataset.features.mean(dim=0)
+    #     train_std = torch.clamp(train_dataset.features.std(dim=0), min=1e-3)
+    #     val_mean = val_dataset.features.mean(dim=0)
+    #     val_std = torch.clamp(val_dataset.features.std(dim=0), min=1e-3)
+    #     test_mean = train_dataset.features.mean(dim=0)
+    #     test_std = torch.clamp(train_dataset.features.std(dim=0), min=1e-3)
 
-        train_dataset.features = (train_dataset.features - train_mean) / train_std
-        val_dataset.features = (val_dataset.features - val_mean) / val_std
-        test_dataset.features = (test_dataset.features - test_mean) / test_std
+    #     train_dataset.features = (train_dataset.features - train_mean)
+    #     val_dataset.features = (val_dataset.features - val_mean)
+    #     test_dataset.features = (test_dataset.features - test_mean)
 
     train_loader = DataLoader(
         train_dataset, batch_size=128,
@@ -162,7 +157,25 @@ if __name__ == '__main__':
             run_description = f"trial_{trial}"
             save_dir = os.path.join(f"models/afa_discriminative/{args.method}/{args.dataset_type}", run_description)
             os.makedirs(save_dir, exist_ok=True)
-            torch.save(gdfs, os.path.join(save_dir,f'best_val_loss_gdfs_model.pt'))
+            # torch.save(gdfs, os.path.join(save_dir,f'best_val_loss_gdfs_model.pt'))
+
+            torch.save({
+                'selector_state_dict': gdfs.selector.state_dict(),
+                'predictor_state_dict': gdfs.predictor.state_dict(),
+                'architecture': {
+                    'd_in': d_in,
+                    'd_out': d_out,
+                    'selector_hidden_layers': [128, 128],
+                    'predictor_hidden_layers': [128, 128],
+                    'dropout': 0.3,
+                }}, os.path.join(save_dir,f'model.pt'))
+            
+            params = {
+                "hard_budget": max_features_dict[args.dataset_type],
+                "train_dataset_path": args.dataset_train_path,
+            }
+            with open(os.path.join(save_dir, 'params.yml'), 'w') as f:
+                yaml.dump(params, f)
         
         elif args.method == "DIME":
             predictor = fc_Net(

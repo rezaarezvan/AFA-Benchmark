@@ -3,7 +3,8 @@ import torch.nn as nn
 import numpy as np
 import torch.optim as optim
 from tqdm.auto import tqdm
-from afa_discriminative.utils import restore_parameters, make_onehot, get_entropy, ind_to_onehot, ConcreteSelector
+from afa_discriminative.utils import restore_parameters, make_onehot, get_entropy, ind_to_onehot, ConcreteSelector, MaskLayer
+from afa_discriminative.models import fc_Net
 from copy import deepcopy
 
 
@@ -336,6 +337,61 @@ class GreedyDynamicSelection(nn.Module):
                 score = metric(pred, y).item()
                 
         return score
+    
+    @classmethod
+    def load(cls, checkpoint_path, device='cpu'):
+        checkpoint = torch.load(checkpoint_path, map_location=device)
+        arch = checkpoint['architecture']
+        d_in = arch['d_in']
+        d_out = arch['d_out']
+        selector_hidden_layers = arch['selector_hidden_layers']
+        predictor_hidden_layers = arch['predictor_hidden_layers']
+        dropout = arch['dropout']
+        predictor = fc_Net(
+            input_dim=d_in * 2,
+            output_dim=d_out,
+            hidden_layer_num=len(predictor_hidden_layers),
+            hidden_unit=predictor_hidden_layers,
+            activations='ReLU',
+            drop_out_rate=dropout,
+            flag_drop_out=True,
+            flag_only_output_layer=False
+        )
+        selector = fc_Net(
+            input_dim=d_in * 2,
+            output_dim=d_in,
+            hidden_layer_num=len(selector_hidden_layers),
+            hidden_unit=selector_hidden_layers,
+            activations='ReLU',
+            drop_out_rate=dropout,
+            flag_drop_out=True,
+            flag_only_output_layer=False
+        )
+        mask_layer = MaskLayer(append=True)
+
+        model = cls(selector, predictor, mask_layer)
+        model.selector.load_state_dict(checkpoint['selector_state_dict'])
+        model.predictor.load_state_dict(checkpoint['predictor_state_dict'])
+        model.selector.eval()
+        model.predictor.eval()
+        return model
+
+    def predict(self, feature, feature_mask):
+        mask_layer = self.mask_layer
+        predictor = self.predictor
+        x_masked = mask_layer(feature, feature_mask)
+        pred = predictor(x_masked)
+        return pred
+    
+    def select(self, feature, feature_mask):
+        mask_layer = self.mask_layer
+        selector = self.selector
+        x_masked = mask_layer(feature, feature_mask)
+        logits = selector(x_masked).flatten(1)
+        logits = logits - 1e6 * feature_mask
+        # TODO Do we need +1 here?
+        next_feature_idx = logits.argmax(dim=1) + 1
+        return next_feature_idx
 
 
 class CMIEstimator(nn.Module):
