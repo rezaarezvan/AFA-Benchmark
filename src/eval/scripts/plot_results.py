@@ -22,11 +22,14 @@ from typing import Dict, List
 
 import numpy as np
 import torch
+from torch import Tensor
 import matplotlib.pyplot as plt
 
 from common.registry import AFA_DATASET_REGISTRY, AFA_METHOD_REGISTRY
 
-AFA_METHOD_NAMES = list(AFA_METHOD_REGISTRY.keys())
+from eval.utils import get_eval_results_with_fixed_keys
+
+AFA_METHOD_TYPES = list(AFA_METHOD_REGISTRY.keys())
 AFA_DATASET_NAMES = list(AFA_DATASET_REGISTRY.keys())
 
 # ---------------------------------------------------------------------------
@@ -43,11 +46,11 @@ PLOTS_DIR.mkdir(parents=True, exist_ok=True)
 # Helper functions
 # ---------------------------------------------------------------------------
 
-def tensor_list_to_stats(vec_list: List[torch.Tensor]) -> tuple[np.ndarray, np.ndarray]:
+def tensor_list_to_stats(tensor_list: List[Tensor]) -> tuple[Tensor, Tensor]:
     """Stack a list of 1‑D tensors → compute mean & std along axis 0."""
-    stacked = torch.stack(vec_list)  # (N, B)
-    mean = stacked.mean(dim=0).cpu().numpy()
-    std = stacked.std(dim=0).cpu().numpy()
+    stacked = torch.stack(tensor_list)  # (N, B)
+    mean = stacked.mean( 0)
+    std = stacked.std(0)
     return mean, std
 
 
@@ -61,78 +64,86 @@ def ensure_dir(path: Path) -> None:
 
 def main() -> None:
     for dataset_name in AFA_DATASET_REGISTRY.keys():
-        for is_common_classifier in (True, False):
+        print(f"Processing dataset: {dataset_name}")
+        for is_builtin_classifier in (True, False):
+            print(" Processing builtin classifier:", is_builtin_classifier)
             # Collect stats per method → {metric: {method: (mean, std)}}
-            metric_table: Dict[str, Dict[str, tuple[np.ndarray, np.ndarray]]] = {
+            metric_table: Dict[str, Dict[str, tuple[Tensor, Tensor]]] = {
                 "accuracy": {},
                 "f1": {},
             }
 
-            for method in AFA_METHOD_NAMES:
+            at_least_one_method = False
+            for method_type in AFA_METHOD_TYPES:
+                print("    Processing method:", method_type)
                 # ------------------------------------------------------------------
                 # Query results
                 # ------------------------------------------------------------------
-                train_params = {
-                    "dataset_type": dataset_name,
-                    "budget": BUDGET,
-                }
-                eval_params = {
-                    "is_common_classifier": is_common_classifier,
-                    "budget": BUDGET,
-                }
 
                 results = get_eval_results_with_fixed_keys(  # type: ignore
-                    afa_method_name=method,
-                    fixed_train_params_mapping=train_params,
-                    fixed_eval_params_mapping=eval_params,
+                    fixed_params_mapping={
+                        "dataset_type": dataset_name,
+                        "method_type": method_type,
+                        "method_hard_budget": BUDGET,
+                        "is_builtin_classifier": is_builtin_classifier,
+                        "eval_hard_budget": BUDGET,
+                    }
                 )
 
-                if not results:
-                    print(f"[WARN] No results for {dataset_name} | {method} | common_clf={is_common_classifier}")
+                if results:
+                    print(f"      [INFO] Found results for {dataset_name} | builtin_clf={is_builtin_classifier} | {method_type}")
+                else:
+                    print(f"      [WARN] No results for {dataset_name} | builtin_clf={is_builtin_classifier} | {method_type}")
                     continue
+
+                # Produce a plot for this dataset/method combination
+                at_least_one_method = True
 
                 # ------------------------------------------------------------------
                 # Aggregate accuracy_all and f1_all across result dicts
                 # ------------------------------------------------------------------
-                acc_vecs = [d["accuracy_all"].detach() for d in results]
-                f1_vecs = [d["f1_all"].detach() for d in results]
+                acc_tensors = [d["accuracy_all"] for d in results]
+                f1_tensors = [d["f1_all"] for d in results]
 
-                acc_mean, acc_std = tensor_list_to_stats(acc_vecs)
-                f1_mean, f1_std = tensor_list_to_stats(f1_vecs)
+                acc_mean, acc_std = tensor_list_to_stats(acc_tensors)
+                f1_mean, f1_std = tensor_list_to_stats(f1_tensors)
 
-                metric_table["accuracy"][method] = (acc_mean, acc_std)
-                metric_table["f1"][method] = (f1_mean, f1_std)
+                metric_table["accuracy"][method_type] = (acc_mean, acc_std)
+                metric_table["f1"][method_type] = (f1_mean, f1_std)
 
+            if not at_least_one_method:
+                print(f"  [WARN] No methods for {dataset_name} | builtin_clf={is_builtin_classifier}")
+                continue
             # ----------------------------------------------------------------------
             # Render plots for both metrics
             # ----------------------------------------------------------------------
             x = np.arange(1, len(next(iter(metric_table["accuracy"].values()))[0]) + 1)
 
             for metric in ("accuracy", "f1"):
-                save_dir = PLOTS_DIR / dataset_name / metric / ("1" if is_common_classifier else "0")
+                save_dir = PLOTS_DIR / dataset_name / metric / ("0" if is_builtin_classifier else "1")
                 ensure_dir(save_dir)
 
                 plt.figure(figsize=(6, 4))
-                for method, (mean_vec, std_vec) in metric_table[metric].items():
+                for method_type, (mean_vec, std_vec) in metric_table[metric].items():
                     plt.errorbar(
                         x,
                         mean_vec,
                         yerr=std_vec,
                         marker="o",
                         capsize=3,
-                        label=method,
+                        label=method_type,
                     )
 
-                plt.title(f"{metric.upper()} | {dataset_name} | common_clf={is_common_classifier}")
+                plt.title(f"{metric.upper()} | {dataset_name} | builtin_clf={is_builtin_classifier}")
                 plt.xlabel("Feature‑selection budget (B)")
                 plt.ylabel(metric.upper())
                 plt.legend()
                 plt.tight_layout()
 
-                outfile = save_dir / f"{metric}_{dataset_name}_{int(is_common_classifier)}.png"
+                outfile = save_dir / f"{metric}_{dataset_name}_{int(not is_builtin_classifier)}.png"
                 plt.savefig(outfile, dpi=300)
                 plt.close()
-                print(f"[√] Saved → {outfile.relative_to(Path.cwd())}")
+                print(f"[√] Saved → {outfile}")
 
 
 if __name__ == "__main__":

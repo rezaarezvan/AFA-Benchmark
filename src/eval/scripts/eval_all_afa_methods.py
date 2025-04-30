@@ -7,6 +7,7 @@ from pathlib import Path
 from textwrap import indent
 from typing import Any
 
+from numpy.typing import NDArray
 import torch
 from torch import Tensor
 from tqdm import tqdm
@@ -20,11 +21,16 @@ from common.custom_types import (
     FeatureMask,
     Label,
 )
-from common.registry import AFA_DATASET_REGISTRY, AFA_METHOD_REGISTRY
+from common.registry import AFA_CLASSIFIER_REGISTRY, AFA_DATASET_REGISTRY, AFA_METHOD_REGISTRY
 from sklearn.metrics import accuracy_score, f1_score
 import numpy as np
 
-def aggregate_metrics(prediction_history_all, y_true):
+from common.utils import set_seed
+from eval.utils import get_classifier_paths_trained_on_data
+
+from coolname import generate_slug
+
+def aggregate_metrics(prediction_history_all, y_true) -> tuple[Tensor, Tensor]:
     """
     Compute accuracy and F1 across feature-selection budgets.
 
@@ -41,11 +47,11 @@ def aggregate_metrics(prediction_history_all, y_true):
 
     Returns
     -------
-    accuracy_all : list[float]
-    f1_all       : list[float]
+    accuracy_all : Tensor[float64]
+    f1_all       : Tensor[float64]
     """
     if not prediction_history_all:
-        return [], []
+        return torch.tensor([], dtype=torch.float64), torch.tensor([], dtype=torch.float64)
 
     B = len(prediction_history_all[0])
     if any(len(row) != B for row in prediction_history_all):
@@ -64,35 +70,34 @@ def aggregate_metrics(prediction_history_all, y_true):
         accuracy_all.append(accuracy_score(y_true, preds_i))
         f1_all.append(f1_score(y_true, preds_i, **f1_kwargs))
 
-    return accuracy_all, f1_all
+    return torch.tensor(accuracy_all, dtype=torch.float64), torch.tensor(f1_all, dtype=torch.float64)
 
 
-from coolname import generate_slug
 
 def evaluator(
     feature_mask_history_all: list[list[FeatureMask]],
     prediction_history_all: list[list[Label]],
     labels_all: list[Label],
-) -> dict:
+) -> dict[str, Any]:
 
     assert (
         len(feature_mask_history_all) == len(prediction_history_all) == len(labels_all)
     ), "All three lists must have the same length"
 
-    #labels_all = [label.argmax(-1) for label in labels_all]
-    labels_all = torch.stack(labels_all)
+    labels_all: Tensor = torch.stack(labels_all)
     labels_all = torch.argmax(labels_all, dim=1)
 
     accuracy_all, f1_all = aggregate_metrics(prediction_history_all, labels_all)
 
+    # Save metrics as NDArray
     return {
-        "accuracy_all": accuracy_all,
-        "f1_all": f1_all,
-        "feature_mask_history_all": feature_mask_history_all,
+        "accuracy_all": accuracy_all.detach().cpu(),
+        "f1_all": f1_all.detach().cpu(),
+        "feature_mask_history_all": [[t.detach().cpu() for t in sublist] for sublist in feature_mask_history_all],
     }
 
 
-def eval_afa_method(afa_method: AFAMethod, dataset: AFADataset, hard_budget: int, afa_classifier_fn: AFAClassifierFn) -> dict[str, float]:
+def eval_afa_method(afa_method: AFAMethod, dataset: AFADataset, hard_budget: int, afa_classifier_fn: AFAClassifierFn) -> dict[str, Any]:
     """
     Evaluates an AFA method.
 
@@ -160,7 +165,7 @@ def eval_afa_method(afa_method: AFAMethod, dataset: AFADataset, hard_budget: int
 
     return eval_results
 
-def write_eval_results(folder_path: Path, metrics: dict[str, float], dataset_type: str, method_type: str, method_path: str, method_params: dict[str, Any], is_builtin_classifier: bool, classifier_type: str|None, classifier_path: str|None, classifier_params: dict[str, Any]|None, eval_params: dict[str, Any]):
+def write_eval_results(folder_path: Path, metrics: dict[str, Any], method_type: str, method_path: str, method_params: dict[str, Any], is_builtin_classifier: bool, classifier_type: str|None, classifier_path: str|None, classifier_params: dict[str, Any]|None, eval_params: dict[str, Any], dataset_type: str):
     """
     Write the evaluation results to a folder with two files: results.pt and params.yml.
     """
@@ -180,16 +185,17 @@ def write_eval_results(folder_path: Path, metrics: dict[str, float], dataset_typ
         folder_path / "params.yml",
         "w",
     ) as file:
+        # Don't write the dataset type for method/classifier since we assume that the same dataset type is used.
         yaml.dump({
-            "dataset_type": dataset_type,
-            **{f"method_{k}": v for k,v in method_params.items()},
+            **{f"method_{k}": v for k,v in method_params.items() if k != "dataset_type"},
             "method_type": method_type,
             "method_path": method_path,
-            **({f"classifier_{k}": v for k, v in classifier_params.items()} if classifier_params else {}),
+            **({f"classifier_{k}": v for k, v in classifier_params.items() if k != "dataset_type"} if classifier_params else {}),
             **({"classifier_type": classifier_type} if classifier_type else {}),
             **({"classifier_path": str(classifier_path)} if classifier_path else {}),
             "is_builtin_classifier": is_builtin_classifier,
-            **{f"eval_{k}": v for k,v in eval_params.items()}
+            **{f"eval_{k}": v for k,v in eval_params.items()},
+            "dataset_type": dataset_type,
 
         },
         file,
@@ -227,10 +233,10 @@ def main(method_folder: Path, classifier_folder: Path, results_folder: Path, dat
             # The dataset we want to use during evaluation should be the same split as the one used during training,
             # but possibly using a different fraction of the dataset (i.e. val or test)
             train_dataset_path = Path(method_params_dict["train_dataset_path"])
-            dataset_type = train_dataset_path.parent.name
+            eval_dataset_type = train_dataset_path.parent.name
             eval_dataset_name = train_dataset_path.name.replace("train", dataset_fraction_name)
             eval_dataset_path = train_dataset_path.parent / eval_dataset_name
-            eval_dataset = AFA_DATASET_REGISTRY[dataset_type].load(
+            eval_dataset = AFA_DATASET_REGISTRY[eval_dataset_type].load(
                 eval_dataset_path
             )
             print(f"Loaded AFA method {method_type} from {trained_method_path} trained on {train_dataset_path}")
@@ -264,7 +270,6 @@ def main(method_folder: Path, classifier_folder: Path, results_folder: Path, dat
                 write_eval_results(
                     results_folder / generate_slug(2),
                     metrics,
-                    dataset_type,
                     method_type,
                     str(trained_method_path),
                     method_params_dict,
@@ -277,6 +282,7 @@ def main(method_folder: Path, classifier_folder: Path, results_folder: Path, dat
                         "dataset_path": str(eval_dataset_path),
                         "hard_budget": hard_budget,
                     },
+                    eval_dataset_type,
                 )
 
             # Finally, use the built-in classifier of the AFA method
@@ -287,7 +293,6 @@ def main(method_folder: Path, classifier_folder: Path, results_folder: Path, dat
             write_eval_results(
                 results_folder / generate_slug(2),
                 metrics,
-                dataset_type,
                 method_type,
                 str(trained_method_path),
                 method_params_dict,
@@ -300,6 +305,7 @@ def main(method_folder: Path, classifier_folder: Path, results_folder: Path, dat
                     "dataset_path": str(eval_dataset_path),
                     "hard_budget": hard_budget,
                 },
+                eval_dataset_type,
             )
 
 

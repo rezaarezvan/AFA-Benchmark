@@ -1,5 +1,7 @@
 from pathlib import Path
 from typing import Any
+import numpy as np
+from numpy.typing import NDArray
 import torch
 from torch import Tensor
 import yaml
@@ -22,7 +24,7 @@ def yaml_file_matches_mapping(yaml_file_path: Path, mapping: dict[str, Any]) -> 
 
     return True
 
-def get_eval_results_with_fixed_keys(fixed_params_mapping: dict[str, Any]={}, results_path=Path("results")) -> list[dict[str, float]]:
+def get_eval_results_with_fixed_keys(fixed_params_mapping: dict[str, Any]={}, results_path=Path("results")) -> list[dict[str, Any]]:
     """
     Return all evaluation results (as dictionaries) that have specific params values.
     The remaining keys are allowed to take any value.

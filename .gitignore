@@ -188,5 +188,8 @@ data
 # Model folder, includes weights and other types of saved models
 models
 
-# Results folder, includes evaluation results and plots
+# Results folder, includes evaluation results
 results
+
+# Plots folder, includes generated plots
+plots
