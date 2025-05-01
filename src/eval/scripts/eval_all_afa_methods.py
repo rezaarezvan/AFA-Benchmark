@@ -227,7 +227,10 @@ def main(method_folder: Path, classifier_folder: Path, results_folder: Path, dat
             # Open it as yaml
             with open(method_params_method, "r") as file:
                 method_params_dict: dict = yaml.safe_load(file)
+
             # Use the same hard budget during evaluation as during training
+            # Note that this can be None, in which case we will use the maximum number of features in the dataset
+            # during evaluation
             hard_budget = method_params_dict["hard_budget"]
 
             # The dataset we want to use during evaluation should be the same split as the one used during training,
@@ -239,6 +242,8 @@ def main(method_folder: Path, classifier_folder: Path, results_folder: Path, dat
             eval_dataset = AFA_DATASET_REGISTRY[eval_dataset_type].load(
                 eval_dataset_path
             )
+            assert eval_dataset.features
+            assert eval_dataset.labels
             print(f"Loaded AFA method {method_type} from {trained_method_path} trained on {train_dataset_path}")
             print(f"  Using dataset {eval_dataset_path} for evaluation")
 
@@ -264,7 +269,7 @@ def main(method_folder: Path, classifier_folder: Path, results_folder: Path, dat
                     classifier_params_dict: dict = yaml.safe_load(file)
 
                 # Do the evaluation
-                metrics = eval_afa_method(afa_method, eval_dataset, hard_budget, classifier)
+                metrics = eval_afa_method(afa_method, eval_dataset, hard_budget if hard_budget else eval_dataset.features.shape[-1], classifier)
 
                 # Write all results
                 write_eval_results(
