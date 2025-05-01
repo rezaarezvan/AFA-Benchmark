@@ -226,12 +226,12 @@ def main(args: argparse.Namespace):
     pretrain_config = dict_to_namespace(pretrain_config_dict)
 
     train_dataset: AFADataset = AFA_DATASET_REGISTRY[args.dataset_type].load(
-        args.dataset_train_path
+        args.train_dataset_path
     )
     assert train_dataset.features is not None
     assert train_dataset.labels is not None
     val_dataset: AFADataset = AFA_DATASET_REGISTRY[args.dataset_type].load(
-        args.dataset_val_path
+        args.val_dataset_path
     )
     assert val_dataset.features is not None
     assert val_dataset.labels is not None
@@ -270,11 +270,7 @@ def main(args: argparse.Namespace):
     )
 
     # MDP expects special dataset functions
-    assert train_dataset.features is not None
-    assert train_dataset.labels is not None
     train_dataset_fn = get_afa_dataset_fn(train_dataset.features, train_dataset.labels)
-    assert val_dataset.features is not None
-    assert val_dataset.labels is not None
     val_dataset_fn = get_afa_dataset_fn(val_dataset.features, val_dataset.labels)
 
 
@@ -285,7 +281,7 @@ def main(args: argparse.Namespace):
         batch_size=torch.Size((train_config.n_agents,)),
         feature_size=n_features,
         n_classes=n_classes,
-        hard_budget=train_config.env.hard_budget,
+        hard_budget=args.hard_budget,
     )
     check_env_specs(train_env)
 
@@ -300,7 +296,7 @@ def main(args: argparse.Namespace):
         batch_size=torch.Size((1,)),
         feature_size=n_features,
         n_classes=n_classes,
-        hard_budget=train_config.env.hard_budget,
+        hard_budget=args.hard_budget,
     )
 
     agent = Shim2018Agent(
@@ -377,9 +373,21 @@ def main(args: argparse.Namespace):
         afa_method = Shim2018AFAMethod(
             device, agent.value_network, embedder_and_classifier,
         )
-        afa_method.save(args.afa_method_path)
+        afa_method.save(args.afa_method_path / "model.pt")
         print(f"Shim2018AFAMethod saved to {args.afa_method_path / "model.pt"}")
+
         # Save params.yml file
+        with open(args.afa_method_path / "params.yml", "w") as file:
+            yaml.dump(
+                {
+                    "hard_budget": args.hard_budget,
+                    "seed": args.seed,
+                    "dataset_type": args.dataset_type,
+                    "train_dataset_path": args.dataset_train_path,
+                    "val_dataset_path": args.dataset_val_path,
+                },
+                file,
+            )
 
         # Now load the method
         afa_method = Shim2018AFAMethod.load(args.afa_method_path, device)
@@ -403,8 +411,8 @@ if __name__ == "__main__":
         help="Path to YAML config file for this training",
     )
     parser.add_argument("--dataset_type", type=str, required=True, choices=AFA_DATASET_REGISTRY.keys())
-    parser.add_argument("--dataset_train_path", type=str, required=True)
-    parser.add_argument("--dataset_val_path", type=str, required=True)
+    parser.add_argument("--train_dataset_path", type=str, required=True)
+    parser.add_argument("--val_dataset_path", type=str, required=True)
     parser.add_argument("--pretrained_model_path", type=str, required=True)
     parser.add_argument("--hard_budget", type=int, required=True)
     parser.add_argument("--seed", type=int, required=True)
