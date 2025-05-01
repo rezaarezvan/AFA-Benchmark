@@ -110,7 +110,6 @@ class CubeDataset(Dataset, AFADataset):
                 "features": self.features,
                 "labels": self.labels,
                 "config": {
-                    "n_features": self.n_cube_features + self.n_dummy_features,
                     "n_samples": self.n_samples,
                     "seed": self.seed,
                     "non_informative_feature_mean": self.non_informative_feature_mean,
@@ -268,7 +267,6 @@ class AFAContextDataset(Dataset, AFADataset):
                     'std_bin': self.std_bin,
                     'std_cube': self.std_cube,
                     'bin_feature_cost': self.bin_feature_cost,
-                    'n_dummy_features': self.n_dummy_features,
                     'seed': self.seed,
                     'non_informative_feature_mean': self.non_informative_feature_mean,
                     'non_informative_feature_std': self.non_informative_feature_std,

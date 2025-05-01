@@ -1,5 +1,5 @@
-dataset_types: ["AFAContext"]
+dataset_types: ["cube"]
 dataset_splits: [1]
 seeds: [42]
 hard_budgets:
-  AFAContext: [10]
+  cube: [5, 10, 20]

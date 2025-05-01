@@ -126,6 +126,8 @@ def main(pretrain_config_path: Path, dataset_type: str, train_dataset_path: Path
 
 
 if __name__ == "__main__":
+    from common.registry import AFA_DATASET_REGISTRY
+
     # Use argparse to choose config file
     parser = argparse.ArgumentParser()
     parser.add_argument("--pretrain_config_path", type=Path, required=True)
