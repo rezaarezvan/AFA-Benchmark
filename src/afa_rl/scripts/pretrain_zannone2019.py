@@ -113,11 +113,15 @@ def main(args: argparse.Namespace):
     config = dict_to_namespace(config_dict)
 
     train_dataset: AFADataset = AFA_DATASET_REGISTRY[args.dataset_type].load(
-        args.dataset_train_path
+        args.train_dataset_path
     )
+    assert train_dataset.features is not None
+    assert train_dataset.labels is not None
     val_dataset: AFADataset = AFA_DATASET_REGISTRY[args.dataset_type].load(
-        args.dataset_val_path
+        args.val_dataset_path
     )
+    assert val_dataset.features is not None
+    assert val_dataset.labels is not None
     datamodule = DataModuleFromDatasets(
         train_dataset, val_dataset, batch_size=config.dataloader.batch_size
     )
@@ -133,7 +137,7 @@ def main(args: argparse.Namespace):
         monitor="val_loss",  # Replace "val_loss" with the appropriate validation metric
         save_top_k=1,
         mode="min",
-        dirpath="models/methods/zannone2019",  # Directory to save checkpoints
+        dirpath=args.pretrained_model_path,
         filename="best-checkpoint"
     )
 
@@ -160,8 +164,16 @@ def main(args: argparse.Namespace):
         best_checkpoint = trainer.checkpoint_callback.best_model_path
         # Create parent directories if neccessary
         os.makedirs(os.path.dirname(args.pretrained_model_path), exist_ok=True)
-        # Save
-        torch.save(torch.load(best_checkpoint), args.pretrained_model_path)
+        # Save weights
+        torch.save(torch.load(best_checkpoint), args.pretrained_model_path / "model.pt")
+        # Save params.yml file
+        with open(args.pretrained_model_path / "params.yml", "w") as file:
+            yaml.dump({
+                "dataset_type": args.dataset_type,
+                "train_dataset_path": args.train_dataset_path,
+                "val_dataset_path": args.val_dataset_path,
+                "seed": args.seed,
+            }, file)
         print(f"Zannone2019PretrainingModel saved to {args.pretrained_model_path}")
 
 
@@ -169,8 +181,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--pretrain_config", type=str, required=True)
     parser.add_argument("--dataset_type", type=str, required=True, choices=AFA_DATASET_REGISTRY.keys())
-    parser.add_argument("--dataset_train_path", type=str, required=True)
-    parser.add_argument("--dataset_val_path", type=str, required=True)
+    parser.add_argument("--train_dataset_path", type=str, required=True)
+    parser.add_argument("--val_dataset_path", type=str, required=True)
     parser.add_argument("--pretrained_model_path", type=str, required=True)
     parser.add_argument("--seed", type=int, required=True)
     args = parser.parse_args()
