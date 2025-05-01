@@ -397,7 +397,7 @@ class Covert2023AFAMethod(AFAMethod):
             flag_only_output_layer=False
         )
 
-        model = Covert2023(selector, predictor)
+        model = Covert2023AFAMethod(selector, predictor)
         model.selector.load_state_dict(checkpoint['selector_state_dict'])
         model.predictor.load_state_dict(checkpoint['predictor_state_dict'])
         model.selector.eval()
@@ -738,7 +738,7 @@ class Gadgil2023AFAMethod(AFAMethod):
         value_network.hidden[0] = predictor.hidden[0]
         value_network.hidden[1] = predictor.hidden[1]
 
-        model = Gadgil2023(value_network, predictor)
+        model = Gadgil2023AFAMethod(value_network, predictor)
         model.value_network.load_state_dict(checkpoint['value_network_state_dict'])
         model.predictor.load_state_dict(checkpoint['predictor_state_dict'])
         model.value_network.eval()
