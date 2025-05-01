@@ -5,8 +5,8 @@ from afa_rl.afa_methods import (
     Zannone2019AFAMethod,
 )
 from afa_discriminative.afa_methods import (
-    GreedyDynamicSelection,
-    CMIEstimator,
+    Covert2023AFAMethod,
+    Gadgil2023AFAMethod,
 )
 from common.custom_types import AFAClassifier, AFADataset, AFAMethod
 from common.datasets import CubeDataset, AFAContextDataset, MNISTDataset, DiabetesDataset, PhysionetDataset
@@ -19,8 +19,8 @@ from common.classifiers import (
 AFA_METHOD_REGISTRY: dict[str, type[AFAMethod]] = {
     "shim2018": Shim2018AFAMethod,
     "zannone2019": Zannone2019AFAMethod,
-    "GDFS": GreedyDynamicSelection,
-    "DIME": CMIEstimator,
+    "GDFS": Covert2023AFAMethod,
+    "DIME": Gadgil2023AFAMethod,
     "sequential_dummy": SequentialDummyAFAMethod,  # For testing
     "random_dummy": RandomDummyAFAMethod,  # For testing
 }
