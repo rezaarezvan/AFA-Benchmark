@@ -19,6 +19,7 @@ from common.custom_types import (
     AFADataset,
 )
 from common.registry import AFA_DATASET_REGISTRY
+from common.utils import set_seed
 
 
 def check_embedder_and_classifier(embedder_and_classifier, dataset: AFADataset):
@@ -190,6 +191,7 @@ def get_eval_metrics(agent, eval_env, train_config, device, classifier, embedder
 
 
 def main(args: argparse.Namespace):
+    set_seed(args.seed)
     torch.set_float32_matmul_precision("medium")
 
     # Load train config
@@ -206,9 +208,13 @@ def main(args: argparse.Namespace):
     train_dataset: AFADataset = AFA_DATASET_REGISTRY[args.dataset_type].load(
         args.dataset_train_path
     )
+    assert train_dataset.features is not None
+    assert train_dataset.labels is not None
     val_dataset: AFADataset = AFA_DATASET_REGISTRY[args.dataset_type].load(
         args.dataset_val_path
     )
+    assert val_dataset.features is not None
+    assert val_dataset.labels is not None
 
     # Get the number of features and classes from the dataset
     n_features = train_dataset.features.shape[-1]
@@ -341,7 +347,8 @@ def main(args: argparse.Namespace):
             device, agent.value_network, embedder, classifier
         )
         afa_method.save(args.afa_method_path)
-        print(f"Shim2018AFAMethod saved to {args.afa_method_path}")
+        print(f"Shim2018AFAMethod saved to {args.afa_method_path / "model.pt"}")
+        # Save params.yml file
 
 
 if __name__ == "__main__":
@@ -363,7 +370,9 @@ if __name__ == "__main__":
     parser.add_argument("--dataset_train_path", type=str, required=True)
     parser.add_argument("--dataset_val_path", type=str, required=True)
     parser.add_argument("--pretrained_model_path", type=str, required=True)
-    parser.add_argument("--afa_method_path", type=str, required=True)
+    parser.add_argument("--hard_budget", type=int, required=True)
+    parser.add_argument("--seed", type=int, required=True)
+    parser.add_argument("--afa_method_path", type=str, required=True, help="Path to folder to save the trained AFA method")
     args = parser.parse_args()
 
     main(args)
