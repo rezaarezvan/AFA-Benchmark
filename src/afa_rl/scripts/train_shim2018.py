@@ -25,7 +25,6 @@ from common.custom_types import (
     MaskedFeatures,
     FeatureMask,
 )
-from common.registry import AFA_DATASET_REGISTRY
 from common.utils import get_class_probabilities, set_seed, dict_to_namespace
 
 
@@ -226,16 +225,14 @@ def main(pretrain_config_path: Path, train_config_path: Path, dataset_type: str,
         pretrain_config_dict: dict = yaml.safe_load(file)
     pretrain_config = dict_to_namespace(pretrain_config_dict)
 
+    # Import is delayed until now to avoid circular imports
+    from common.registry import AFA_DATASET_REGISTRY
     train_dataset: AFADataset = AFA_DATASET_REGISTRY[dataset_type].load(
         train_dataset_path
     )
-    assert train_dataset.features is not None
-    assert train_dataset.labels is not None
     val_dataset: AFADataset = AFA_DATASET_REGISTRY[dataset_type].load(
         val_dataset_path
     )
-    assert val_dataset.features is not None
-    assert val_dataset.labels is not None
 
     # Get the number of features and classes from the dataset
     n_features = train_dataset.features.shape[-1]
@@ -380,8 +377,9 @@ def main(pretrain_config_path: Path, train_config_path: Path, dataset_type: str,
                     "hard_budget": hard_budget,
                     "seed": seed,
                     "dataset_type": dataset_type,
-                    "train_dataset_path": train_dataset_path,
-                    "val_dataset_path": val_dataset_path,
+                    "train_dataset_path": str(train_dataset_path),
+                    "val_dataset_path": str(val_dataset_path),
+                    "pretrained_model_path": str(pretrained_model_path),
                 },
                 file,
             )

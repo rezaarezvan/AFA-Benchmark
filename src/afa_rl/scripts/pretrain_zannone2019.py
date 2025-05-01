@@ -23,12 +23,11 @@ from afa_rl.models import (
     PointNetType,
     Zannone2019PretrainingModel,
 )
-from afa_rl.utils import dict_to_namespace, get_1D_identity
+from afa_rl.utils import get_1D_identity
 from common.custom_types import AFADataset
-from common.registry import AFA_DATASET_REGISTRY
 from jaxtyping import Float
 
-from common.utils import get_class_probabilities, set_seed
+from common.utils import dict_to_namespace, get_class_probabilities, set_seed
 
 
 def get_zannone2019_model_from_config(config, n_features: int, n_classes: int, class_probabilities: Float[Tensor, "n_classes"]):
@@ -112,16 +111,14 @@ def main(pretrain_config_path: Path, dataset_type: str, train_dataset_path: Path
 
     config = dict_to_namespace(config_dict)
 
+    # Import is delayed until now to avoid circular imports
+    from common.registry import AFA_DATASET_REGISTRY
     train_dataset: AFADataset = AFA_DATASET_REGISTRY[dataset_type].load(
         train_dataset_path
     )
-    assert train_dataset.features is not None
-    assert train_dataset.labels is not None
     val_dataset: AFADataset = AFA_DATASET_REGISTRY[dataset_type].load(
         val_dataset_path
     )
-    assert val_dataset.features is not None
-    assert val_dataset.labels is not None
     datamodule = DataModuleFromDatasets(
         train_dataset, val_dataset, batch_size=config.dataloader.batch_size
     )

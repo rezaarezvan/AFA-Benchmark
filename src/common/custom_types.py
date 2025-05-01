@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Callable, ClassVar, Protocol
 
 from jaxtyping import Bool, Float, Integer
+from sklearn.tests.test_multioutput import n_features
 from torch import Tensor
 import torch
 
@@ -21,15 +22,16 @@ class AFADataset(Protocol):
     """
 
     # Used by AFADatasetFn
-    features: Features|None # batched
-    labels: Label|None # batched
+    features: Features # batched
+    labels: Label # batched
 
     # Used by evaluation scripts to avoid loading the dataset
     n_classes: ClassVar[int]
+    n_features: ClassVar[int]
 
     def generate_data(self) -> None:
         """
-        Generates the data for the dataset. This should be called after __init__.
+        A method that does nothing. Purely for backwards compatibility.
         """
         ...
 

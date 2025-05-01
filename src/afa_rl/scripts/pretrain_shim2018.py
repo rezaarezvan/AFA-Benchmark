@@ -19,7 +19,6 @@ from afa_rl.models import (
 )
 from common.custom_types import AFADataset
 from afa_rl.datasets import DataModuleFromDatasets
-from common.registry import AFA_DATASET_REGISTRY
 from common.utils import dict_to_namespace, get_class_probabilities, set_seed
 from pathlib import Path
 
@@ -56,16 +55,14 @@ def main(pretrain_config_path: Path, dataset_type: str, train_dataset_path: Path
 
     config = dict_to_namespace(config_dict)
 
+    # Import is delayed until now to avoid circular imports
+    from common.registry import AFA_DATASET_REGISTRY
     train_dataset: AFADataset = AFA_DATASET_REGISTRY[dataset_type].load(
         train_dataset_path
     )
-    assert train_dataset.features is not None
-    assert train_dataset.labels is not None
     val_dataset: AFADataset = AFA_DATASET_REGISTRY[dataset_type].load(
         val_dataset_path
     )
-    assert val_dataset.features is not None
-    assert val_dataset.labels is not None
     datamodule = DataModuleFromDatasets(
         train_dataset, val_dataset, batch_size=config.dataloader.batch_size
     )

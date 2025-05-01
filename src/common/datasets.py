@@ -18,10 +18,10 @@ class CubeDataset(Dataset, AFADataset):
     """
 
     n_classes = 8
+    n_features = 20  # Fixed number of features
 
     def __init__(
         self,
-        n_features: int = 20,
         n_samples: int = 20000,
         seed: int = 123,
         non_informative_feature_mean: float = 0.5,
@@ -37,14 +37,14 @@ class CubeDataset(Dataset, AFADataset):
 
         # Constants
         self.n_cube_features = 10  # Number of cube features
-        self.n_dummy_features = n_features - self.n_cube_features  # Remaining features are dummy features
+        self.n_dummy_features = self.n_features - self.n_cube_features  # Remaining features are dummy features
 
-        # Placeholder attributes
-        self.features = None
-        self.labels = None
-        self.feature_names = None
+        self._generate_data()
 
-    def generate_data(self) -> None:
+    def generate_data(self):
+        pass
+
+    def _generate_data(self) -> None:
         rng = torch.Generator()
         rng.manual_seed(self.seed)
 
@@ -88,10 +88,12 @@ class CubeDataset(Dataset, AFADataset):
 
         # Concatenate all features
         self.features = torch.cat([X_cube, X_dummy], dim=1)
+        assert self.features.shape[1] == self.n_features
 
         # Labels
         self.labels = y_int
         self.labels = torch.nn.functional.one_hot(self.labels, num_classes=self.n_classes).float()
+        assert self.labels.shape[1] == self.n_classes
 
     def __getitem__(self, idx: int) -> tuple[MaskedFeatures, FeatureMask]:
         return self.features[idx], self.labels[idx]
@@ -135,6 +137,7 @@ class AFAContextDataset(Dataset, AFADataset):
     """
 
     n_classes = 8
+    n_features = 20  # Fixed number of features
 
     def __init__(
         self,
@@ -142,7 +145,6 @@ class AFAContextDataset(Dataset, AFADataset):
         std_bin: float = 0.1,
         std_cube: float = 1.0,
         bin_feature_cost: float = 5.0,
-        n_dummy_features: int = 10,
         seed: int = 123,
         non_informative_feature_mean: float = 0.5,
         non_informative_feature_std: float = 0.3,
@@ -152,7 +154,6 @@ class AFAContextDataset(Dataset, AFADataset):
         self.std_bin = std_bin
         self.std_cube = std_cube
         self.bin_feature_cost = bin_feature_cost
-        self.n_dummy_features = n_dummy_features
         self.seed = seed
         self.non_informative_feature_mean = non_informative_feature_mean
         self.non_informative_feature_std = non_informative_feature_std
@@ -160,15 +161,16 @@ class AFAContextDataset(Dataset, AFADataset):
         # Constants
         self.n_context_groups = 3
         self.group_size = 3
-        self.n_bin_features = self.n_context_groups * self.group_size
+        self.n_bin_features = self.n_context_groups * self.group_size # 9
         self.n_cube_features = 10
+        self.n_dummy_features = self.n_features - (1 + self.n_bin_features + self.n_cube_features)
 
-        # Placeholder attributes
-        self.features = None
-        self.labels = None
-        self.costs = None
+        self._generate_data()
 
-    def generate_data(self) -> None:
+    def generate_data(self):
+        pass
+
+    def _generate_data(self) -> None:
         rng = torch.Generator()
         rng.manual_seed(self.seed)
 
@@ -233,6 +235,7 @@ class AFAContextDataset(Dataset, AFADataset):
 
         # Concatenate all features
         self.features = torch.cat([X_context, X_bin, X_cube, X_dummy], dim=1)
+        assert self.features.shape[1] == self.n_features
 
         # Build costs vector
         total_dim = self.features.shape[1]
@@ -243,6 +246,7 @@ class AFAContextDataset(Dataset, AFADataset):
         # One-hot labels
         self.labels = y_int
         self.labels = torch.nn.functional.one_hot(self.labels, num_classes=self.n_classes).float()
+        assert self.labels.shape[1] == self.n_classes
 
     def __getitem__(self, idx: int):
         return self.features[idx], self.labels[idx]
@@ -289,6 +293,7 @@ class MNISTDataset(Dataset, AFADataset):
     """
 
     n_classes = 10
+    n_features = 784  # Fixed number of features (28x28 images flattened)
 
     def __init__(
         self,
@@ -302,11 +307,13 @@ class MNISTDataset(Dataset, AFADataset):
         self.transform = transform if transform is not None else transforms.ToTensor()
         self.download = download
         self.root = root
-        self.dataset = None
-        self.features = None
-        self.labels = None
 
-    def generate_data(self) -> None:
+        self._generate_data()
+
+    def generate_data(self):
+        pass
+
+    def _generate_data(self) -> None:
         self.dataset = datasets.MNIST(
             root=self.root,
             train=self.train,
@@ -315,13 +322,10 @@ class MNISTDataset(Dataset, AFADataset):
         )
         # Convert images to features (flatten)
         self.features = torch.stack([x[0].flatten() for x in self.dataset])
-        # Convert labels to one-hot
-        #self.labels = torch.nn.functional.one_hot(
-        #    torch.tensor([x[1] for x in self.dataset]),
-        #    num_classes=10
-        #).float()
+        assert self.features.shape[1] == self.n_features
         self.labels = torch.tensor([x[1] for x in self.dataset])
         self.labels = torch.nn.functional.one_hot(self.labels, num_classes=self.n_classes).float()
+        assert self.labels.shape[1] == self.n_classes
 
     def __getitem__(self, idx: int) -> tuple[Features, Label]:
         return self.features[idx], self.labels[idx]
@@ -362,6 +366,7 @@ class DiabetesDataset(Dataset, AFADataset):
     """
 
     n_classes = 3
+    n_features = 45
 
     def __init__(
         self,
@@ -372,12 +377,12 @@ class DiabetesDataset(Dataset, AFADataset):
         self.data_path = data_path
         self.seed = seed
 
-        # Placeholder attributes
-        self.features = None
-        self.labels = None
-        self.feature_names = None
+        self._generate_data()
 
-    def generate_data(self) -> None:
+    def generate_data(self):
+        pass
+
+    def _generate_data(self) -> None:
         """Load and preprocess the diabetes dataset."""
         # Set random seed for reproducibility
         torch.manual_seed(self.seed)
@@ -396,14 +401,13 @@ class DiabetesDataset(Dataset, AFADataset):
 
         # Convert to tensors
         self.features = torch.tensor(features_df.values)
+        assert self.features.shape[1] == self.n_features
         self.labels = torch.tensor(labels_df.values, dtype=torch.long)
         self.labels = torch.nn.functional.one_hot(self.labels, num_classes=self.n_classes).float()
+        assert self.labels.shape[1] == self.n_classes
 
         # Store feature names
         self.feature_names = features_df.columns.tolist()
-
-        print(f"Loaded Diabetes dataset with {len(self.features)} samples and {self.features.shape[1]} features")
-        #print(f"Class distribution: {torch.bincount(self.labels.long(), minlength=3)}")
 
     def __getitem__(self, idx: int) -> tuple[Features, Label]:
         """Return a single sample from the dataset."""
@@ -451,6 +455,7 @@ class PhysionetDataset(Dataset, AFADataset):
     """
 
     n_classes = 2
+    n_features = 41
 
     def __init__(
         self,
@@ -461,12 +466,12 @@ class PhysionetDataset(Dataset, AFADataset):
         self.data_path = data_path
         self.seed = seed
 
-        # Placeholder attributes
-        self.features = None
-        self.labels = None
-        self.feature_names = None
+        self._generate_data()
 
-    def generate_data(self) -> None:
+    def generate_data(self):
+        pass
+
+    def _generate_data(self) -> None:
         """Load and preprocess the Physionet dataset."""
         # Set random seed for reproducibility
         torch.manual_seed(self.seed)
@@ -488,15 +493,14 @@ class PhysionetDataset(Dataset, AFADataset):
 
         # Convert to tensors
         self.features = torch.tensor(features_df.values)
+        assert self.features.shape[1] == self.n_features
         # Convert labels to LongTensor for one_hot encoding
         self.labels = torch.tensor(labels_df.values, dtype=torch.long)
         self.labels = torch.nn.functional.one_hot(self.labels, num_classes=self.n_classes).float()
+        assert self.labels.shape[1] == self.n_classes
 
         # Store feature names
         self.feature_names = features_df.columns.tolist()
-
-        print(f"Loaded Physionet dataset with {len(self.features)} samples and {self.features.shape[1]} features")
-        #print(f"Class distribution: {torch.bincount(self.labels, minlength=2)}")
 
     def __getitem__(self, idx: int) -> tuple[Features, Label]:
         """Return a single sample from the dataset."""

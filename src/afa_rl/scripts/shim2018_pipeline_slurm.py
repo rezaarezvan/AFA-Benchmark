@@ -180,7 +180,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--pipeline_config_path",
         type=Path,
-        default=Path("configs/shim2018/slurm.yml"),
+        default=Path("configs/shim2018/pipeline.yml"),
         help="Path to the slurm pipeline configuration file",
     )
     args = parser.parse_args()

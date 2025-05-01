@@ -20,7 +20,8 @@ from afa_rl.models import (
     Zannone2019PretrainingModel,
 )
 from afa_rl.scripts.pretrain_zannone2019 import get_zannone2019_model_from_config
-from afa_rl.utils import dict_to_namespace, get_sequential_module_norm
+from afa_rl.utils import get_sequential_module_norm
+from common.utils import dict_to_namespace
 from common.custom_types import (
     AFADataset,
     FeatureMask,
@@ -28,7 +29,6 @@ from common.custom_types import (
     Label,
     MaskedFeatures,
 )
-from common.registry import AFA_DATASET_REGISTRY
 from common.utils import get_class_probabilities, set_seed
 
 
@@ -220,12 +220,10 @@ def main(pretrain_config_path: Path, train_config_path: Path, dataset_type: str,
     device = torch.device(train_config.device)
 
     # Load datasets
+    # Import is delayed until now to avoid circular imports
+    from common.registry import AFA_DATASET_REGISTRY
     train_dataset: AFADataset = AFA_DATASET_REGISTRY[dataset_type].load(train_dataset_path)
-    assert train_dataset.features is not None
-    assert train_dataset.labels is not None
     val_dataset: AFADataset = AFA_DATASET_REGISTRY[dataset_type].load(val_dataset_path)
-    assert val_dataset.features is not None
-    assert val_dataset.labels is not None
     print(f"Old dataset size: {train_dataset.features.shape[0]}")
 
     # Get the number of features and classes from the dataset
@@ -399,8 +397,9 @@ def main(pretrain_config_path: Path, train_config_path: Path, dataset_type: str,
                     "hard_budget": hard_budget,
                     "seed": seed,
                     "dataset_type": dataset_type,
-                    "train_dataset_path": train_dataset_path,
-                    "val_dataset_path": val_dataset_path,
+                    "train_dataset_path": str(train_dataset_path),
+                    "val_dataset_path": str(val_dataset_path),
+                    "pretrained_model_path": str(pretrained_model_path),
                 },
                 file,
             )

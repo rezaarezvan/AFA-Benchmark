@@ -11,6 +11,7 @@ Each trained AFAMethod is represented by a folder with two files:
 - `dataset_type: str` Which dataset type was used during training. One of the keys in AFA_DATASET_REGISTRY.
 - `train_dataset_path: str` Training dataset used during training
 - `val_dataset_path: str` Validation dataset used during training
+- `pretrained_model_path: str` Which pretrained model was used (if applicable).
 
 
 ## Trained AFAClassifiers

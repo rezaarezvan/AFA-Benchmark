@@ -15,7 +15,11 @@ from common.classifiers import (
     UniformDummyAFAClassifier,
 )
 
-from afa_rl.scripts import pretrain_shim2018, pretrain_zannone2019, train_shim2018, train_zannone2019
+from afa_rl.scripts.pretrain_shim2018 import main as pretrain_shim2018_main
+from afa_rl.scripts.train_shim2018 import main as train_shim2018_main
+from afa_rl.scripts.pretrain_zannone2019 import main as pretrain_zannone2019_main
+from afa_rl.scripts.train_zannone2019 import main as train_zannone2019_main
+
 
 # Add each AFA method here
 AFA_METHOD_REGISTRY: dict[str, type[AFAMethod]] = {
@@ -28,15 +32,6 @@ AFA_METHOD_REGISTRY: dict[str, type[AFAMethod]] = {
 }
 
 
-PRETRAINING_ENTRY_REGISTRY: dict[str, PretrainingFunction] = {
-    "shim2018": pretrain_shim2018.main,
-    "zannone2019": pretrain_zannone2019.main,
-}
-
-TRAINING_ENTRY_REGISTRY: dict[str, TrainingFunction] = {
-    "shim2018": train_shim2018.main,
-    "zannone2019": train_zannone2019.main,
-}
 
 # Add each AFA dataset here
 AFA_DATASET_REGISTRY: dict[str, type[AFADataset]] = {
@@ -51,4 +46,18 @@ AFA_DATASET_REGISTRY: dict[str, type[AFADataset]] = {
 AFA_CLASSIFIER_REGISTRY: dict[str, type[AFAClassifier]] = {
     "random_dummy": RandomDummyAFAClassifier,
     "uniform_dummy": UniformDummyAFAClassifier,
+}
+
+# Keep these last to avoid circular imports
+
+
+
+PRETRAINING_ENTRY_REGISTRY: dict[str, PretrainingFunction] = {
+    "shim2018": pretrain_shim2018_main,
+    "zannone2019": pretrain_zannone2019_main,
+}
+
+TRAINING_ENTRY_REGISTRY: dict[str, TrainingFunction] = {
+    "shim2018": train_shim2018_main,
+    "zannone2019": train_zannone2019_main,
 }
