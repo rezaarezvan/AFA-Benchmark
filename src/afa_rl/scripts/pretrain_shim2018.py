@@ -21,7 +21,7 @@ from afa_rl.utils import dict_to_namespace
 from common.custom_types import AFADataset
 from afa_rl.datasets import DataModuleFromDatasets
 from common.registry import AFA_DATASET_REGISTRY
-from common.utils import get_class_probabilities
+from common.utils import get_class_probabilities, set_seed
 
 
 def get_shim2018_model_from_config(config: SimpleNamespace, n_features: int, n_classes: int, class_probabiities: Float[Tensor, "n_classes"]):
@@ -47,6 +47,7 @@ def get_shim2018_model_from_config(config: SimpleNamespace, n_features: int, n_c
 
 
 def main(args: argparse.Namespace):
+    set_seed(args.seed)
     torch.set_float32_matmul_precision("medium")
 
     # Load config from yaml file
@@ -81,7 +82,7 @@ def main(args: argparse.Namespace):
         monitor="val_loss",  # Replace "val_loss" with the appropriate validation metric
         save_top_k=1,
         mode="min",
-        dirpath="models",  # Directory to save checkpoints
+        dirpath="models/methods/shim2018",  # Directory to save checkpoints
         filename="best-checkpoint"
     )
 
@@ -124,6 +125,7 @@ if __name__ == "__main__":
     parser.add_argument("--dataset_train_path", type=str, required=True)
     parser.add_argument("--dataset_val_path", type=str, required=True)
     parser.add_argument("--pretrained_model_path", type=str, required=True)
+    parser.add_argument("--seed", type=int, required=True)
     args = parser.parse_args()
 
     main(args)

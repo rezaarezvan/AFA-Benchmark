@@ -25,8 +25,7 @@ from common.custom_types import (
     FeatureMask,
 )
 from common.registry import AFA_DATASET_REGISTRY
-from common.utils import set_seed
-from common.utils import get_class_probabilities
+from common.utils import get_class_probabilities, set_seed
 
 
 def check_embedder_and_classifier(embedder_and_classifier, dataset: AFADataset, class_weights: Float[Tensor, "n_classes"]):

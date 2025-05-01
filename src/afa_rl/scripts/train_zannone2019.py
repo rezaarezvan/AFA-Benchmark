@@ -420,6 +420,7 @@ if __name__ == "__main__":
     parser.add_argument("--dataset_val_path", type=str, required=True)
     parser.add_argument("--pretrained_model_path", type=str, required=True)
     parser.add_argument("--afa_method_path", type=str, required=True)
+    parser.add_argument("--seed", type=int, required=True)
     args = parser.parse_args()
 
     main(args)
