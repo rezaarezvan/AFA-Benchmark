@@ -1,7 +1,7 @@
 #!/usr/bin/bash
 #SBATCH --account=NAISS2025-22-448 -p alvis
 #SBATCH -N 1 --gpus-per-node=T4:1
-#SBATCH -t 24:00:00
+#SBATCH --time 24:00:00
 #SBATCH --output=/mimer/NOBACKUP/groups/meta-project/projects/AFA-Benchmark/logs/slurm/pretrain_shim2018_%j.out
 
 module load virtualenv

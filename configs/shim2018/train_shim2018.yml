@@ -16,12 +16,13 @@ agent:
   # replay_buffer_alpha: 0.0 # Disable prioritized replay buffer
   replay_buffer_alpha: 0.6
   replay_buffer_beta: 0.4
+  max_grad_norm: 1
 
 env:
   hard_budget: 10
 
-# n_batches: 20000
-n_batches: 100
+n_batches: 20000
+# n_batches: 100
 n_agents: 128
 batch_size: 512
 device: "cuda"

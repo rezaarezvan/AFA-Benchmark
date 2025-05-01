@@ -2,4 +2,4 @@ dataset_types: ["cube"]
 dataset_splits: [1]
 seeds: [42]
 hard_budgets:
-  cube: [5, 10, 20]
+  cube: [5, 10, null]

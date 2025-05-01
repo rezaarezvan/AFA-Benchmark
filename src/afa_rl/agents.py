@@ -71,6 +71,7 @@ class Shim2018Agent:
         num_optim: int,  # number of times to sample from the replay buffer and train the agent
         replay_buffer_alpha: float,
         replay_buffer_beta: float,
+        max_grad_norm: float,
     ):
         self.device = device
         self.embedder = embedder.to(self.device)
@@ -86,6 +87,7 @@ class Shim2018Agent:
         self.num_optim = num_optim
         self.replay_buffer_alpha = replay_buffer_alpha
         self.replay_buffer_beta = replay_buffer_beta
+        self.max_grad_norm = max_grad_norm
 
         self.value_module = Shim2018ValueModule(
             embedder=self.embedder,
@@ -160,6 +162,10 @@ class Shim2018Agent:
         self.optim.zero_grad()
         loss = self.loss_module(td)["loss"]
         loss.backward()
+        # Clip gradients to prevent exploding gradients
+        torch.nn.utils.clip_grad_norm_(
+            self.loss_module.parameters(), max_norm=self.max_grad_norm, norm_type=2
+        )
         self.optim.step()
         self.updater.step()
 
@@ -245,6 +251,7 @@ class Zannone2019Agent:
         clip_epsilon: float,
         entropy_bonus: bool,
         entropy_coef: float,
+        max_grad_norm: float,
     ):
         self.device = device
 
@@ -258,6 +265,7 @@ class Zannone2019Agent:
         self.clip_epsilon = clip_epsilon
         self.entropy_bonus = entropy_bonus
         self.entropy_coef = entropy_coef
+        self.max_grad_norm = max_grad_norm
 
         self.common_backbone = Zannone2019CommonModule(
             pointnet=self.pointnet,
@@ -328,6 +336,10 @@ class Zannone2019Agent:
 
         loss = self.loss_module(td)
         loss_value = sum(loss[loss_key] for loss_key in self.loss_keys)
+        # Clip gradients to prevent exploding gradients
+        torch.nn.utils.clip_grad_norm_(
+            self.loss_module.parameters(), max_norm=self.max_grad_norm, norm_type=2
+        )
         loss_value.backward()
 
         self.optim.step()

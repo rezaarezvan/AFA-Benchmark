@@ -342,6 +342,7 @@ def main(pretrain_config_path: Path, train_config_path: Path, dataset_type: str,
         clip_epsilon=train_config.agent.clip_epsilon,
         entropy_bonus=train_config.agent.entropy_bonus,
         entropy_coef=train_config.agent.entropy_coef,
+        max_grad_norm=train_config.agent.max_grad_norm,
     )
 
     collector = SyncDataCollector(

@@ -308,6 +308,7 @@ def main(pretrain_config_path: Path, train_config_path: Path, dataset_type: str,
         num_optim=train_config.agent.num_optim,
         replay_buffer_alpha=train_config.agent.replay_buffer_alpha,
         replay_buffer_beta=train_config.agent.replay_buffer_beta,
+        max_grad_norm=train_config.agent.max_grad_norm,
     )
 
     collector = SyncDataCollector(

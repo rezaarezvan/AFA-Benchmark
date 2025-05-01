@@ -11,6 +11,7 @@ agent:
   clip_epsilon: 0.2
   entropy_bonus: True
   entropy_coef: 0.01
+  max_grad_norm: 1
 
 env:
   hard_budget: 10
