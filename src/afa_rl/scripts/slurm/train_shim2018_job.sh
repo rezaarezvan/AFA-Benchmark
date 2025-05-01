@@ -2,14 +2,17 @@
 #SBATCH --account=NAISS2025-22-448 -p alvis
 #SBATCH -N 1 --gpus-per-node=T4:1
 #SBATCH -t 24:00:00
-#SBATCH --output=/mimer/NOBACKUP/groups/meta-project/projects/AFA-Benchmark/logs/slurm/pretrain_shim2018_%j.out
+#SBATCH --output=/mimer/NOBACKUP/groups/meta-project/projects/AFA-Benchmark/logs/slurm/train_shim2018_%j.out
 
 module load virtualenv
 
-uv run src/afa_rl/scripts/pretrain_shim2018.py \
+uv run src/afa_rl/scripts/train_shim2018.py \
     --pretrain_config configs/shim2018/pretrain_shim2018.yml \
+    --train_config configs/shim2018/train_shim2018.yml \
     --dataset_type $dataset_type \
     --train_dataset_path $train_dataset_path \
     --val_dataset_path $val_dataset_path \
     --pretrained_model_path $pretrained_model_path \
-    --seed $seed
+    --hard_budget $hard_budget \
+    --seed $seed \
+    --afa_method_path $afa_method_path

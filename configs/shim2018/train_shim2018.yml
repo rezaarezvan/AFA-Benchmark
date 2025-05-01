@@ -20,7 +20,8 @@ agent:
 env:
   hard_budget: 10
 
-n_batches: 20000
+# n_batches: 20000
+n_batches: 500
 n_agents: 128
 batch_size: 512
 device: "cuda"

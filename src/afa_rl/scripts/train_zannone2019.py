@@ -1,6 +1,7 @@
 import argparse
 import copy
 from functools import partial
+from pathlib import Path
 
 import torch
 import yaml
@@ -28,7 +29,7 @@ from common.custom_types import (
     MaskedFeatures,
 )
 from common.registry import AFA_DATASET_REGISTRY
-from common.utils import get_class_probabilities
+from common.utils import get_class_probabilities, set_seed
 
 
 def get_pretrained_model_accuracy(
@@ -204,14 +205,14 @@ def assert_deterministic_pretrained_model(pretrained_model, features):
     assert torch.allclose(logits1, logits2)
 
 
-def main(args):
-    set_seed(args.seed)
+def main(pretrain_config_path: Path, train_config_path: Path, dataset_type: str, train_dataset_path: Path, val_dataset_path: Path, pretrained_model_path: Path, hard_budget: int, seed: int, afa_method_path: Path) -> None:
+    set_seed(seed)
     torch.set_float32_matmul_precision("medium")
 
     # Load configs from yaml files
-    with open(args.pretrain_config, "r") as file:
+    with open(pretrain_config_path, "r") as file:
         pretrain_config_dict: dict = yaml.safe_load(file)
-    with open(args.train_config, "r") as file:
+    with open(train_config_path, "r") as file:
         train_config_dict: dict = yaml.safe_load(file)
 
     pretrain_config = dict_to_namespace(pretrain_config_dict)
@@ -219,14 +220,10 @@ def main(args):
     device = torch.device(train_config.device)
 
     # Load datasets
-    train_dataset: AFADataset = AFA_DATASET_REGISTRY[args.dataset_type].load(
-        args.dataset_train_path
-    )
+    train_dataset: AFADataset = AFA_DATASET_REGISTRY[dataset_type].load(train_dataset_path)
     assert train_dataset.features is not None
     assert train_dataset.labels is not None
-    val_dataset: AFADataset = AFA_DATASET_REGISTRY[args.dataset_type].load(
-        args.dataset_val_path
-    )
+    val_dataset: AFADataset = AFA_DATASET_REGISTRY[dataset_type].load(val_dataset_path)
     assert val_dataset.features is not None
     assert val_dataset.labels is not None
     print(f"Old dataset size: {train_dataset.features.shape[0]}")
@@ -242,7 +239,7 @@ def main(args):
     pretrained_model = get_zannone2019_model_from_config(pretrain_config, n_features, n_classes, class_probabilities)
     # Load checkpoint
     pretrained_model_checkpoint = torch.load(
-        args.pretrained_model_path, weights_only=True
+        pretrained_model_path, weights_only=True
     )
     pretrained_model.load_state_dict(pretrained_model_checkpoint["state_dict"])
     pretrained_model = pretrained_model.to(device)
@@ -321,7 +318,7 @@ def main(args):
         batch_size=torch.Size((train_config.n_agents,)),
         feature_size=n_features,
         n_classes=n_classes,
-        hard_budget=args.hard_budget,
+        hard_budget=hard_budget,
     )
     check_env_specs(train_env)
 
@@ -333,7 +330,7 @@ def main(args):
         batch_size=torch.Size((1,)),
         feature_size=n_features,
         n_classes=n_classes,
-        hard_budget=args.hard_budget,
+        hard_budget=hard_budget,
     )
 
     agent = Zannone2019Agent(
@@ -392,25 +389,25 @@ def main(args):
 
         # Convert the embedder+agent to an AFAMethod and save it
         afa_method = Zannone2019AFAMethod(device, agent.probabilistic_policy_module, pretrained_model)
-        afa_method.save(args.afa_method_path / "model.pt")
-        print(f"Zannone2019AFAMethod saved to {args.afa_method_path / "model.pt"}")
+        afa_method.save(afa_method_path / "model.pt")
+        print(f"Zannone2019AFAMethod saved to {afa_method_path / "model.pt"}")
 
         # Save params.yml file
-        with open(args.afa_method_path / "params.yml", "w") as file:
+        with open(afa_method_path / "params.yml", "w") as file:
             yaml.dump(
                 {
-                    "hard_budget": args.hard_budget,
-                    "seed": args.seed,
-                    "dataset_type": args.dataset_type,
-                    "train_dataset_path": args.dataset_train_path,
-                    "val_dataset_path": args.dataset_val_path,
+                    "hard_budget": hard_budget,
+                    "seed": seed,
+                    "dataset_type": dataset_type,
+                    "train_dataset_path": train_dataset_path,
+                    "val_dataset_path": val_dataset_path,
                 },
                 file,
             )
 
         # Load it just to check that it works
-        afa_method = Zannone2019AFAMethod.load(args.afa_method_path, device)
-        print(f"Zannone2019AFAMethod loaded from {args.afa_method_path}")
+        afa_method = Zannone2019AFAMethod.load(afa_method_path, device)
+        print(f"Zannone2019AFAMethod loaded from {afa_method_path}")
         check_pretrained_model_accuracy(afa_method.pretrained_model, train_dataset, val_dataset, xhats, yhats)
 
 
@@ -418,7 +415,7 @@ if __name__ == "__main__":
     # Use argparse to choose config file
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--pretrain_config",
+        "--pretrain_config_path",
         type=str,
         required=True,
         help="Path to YAML config file for pretraining",
@@ -430,12 +427,22 @@ if __name__ == "__main__":
         help="Path to YAML config file for training",
     )
     parser.add_argument("--dataset_type", type=str, required=True, choices=AFA_DATASET_REGISTRY.keys())
-    parser.add_argument("--train_dataset_path", type=str, required=True)
-    parser.add_argument("--val_dataset_path", type=str, required=True)
-    parser.add_argument("--pretrained_model_path", type=str, required=True)
-    parser.add_argument("--afa_method_path", type=str, required=True, help="Path to folder to save the trained AFA method")
+    parser.add_argument("--train_dataset_path", type=Path, required=True)
+    parser.add_argument("--val_dataset_path", type=Path, required=True)
+    parser.add_argument("--pretrained_model_path", type=Path, required=True)
+    parser.add_argument("--afa_method_path", type=Path, required=True, help="Path to folder to save the trained AFA method")
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument("--hard_budget", type=int, required=True)
     args = parser.parse_args()
 
-    main(args)
+    main(
+        args.pretrain_config_path,
+        args.train_config,
+        args.dataset_type,
+        args.train_dataset_path,
+        args.val_dataset_path,
+        args.pretrained_model_path,
+        args.afa_method_path,
+        args.seed,
+        args.hard_budget,
+    )

@@ -1,3 +1,4 @@
+from pathlib import Path
 from tensordict.nn import TensorDictModule
 import torch
 from tensordict import TensorDict
@@ -93,7 +94,7 @@ class Shim2018AFAMethod(AFAMethod):
         probs: Label = logits.softmax(dim=-1)
         return probs
 
-    def save(self, path: str):
+    def save(self, path: Path):
         torch.save(
             {
                 "qvalue_actor": self.qvalue_actor.cpu(),
@@ -103,7 +104,7 @@ class Shim2018AFAMethod(AFAMethod):
         )
 
     @staticmethod
-    def load(path: str, device: torch.device) -> "Shim2018AFAMethod":
+    def load(path: Path, device: torch.device) -> "Shim2018AFAMethod":
         """
         Loads the Shim2018AFAMethod object, including its components.
         """
@@ -164,7 +165,7 @@ class Zannone2019AFAMethod(AFAMethod):
         probs: Label = logits.softmax(dim=-1)
         return probs
 
-    def save(self, path: str):
+    def save(self, path: Path):
         torch.save(
             {
                 "probabilistic_policy_module": self.probabilistic_policy_module.cpu(),
@@ -174,7 +175,7 @@ class Zannone2019AFAMethod(AFAMethod):
         )
 
     @staticmethod
-    def load(path: str, device: torch.device) -> "Zannone2019AFAMethod":
+    def load(path: Path, device: torch.device) -> "Zannone2019AFAMethod":
         """
         Loads the Zannone2019AFAMethod object, including its components.
         """
@@ -248,7 +249,7 @@ class RandomDummyAFAMethod(AFAMethod):
 
         return prediction
 
-    def save(self, path: str) -> None:
+    def save(self, path: Path) -> None:
         """
         Saves the method to a file.
         """
@@ -260,7 +261,7 @@ class RandomDummyAFAMethod(AFAMethod):
         )
 
     @staticmethod
-    def load(path: str, device: torch.device) -> "RandomDummyAFAMethod":
+    def load(path: Path, device: torch.device) -> "RandomDummyAFAMethod":
         """
         Loads the method from a file.
         """
@@ -316,7 +317,7 @@ class SequentialDummyAFAMethod(AFAMethod):
 
         return prediction
 
-    def save(self, path: str) -> None:
+    def save(self, path: Path) -> None:
         """
         Saves the method to a file.
         """
@@ -328,7 +329,7 @@ class SequentialDummyAFAMethod(AFAMethod):
         )
 
     @staticmethod
-    def load(path: str, device: torch.device) -> "SequentialDummyAFAMethod":
+    def load(path: Path, device: torch.device) -> "SequentialDummyAFAMethod":
         """
         Loads the method from a file.
         """

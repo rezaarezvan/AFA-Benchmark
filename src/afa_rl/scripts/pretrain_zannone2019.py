@@ -1,6 +1,7 @@
 import argparse
 import os
 from functools import partial
+from pathlib import Path
 
 import lightning as pl
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
@@ -101,24 +102,23 @@ def get_zannone2019_model_from_config(config, n_features: int, n_classes: int, c
     return model
 
 
-def main(args: argparse.Namespace):
-    set_seed(args.seed)
+def main(pretrain_config_path: Path, dataset_type: str, train_dataset_path: Path, val_dataset_path: Path, pretrained_model_path: Path, seed: int):
+    set_seed(seed)
     torch.set_float32_matmul_precision("medium")
 
     # Load config from yaml file
-    with open(args.pretrain_config, "r") as file:
+    with open(pretrain_config_path, "r") as file:
         config_dict: dict = yaml.safe_load(file)
-
 
     config = dict_to_namespace(config_dict)
 
-    train_dataset: AFADataset = AFA_DATASET_REGISTRY[args.dataset_type].load(
-        args.train_dataset_path
+    train_dataset: AFADataset = AFA_DATASET_REGISTRY[dataset_type].load(
+        train_dataset_path
     )
     assert train_dataset.features is not None
     assert train_dataset.labels is not None
-    val_dataset: AFADataset = AFA_DATASET_REGISTRY[args.dataset_type].load(
-        args.val_dataset_path
+    val_dataset: AFADataset = AFA_DATASET_REGISTRY[dataset_type].load(
+        val_dataset_path
     )
     assert val_dataset.features is not None
     assert val_dataset.labels is not None
@@ -131,13 +131,12 @@ def main(args: argparse.Namespace):
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
     model = get_zannone2019_model_from_config(config, n_features, n_classes, train_class_probabilities)
 
-
     # ModelCheckpoint callback
     checkpoint_callback = ModelCheckpoint(
         monitor="val_loss",  # Replace "val_loss" with the appropriate validation metric
         save_top_k=1,
         mode="min",
-        dirpath=args.pretrained_model_path,
+        dirpath=pretrained_model_path,
         filename="best-checkpoint"
     )
 
@@ -162,28 +161,36 @@ def main(args: argparse.Namespace):
     finally:
         # Move the best checkpoint to the desired location
         best_checkpoint = trainer.checkpoint_callback.best_model_path
-        # Create parent directories if neccessary
-        os.makedirs(os.path.dirname(args.pretrained_model_path), exist_ok=True)
+        # Create parent directories if necessary
+        os.makedirs(os.path.dirname(pretrained_model_path), exist_ok=True)
         # Save weights
-        torch.save(torch.load(best_checkpoint), args.pretrained_model_path / "model.pt")
+        torch.save(torch.load(best_checkpoint), pretrained_model_path / "model.pt")
         # Save params.yml file
-        with open(args.pretrained_model_path / "params.yml", "w") as file:
+        with open(pretrained_model_path / "params.yml", "w") as file:
             yaml.dump({
-                "dataset_type": args.dataset_type,
-                "train_dataset_path": args.train_dataset_path,
-                "val_dataset_path": args.val_dataset_path,
-                "seed": args.seed,
+                "dataset_type": dataset_type,
+                "train_dataset_path": str(train_dataset_path),
+                "val_dataset_path": str(val_dataset_path),
+                "seed": seed,
             }, file)
-        print(f"Zannone2019PretrainingModel saved to {args.pretrained_model_path}")
+        print(f"Zannone2019PretrainingModel saved to {pretrained_model_path}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--pretrain_config", type=str, required=True)
     parser.add_argument("--dataset_type", type=str, required=True, choices=AFA_DATASET_REGISTRY.keys())
-    parser.add_argument("--train_dataset_path", type=str, required=True)
-    parser.add_argument("--val_dataset_path", type=str, required=True)
-    parser.add_argument("--pretrained_model_path", type=str, required=True)
+    parser.add_argument("--train_dataset_path", type=Path, required=True)
+    parser.add_argument("--val_dataset_path", type=Path, required=True)
+    parser.add_argument("--pretrained_model_path", type=Path, required=True)
     parser.add_argument("--seed", type=int, required=True)
     args = parser.parse_args()
-    main(args)
+
+    main(
+        pretrain_config_path=args.pretrain_config,
+        dataset_type=args.dataset_type,
+        train_dataset_path=args.train_dataset_path,
+        val_dataset_path=args.val_dataset_path,
+        pretrained_model_path=args.pretrained_model_path,
+        seed=args.seed
+    )

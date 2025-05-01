@@ -17,11 +17,11 @@ from afa_rl.models import (
     ShimEmbedder,
     ShimEmbedderClassifier,
 )
-from afa_rl.utils import dict_to_namespace
 from common.custom_types import AFADataset
 from afa_rl.datasets import DataModuleFromDatasets
 from common.registry import AFA_DATASET_REGISTRY
-from common.utils import get_class_probabilities, set_seed
+from common.utils import dict_to_namespace, get_class_probabilities, set_seed
+from pathlib import Path
 
 
 def get_shim2018_model_from_config(config: SimpleNamespace, n_features: int, n_classes: int, class_probabiities: Float[Tensor, "n_classes"]):
@@ -46,23 +46,23 @@ def get_shim2018_model_from_config(config: SimpleNamespace, n_features: int, n_c
     return model
 
 
-def main(args: argparse.Namespace):
-    set_seed(args.seed)
+def main(pretrain_config_path: Path, dataset_type: str, train_dataset_path: Path, val_dataset_path: Path, pretrained_model_path: Path, seed: int):
+    set_seed(seed)
     torch.set_float32_matmul_precision("medium")
 
     # Load config from yaml file
-    with open(args.pretrain_config, "r") as file:
+    with open(pretrain_config_path, "r") as file:
         config_dict: dict = yaml.safe_load(file)
 
     config = dict_to_namespace(config_dict)
 
-    train_dataset: AFADataset = AFA_DATASET_REGISTRY[args.dataset_type].load(
-        args.train_dataset_path
+    train_dataset: AFADataset = AFA_DATASET_REGISTRY[dataset_type].load(
+        train_dataset_path
     )
     assert train_dataset.features is not None
     assert train_dataset.labels is not None
-    val_dataset: AFADataset = AFA_DATASET_REGISTRY[args.dataset_type].load(
-        args.val_dataset_path
+    val_dataset: AFADataset = AFA_DATASET_REGISTRY[dataset_type].load(
+        val_dataset_path
     )
     assert val_dataset.features is not None
     assert val_dataset.labels is not None
@@ -86,7 +86,7 @@ def main(args: argparse.Namespace):
         monitor="val_loss",  # Replace "val_loss" with the appropriate validation metric
         save_top_k=1,
         mode="min",
-        dirpath=args.pretrained_model_path,
+        dirpath=pretrained_model_path,
         filename="best-checkpoint"
     )
 
@@ -115,29 +115,35 @@ def main(args: argparse.Namespace):
         run.finish()
         # Move the best checkpoint to the desired location
         best_checkpoint = trainer.checkpoint_callback.best_model_path
-        # Create directory if it doesn't exist
-        os.makedirs(os.path.dirname(args.pretrained_model_path), exist_ok=True)
-        torch.save(torch.load(best_checkpoint), args.pretrained_model_path / "model.pt")
+        pretrained_model_path.mkdir(parents=True, exist_ok=True)
+        torch.save(torch.load(best_checkpoint), pretrained_model_path / "model.pt")
         # Save params.yml file
-        with open(args.pretrained_model_path / "params.yml", "w") as file:
+        with open(pretrained_model_path / "params.yml", "w") as file:
             yaml.dump({
-                "dataset_type": args.dataset_type,
-                "train_dataset_path": args.train_dataset_path,
-                "val_dataset_path": args.val_dataset_path,
-                "seed": args.seed,
+                "dataset_type": dataset_type,
+                "train_dataset_path": str(train_dataset_path),
+                "val_dataset_path": str(val_dataset_path),
+                "seed": seed,
             }, file)
-        print(f"ShimEmbedderClassifier saved to {args.pretrained_model_path}")
+        print(f"ShimEmbedderClassifier saved to {pretrained_model_path}")
 
 
 if __name__ == "__main__":
     # Use argparse to choose config file
     parser = argparse.ArgumentParser()
-    parser.add_argument("--pretrain_config", type=str, required=True)
+    parser.add_argument("--pretrain_config_path", type=Path, required=True)
     parser.add_argument("--dataset_type", type=str, required=True, choices=AFA_DATASET_REGISTRY.keys())
-    parser.add_argument("--train_dataset_path", type=str, required=True)
-    parser.add_argument("--val_dataset_path", type=str, required=True)
-    parser.add_argument("--pretrained_model_path", type=str, required=True, help="Path to folder to save the pretrained model")
+    parser.add_argument("--train_dataset_path", type=Path, required=True)
+    parser.add_argument("--val_dataset_path", type=Path, required=True)
+    parser.add_argument("--pretrained_model_path", type=Path, required=True, help="Path to folder to save the pretrained model")
     parser.add_argument("--seed", type=int, required=True)
     args = parser.parse_args()
 
-    main(args)
+    main(
+        pretrain_config_path=args.pretrain_config_path,
+        dataset_type=args.dataset_type,
+        train_dataset_path=args.train_dataset_path,
+        val_dataset_path=args.val_dataset_path,
+        pretrained_model_path=args.pretrained_model_path,
+        seed=args.seed
+    )

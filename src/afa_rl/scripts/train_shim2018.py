@@ -1,5 +1,6 @@
 import argparse
 from functools import partial
+from pathlib import Path
 
 import torch
 from torch import Tensor
@@ -18,14 +19,14 @@ from afa_rl.custom_types import AFAClassifier, Logits
 from afa_rl.datasets import get_afa_dataset_fn
 from afa_rl.models import ShimEmbedderClassifier
 from afa_rl.scripts.pretrain_shim2018 import get_shim2018_model_from_config
-from afa_rl.utils import dict_to_namespace, get_sequential_module_norm
+from afa_rl.utils import get_sequential_module_norm
 from common.custom_types import (
     AFADataset,
     MaskedFeatures,
     FeatureMask,
 )
 from common.registry import AFA_DATASET_REGISTRY
-from common.utils import get_class_probabilities, set_seed
+from common.utils import get_class_probabilities, set_seed, dict_to_namespace
 
 
 def check_embedder_and_classifier(embedder_and_classifier, dataset: AFADataset, class_weights: Float[Tensor, "n_classes"]):
@@ -210,28 +211,28 @@ class Shim2018AFAClassifier(AFAClassifier):
         return logits
 
 
-def main(args: argparse.Namespace):
-    set_seed(args.seed)
+def main(pretrain_config_path: Path, train_config_path: Path, dataset_type: str, train_dataset_path: Path, val_dataset_path: Path, pretrained_model_path: Path, hard_budget: int, seed: int, afa_method_path: Path):
+    set_seed(seed)
     torch.set_float32_matmul_precision("medium")
 
     # Load train config
-    with open(args.train_config, "r") as file:
+    with open(train_config_path, "r") as file:
         train_config_dict: dict = yaml.safe_load(file)
     train_config = dict_to_namespace(train_config_dict)
     device = torch.device(train_config.device)
 
     # Load pretrain config
-    with open(args.pretrain_config, "r") as file:
+    with open(pretrain_config_path, "r") as file:
         pretrain_config_dict: dict = yaml.safe_load(file)
     pretrain_config = dict_to_namespace(pretrain_config_dict)
 
-    train_dataset: AFADataset = AFA_DATASET_REGISTRY[args.dataset_type].load(
-        args.train_dataset_path
+    train_dataset: AFADataset = AFA_DATASET_REGISTRY[dataset_type].load(
+        train_dataset_path
     )
     assert train_dataset.features is not None
     assert train_dataset.labels is not None
-    val_dataset: AFADataset = AFA_DATASET_REGISTRY[args.dataset_type].load(
-        args.val_dataset_path
+    val_dataset: AFADataset = AFA_DATASET_REGISTRY[dataset_type].load(
+        val_dataset_path
     )
     assert val_dataset.features is not None
     assert val_dataset.labels is not None
@@ -244,7 +245,7 @@ def main(args: argparse.Namespace):
     print(f"Class probabilities in training set: {train_class_probabilities}")
     embedder_and_classifier = get_shim2018_model_from_config(pretrain_config, n_features, n_classes, train_class_probabilities)
     embedder_classifier_checkpoint = torch.load(
-        args.pretrained_model_path, weights_only=True
+        pretrained_model_path / "model.pt", weights_only=True
     )
     embedder_and_classifier.load_state_dict(
         embedder_classifier_checkpoint["state_dict"]
@@ -281,13 +282,9 @@ def main(args: argparse.Namespace):
         batch_size=torch.Size((train_config.n_agents,)),
         feature_size=n_features,
         n_classes=n_classes,
-        hard_budget=args.hard_budget,
+        hard_budget=hard_budget,
     )
     check_env_specs(train_env)
-
-    # td = train_env.reset()
-    # td = train_env.rand_step(td)
-
 
     eval_env = AFAEnv(
         dataset_fn=val_dataset_fn,
@@ -296,7 +293,7 @@ def main(args: argparse.Namespace):
         batch_size=torch.Size((1,)),
         feature_size=n_features,
         n_classes=n_classes,
-        hard_budget=args.hard_budget,
+        hard_budget=hard_budget,
     )
 
     agent = Shim2018Agent(
@@ -373,24 +370,26 @@ def main(args: argparse.Namespace):
         afa_method = Shim2018AFAMethod(
             device, agent.value_network, embedder_and_classifier,
         )
-        afa_method.save(args.afa_method_path / "model.pt")
-        print(f"Shim2018AFAMethod saved to {args.afa_method_path / "model.pt"}")
+        afa_method_path.mkdir(parents=True, exist_ok=True)
+        afa_method.save(afa_method_path / "model.pt")
 
         # Save params.yml file
-        with open(args.afa_method_path / "params.yml", "w") as file:
+        with open(afa_method_path / "params.yml", "w") as file:
             yaml.dump(
                 {
-                    "hard_budget": args.hard_budget,
-                    "seed": args.seed,
-                    "dataset_type": args.dataset_type,
-                    "train_dataset_path": args.dataset_train_path,
-                    "val_dataset_path": args.dataset_val_path,
+                    "hard_budget": hard_budget,
+                    "seed": seed,
+                    "dataset_type": dataset_type,
+                    "train_dataset_path": train_dataset_path,
+                    "val_dataset_path": val_dataset_path,
                 },
                 file,
             )
 
+        print(f"Shim2018AFAMethod saved to {afa_method_path}")
+
         # Now load the method
-        afa_method = Shim2018AFAMethod.load(args.afa_method_path, device)
+        afa_method = Shim2018AFAMethod.load(afa_method_path / "model.pt", device)
         # Extract the classifier and embedder and check that they still have decent performance
         check_embedder_and_classifier(afa_method.embedder_and_classifier, val_dataset, class_weights_device)
 
@@ -399,24 +398,34 @@ if __name__ == "__main__":
     # Use argparse to choose config file
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--pretrain_config",
-        type=str,
+        "--pretrain_config_path",
+        type=Path,
         required=True,
         help="Path to YAML config file used for pretraining",
     )
     parser.add_argument(
-        "--train_config",
-        type=str,
+        "--train_config_path",
+        type=Path,
         required=True,
         help="Path to YAML config file for this training",
     )
     parser.add_argument("--dataset_type", type=str, required=True, choices=AFA_DATASET_REGISTRY.keys())
-    parser.add_argument("--train_dataset_path", type=str, required=True)
-    parser.add_argument("--val_dataset_path", type=str, required=True)
-    parser.add_argument("--pretrained_model_path", type=str, required=True)
+    parser.add_argument("--train_dataset_path", type=Path, required=True)
+    parser.add_argument("--val_dataset_path", type=Path, required=True)
+    parser.add_argument("--pretrained_model_path", type=Path, required=True, help="Path to pretrained model folder")
     parser.add_argument("--hard_budget", type=int, required=True)
     parser.add_argument("--seed", type=int, required=True)
-    parser.add_argument("--afa_method_path", type=str, required=True, help="Path to folder to save the trained AFA method")
+    parser.add_argument("--afa_method_path", type=Path, required=True, help="Path to folder to save the trained AFA method")
     args = parser.parse_args()
 
-    main(args)
+    main(
+        pretrain_config_path=args.pretrain_config_path,
+        train_config_path=args.train_config_path,
+        dataset_type=args.dataset_type,
+        train_dataset_path=args.train_dataset_path,
+        val_dataset_path=args.val_dataset_path,
+        pretrained_model_path=args.pretrained_model_path,
+        hard_budget=args.hard_budget,
+        seed=args.seed,
+        afa_method_path=args.afa_method_path
+    )

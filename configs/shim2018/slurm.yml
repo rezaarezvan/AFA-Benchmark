@@ -1,0 +1,5 @@
+dataset_types: ["AFAContext"]
+dataset_splits: [1]
+seeds: [42]
+hard_budgets:
+  AFAContext: [10]

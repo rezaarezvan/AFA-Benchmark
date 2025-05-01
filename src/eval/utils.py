@@ -1,28 +1,11 @@
 from pathlib import Path
 from typing import Any
-import numpy as np
-from numpy.typing import NDArray
 import torch
-from torch import Tensor
 import yaml
 
-from common.custom_types import AFAClassifier, AFADataset, AFAMethod, FeatureMask
-from common.registry import AFA_CLASSIFIER_REGISTRY
+from common.utils import get_folders_with_matching_params
 
-def yaml_file_matches_mapping(yaml_file_path: Path, mapping: dict[str, Any]) -> bool:
-    """
-    Check if the keys in a YAML file match a given mapping (for the provided keys, other keys can have any value).
-    """
 
-    with open(yaml_file_path, "r") as file:
-        dictionary: dict = yaml.safe_load(file)
-
-    # Check if the keys match
-    for key, value in mapping.items():
-        if key not in dictionary or dictionary[key] != value:
-            return False
-
-    return True
 
 def get_eval_results_with_fixed_keys(fixed_params_mapping: dict[str, Any]={}, results_path=Path("results")) -> list[dict[str, Any]]:
     """
@@ -34,38 +17,17 @@ def get_eval_results_with_fixed_keys(fixed_params_mapping: dict[str, Any]={}, re
         results_path (Path): The path to the results folder. Defaults to "results".
     """
 
-    # Go through all folders in results_path
+    return [torch.load(folder / "results.pt") for folder in get_folders_with_matching_params(results_path, fixed_params_mapping)]
 
-    valid_instance_results: list[dict[str, float]] = []
-    for instance_results_path in results_path.iterdir():
-        # Check if the results params.yml file matches the fixed_params_mapping
-        if not yaml_file_matches_mapping(
-            instance_results_path / "params.yml", fixed_params_mapping
-        ):
-            continue
-
-        # Mapping match, save results
-        valid_instance_results.append(
-            torch.load(instance_results_path / "results.pt")
-        )
-
-    return valid_instance_results
-
-def get_classifier_paths_trained_on_data(classifier_type: str, train_dataset_path: Path, classifier_folder = Path("models/classifiers")) -> list[Path]:
+def get_classifier_paths_trained_on_data(classifier_type: str, train_dataset_path: Path, classifier_folder=Path("models/classifiers")) -> list[Path]:
     """
     Get Paths to all classifiers of a specific type trained on a specific dataset.
     """
 
-    valid_classifier_paths: list[Path] = []
+    # Define the fixed parameters to match
+    fixed_params_mapping = {"train_dataset_path": str(train_dataset_path)}
 
-    # Loop through each trained instance
-    for trained_instance_path in (classifier_folder / classifier_type).iterdir():
-        # The params.yml file should contain which dataset was used
-        params_path = trained_instance_path / "params.yml"
-        with open(params_path, "r") as file:
-            params_dict: dict = yaml.safe_load(file)
+    # Get all matching folders
+    matching_folders = get_folders_with_matching_params(classifier_folder / classifier_type, fixed_params_mapping)
 
-        # Return classifier if it was trained on the same dataset
-        if params_dict["train_dataset_path"] == str(train_dataset_path):
-            valid_classifier_paths.append(trained_instance_path)
-    return valid_classifier_paths
+    return matching_folders

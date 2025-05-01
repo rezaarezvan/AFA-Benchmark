@@ -167,3 +167,9 @@ class AFAClassifier(Protocol):
 type AFAClassifierFn = Callable[
     [MaskedFeatures, FeatureMask], Logits
 ]
+
+class PretrainingFunction(Protocol):
+    def __call__(self, pretrain_config_path: Path, dataset_type: str, train_dataset_path: Path, val_dataset_path: Path, pretrained_model_path: Path, seed: int) -> None: ...
+
+class TrainingFunction(Protocol):
+    def __call__(self, pretrain_config_path: Path, train_config_path: Path, dataset_type: str, train_dataset_path: Path, val_dataset_path: Path, pretrained_model_path: Path, hard_budget: int, seed: int, afa_method_path: Path) -> None: ...

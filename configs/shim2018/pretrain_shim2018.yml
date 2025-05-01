@@ -1,4 +1,5 @@
-epochs: 2000
+# epochs: 2000
+epochs: 100
 
 dataloader:
   batch_size: 128
