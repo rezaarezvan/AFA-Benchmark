@@ -1,0 +1,7 @@
+hard_budgets:
+  cube: [5, 10, 20]
+  # TODO
+  AFAContext: [5, 15, 25]
+  MNIST: [50, 100, 150]
+  diabetes: [10, 20, 30]
+  physionet: [20, 40, 60]
