@@ -6,7 +6,7 @@ Each trained AFAMethod is represented by a folder with two files:
 - `params.yml` containing info about the training
 
 `params.yml` is a YAML file with the following keys:
-- `hard_budget: int` Hard budget used during training
+- `hard_budget: int|null` Hard budget used during training. `null` if not applicable.
 - `seed: int` Seed used during training
 - `dataset_type: str` Which dataset type was used during training. One of the keys in AFA_DATASET_REGISTRY.
 - `train_dataset_path: str` Training dataset used during training
