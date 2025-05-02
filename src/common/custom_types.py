@@ -172,6 +172,25 @@ type AFAClassifierFn = Callable[
 
 class PretrainingFunction(Protocol):
     def __call__(self, pretrain_config_path: Path, dataset_type: str, train_dataset_path: Path, val_dataset_path: Path, pretrained_model_path: Path, seed: int) -> None: ...
+    """
+    Args:
+        pretrain_config_path: Path to a YAML config file for pretraining. May contain info like learning rate, architecture, etc.
+        dataset_type: The type of dataset to use for pretraining. One of the keys in AFA_DATASET_REGISTRY.
+        train_dataset_path: Path to the .pt file of the training dataset.
+        val_dataset_path: Path to the .pt file of the validation dataset.
+        pretrained_model_path: Path to a folder to save the pretrained model. The model weights will be saved in a model.pt file in this folder, and parameters related to the training will be saved in a params.yml file.
+        seed: Random seed for reproducibility.
+    """
 
 class TrainingFunction(Protocol):
     def __call__(self, pretrain_config_path: Path, train_config_path: Path, dataset_type: str, train_dataset_path: Path, val_dataset_path: Path, pretrained_model_path: Path, hard_budget: int, seed: int, afa_method_path: Path) -> None: ...
+    """
+        pretrain_config_path: Path to a YAML config file for pretraining. May contain info like learning rate, architecture, etc.
+        train_config_path: Path to a YAML config file for training. May contain info like learning rate, architecture, etc.
+        dataset_type: The type of dataset to use for pretraining. One of the keys in AFA_DATASET_REGISTRY.
+        train_dataset_path: Path to the .pt file of the training dataset.
+        val_dataset_path: Path to the .pt file of the validation dataset.
+        pretrained_model_path: Path to a folder where a pretrained model is saved (see PretrainingFunction).
+        seed: Random seed for reproducibility.
+        afa_method_path: Path to a folder to save the AFA method. The model weights will be saved in a model.pt file in this folder, and parameters related to the training will be saved in a params.yml file.
+    """
