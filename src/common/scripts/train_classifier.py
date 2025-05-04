@@ -49,7 +49,8 @@ def train_model(classifier: NNClassifier, train_loader, val_loader, device, num_
             for x_val, y_val in val_loader:
                 x_val, y_val = x_val.to(device), y_val.to(device)
                 m_val = generate_uniform_mask(len(x_val), x_val.shape[1]).to(device)
-                logits_val = classifier(x_val, m_val)
+                x_val_masked = x_val * m_val
+                logits_val = classifier(x_val_masked, m_val)
                 preds.append(logits_val.argmax(dim=1).cpu())
                 targets.append(y_val.cpu())
 
