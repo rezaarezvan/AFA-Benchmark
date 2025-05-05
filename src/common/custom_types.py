@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Callable, ClassVar, Protocol
+from typing import Callable, ClassVar, Protocol, Self
 
 from jaxtyping import Bool, Float, Integer
 from sklearn.tests.test_multioutput import n_features
@@ -56,8 +56,8 @@ class AFADataset(Protocol):
         """
         ...
 
-    @staticmethod
-    def load(path: Path) -> "AFADataset":
+    @classmethod
+    def load(cls, path: Path) -> Self:
         """
         Loads the dataset from a file. The file should contain the dataset in a format that can be loaded by the dataset.
         This enables deterministic loading of datasets.
@@ -104,8 +104,8 @@ class AFAMethod(Protocol):
         """
         ...
 
-    @staticmethod
-    def load(path: Path, device: torch.device) -> "AFAMethod":
+    @classmethod
+    def load(cls, path: Path, device: torch.device) -> Self:
         """
         Loads the method from a file, placing it on the given device.
         """
@@ -158,8 +158,8 @@ class AFAClassifier(Protocol):
         """
         ...
 
-    @staticmethod
-    def load(path: Path, device: torch.device) -> "AFAClassifier":
+    @classmethod
+    def load(cls, path: Path, device: torch.device) -> Self:
         """
         Loads the classifier from a file, placing it on the given device.
         """

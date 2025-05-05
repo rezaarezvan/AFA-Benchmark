@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Self
 import torch
 from jaxtyping import Float
 from torch import Tensor
@@ -120,10 +121,10 @@ class CubeDataset(Dataset, AFADataset):
             path,
         )
 
-    @staticmethod
-    def load(path: Path) -> "CubeDataset":
+    @classmethod
+    def load(cls, path: Path) -> Self:
         data = torch.load(path)
-        dataset = CubeDataset(**data["config"])
+        dataset = cls(**data["config"])
         dataset.features = data["features"]
         dataset.labels = data["labels"]
         return dataset
@@ -275,11 +276,11 @@ class AFAContextDataset(Dataset, AFADataset):
             path,
         )
 
-    @staticmethod
-    def load(path: Path) -> 'AFAContextDataset':
+    @classmethod
+    def load(cls, path: Path) -> Self:
         data = torch.load(path)
         cfg = data['config']
-        ds = AFAContextDataset(**cfg)
+        ds = cls(**cfg)
         ds.features = data['features']
         ds.labels = data['labels']
         ds.costs = data['costs']
@@ -347,10 +348,10 @@ class MNISTDataset(Dataset, AFADataset):
             path,
         )
 
-    @staticmethod
-    def load(path: Path) -> "MNISTDataset":
+    @classmethod
+    def load(cls, path: Path) -> Self:
         data = torch.load(path)
-        dataset = MNISTDataset(**data["config"])
+        dataset = cls(**data["config"])
         dataset.features = data["features"]
         dataset.labels = data["labels"]
         return dataset
@@ -434,11 +435,11 @@ class DiabetesDataset(Dataset, AFADataset):
             path,
         )
 
-    @staticmethod
-    def load(path: Path) -> "DiabetesDataset":
+    @classmethod
+    def load(cls, path: Path) -> Self:
         """Load a dataset from a file."""
         data = torch.load(path)
-        dataset = DiabetesDataset(**data["config"])
+        dataset = cls(**data["config"])
         dataset.features = data["features"]
         dataset.labels = data["labels"]
         dataset.feature_names = data["feature_names"]
@@ -527,11 +528,11 @@ class PhysionetDataset(Dataset, AFADataset):
             path,
         )
 
-    @staticmethod
-    def load(path: Path) -> "PhysionetDataset":
+    @classmethod
+    def load(cls, path: Path) -> Self:
         """Load a dataset from a file."""
         data = torch.load(path)
-        dataset = PhysionetDataset(**data["config"])
+        dataset = cls(**data["config"])
         dataset.features = data["features"]
         dataset.labels = data["labels"]
         dataset.feature_names = data["feature_names"]
