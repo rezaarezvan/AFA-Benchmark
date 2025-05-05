@@ -643,10 +643,10 @@ class CMIEstimator(nn.Module):
                 print(f'Eps Value = {eps}\n')
 
             # Update scheduler.
-            scheduler.step(val_loss_mean)
+            scheduler.step(val_perf_mean)
 
             # Check if best model.
-            if val_loss_mean == scheduler.best:
+            if val_perf_mean == scheduler.best:
                 best_value_network = deepcopy(value_network)
                 best_predictor = deepcopy(predictor)
                 num_bad_epochs = 0
