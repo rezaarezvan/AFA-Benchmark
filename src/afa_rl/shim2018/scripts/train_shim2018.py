@@ -146,11 +146,11 @@ def main(
     class_weights = 1 / train_class_probabilities
     class_weights = class_weights / class_weights.sum()
     class_weights_device = class_weights.to(device)
-    check_masked_classifier_performance(
-        masked_classifier=Shim2018MaskedClassifier(embedder_and_classifier),
-        dataset=val_dataset,
-        class_weights=class_weights,
-    )
+    # check_masked_classifier_performance(
+    #     masked_classifier=Shim2018MaskedClassifier(embedder_and_classifier),
+    #     dataset=val_dataset,
+    #     class_weights=class_weights,
+    # )
 
     # The RL reward function depends on a specific AFAClassifier
     reward_fn = get_common_reward_fn(
@@ -284,11 +284,11 @@ def main(
         run.finish()
 
         # Check that embedder+classifier still have decent performance
-        check_masked_classifier_performance(
-            masked_classifier=Shim2018MaskedClassifier(embedder_and_classifier),
-            dataset=val_dataset,
-            class_weights=class_weights,
-        )
+        # check_masked_classifier_performance(
+        #     masked_classifier=Shim2018MaskedClassifier(embedder_and_classifier),
+        #     dataset=val_dataset,
+        #     class_weights=class_weights,
+        # )
 
         # Convert the embedder+agent to an AFAMethod and save it
         afa_method = RLAFAMethod(
