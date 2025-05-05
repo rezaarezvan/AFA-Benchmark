@@ -110,9 +110,9 @@ class NNClassifier(AFAClassifier):
             "output_dim": self.output_dim
         }, path)
 
-    @staticmethod
-    def load(path: Path, device: torch.device) -> "AFAClassifier":
+    @classmethod
+    def load(cls, path: Path, device: torch.device) -> "NNClassifier":
         checkpoint = torch.load(path, map_location=device)
-        classifier = NNClassifier(checkpoint["input_dim"], checkpoint["output_dim"], device)
+        classifier = cls(checkpoint["input_dim"], checkpoint["output_dim"], device)
         classifier.predictor.load_state_dict(checkpoint["model_state_dict"])
         return classifier
