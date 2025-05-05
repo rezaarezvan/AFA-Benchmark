@@ -367,8 +367,8 @@ class Covert2023AFAMethod(AFAMethod):
         next_feature_idx = logits.argmax(dim=1) + 1
         return next_feature_idx
     
-    @staticmethod
-    def load(path, device='cpu'):
+    @classmethod
+    def load(cls, path, device='cpu'):
         checkpoint = torch.load(path, map_location=device)
         arch = checkpoint['architecture']
         d_in = arch['d_in']
@@ -397,7 +397,7 @@ class Covert2023AFAMethod(AFAMethod):
             flag_only_output_layer=False
         )
 
-        model = Covert2023AFAMethod(selector, predictor)
+        model = cls(selector, predictor)
         model.selector.load_state_dict(checkpoint['selector_state_dict'])
         model.predictor.load_state_dict(checkpoint['predictor_state_dict'])
         model.selector.eval()
@@ -705,8 +705,8 @@ class Gadgil2023AFAMethod(AFAMethod):
 
         return next_feature_idx
 
-    @staticmethod
-    def load(path, device='cpu'):
+    @classmethod
+    def load(cls, path, device='cpu'):
         checkpoint = torch.load(path, map_location=device)
         arch = checkpoint['architecture']
         d_in = arch['d_in']
@@ -738,7 +738,7 @@ class Gadgil2023AFAMethod(AFAMethod):
         value_network.hidden[0] = predictor.hidden[0]
         value_network.hidden[1] = predictor.hidden[1]
 
-        model = Gadgil2023AFAMethod(value_network, predictor)
+        model = cls(value_network, predictor)
         model.value_network.load_state_dict(checkpoint['value_network_state_dict'])
         model.predictor.load_state_dict(checkpoint['predictor_state_dict'])
         model.value_network.eval()
