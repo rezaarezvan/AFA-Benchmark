@@ -1,5 +1,3 @@
-# acquisition_cost: 0.05
-
 embedder_classifier:
   lr: 0.001
 
@@ -15,19 +13,21 @@ agent:
   num_optim: 4 # how many times to sample from replay buffer for each batch of data received
   # replay_buffer_alpha: 0.0 # Disable prioritized replay buffer
   replay_buffer_alpha: 0.6
-  replay_buffer_beta: 0.4
+  replay_buffer_beta_init: 0.4
+  replay_buffer_beta_end: 1.0
   max_grad_norm: 1
 
 env:
   hard_budget: 10
 
-n_batches: 20000
-# n_batches: 100
+# n_batches: 10000
+n_batches: 1
 n_agents: 128
 batch_size: 512
 device: "cuda"
-eval_every_n_batches: 1000
-eval_episodes: 100
+eval_max_steps: 1000
+eval_every_n_batches: 100
+n_eval_episodes: 100
 
 
 wandb:

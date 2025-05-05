@@ -1,34 +1,26 @@
 from typing import Callable
 from jaxtyping import Bool
-import torch.nn.functional as F
 
 import torch
-from jaxtyping import Float
 from tensordict import TensorDict, TensorDictBase
 from torch import Tensor
-from torch import nn
 from torchrl.data import Binary, Categorical, Composite, Unbounded
 from torchrl.envs import EnvBase
 
 from afa_rl.custom_types import (
-    AFAClassifier,
-    AFADatasetFn,
-    Classifier,
-    Embedder,
-    Embedding,
-    Logits,
-)
-from afa_rl.models import PartialVAE, ShimEmbedder, ShimMLPClassifier
-from common.custom_types import (
     AFAReward,
     AFARewardFn,
+    MaskedClassifier,
+    AFADatasetFn,
+    Logits,
+)
+from common.custom_types import (
     AFASelection,
     FeatureMask,
     Features,
     Label,
     MaskedFeatures,
 )
-
 
 
 class AFAEnv(EnvBase):
@@ -48,7 +40,7 @@ class AFAEnv(EnvBase):
         batch_size: torch.Size,
         feature_size: int,
         n_classes: int,
-        hard_budget: int # how many features can be acquired before the episode ends
+        hard_budget: int,  # how many features can be acquired before the episode ends
     ):
         # Do not allow empty batch sizes
         assert batch_size != torch.Size(()), "Batch size must be non-empty"
@@ -142,7 +134,9 @@ class AFAEnv(EnvBase):
 
         # Acquire new features
         new_feature_mask[batch_idx, tensordict["action"]] = True
-        new_masked_features[batch_idx, tensordict["action"]] = tensordict["features"][batch_idx, tensordict["action"]].clone()
+        new_masked_features[batch_idx, tensordict["action"]] = tensordict["features"][
+            batch_idx, tensordict["action"]
+        ].clone()
 
         # Update action_mask
         new_action_mask[batch_idx, tensordict["action"]] = False
@@ -180,9 +174,9 @@ class AFAEnv(EnvBase):
         rng = torch.manual_seed(seed)  # type: ignore
         self.rng = rng
 
+
 def get_common_reward_fn(
-    classifier: AFAClassifier,
-    loss_fn: Callable[[Logits, Label], AFAReward]
+    classifier: MaskedClassifier, loss_fn: Callable[[Logits, Label], AFAReward]
 ) -> AFARewardFn:
     """
     A standard AFA-RL reward function where the only reward the agent receives is the negative

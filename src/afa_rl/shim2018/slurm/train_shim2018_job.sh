@@ -6,7 +6,7 @@
 
 module load virtualenv
 
-uv run src/afa_rl/scripts/train_shim2018.py \
+uv run src/afa_rl/shim2018/scripts/train_shim2018.py \
     --pretrain_config configs/shim2018/pretrain_shim2018.yml \
     --train_config configs/shim2018/train_shim2018.yml \
     --dataset_type $dataset_type \

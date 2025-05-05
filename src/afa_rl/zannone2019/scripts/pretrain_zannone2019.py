@@ -1,32 +1,28 @@
 import argparse
 import os
-from functools import partial
 from pathlib import Path
 
 import lightning as pl
-from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
-from sklearn.metrics import classification_report
 import torch
-from torch import Tensor
 import yaml
+from jaxtyping import Float
+from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import WandbLogger
-from torch import nn
+from torch import Tensor, nn
 from torchrl.modules import MLP
 
 import wandb
 from afa_rl.datasets import (
     DataModuleFromDatasets,
 )
-from afa_rl.models import (
+from afa_rl.utils import get_1D_identity
+from afa_rl.zannone2019.models import (
     PartialVAE,
     PointNet,
     PointNetType,
     Zannone2019PretrainingModel,
 )
-from afa_rl.utils import get_1D_identity
 from common.custom_types import AFADataset
-from jaxtyping import Float
-
 from common.utils import dict_to_namespace, get_class_probabilities, set_seed
 
 

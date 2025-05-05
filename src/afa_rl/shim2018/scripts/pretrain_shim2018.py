@@ -11,11 +11,11 @@ import yaml
 from lightning.pytorch.loggers import WandbLogger
 
 import wandb
-from afa_rl.models import (
-    ShimMLPClassifier,
+from afa_rl.shim2018.models import (
+    Shim2018MLPClassifier,
     ReadProcessEncoder,
-    ShimEmbedder,
-    ShimEmbedderClassifier,
+    Shim2018Embedder,
+    Shim2018EmbedderClassifier,
 )
 from common.custom_types import AFADataset
 from afa_rl.datasets import DataModuleFromDatasets
@@ -23,7 +23,7 @@ from common.utils import dict_to_namespace, get_class_probabilities, set_seed
 from pathlib import Path
 
 
-def get_shim2018_model_from_config(config: SimpleNamespace, n_features: int, n_classes: int, class_probabiities: Float[Tensor, "n_classes"]):
+def get_shim2018_model_from_config(config: SimpleNamespace, n_features: int, n_classes: int, class_probabiities: Float[Tensor, "n_classes"]) -> Shim2018EmbedderClassifier:
     encoder = ReadProcessEncoder(
         feature_size=n_features + 1,  # state contains one value and one index
         output_size=config.encoder.output_size,
@@ -32,11 +32,11 @@ def get_shim2018_model_from_config(config: SimpleNamespace, n_features: int, n_c
         memory_size=config.encoder.memory_size,
         processing_steps=config.encoder.processing_steps,
     )
-    embedder = ShimEmbedder(encoder)
-    classifier = ShimMLPClassifier(
+    embedder = Shim2018Embedder(encoder)
+    classifier = Shim2018MLPClassifier(
         config.encoder.output_size, n_classes, config.classifier.num_cells
     )
-    model = ShimEmbedderClassifier(
+    model = Shim2018EmbedderClassifier(
         embedder=embedder,
         classifier=classifier,
         class_probabilities=class_probabiities,

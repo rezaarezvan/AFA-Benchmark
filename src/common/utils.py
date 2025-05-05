@@ -49,18 +49,7 @@ def get_folders_with_matching_params(folder: Path, mapping: dict[str, Any]) -> l
     Get all folders in a given folder that have a matching params.yml file.
     """
 
-    matching_folders: list[Path] = []
-
-    # Go through all folders in the given folder
-    for instance_results_path in folder.iterdir():
-        # Check if the results params.yml file matches the mapping
-        if not yaml_file_matches_mapping(
-            instance_results_path / "params.yml", mapping
-        ):
-            continue
-
-        # Mapping match, save results
-        matching_folders.append(instance_results_path)
+    matching_folders = [f for f in folder.iterdir() if yaml_file_matches_mapping(f / "params.yml", mapping)]
 
     return matching_folders
 

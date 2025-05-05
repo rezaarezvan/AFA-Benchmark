@@ -1,8 +1,9 @@
 from afa_rl.afa_methods import (
-    Shim2018AFAMethod,
+    # Shim2018AFAMethod,
     RandomDummyAFAMethod,
     SequentialDummyAFAMethod,
-    Zannone2019AFAMethod,
+    # Zannone2019AFAMethod,
+    RLAFAMethod,
 )
 from afa_discriminative.afa_methods import (
     Covert2023AFAMethod,
@@ -15,16 +16,16 @@ from common.classifiers import (
     UniformDummyAFAClassifier,
 )
 
-from afa_rl.scripts.pretrain_shim2018 import main as pretrain_shim2018_main
-from afa_rl.scripts.train_shim2018 import main as train_shim2018_main
-from afa_rl.scripts.pretrain_zannone2019 import main as pretrain_zannone2019_main
-from afa_rl.scripts.train_zannone2019 import main as train_zannone2019_main
+from afa_rl.shim2018.scripts.pretrain_shim2018 import main as pretrain_shim2018_main
+from afa_rl.shim2018.scripts.train_shim2018 import main as train_shim2018_main
+from afa_rl.zannone2019.scripts.pretrain_zannone2019 import main as pretrain_zannone2019_main
+from afa_rl.zannone2019.scripts.train_zannone2019 import main as train_zannone2019_main
 
 
 # Add each AFA method here
 AFA_METHOD_REGISTRY: dict[str, type[AFAMethod]] = {
-    "shim2018": Shim2018AFAMethod,
-    "zannone2019": Zannone2019AFAMethod,
+    "shim2018": RLAFAMethod,
+    "zannone2019": RLAFAMethod,
     "GDFS": Covert2023AFAMethod,
     "DIME": Gadgil2023AFAMethod,
     "sequential_dummy": SequentialDummyAFAMethod,  # For testing
