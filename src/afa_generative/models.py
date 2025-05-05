@@ -389,6 +389,51 @@ class MaskingPretrainer(nn.Module):
         return self.model(x_masked)
 
 
+class PointNetPlusEncoder(nn.Module):
+    def __init__(self, obs_dim: int, latent_dim: int, K: int = 20):
+        super().__init__()
+        self.obs_dim = obs_dim
+        self.latent_dim = latent_dim
+        self.K = K
+
+        # per‐feature embedding + bias
+        self.F = nn.Parameter(torch.randn(obs_dim, K))
+        self.b = nn.Parameter(torch.zeros(obs_dim, 1))
+
+        # before aggregation
+        self.net_h = nn.Linear(K + 2, K)
+
+        # after aggregation
+        self.net_post = nn.Sequential(
+            nn.Linear(K, 500), 
+            nn.ReLU(),
+            nn.Linear(500, 200), 
+            nn.ReLU(),
+            nn.Linear(200, 2 * latent_dim)
+        )
+
+    def forward(self, x: torch.Tensor, mask: torch.Tensor):
+        B, D = x.shape
+
+        # expand to per‐feature vectors
+        x_flat = x.view(-1, 1)
+        F_flat = self.F.unsqueeze(0).expand(B, -1, -1).reshape(-1, self.K)
+        b_flat = self.b.unsqueeze(0).expand(B, -1, -1).reshape(-1, 1)
+
+        # build augmented feature
+        xF = x_flat * F_flat
+        aug = torch.cat([x_flat, xF, b_flat], dim=1)
+
+        h = F.relu(self.net_h(aug))
+        h = h.view(B, D, self.K)
+
+        # mask & sum‐pooling
+        m3 = mask.unsqueeze(-1)
+        h = F.relu((h * m3).sum(dim=1))
+
+        # post agg
+        return self.net_post(h)
+
 class PVAE(nn.Module):
     '''
     Partial VAE (PVAE): a variational autoencoder trained with random feature subsets.
@@ -407,16 +452,14 @@ class PVAE(nn.Module):
     '''
 
     def __init__(self,
-                 encoder,
+                 encoder: PointNetPlusEncoder,
                  decoder,
-                 mask_layer,
                  num_samples=128,
                  decoder_distribution='gaussian',
                  deterministic_kl=True):
         super().__init__()
         self.encoder = encoder
         self.decoder = decoder
-        self.mask_layer = mask_layer
         self.num_samples = num_samples
         self.deterministic_kl = deterministic_kl
         
@@ -424,66 +467,37 @@ class PVAE(nn.Module):
         self.decoder_distribution = decoder_distribution
     
     def forward(self, x, mask):
-        # Get latent encoding.
-        x_masked = self.mask_layer(x, mask)
-        latent = self.encoder(x_masked)
-    
-        # Sample latent variables and decode.
-        dims = latent.shape[1] // 2
-        mean = latent[:, :dims]
-        std = torch.exp(latent[:, dims:])
-        eps = torch.randn(mean.shape[0], self.num_samples, mean.shape[1], device=mean.device)
-        z =  torch.unsqueeze(mean, 1) + eps * torch.unsqueeze(std, 1)
-    
-        # Decode and return.
-        recon = self.decoder(z)
-        return latent, z, recon
+        stats = self.encoder(x, mask)
+        D = stats.size(1)//2
+        mu, logvar = stats[:, :D], stats[:, D:]
+        std = torch.exp(0.5*logvar)
+
+        # reparameterize with num_samples
+        B = x.size(0)
+        eps = torch.randn(B, self.num_samples, D, device=x.device)
+        z   = mu.unsqueeze(1) + eps*std.unsqueeze(1)
+
+        # decode
+        flat_z = z.view(B*self.num_samples, D)
+        recon  = self.decoder(flat_z)
+        recon  = recon.view(B, self.num_samples, -1)
+        return mu, std, z, recon
     
     def loss(self, x, mask):
         # Get latent representation and reconstruction.
-        latent, z, recon = self.forward(x, mask)
+        mu, std, z, recon = self.forward(x, mask)
         
-        # Calculate latent KL divergence.
-        latent_dims = latent.shape[1] // 2
-        latent_mean = latent[:, :latent_dims]
-        latent_std = torch.exp(latent[:, latent_dims:])
-        if self.deterministic_kl:
-            kl = torch.distributions.kl_divergence(
-                Normal(latent_mean, latent_std),
-                Normal(0.0, 1.0)).sum(1)
-            kl = torch.unsqueeze(kl, 1)
-        else:
-            # Set up prior and posterior distributions.
-            p_dist = Normal(0.0, 1.0)
-            q_dist = Normal(latent_mean, latent_std)
-            
-            # Estimate KL divergence.
-            log_p = p_dist.log_prob(z)
-            log_q = q_dist.log_prob(z.permute(1, 0, 2)).permute(1, 0, 2)
-            kl = (log_q - log_p).sum(dim=2)
+        kl = 0.5 * (mu**2 + std**2 - 1 - torch.log(std**2)).sum(dim=1)
         
-        # Calculate output log prob.
         if self.decoder_distribution == 'gaussian':
-            # TODO learned std version: unstable training
-            # dims = recon.shape[2] // 2
-            # mean = recon[:, :, :dims]
-            # std = torch.exp(recon[:, :, dims:])
-            mean = recon
-            std = torch.ones_like(mean)
-            dist = Normal(mean, std)
-        elif self.decoder_distribution == 'bernoulli':
-            p = recon.sigmoid()
-            dist = Bernoulli(p)
-            # x = (x > 0.5).float()  # TODO included this only for MNIST, not usually necessary
-        log_prob = dist.log_prob(torch.unsqueeze(x, 1))
-        if isinstance(self.mask_layer, MaskLayerGrouped):  # TODO support for groups is not elegant
-            mask_multiply = mask @ self.mask_layer.group_matrix
+            dist = torch.distributions.Normal(recon, 1.0)
         else:
-            mask_multiply = mask
-        log_prob = (log_prob * torch.unsqueeze(mask_multiply, 1)).sum(dim=2)
+            dist = torch.distributions.Bernoulli(logits=recon)
         
-        # Calculate loss.
-        return kl - log_prob
+        logp = dist.log_prob(x.unsqueeze(1)).sum(-1)
+        
+        elbo = (logp.mean(dim=1) - kl)
+        return -elbo.mean()
     
     def fit(self,
             train_loader,
@@ -491,6 +505,7 @@ class PVAE(nn.Module):
             lr,
             nepochs,
             factor=0.2,
+            p_max=0.9,
             patience=2,
             min_lr=1e-6,
             early_stopping_epochs=None,
@@ -510,21 +525,11 @@ class PVAE(nn.Module):
           verbose:
         '''
         # Set up optimizer and lr scheduler.
-        mask_layer = self.mask_layer
         device = next(self.parameters()).device
         opt = optim.Adam(self.parameters(), lr=lr)
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(
             opt, factor=factor, patience=patience,
             min_lr=min_lr)
-        
-        # Determine mask size.
-        if hasattr(mask_layer, 'mask_size') and (mask_layer.mask_size is not None):
-            mask_size = mask_layer.mask_size
-        else:
-            # Must be tabular (1d data).
-            x, _ = next(iter(val_loader))
-            assert len(x.shape) == 2
-            mask_size = x.shape[1]
 
         # For tracking best model and early stopping.
         best_encoder = None
@@ -533,16 +538,15 @@ class PVAE(nn.Module):
         if early_stopping_epochs is None:
             early_stopping_epochs = patience + 1
             
-        # for epoch in tqdm(range(nepochs), desc="Epoch number", ncols=80):
         for epoch in range(nepochs):
-            # Switch model to training mode.
             self.train()
+            p_e = torch.rand(1).item() * p_max
 
             for x, _ in train_loader:
                 # Calculate loss.
                 x = x.to(device)
-                m = generate_uniform_mask(len(x), mask_size).to(device)
-                loss = self.loss(x, m).mean()
+                m = torch.bernoulli((1-p_e) * torch.ones_like(x)).to(device)
+                loss = self.loss(x, m)
 
                 # Take gradient step.
                 loss.backward()
@@ -558,14 +562,14 @@ class PVAE(nn.Module):
 
                 for x, _ in val_loader:
                     # Calculate loss.
-                    # TODO mask should be precomputed and shared across epochs
                     x = x.to(device)
-                    m = generate_uniform_mask(len(x), mask_size).to(device)
-                    loss = self.loss(x, m).mean()
+                    m = torch.bernoulli((1-p_e) * torch.ones_like(x)).to(x.device)
+                    loss = self.loss(x, m).item()
                     
                     # Update mean.
-                    val_loss = (loss * len(x) + val_loss * n) / (n + len(x))
-                    n += len(x)
+                    val_loss += loss * x.size(0)
+                    n += x.size(0)
+                val_loss = val_loss / n
 
             # Print progress.
             if verbose:
@@ -582,8 +586,6 @@ class PVAE(nn.Module):
                 num_bad_epochs = 0
             else:
                 num_bad_epochs += 1
-            
-            print(num_bad_epochs, early_stopping_epochs)
                 
             # Early stopping.
             if num_bad_epochs > early_stopping_epochs:
@@ -597,7 +599,8 @@ class PVAE(nn.Module):
     
     def impute(self, x, mask):
         '''Impute using a partial input.'''
-        _, _, recon = self.forward(x, mask)
+        _, _, _, recon = self.forward(x, mask)
+        # _, _, recon = self.forward(x, mask)
         return self.output_sample(recon)
     
     def generate(self, num_samples):
