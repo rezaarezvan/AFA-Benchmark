@@ -190,13 +190,13 @@ if __name__ == "__main__":
         "--pretrained_model_folder",
         type=Path,
         default=Path(f"models/pretrained/shim2018/{timestr}"),
-        help="Path to the folder containing pretrained models",
+        help="Path to the folder where pretrained models will be stored (or are already stored)",
     )
     parser.add_argument(
         "--method_folder",
         type=Path,
         default=Path(f"models/methods/shim2018/{timestr}"),
-        help="Path to the folder containing method models",
+        help="Path to the folder where trained methods will be stored",
     )
     parser.add_argument(
         "--pretrain_config_path",
