@@ -177,13 +177,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     # Toggle pretraining and training as flags
     parser.add_argument(
-        "--pretrain",
+        "--no-pretrain",
         action="store_true",
-        help="Run pretraining",
-        default=True,
+        help="Don't run pretraining",
+        default=False,
     )
     parser.add_argument(
-        "--train", action="store_true", help="Run training", default=True
+        "--no-train", action="store_true", help="Don't run training", default=False
     )
     timestr = time.strftime("%Y-%m-%d_%H-%M-%S")
     parser.add_argument(
@@ -235,8 +235,8 @@ if __name__ == "__main__":
         seeds=config["seeds"],
         hard_budgets=config["hard_budgets"],
         pretrained_model_folder=args.pretrained_model_folder,
-        pretrain=args.pretrain,
-        train=args.train,
+        pretrain=not args.no_pretrain,
+        train=not args.no_train,
         pretrain_config_path=args.pretrain_config_path,
         train_config_path=args.train_config_path,
         method_folder=args.method_folder,

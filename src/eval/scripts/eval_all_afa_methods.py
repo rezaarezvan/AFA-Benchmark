@@ -21,7 +21,11 @@ from common.custom_types import (
     FeatureMask,
     Label,
 )
-from common.registry import AFA_CLASSIFIER_REGISTRY, AFA_DATASET_REGISTRY, AFA_METHOD_REGISTRY
+from common.registry import (
+    AFA_CLASSIFIER_REGISTRY,
+    AFA_DATASET_REGISTRY,
+    AFA_METHOD_REGISTRY,
+)
 from sklearn.metrics import accuracy_score, f1_score
 import numpy as np
 
@@ -29,6 +33,7 @@ from common.utils import set_seed
 from eval.utils import get_classifier_paths_trained_on_data
 
 from coolname import generate_slug
+
 
 def aggregate_metrics(prediction_history_all, y_true) -> tuple[Tensor, Tensor]:
     """
@@ -51,7 +56,9 @@ def aggregate_metrics(prediction_history_all, y_true) -> tuple[Tensor, Tensor]:
     f1_all       : Tensor[float64]
     """
     if not prediction_history_all:
-        return torch.tensor([], dtype=torch.float64), torch.tensor([], dtype=torch.float64)
+        return torch.tensor([], dtype=torch.float64), torch.tensor(
+            [], dtype=torch.float64
+        )
 
     B = len(prediction_history_all[0])
     if any(len(row) != B for row in prediction_history_all):
@@ -70,8 +77,9 @@ def aggregate_metrics(prediction_history_all, y_true) -> tuple[Tensor, Tensor]:
         accuracy_all.append(accuracy_score(y_true, preds_i))
         f1_all.append(f1_score(y_true, preds_i, **f1_kwargs))
 
-    return torch.tensor(accuracy_all, dtype=torch.float64), torch.tensor(f1_all, dtype=torch.float64)
-
+    return torch.tensor(accuracy_all, dtype=torch.float64), torch.tensor(
+        f1_all, dtype=torch.float64
+    )
 
 
 def evaluator(
@@ -79,7 +87,6 @@ def evaluator(
     prediction_history_all: list[list[Label]],
     labels_all: list[Label],
 ) -> dict[str, Any]:
-
     assert (
         len(feature_mask_history_all) == len(prediction_history_all) == len(labels_all)
     ), "All three lists must have the same length"
@@ -93,13 +100,19 @@ def evaluator(
     return {
         "accuracy_all": accuracy_all.detach().cpu(),
         "f1_all": f1_all.detach().cpu(),
-        "feature_mask_history_all": [[t.detach().cpu() for t in sublist] for sublist in feature_mask_history_all],
+        "feature_mask_history_all": [
+            [t.detach().cpu() for t in sublist] for sublist in feature_mask_history_all
+        ],
     }
 
 
-def eval_afa_method(afa_method: AFAMethod, dataset: AFADataset, hard_budget: int, afa_classifier_fn: AFAClassifierFn) -> dict[str, Any]:
-    """
-    Evaluates an AFA method.
+def eval_afa_method(
+    afa_method: AFAMethod,
+    dataset: AFADataset,
+    hard_budget: int,
+    afa_classifier_fn: AFAClassifierFn,
+) -> dict[str, Any]:
+    """Evaluate an AFA method.
 
     Args:
         afa_method (AFAMethod): The AFA method to evaluate.
@@ -109,8 +122,8 @@ def eval_afa_method(afa_method: AFAMethod, dataset: AFADataset, hard_budget: int
 
     Returns:
         dict[str, float]: A dictionary containing the evaluation results.
-    """
 
+    """
     # Store feature mask history, label prediction history, and true label for each sample in the dataset
     feature_mask_history_all: list[list[FeatureMask]] = []
     prediction_history_all: list[list[Label]] = []
@@ -138,7 +151,9 @@ def eval_afa_method(afa_method: AFAMethod, dataset: AFADataset, hard_budget: int
         # Let AFA method select features for a fixed number of steps
         for _ in range(hard_budget):
             # Always calculate a prediction
-            prediction = afa_classifier_fn(masked_features.unsqueeze(0), feature_mask.unsqueeze(0)).squeeze(0)
+            prediction = afa_classifier_fn(
+                masked_features.unsqueeze(0), feature_mask.unsqueeze(0)
+            ).squeeze(0)
 
             prediction_history.append(prediction)
 
@@ -165,14 +180,22 @@ def eval_afa_method(afa_method: AFAMethod, dataset: AFADataset, hard_budget: int
 
     return eval_results
 
-def write_eval_results(folder_path: Path, metrics: dict[str, Any], method_type: str, method_path: str, method_params: dict[str, Any], is_builtin_classifier: bool, classifier_type: str|None, classifier_path: str|None, classifier_params: dict[str, Any]|None, eval_params: dict[str, Any], dataset_type: str):
-    """
-    Write the evaluation results to a folder with two files: results.pt and params.yml.
-    """
 
-    folder_path.mkdir(
-        parents=True, exist_ok=True
-    )
+def write_eval_results(
+    folder_path: Path,
+    metrics: dict[str, Any],
+    method_type: str,
+    method_path: str,
+    method_params: dict[str, Any],
+    is_builtin_classifier: bool,
+    classifier_type: str | None,
+    classifier_path: str | None,
+    classifier_params: dict[str, Any] | None,
+    eval_params: dict[str, Any],
+    dataset_type: str,
+):
+    """Write the evaluation results to a folder with two files: results.pt and params.yml."""
+    folder_path.mkdir(parents=True, exist_ok=True)
 
     # Save the metrics to a .pt file
     torch.save(
@@ -186,23 +209,43 @@ def write_eval_results(folder_path: Path, metrics: dict[str, Any], method_type: 
         "w",
     ) as file:
         # Don't write the dataset type for method/classifier since we assume that the same dataset type is used.
-        yaml.dump({
-            **{f"method_{k}": v for k,v in method_params.items() if k != "dataset_type"},
-            "method_type": method_type,
-            "method_path": method_path,
-            **({f"classifier_{k}": v for k, v in classifier_params.items() if k != "dataset_type"} if classifier_params else {}),
-            **({"classifier_type": classifier_type} if classifier_type else {}),
-            **({"classifier_path": str(classifier_path)} if classifier_path else {}),
-            "is_builtin_classifier": is_builtin_classifier,
-            **{f"eval_{k}": v for k,v in eval_params.items()},
-            "dataset_type": dataset_type,
+        yaml.dump(
+            {
+                **{
+                    f"method_{k}": v
+                    for k, v in method_params.items()
+                    if k != "dataset_type"
+                },
+                "method_type": method_type,
+                "method_path": method_path,
+                **(
+                    {
+                        f"classifier_{k}": v
+                        for k, v in classifier_params.items()
+                        if k != "dataset_type"
+                    }
+                    if classifier_params
+                    else {}
+                ),
+                **({"classifier_type": classifier_type} if classifier_type else {}),
+                **(
+                    {"classifier_path": str(classifier_path)} if classifier_path else {}
+                ),
+                "is_builtin_classifier": is_builtin_classifier,
+                **{f"eval_{k}": v for k, v in eval_params.items()},
+                "dataset_type": dataset_type,
+            },
+            file,
+            default_flow_style=False,
+        )
 
-        },
-        file,
-        default_flow_style=False)
 
-
-def main(method_folder: Path, classifier_folder: Path, results_folder: Path, dataset_fraction_name: str):
+def main(
+    method_folder: Path,
+    classifier_folder: Path,
+    results_folder: Path,
+    dataset_fraction_name: str,
+):
     # Currently, always use a constant seed during evaluation
     eval_seed = 42
     set_seed(eval_seed)
@@ -237,14 +280,18 @@ def main(method_folder: Path, classifier_folder: Path, results_folder: Path, dat
             # but possibly using a different fraction of the dataset (i.e. val or test)
             train_dataset_path = Path(method_params_dict["train_dataset_path"])
             eval_dataset_type = train_dataset_path.parent.name
-            eval_dataset_name = train_dataset_path.name.replace("train", dataset_fraction_name)
+            eval_dataset_name = train_dataset_path.name.replace(
+                "train", dataset_fraction_name
+            )
             eval_dataset_path = train_dataset_path.parent / eval_dataset_name
             eval_dataset = AFA_DATASET_REGISTRY[eval_dataset_type].load(
                 eval_dataset_path
             )
-            assert eval_dataset.features
-            assert eval_dataset.labels
-            print(f"Loaded AFA method {method_type} from {trained_method_path} trained on {train_dataset_path}")
+            assert len(eval_dataset.features) > 0
+            assert len(eval_dataset.labels) > 0
+            print(
+                f"Loaded AFA method {method_type} from {trained_method_path} trained on {train_dataset_path}"
+            )
             print(f"  Using dataset {eval_dataset_path} for evaluation")
 
             # Loop through each classifier type in the classifier folder
@@ -255,9 +302,13 @@ def main(method_folder: Path, classifier_folder: Path, results_folder: Path, dat
                     classifier_type, train_dataset_path, classifier_folder
                 )
                 # There should only be one classifier (for each classifier type) that was trained on this dataset
-                assert len(classifier_paths) == 1, f"Found {len(classifier_paths)} classifiers of type {classifier_type} trained on {train_dataset_path}, expected 1"
+                assert len(classifier_paths) == 1, (
+                    f"Found {len(classifier_paths)} classifiers of type {classifier_type} trained on {train_dataset_path}, expected 1"
+                )
                 classifier_path = classifier_paths[0]
-                print(f"  Using classifier {classifier_type} at {classifier_path} trained on {train_dataset_path}...")
+                print(
+                    f"  Using classifier {classifier_type} at {classifier_path} trained on {train_dataset_path}..."
+                )
 
                 # Load classifier
                 classifier = AFA_CLASSIFIER_REGISTRY[classifier_type].load(
@@ -269,7 +320,12 @@ def main(method_folder: Path, classifier_folder: Path, results_folder: Path, dat
                     classifier_params_dict: dict = yaml.safe_load(file)
 
                 # Do the evaluation
-                metrics = eval_afa_method(afa_method, eval_dataset, hard_budget if hard_budget else eval_dataset.features.shape[-1], classifier)
+                metrics = eval_afa_method(
+                    afa_method,
+                    eval_dataset,
+                    hard_budget if hard_budget else eval_dataset.features.shape[-1],
+                    classifier,
+                )
 
                 # Write all results
                 write_eval_results(
@@ -292,8 +348,9 @@ def main(method_folder: Path, classifier_folder: Path, results_folder: Path, dat
 
             # Finally, use the built-in classifier of the AFA method
             print(f"  Using built-in classifier...")
-            metrics = eval_afa_method(afa_method, eval_dataset, hard_budget, afa_method.predict)
-
+            metrics = eval_afa_method(
+                afa_method, eval_dataset, hard_budget, afa_method.predict
+            )
 
             write_eval_results(
                 results_folder / generate_slug(2),
@@ -312,7 +369,6 @@ def main(method_folder: Path, classifier_folder: Path, results_folder: Path, dat
                 },
                 eval_dataset_type,
             )
-
 
 
 if __name__ == "__main__":
@@ -345,4 +401,9 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    main(args.method_folder, args.classifier_folder, args.results_folder, args.dataset_fraction_name)
+    main(
+        args.method_folder,
+        args.classifier_folder,
+        args.results_folder,
+        args.dataset_fraction_name,
+    )
