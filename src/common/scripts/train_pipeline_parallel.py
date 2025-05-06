@@ -107,7 +107,7 @@ def submit_job(
         f"Submitted {job_type} job with ID {job_id} for dataset_type={job_config.dataset_type}, split={job_config.split}, seed={job_config.seed}"
         + (
             f", hard_budget={job_config.hard_budget}"
-            if isinstance(job_config, TrainJobConfig)
+            if hasattr(job_config, "hard_budget")
             else ""
         )
     )

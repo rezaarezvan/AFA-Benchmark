@@ -15,9 +15,11 @@ uv run src/afa_rl/shim2018/scripts/train_shim2018.py \
     --pretrained_model_path $pretrained_model_path \
     --hard_budget $hard_budget \
     --seed $seed \
-    --afa_method_path $afa_method_path
-
-echo "Saved model to $afa_method_path. Writing to $status_file ..."
-
-# Write "success" to $status_file
+    --afa_method_path $afa_method_path && \
+echo "Saved model to $afa_method_path. Writing to $status_file ..." && \
 echo "success" > $status_file
+
+# Add a suffix to the log file
+suffix="_completed"
+log_file="/mimer/NOBACKUP/groups/meta-project/projects/AFA-Benchmark/logs/slurm/train_shim2018_${SLURM_JOB_ID}.out"
+mv "$log_file" "${log_file}${suffix}"
