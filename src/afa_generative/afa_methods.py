@@ -201,6 +201,8 @@ class EDDI(nn.Module):
                 
                 # Sample values for all remaining features.
                 x_sampled = sampler.impute(x_row, m_row)[0]
+                if x_sampled.dim() == 1:
+                    x_sampled = x_sampled.unsqueeze(0)
                 num_samples = x_sampled.shape[0]
                 m_expand = m_row.repeat(num_samples, 1)
                 for j in range(num_features):

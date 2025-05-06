@@ -4,7 +4,8 @@ version = "0.3.2"
 description = "A benchmark of active feature acquisition (AFA) methods."
 readme = "README.md"
 authors = [
-    { name = "Valter Schutz", email = "valterschutz@proton.me" }
+    { name = "Valter Schutz", email = "valterschutz@proton.me" },
+    { name = "Han Wu", email = "hanwu@chalmers.se" }
 ]
 requires-python = ">=3.10"
 dependencies = [
