@@ -142,7 +142,7 @@ class AFAEnv(EnvBase):
         new_action_mask[batch_idx, tensordict["action"]] = False
 
         # Done if we exceed the hard budget
-        done = tensordict["feature_mask"].sum(-1) >= self.hard_budget
+        done = new_feature_mask.sum(-1) >= self.hard_budget
 
         # Always calculate a possible reward
         reward = self.reward_fn(
