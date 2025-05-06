@@ -17,8 +17,8 @@ agent:
   replay_buffer_beta_end: 1
   max_grad_norm: 10
 
-n_batches: 10000
-# n_batches: 1
+# n_batches: 10000
+n_batches: 20
 n_agents: 128
 batch_size: 512
 device: "cuda"
