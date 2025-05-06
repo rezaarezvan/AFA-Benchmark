@@ -49,7 +49,6 @@ def is_job_finished(job_id: str) -> bool:
 
 def wait_for_jobs(job_ids: set[str]) -> None:
     """Wait for all jobs in job_ids to finish."""
-    print(f"Waiting for jobs with ids {job_ids} to finish.")
     start_time = time.time()
     completed_jobs = set()
     with tqdm(total=len(job_ids), desc="Jobs progress") as pbar:

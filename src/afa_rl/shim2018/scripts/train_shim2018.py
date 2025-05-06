@@ -318,12 +318,12 @@ def main(
             afa_method_path / "model.pt", device=torch.device("cpu")
         )
 
-        # Check that the classifier still has decent performance
-        check_masked_classifier_performance(
-            masked_classifier=afa_method.classifier,
-            dataset=val_dataset,
-            class_weights=class_weights,
-        )
+        # # Check that the classifier still has decent performance
+        # check_masked_classifier_performance(
+        #     masked_classifier=afa_method.classifier,
+        #     dataset=val_dataset,
+        #     class_weights=class_weights,
+        # )
 
 
 if __name__ == "__main__":

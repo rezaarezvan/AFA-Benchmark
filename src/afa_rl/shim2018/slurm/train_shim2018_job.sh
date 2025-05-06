@@ -16,3 +16,8 @@ uv run src/afa_rl/shim2018/scripts/train_shim2018.py \
     --hard_budget $hard_budget \
     --seed $seed \
     --afa_method_path $afa_method_path
+
+echo "Saved model to $afa_method_path. Writing to $status_file ..."
+
+# Write "success" to $status_file
+echo "success" > $status_file

@@ -13,3 +13,8 @@ uv run src/afa_rl/shim2018/scripts/pretrain_shim2018.py \
     --val_dataset_path $val_dataset_path \
     --pretrained_model_path $pretrained_model_path \
     --seed $seed
+
+echo "Saved model to $pretrained_model_path. Writing to $status_file ..."
+
+# Write "success" to $status_file
+echo "success" > $status_file
