@@ -1,7 +1,9 @@
 import math
+import os
 import copy
 import collections
 import numpy as np
+from pathlib import Path
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -13,6 +15,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.utils import shuffle
 from afa_generative.utils import *
 from afa_generative.datasets import base_UCI_Dataset
+from common.custom_types import AFAMethod, AFASelection, FeatureMask, Label, MaskedFeatures
 
 
 class EDDI(nn.Module):
@@ -368,7 +371,74 @@ def calculate_criterion(preds, task):
         return torch.mean(kl)
     else:
         raise ValueError(f'unsupported task: {task}. Must be classification or regression')
+
+
+class Ma2018AFAMethod(AFAMethod):
+    def __init__(self, sampler, predictor, task='classification'):
+        super().__init__()
+        assert hasattr(sampler, 'impute')
+        self.sampler = sampler
+        self.predictor = predictor
+        assert task in ('regression', 'classification')
+        self.task = task
+
+    def predict(self, masked_features: MaskedFeatures, feature_mask: FeatureMask) -> Label:
+        x_masked = torch.cat([masked_features, feature_mask], dim=1)
+        pred = self.predictor(x_masked)
+        return pred
+    
+    def select(self, masked_features: MaskedFeatures, feature_mask: FeatureMask) -> AFASelection:
+        device = next(self.predictor.parameters()).device
+        B, F = masked_features.shape
+        x_full = self.sampler.impute(masked_features, feature_mask).view(B, F)
+        next_feature_idx = []
+
+        for i in range(B):
+            m_i = feature_mask[i]
+            x_i = x_full[i : i+1]
+            best_j, best_score = None, -float('inf')
+
+            for j in range(F):
+                if m_i[j] == 1:
+                    continue
+
+                m_test = m_i.clone()
+                m_test[j] = 1
+                m_test = m_test.unsqueeze(0).repeat(x_i.size(0), 1)
+
+                x_masked = x_i * m_test
+                x_masked = torch.cat([x_masked, m_test], dim=1)
+                preds = self.predictor(x_masked)
+
+                score = calculate_criterion(preds, self.task)
+                if score > best_score:
+                    best_score = score
+                    best_j = j
+            
+            next_feature_idx.append(best_j)
         
+        next_feature_idx = torch.tensor(next_feature_idx, device=device)
+        return next_feature_idx + 1
+        
+    @classmethod
+    def load(cls, path, device='cpu'):
+        checkpoint = torch.load(str(path), map_location=device, weights_only=False)
+        sampler = checkpoint["sampler"]
+        predictor = checkpoint["predictor"]
+        task = checkpoint["task"]
+    
+        predictor = predictor.to(device)
+        sampler = sampler.to(device)
+        return cls(sampler, predictor, task)
+
+    def save(self, path: Path):
+        path.mkdir(parents=True, exist_ok=True)
+        torch.save({
+            "sampler": self.sampler,
+            "predictor": self.predictor,
+            "task": self.task,
+        }, str(path / "model.pt"))
+
 
 class UniformSampler:
     '''
