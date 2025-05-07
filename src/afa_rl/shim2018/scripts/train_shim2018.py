@@ -28,53 +28,6 @@ from common.custom_types import (
 from common.utils import dict_to_namespace, get_class_probabilities, set_seed
 
 
-def check_masked_classifier_performance(
-    masked_classifier: MaskedClassifier,
-    dataset: AFADataset,
-    class_weights: Float[Tensor, "n_classes"],
-):
-    """
-    Check that a masked classifier has decent performance on the dataset.
-    """
-    # model_device = next(masked_classifier.parameters()).device
-    # Calculate average accuracy over the whole dataset
-    with torch.no_grad():
-        # Get the features and labels from the dataset
-        features, labels = dataset.get_all_data()
-        # features = features.to(model_device)
-        # labels = labels.to(model_device)
-
-        # Allow masked classifier to look at *all* features
-        masked_features_all = features
-        feature_mask_all = torch.ones_like(
-            features,
-            dtype=torch.bool,
-            # device=model_device
-        )
-        logits_all = masked_classifier(masked_features_all, feature_mask_all).cpu()
-        accuracy_all = (
-            (logits_all.argmax(dim=-1) == labels.argmax(dim=-1)).float().mean()
-        )
-
-        # Same thing, but only allow masked classifier to look at 50% of the features
-        feature_mask_half = torch.randint(0, 2, feature_mask_all.shape)
-        masked_features_half = features.clone()
-        masked_features_half[feature_mask_half == 0] = 0
-        logits_half = masked_classifier(masked_features_half, feature_mask_half).cpu()
-        accuracy_half = (
-            (logits_half.argmax(dim=-1) == labels.argmax(dim=-1)).float().mean()
-        )
-
-        # Calculate the loss for the 50% feature case. Useful for setting acquisition costs
-        loss_half = F.cross_entropy(logits_half, labels.float(), weight=class_weights)
-
-        print(
-            f"Embedder and classifier accuracy with all features: {accuracy_all.item() * 100:.2f}%"
-        )
-        print(
-            f"Embedder and classifier accuracy with 50% features: {accuracy_half.item() * 100:.2f}%"
-        )
-        print(f"Average cross-entropy loss with 50% features: {loss_half.item():.4f}")
 
 
 def get_eval_metrics(eval_tds: list[TensorDictBase]) -> dict[str, Any]:
@@ -334,32 +287,32 @@ if __name__ == "__main__":
     parser.add_argument(
         "--pretrain_config_path",
         type=Path,
-        required=True,
+        default="configs/shim2018/pretrain_shim2018.yml",
         help="Path to YAML config file used for pretraining",
     )
     parser.add_argument(
         "--train_config_path",
         type=Path,
-        required=True,
+        default="configs/shim2018/train_shim2018.yml",
         help="Path to YAML config file for this training",
     )
     parser.add_argument(
-        "--dataset_type", type=str, required=True, choices=AFA_DATASET_REGISTRY.keys()
+        "--dataset_type", type=str, default="cube", choices=AFA_DATASET_REGISTRY.keys()
     )
-    parser.add_argument("--train_dataset_path", type=Path, required=True)
-    parser.add_argument("--val_dataset_path", type=Path, required=True)
+    parser.add_argument("--train_dataset_path", type=Path, default="data/cube/train_split_1.pt")
+    parser.add_argument("--val_dataset_path", type=Path, default="data/cube/val_split_1.pt")
     parser.add_argument(
         "--pretrained_model_path",
         type=Path,
-        required=True,
+        default="models/pretrained/shim2018/temp",
         help="Path to pretrained model folder",
     )
-    parser.add_argument("--hard_budget", type=int, required=True)
-    parser.add_argument("--seed", type=int, required=True)
+    parser.add_argument("--hard_budget", type=int, default=10)
+    parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
         "--afa_method_path",
         type=Path,
-        required=True,
+        default="models/afa_methods/shim2018/temp",
         help="Path to folder to save the trained AFA method",
     )
     args = parser.parse_args()

@@ -3,7 +3,7 @@ import torch
 from afa_rl.utils import (
     get_1D_identity,
     get_feature_set,
-    get_2D_identity,
+    get_2d_identity,
     get_image_feature_set,
     resample_invalid_actions,
 )
@@ -133,7 +133,7 @@ def test_get_2D_identity():
     feature_mask = torch.stack([feature_mask1, feature_mask2])
     expected = torch.stack([expected1, expected2])
 
-    result = get_2D_identity(feature_mask, image_shape)
+    result = get_2d_identity(feature_mask, image_shape)
 
     # The order of rows matters because of how nonzero works (row-major)
     assert torch.equal(result, expected), f"\nExpected:\n{expected}\nGot:\n{result}"

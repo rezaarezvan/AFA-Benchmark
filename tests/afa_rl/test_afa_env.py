@@ -12,7 +12,7 @@ from afa_rl.custom_types import (
     Logits,
 )
 from afa_rl.datasets import get_afa_dataset_fn
-from afa_rl.utils import FloatWrapFn
+from afa_rl.utils import floatwrapfn
 from common.custom_types import FeatureMask, MaskedFeatures
 
 
@@ -69,7 +69,7 @@ class TestAFAMDP(TestCase):
             dataset_fn=get_dummy_data_fn(),
             embedder=LinearEncoder(10, 5),
             classifier=LinearTaskModel(5, 4),
-            loss_fn=FloatWrapFn(nn.CrossEntropyLoss(reduction="none")),
+            loss_fn=floatwrapfn(nn.CrossEntropyLoss(reduction="none")),
             acquisition_costs=torch.tensor([10, 11, 12, 13, 14], dtype=torch.float32),
             invalid_action_cost=42,
             device=self.device,

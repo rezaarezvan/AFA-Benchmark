@@ -13,12 +13,14 @@ from torchrl.modules import MLP
 
 import wandb
 from afa_rl.custom_types import (
+    MaskedClassifier,
+    NNMaskedClassifier,
     NaiveIdentityFn,
 )
 from afa_rl.utils import (
     mask_data,
 )
-from common.custom_types import FeatureMask, Features, MaskedFeatures, Label
+from common.custom_types import FeatureMask, Features, Logits, MaskedFeatures, Label
 
 class PointNetType(Enum):
     POINTNET = 1
@@ -318,3 +320,33 @@ class Zannone2019PretrainingModel(pl.LightningModule):
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.lr)
+
+class Zannone2019NNMaskedClassifier(NNMaskedClassifier):
+    """Wraps Zannone2019PretrainingModel to make it compatible with the NNMaskedClassifier interface."""
+
+    def __init__(self, pretrained_model: Zannone2019PretrainingModel):
+        super().__init__()
+        self.pretrained_model = pretrained_model
+
+    def forward(
+        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+    ) -> Logits:
+        encoding, mu, logvar, z= self.pretrained_model.partial_vae.encode(masked_features, feature_mask)
+        logits = self.pretrained_model.classifier(mu)
+        return logits
+
+
+class Zannone2019MaskedClassifier(MaskedClassifier):
+    """Wrap Zannone2019PretrainingModel to make it compatible with the MaskedClassifier interface."""
+
+    def __init__(self, pretrained_model: Zannone2019PretrainingModel):
+        self.pretrained_model  = pretrained_model
+
+    def __call__(self, masked_features: MaskedFeatures, feature_mask: FeatureMask) -> Logits:
+        model_device = next(self.pretrained_model.parameters()).device
+        masked_features = masked_features.to(model_device)
+        feature_mask = feature_mask.to(model_device)
+        with torch.no_grad():
+            encoding, mu, logvar, z= self.pretrained_model.partial_vae.encode(masked_features, feature_mask)
+            logits = self.pretrained_model.classifier(mu)
+        return logits

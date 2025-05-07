@@ -1,6 +1,6 @@
 from collections import defaultdict
-from types import SimpleNamespace
-from typing import Any, Callable, Tuple
+from collections.abc import Callable
+from typing import Any
 
 import torch
 from jaxtyping import Integer
@@ -10,6 +10,15 @@ from afa_rl.custom_types import FeatureMask, FeatureSet
 from common.custom_types import Features, MaskedFeatures
 
 
+from jaxtyping import Float
+from torch.nn import functional as F
+
+from afa_rl.custom_types import MaskedClassifier
+from common.custom_types import (
+    AFADataset,
+)
+
+
 def remove_module_prefix(state_dict):
     return {k.replace("module.", ""): v for k, v in state_dict.items()}
 
@@ -17,9 +26,7 @@ def remove_module_prefix(state_dict):
 def get_feature_set(
     masked_features: MaskedFeatures, feature_mask: FeatureMask
 ) -> FeatureSet:
-    """
-    Converts partially observed features and their indices to the state representation expected by the embedder.
-    """
+    """Convert partially observed features and their indices to the state representation expected by the embedder."""
     batch_size, feature_size = masked_features.shape
 
     feature_set = torch.zeros(
@@ -50,10 +57,9 @@ def get_feature_set(
 def get_image_feature_set(
     masked_image: MaskedFeatures,
     feature_mask: FeatureMask,
-    image_shape: Tuple[int, int],
+    image_shape: tuple[int, int],
 ) -> FeatureSet:
-    """
-    Converts a partially observed image and the indices to a feature set.
+    """Convert a partially observed image and the indices to a feature set.
 
     The output has shape (batch, HxW, 3), where each row in the third dimension is
     [value, row, col] for observed pixels in each batch. Unobserved pixels are
@@ -100,14 +106,11 @@ def get_image_feature_set(
     return torch.stack(result)
 
 
-def get_2D_identity(
+def get_2d_identity(
     feature_mask: FeatureMask,
-    image_shape: Tuple[int, int],
+    image_shape: tuple[int, int],
 ) -> Integer[Tensor, "*batch n_features 2"]:
-    """
-    Returns the coordinates for each observed feature (as given by the feature mask)
-    but with (0, 0) for unobserved features.
-    """
+    """Return the coordinates for each observed feature (as given by the feature mask) but with (0, 0) for unobserved features."""
     batch_size, flat_dim = feature_mask.shape
     h, w = image_shape
 
@@ -179,9 +182,7 @@ def get_2D_identity(
 def get_1D_identity(
     feature_mask: FeatureMask,
 ) -> Integer[Tensor, "*batch n_features n_features"]:
-    """
-    Converts a feature mask to a onehot representation for each feature, but with all zeros for unobserved features.
-    """
+    """Convert a feature mask to a onehot representation for each feature, but with all zeros for unobserved features."""
     batch_size, feature_size = feature_mask.shape
 
     # One-hot vectors for each feature (feature_size, feature_size)
@@ -199,17 +200,13 @@ def get_1D_identity(
     return feature_set
 
 
-def FloatWrapFn(f: Callable[..., Any]):
-    """
-    Wraps a function to convert all arguments to float before calling it.
-    """
+def floatwrapfn(f: Callable[..., Any]):
+    """Wrap a function to convert all arguments to float before calling it."""
 
     def wrapper(*args):
         return f(*[arg.float() for arg in args])
 
     return wrapper
-
-
 
 
 def resample_invalid_actions(actions, action_mask, action_values):
@@ -229,23 +226,22 @@ def resample_invalid_actions(actions, action_mask, action_values):
 
 
 def get_sequential_module_norm(module: nn.Sequential):
-    """
-    Calculates the average norm of all the linear layers in a sequential module.
-    """
+    """Calculate the average norm of all the linear layers in a sequential module."""
     weight_norms = [
         layer.weight.norm() for layer in module if isinstance(layer, nn.Linear)
     ]
     return torch.mean(torch.stack(weight_norms)).item()
 
 
-def mask_data(features: Features, p: float) -> Tuple[MaskedFeatures, FeatureMask]:
-    """
-    Given features, mask them with probability p.
+def mask_data(features: Features, p: float) -> tuple[MaskedFeatures, FeatureMask]:
+    """Given features, mask them with probability p.
+
     Returns the masked features and the mask.
 
     Args:
         batch: The features to mask.
         p: The probability of each feature being masked (0).
+
     """
     feature_mask = torch.rand(features.shape, device=features.device) > p
     masked_features = features * feature_mask.float()
@@ -260,3 +256,50 @@ def to_regular_dict(d) -> dict:
     if isinstance(d, defaultdict):
         d = {k: to_regular_dict(v) for k, v in d.items()}
     return d
+
+
+def check_masked_classifier_performance(
+    masked_classifier: MaskedClassifier,
+    dataset: AFADataset,
+    class_weights: Float[Tensor, "n_classes"],
+):
+    """Check that a masked classifier has decent performance on the dataset."""
+    # model_device = next(masked_classifier.parameters()).device
+    # Calculate average accuracy over the whole dataset
+    with torch.no_grad():
+        # Get the features and labels from the dataset
+        features, labels = dataset.get_all_data()
+        # features = features.to(model_device)
+        # labels = labels.to(model_device)
+
+        # Allow masked classifier to look at *all* features
+        masked_features_all = features
+        feature_mask_all = torch.ones_like(
+            features,
+            dtype=torch.bool,
+            # device=model_device
+        )
+        logits_all = masked_classifier(masked_features_all, feature_mask_all).cpu()
+        accuracy_all = (
+            (logits_all.argmax(dim=-1) == labels.argmax(dim=-1)).float().mean()
+        )
+
+        # Same thing, but only allow masked classifier to look at 50% of the features
+        feature_mask_half = torch.randint(0, 2, feature_mask_all.shape)
+        masked_features_half = features.clone()
+        masked_features_half[feature_mask_half == 0] = 0
+        logits_half = masked_classifier(masked_features_half, feature_mask_half).cpu()
+        accuracy_half = (
+            (logits_half.argmax(dim=-1) == labels.argmax(dim=-1)).float().mean()
+        )
+
+        # Calculate the loss for the 50% feature case. Useful for setting acquisition costs
+        loss_half = F.cross_entropy(logits_half, labels.float(), weight=class_weights)
+
+        print(
+            f"Embedder and classifier accuracy with all features: {accuracy_all.item() * 100:.2f}%"
+        )
+        print(
+            f"Embedder and classifier accuracy with 50% features: {accuracy_half.item() * 100:.2f}%"
+        )
+        print(f"Average cross-entropy loss with 50% features: {loss_half.item():.4f}")

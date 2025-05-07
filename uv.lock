@@ -49,7 +49,7 @@ requires-dist = [
     { name = "scikit-learn", specifier = ">=1.6.1" },
     { name = "seaborn", specifier = ">=0.13.2" },
     { name = "torchrl", specifier = ">=0.8.0" },
-    { name = "torchrl-agents", specifier = "==0.3.8" },
+    { name = "torchrl-agents", specifier = "==0.3.12" },
     { name = "torchvision", specifier = ">=0.22.0" },
     { name = "wandb", specifier = ">=0.19.10" },
 ]
@@ -2411,15 +2411,15 @@ wheels = [
 
 [[package]]
 name = "torchrl-agents"
-version = "0.3.8"
+version = "0.3.12"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pyyaml" },
     { name = "torchrl" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/4a/2a/2ce376e6d39b9f1829a03d245e4dd31588edd4912d1ea0824c856b51c7d4/torchrl_agents-0.3.8.tar.gz", hash = "sha256:d6d03b9e71c608e65955ddf1e7e896648404597f9c9e22e8af3bb09210f22dc9", size = 45051 }
+sdist = { url = "https://files.pythonhosted.org/packages/1b/4c/e52750dcb587780feb38f58a8827d9a9b496bfac65e08b8d5d8caf44a996/torchrl_agents-0.3.12.tar.gz", hash = "sha256:18d7526ae161c04211b3019c22d44584d1df6a1e1f77a4407c8ea42fa411b65b", size = 45174 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/97/c1/ba95358928003e684592a407de35d6ac66709244cdc7687f6fef26a673c1/torchrl_agents-0.3.8-py3-none-any.whl", hash = "sha256:a2da3e13c70adcdf85955bc811b8963a2002702c928a9cb96bf0898d8361b0e1", size = 11267 },
+    { url = "https://files.pythonhosted.org/packages/93/d7/0e1acca7db305ba61c6fce83b7d734338a03ba0e82f83d2d23b5079ef2dd/torchrl_agents-0.3.12-py3-none-any.whl", hash = "sha256:c5ad0371aa33bc8c7de42313b4cb92cf324286ccc7a029904d83aad564e01aa4", size = 11492 },
 ]
 
 [[package]]

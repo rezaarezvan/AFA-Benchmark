@@ -19,7 +19,7 @@ from common.classifiers import (
 from afa_rl.shim2018.scripts.pretrain_shim2018 import main as pretrain_shim2018_main
 from afa_rl.shim2018.scripts.train_shim2018 import main as train_shim2018_main
 from afa_rl.zannone2019.scripts.pretrain_zannone2019 import main as pretrain_zannone2019_main
-from afa_rl.zannone2019.scripts.train_zannone2019 import main as train_zannone2019_main
+from afa_rl.zannone2019.scripts.train_zannone2019_old import main as train_zannone2019_main
 
 
 # Add each AFA method here

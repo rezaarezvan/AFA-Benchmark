@@ -170,13 +170,14 @@ def main(pretrain_config_path: Path, dataset_type: str, train_dataset_path: Path
 
 
 if __name__ == "__main__":
+    from common.registry import AFA_DATASET_REGISTRY
     parser = argparse.ArgumentParser()
-    parser.add_argument("--pretrain_config", type=str, required=True)
-    parser.add_argument("--dataset_type", type=str, required=True, choices=AFA_DATASET_REGISTRY.keys())
-    parser.add_argument("--train_dataset_path", type=Path, required=True)
-    parser.add_argument("--val_dataset_path", type=Path, required=True)
-    parser.add_argument("--pretrained_model_path", type=Path, required=True)
-    parser.add_argument("--seed", type=int, required=True)
+    parser.add_argument("--pretrain_config", type=str, default="configs/zannone2019/pretrain_zannone2019.yml")
+    parser.add_argument("--dataset_type", type=str, default="cube", choices=AFA_DATASET_REGISTRY.keys())
+    parser.add_argument("--train_dataset_path", type=Path, default="data/cube/train_split_1.pt")
+    parser.add_argument("--val_dataset_path", type=Path, default="data/cube/val_split_1.pt")
+    parser.add_argument("--pretrained_model_path", type=Path, default="models/pretrained/zannone2019/temp")
+    parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
     main(

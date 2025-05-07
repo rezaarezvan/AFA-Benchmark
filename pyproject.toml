@@ -19,7 +19,7 @@ dependencies = [
     "scikit-learn>=1.6.1",
     "seaborn>=0.13.2",
     "torchrl>=0.8.0",
-    "torchrl-agents==0.3.8",
+    "torchrl-agents==0.3.12",
     "torchvision>=0.22.0",
     "wandb>=0.19.10",
 ]
@@ -88,6 +88,7 @@ ignore = [
     "ANN001", # Missing type annotation for function argument
     "ANN201", # Missing return type annotation for public function
     "D104", # Missing docstring in public package
+    "N812",
     # Recommended to ignore according to https://docs.astral.sh/ruff/formatter/#conflicting-lint-rules
     "W191", # tab-indentation
     "E111", # indentation-with-invalid-multiple
