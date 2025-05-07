@@ -4,9 +4,10 @@ from typing import Self
 import torch
 from tensordict import TensorDict
 from torchrl.envs import ExplorationType, set_exploration_type
-from torchrl_agents import Agent
+from afa_rl.agents import Agent
 
 from afa_rl.custom_types import NNMaskedClassifier
+from afa_rl.utils import afacontext_optimal_selection
 from common.custom_types import (
     AFAMethod,
     AFASelection,
@@ -249,3 +250,35 @@ class SequentialDummyAFAMethod(AFAMethod):
         """
         data = torch.load(path)
         return cls(device, data["n_classes"])
+
+
+class AFAContextSmartMethod(AFAMethod):
+    """Always selects the first feature and then selects three other features depending on the context."""
+
+    def __init__(self):
+        self.n_classes = 8
+
+    def select(self, masked_features: AFASelection, feature_mask: AFASelection) -> AFASelection:
+        return afacontext_optimal_selection(
+            masked_features=masked_features,
+            feature_mask=feature_mask,
+        )
+
+    def predict(self, masked_features: AFASelection, feature_mask: AFASelection) -> Label:
+        # Guess class randomly
+        return torch.randint(
+            0,
+            self.n_classes,
+            (masked_features.shape[0],),
+            device=masked_features.device,
+        )
+
+
+    def save(self, path: Path) -> None:
+        torch.save({
+        }, path)
+
+    @classmethod
+    def load(cls, path: Path, device: torch.device) -> Self:
+        data = torch.load(path)
+        return cls()

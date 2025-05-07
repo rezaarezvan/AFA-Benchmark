@@ -43,7 +43,7 @@ AFA_DATASET_NAMES = list(AFA_DATASET_REGISTRY.keys())
 # ---------------------------------------------------------------------------
 
 # List of budgets to evaluate. Modify as needed.
-BUDGETS: list[int] = [5, 10, 20]  # Example values
+BUDGETS: list[int] = [4, 10, 20]  # Example values
 
 PLOTS_DIR = Path("plots")
 PLOTS_DIR.mkdir(parents=True, exist_ok=True)

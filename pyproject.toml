@@ -19,7 +19,6 @@ dependencies = [
     "scikit-learn>=1.6.1",
     "seaborn>=0.13.2",
     "torchrl>=0.8.0",
-    "torchrl-agents==0.3.12",
     "torchvision>=0.22.0",
     "wandb>=0.19.10",
 ]

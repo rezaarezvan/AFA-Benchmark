@@ -25,7 +25,6 @@ dependencies = [
     { name = "scikit-learn" },
     { name = "seaborn" },
     { name = "torchrl" },
-    { name = "torchrl-agents" },
     { name = "torchvision" },
     { name = "wandb" },
 ]
@@ -49,7 +48,6 @@ requires-dist = [
     { name = "scikit-learn", specifier = ">=1.6.1" },
     { name = "seaborn", specifier = ">=0.13.2" },
     { name = "torchrl", specifier = ">=0.8.0" },
-    { name = "torchrl-agents", specifier = "==0.3.12" },
     { name = "torchvision", specifier = ">=0.22.0" },
     { name = "wandb", specifier = ">=0.19.10" },
 ]
@@ -2407,19 +2405,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/44/88/c69c0a3bb6a3a48d9728e7c31a85c52a381e45bd40ca289ab99cdf687ebf/torchrl-0.8.0-cp313-cp313t-macosx_11_0_arm64.whl", hash = "sha256:4e3ec383c56e3d6645eaabb903d893c1c18b032f07c8bac61f051053d06537b9", size = 1565475 },
     { url = "https://files.pythonhosted.org/packages/bc/a7/193ade37a0ed6d2d48625037c5b73f975ec8db20505df6eb7be734d28479/torchrl-0.8.0-cp313-cp313t-manylinux_2_28_x86_64.whl", hash = "sha256:7044cbe4dfe7bebdc44b84a0c88ee40aa636269a9336fe81f1dc2911efd6f08a", size = 1195904 },
     { url = "https://files.pythonhosted.org/packages/72/55/9b8ebc09861108b558c4acdac8432b8618bc27803f20b57e7894e4288dc3/torchrl-0.8.0-cp313-cp313t-win_amd64.whl", hash = "sha256:15b54295753bd5a8c756a612c4624cbb636ab35ce94a7546daf2d58dc57bd9d6", size = 1175925 },
-]
-
-[[package]]
-name = "torchrl-agents"
-version = "0.3.12"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "pyyaml" },
-    { name = "torchrl" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/1b/4c/e52750dcb587780feb38f58a8827d9a9b496bfac65e08b8d5d8caf44a996/torchrl_agents-0.3.12.tar.gz", hash = "sha256:18d7526ae161c04211b3019c22d44584d1df6a1e1f77a4407c8ea42fa411b65b", size = 45174 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/93/d7/0e1acca7db305ba61c6fce83b7d734338a03ba0e82f83d2d23b5079ef2dd/torchrl_agents-0.3.12-py3-none-any.whl", hash = "sha256:c5ad0371aa33bc8c7de42313b4cb92cf324286ccc7a029904d83aad564e01aa4", size = 11492 },
 ]
 
 [[package]]

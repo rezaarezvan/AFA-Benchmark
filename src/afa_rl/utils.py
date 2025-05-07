@@ -7,7 +7,7 @@ from jaxtyping import Integer
 from torch import Tensor, nn
 
 from afa_rl.custom_types import FeatureMask, FeatureSet
-from common.custom_types import Features, MaskedFeatures
+from common.custom_types import AFASelection, Features, MaskedFeatures
 
 
 from jaxtyping import Float
@@ -262,6 +262,7 @@ def check_masked_classifier_performance(
     masked_classifier: MaskedClassifier,
     dataset: AFADataset,
     class_weights: Float[Tensor, "n_classes"],
+    device: torch.device = torch.device("cpu")
 ):
     """Check that a masked classifier has decent performance on the dataset."""
     # model_device = next(masked_classifier.parameters()).device
@@ -269,26 +270,26 @@ def check_masked_classifier_performance(
     with torch.no_grad():
         # Get the features and labels from the dataset
         features, labels = dataset.get_all_data()
-        # features = features.to(model_device)
-        # labels = labels.to(model_device)
+        features = features.to(device)
+        labels = labels.to(device)
 
         # Allow masked classifier to look at *all* features
         masked_features_all = features
         feature_mask_all = torch.ones_like(
             features,
             dtype=torch.bool,
-            # device=model_device
+            device=device
         )
-        logits_all = masked_classifier(masked_features_all, feature_mask_all).cpu()
+        logits_all = masked_classifier(masked_features_all, feature_mask_all)
         accuracy_all = (
             (logits_all.argmax(dim=-1) == labels.argmax(dim=-1)).float().mean()
         )
 
         # Same thing, but only allow masked classifier to look at 50% of the features
-        feature_mask_half = torch.randint(0, 2, feature_mask_all.shape)
+        feature_mask_half = torch.randint(0, 2, feature_mask_all.shape, device=device)
         masked_features_half = features.clone()
         masked_features_half[feature_mask_half == 0] = 0
-        logits_half = masked_classifier(masked_features_half, feature_mask_half).cpu()
+        logits_half = masked_classifier(masked_features_half, feature_mask_half)
         accuracy_half = (
             (logits_half.argmax(dim=-1) == labels.argmax(dim=-1)).float().mean()
         )
@@ -303,3 +304,44 @@ def check_masked_classifier_performance(
             f"Embedder and classifier accuracy with 50% features: {accuracy_half.item() * 100:.2f}%"
         )
         print(f"Average cross-entropy loss with 50% features: {loss_half.item():.4f}")
+
+def afacontext_optimal_selection(masked_features: MaskedFeatures, feature_mask: FeatureMask) -> AFASelection:
+    selection = torch.full(
+        (masked_features.shape[0],),
+        -1,
+        dtype=torch.int64,
+        device=masked_features.device,
+    )
+
+    # Case 1: no features are selected yet, select the first feature
+    case1_mask = feature_mask.sum(dim=-1) == 0
+    selection[case1_mask] = 0
+
+    # Case 2: between 1 and 3 features are selected, select the next feature based on the context
+    case2_mask = (feature_mask.sum(dim=-1) > 0) & (feature_mask.sum(dim=-1) < 4)
+    case2_start_idx = masked_features[:, 0].int() * 3 + 1
+    case2_end_idx = case2_start_idx + 3
+    for i in range(masked_features.size(0)):
+        if case2_mask[i]:
+            start: int = case2_start_idx[i].item()
+            end: int = case2_end_idx[i].item()
+
+            # Find the first unselected feature in the range
+            for j in range(start, end):
+                if feature_mask[i, j] == 0:
+                    selection[i] = j
+                    break
+
+    # Case 3: 4 or more features are selected, select a random unselected feature
+    case3_mask = feature_mask.sum(dim=-1) >= 4
+    for i in range(masked_features.size(0)):
+        if case3_mask[i]:
+            unselected_features = (~feature_mask[i]).nonzero(as_tuple=True)[0]
+            if unselected_features.numel() > 0:
+                selection[i] = unselected_features[0]
+
+    return selection
+
+def module_norm(module: nn.Module) -> float:
+    # Aggregate all parameters from the module and compute the norm
+    return torch.norm(torch.cat([p.view(-1) for p in module.parameters()]), p=2).item()  # L2 norm (Euclidean norm)

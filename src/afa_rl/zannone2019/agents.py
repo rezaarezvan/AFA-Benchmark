@@ -11,8 +11,7 @@ from torch.distributions import Categorical
 from torchrl.modules import (
     ProbabilisticActor,
 )
-from torchrl_agents import serializable, unserializable
-from torchrl_agents.ppo import PPOAgent
+from afa_rl.agents import serializable, unserializable, PPOAgent
 
 from afa_rl.zannone2019.models import PointNet
 from common.custom_types import FeatureMask, MaskedFeatures

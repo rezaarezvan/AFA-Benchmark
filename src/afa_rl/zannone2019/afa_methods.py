@@ -5,7 +5,7 @@ import torch
 from tensordict import TensorDict
 from torchrl.envs import ExplorationType, set_exploration_type
 from torchrl.modules import ProbabilisticActor
-from torchrl_agents import Agent
+from afa_rl.agents import Agent
 
 from afa_rl.afa_methods import get_td_from_masked_features
 from afa_rl.custom_types import NNMaskedClassifier
