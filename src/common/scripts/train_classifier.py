@@ -1,5 +1,6 @@
 import argparse
 import yaml
+import os
 import time
 from pathlib import Path
 from copy import deepcopy
@@ -49,6 +50,7 @@ def train_model(classifier: NNClassifier, train_loader, val_loader, device, num_
             for x_val, y_val in val_loader:
                 x_val, y_val = x_val.to(device), y_val.to(device)
                 m_val = generate_uniform_mask(len(x_val), x_val.shape[1]).to(device)
+                # m_val = torch.ones(len(x_val), x_val.shape[1]).to(device)
                 x_val_masked = x_val * m_val
                 logits_val = classifier(x_val_masked, m_val)
                 preds.append(logits_val.argmax(dim=1).cpu())
@@ -105,10 +107,19 @@ def main(dataset_type: str, split: int, seed: int, config: dict, classifier_fold
 
     # Save
     slug = generate_slug(2)
-    save_path = classifier_folder / dataset_type / f"split_{split}" / f"seed_{seed}" / f"{slug}.pt"
-    save_path.parent.mkdir(parents=True, exist_ok=True)
-    classifier.save(save_path)
+    save_path = classifier_folder / dataset_type / f"split_{split}" / f"seed_{seed}"
+    os.makedirs(save_path, exist_ok=True)
+    classifier.save(save_path / 'model.pt')
     print(f"Classifier saved to: {save_path}")
+
+    params = {
+        "seed": seed,
+        "dataset_type": dataset_type,
+        "train_dataset_path": train_dataset_path,
+        "val_dataset_path": val_dataset_path,
+    }
+    with open(os.path.join(save_path, 'params.yml'), 'w') as f:
+        yaml.dump(params, f)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
