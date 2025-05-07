@@ -12,7 +12,6 @@ uv run src/afa_discriminative/scripts/pretrain_covert2023.py \
     --train_dataset_path $train_dataset_path \
     --val_dataset_path $val_dataset_path \
     --pretrained_model_path $pretrained_model_path \
-    --seed $seed
-
-echo "Saved model to $pretrained_model_path. Writing to $status_file ..."
+    --seed $seed && \
+echo "Saved model to $pretrained_model_path. Writing to $status_file ..." && \
 echo "success" > $status_file

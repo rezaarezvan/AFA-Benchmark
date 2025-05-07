@@ -15,7 +15,6 @@ uv run src/afa_discriminative/scripts/train_covert2023.py \
     --pretrained_model_path $pretrained_model_path \
     --hard_budget $hard_budget \
     --seed $seed \
-    --afa_method_path $afa_method_path
-
+    --afa_method_path $afa_method_path && \
 echo "Saved model to $afa_method_path. Writing to $status_file ..."
 echo "success" > $status_file
