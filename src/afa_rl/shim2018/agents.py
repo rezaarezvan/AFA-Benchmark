@@ -1,5 +1,6 @@
 
 from dataclasses import dataclass
+from typing import Any
 from tensordict.nn import TensorDictModule
 from torch import nn
 import torch
@@ -8,6 +9,7 @@ from torchrl_agents.dqn import DQNAgent
 from torchrl.modules import MLP
 
 from afa_rl.shim2018.models import Shim2018Embedder
+from afa_rl.utils import get_sequential_module_norm
 from common.custom_types import FeatureMask, MaskedFeatures
 
 class Shim2018ActionValueNet(nn.Module):
@@ -44,15 +46,20 @@ class Shim2018Agent(DQNAgent):
     embedding_size: int = serializable(default=int)
 
     def get_action_value_module(self) -> TensorDictModule:
-        action_value_net = Shim2018ActionValueNet(
+        self.action_value_net = Shim2018ActionValueNet(
             embedder=self.embedder,
             embedding_size=self.embedding_size,
             action_size=self.action_spec.n,
             num_cells=[32, 32],
         )
         action_value_module = TensorDictModule(
-            module=action_value_net,
+            module=self.action_value_net,
             in_keys=["masked_features", "feature_mask", "action_mask"],
             out_keys=["action_value"]
         )
         return action_value_module
+
+    def get_eval_info(self) -> dict[str, Any]:
+        return {
+            "value net norm": get_sequential_module_norm(self.action_value_net.net),
+        }

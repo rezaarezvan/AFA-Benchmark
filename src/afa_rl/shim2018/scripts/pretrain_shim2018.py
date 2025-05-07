@@ -131,9 +131,9 @@ if __name__ == "__main__":
     # Use argparse to choose config file
     parser = argparse.ArgumentParser()
     parser.add_argument("--pretrain_config_path", type=Path, default="configs/shim2018/pretrain_shim2018.yml")
-    parser.add_argument("--dataset_type", type=str, default="cube", choices=AFA_DATASET_REGISTRY.keys())
-    parser.add_argument("--train_dataset_path", type=Path, default="data/cube/train_split_1.pt")
-    parser.add_argument("--val_dataset_path", type=Path, default="data/cube/val_split_1.pt")
+    parser.add_argument("--dataset_type", type=str, default="AFAContext", choices=AFA_DATASET_REGISTRY.keys())
+    parser.add_argument("--train_dataset_path", type=Path, default="data/AFAContext/train_split_1.pt")
+    parser.add_argument("--val_dataset_path", type=Path, default="data/AFAContext/val_split_1.pt")
     parser.add_argument("--pretrained_model_path", type=Path, default="models/pretrained/shim2018/temp", help="Path to folder to save the pretrained model")
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()

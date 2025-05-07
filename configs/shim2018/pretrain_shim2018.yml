@@ -1,4 +1,4 @@
-epochs: 2000
+epochs: 3000
 # epochs: 1
 
 dataloader:

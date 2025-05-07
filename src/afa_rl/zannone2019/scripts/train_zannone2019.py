@@ -27,6 +27,7 @@ from afa_rl.zannone2019.agents import Zannone2019Agent
 from afa_rl.zannone2019.models import (
     Zannone2019MaskedClassifier,
     Zannone2019NNMaskedClassifier,
+    Zannone2019PretrainingModel,
 )
 from afa_rl.zannone2019.scripts.pretrain_zannone2019 import (
     get_zannone2019_model_from_config,
@@ -37,12 +38,24 @@ from common.custom_types import (
 from common.utils import dict_to_namespace, get_class_probabilities, set_seed
 
 
-def get_eval_metrics(eval_tds: list[TensorDictBase]) -> dict[str, Any]:
+def get_eval_metrics(
+    eval_tds: list[TensorDictBase], pretrained_model: Zannone2019PretrainingModel
+) -> dict[str, Any]:
     eval_metrics = {}
     eval_metrics["reward_sum"] = 0.0
+    n_correct_samples = 0
     for td in eval_tds:
         eval_metrics["reward_sum"] += td["next", "reward"].sum()
+        # Check whether prediction is correct
+        td_end = td[-1:]
+        encoding, mu, logvar, z = pretrained_model.partial_vae.encode(
+            td_end["masked_features"], td_end["feature_mask"]
+        )
+        logits = pretrained_model.classifier(mu)
+        if logits.argmax(dim=-1) == td_end["label"].argmax(dim=-1):
+            n_correct_samples += 1
     eval_metrics["reward_sum"] /= len(eval_tds)
+    eval_metrics["accuracy"] = n_correct_samples / len(eval_tds)
     return eval_metrics
 
 

@@ -6,6 +6,15 @@
 
 module load virtualenv
 
+dataset_type=AFAContext
+train_dataset_path=data/AFAContext/train_split_1.pt
+val_dataset_path=data/AFAContext/val_split_1.pt
+pretrained_model_path=models/pretrained/shim2018/temp
+hard_budget=4
+seed=42
+afa_method_path=models/methods/shim2018/temp
+status_file=status.txt
+
 if uv run src/afa_rl/shim2018/scripts/train_shim2018.py \
     --pretrain_config configs/shim2018/pretrain_shim2018.yml \
     --train_config configs/shim2018/train_shim2018.yml \
