@@ -1,27 +1,41 @@
 from afa_rl.afa_methods import (
-    Shim2018AFAMethod,
+    # Shim2018AFAMethod,
     RandomDummyAFAMethod,
     SequentialDummyAFAMethod,
-    Zannone2019AFAMethod,
+    # Zannone2019AFAMethod,
+    RLAFAMethod,
 )
 from afa_discriminative.afa_methods import (
-    GreedyDynamicSelection,
-    CMIEstimator,
+    Covert2023AFAMethod,
+    Gadgil2023AFAMethod,
 )
+from common.custom_types import AFAClassifier, AFADataset, AFAMethod, PretrainingFunction, TrainingFunction
 from common.datasets import CubeDataset, AFAContextDataset, MNISTDataset, DiabetesDataset, PhysionetDataset
+from common.classifiers import (
+    RandomDummyAFAClassifier,
+    UniformDummyAFAClassifier,
+)
+
+from afa_rl.shim2018.scripts.pretrain_shim2018 import main as pretrain_shim2018_main
+from afa_rl.shim2018.scripts.train_shim2018 import main as train_shim2018_main
+from afa_rl.zannone2019.scripts.pretrain_zannone2019 import main as pretrain_zannone2019_main
+from afa_rl.zannone2019.scripts.train_zannone2019 import main as train_zannone2019_main
+
 
 # Add each AFA method here
-AFA_METHOD_REGISTRY = {
-    "shim2018": Shim2018AFAMethod,
-    "zannone2019": Zannone2019AFAMethod,
-    "GDFS": GreedyDynamicSelection,
-    "DIME": CMIEstimator,
+AFA_METHOD_REGISTRY: dict[str, type[AFAMethod]] = {
+    "shim2018": RLAFAMethod,
+    "zannone2019": RLAFAMethod,
+    "GDFS": Covert2023AFAMethod,
+    "DIME": Gadgil2023AFAMethod,
     "sequential_dummy": SequentialDummyAFAMethod,  # For testing
     "random_dummy": RandomDummyAFAMethod,  # For testing
 }
 
+
+
 # Add each AFA dataset here
-AFA_DATASET_REGISTRY = {
+AFA_DATASET_REGISTRY: dict[str, type[AFADataset]] = {
     "cube": CubeDataset,
     "AFAContext": AFAContextDataset,
     "MNIST": MNISTDataset,
@@ -29,110 +43,22 @@ AFA_DATASET_REGISTRY = {
     "physionet": PhysionetDataset
 }
 
-# Mapping of AFA dataset names to their paths
-AFA_DATASET_PATH_REGISTRY = {
-    "cube": [
-        "data/cube/train_split_1.pt",
-        "data/cube/train_split_2.pt",
-        "data/cube/train_split_3.pt",
-        "data/cube/train_split_4.pt",
-        "data/cube/train_split_5.pt",
-        "data/cube/val_split_1.pt",
-        "data/cube/val_split_2.pt",
-        "data/cube/val_split_3.pt",
-        "data/cube/val_split_4.pt",
-        "data/cube/val_split_5.pt",
-        "data/cube/test_split_1.pt",
-        "data/cube/test_split_2.pt",
-        "data/cube/test_split_3.pt",
-        "data/cube/test_split_4.pt",
-        "data/cube/test_split_5.pt",
-    ]
+# Add each common classifier that you want to use during evaluation here
+AFA_CLASSIFIER_REGISTRY: dict[str, type[AFAClassifier]] = {
+    "random_dummy": RandomDummyAFAClassifier,
+    "uniform_dummy": UniformDummyAFAClassifier,
 }
 
-# Add saved AFA methods here
-TRAINING_REGISTRY = {
-    # sequential_dummy
-    (
-        "sequential_dummy",
-        "data/cube/train_split_1.pt",
-    ): "models/sequential_dummy/sequential_dummy-cube_train_split_1.pt",
-    (
-        "sequential_dummy",
-        "data/cube/train_split_2.pt",
-    ): "models/sequential_dummy/sequential_dummy-cube_train_split_2.pt",
-    (
-        "sequential_dummy",
-        "data/cube/train_split_3.pt",
-    ): "models/sequential_dummy/sequential_dummy-cube_train_split_3.pt",
-    (
-        "sequential_dummy",
-        "data/cube/train_split_4.pt",
-    ): "models/sequential_dummy/sequential_dummy-cube_train_split_4.pt",
-    (
-        "sequential_dummy",
-        "data/cube/train_split_5.pt",
-    ): "models/sequential_dummy/sequential_dummy-cube_train_split_5.pt",
-    # random_dummy
-    (
-        "random_dummy",
-        "data/cube/train_split_1.pt",
-    ): "models/random_dummy/random_dummy-cube_train_split_1.pt",
-    (
-        "random_dummy",
-        "data/cube/train_split_2.pt",
-    ): "models/random_dummy/random_dummy-cube_train_split_2.pt",
-    (
-        "random_dummy",
-        "data/cube/train_split_3.pt",
-    ): "models/random_dummy/random_dummy-cube_train_split_3.pt",
-    (
-        "random_dummy",
-        "data/cube/train_split_4.pt",
-    ): "models/random_dummy/random_dummy-cube_train_split_4.pt",
-    (
-        "random_dummy",
-        "data/cube/train_split_5.pt",
-    ): "models/random_dummy/random_dummy-cube_train_split_5.pt",
-    # shim2018
-    # (
-    #     "shim2018",
-    #     "data/cube/train_split_1.pt",
-    # ): "models/shim2018/shim2018-cube_train_split_1.pt",
-    # zannone2019
-    # (
-    #     "zannone2019",
-    #     "data/cube/train_split_1.pt",
-    # ): "models/zannone2019/zannone2019-cube_train_split_1.pt",
+# Keep these last to avoid circular imports
+
+
+
+PRETRAINING_ENTRY_REGISTRY: dict[str, PretrainingFunction] = {
+    "shim2018": pretrain_shim2018_main,
+    "zannone2019": pretrain_zannone2019_main,
 }
 
-# Add evaluation results here
-EVALUATION_REGISTRY = {
-    # sequential_dummy
-    "datasets": {
-        "cube": {
-            "methods": {
-                "sequential_dummy": [
-                    "results/evaluation/sequential_dummy/sequential_dummy-cube_train_split_1-cube_val_split_1.pt",
-                    "results/evaluation/sequential_dummy/sequential_dummy-cube_train_split_2-cube_val_split_2.pt",
-                    "results/evaluation/sequential_dummy/sequential_dummy-cube_train_split_3-cube_val_split_3.pt",
-                    "results/evaluation/sequential_dummy/sequential_dummy-cube_train_split_4-cube_val_split_4.pt",
-                    "results/evaluation/sequential_dummy/sequential_dummy-cube_train_split_5-cube_val_split_5.pt",
-                ],
-                "random_dummy": [
-                    "results/evaluation/random_dummy/random_dummy-cube_train_split_1-cube_val_split_1.pt",
-                    "results/evaluation/random_dummy/random_dummy-cube_train_split_2-cube_val_split_2.pt",
-                    "results/evaluation/random_dummy/random_dummy-cube_train_split_3-cube_val_split_3.pt",
-                    "results/evaluation/random_dummy/random_dummy-cube_train_split_4-cube_val_split_4.pt",
-                    "results/evaluation/random_dummy/random_dummy-cube_train_split_5-cube_val_split_5.pt",
-                ],
-                # "shim2018": [
-                #     "results/evaluation/shim2018/shim2018-cube_train_split_1-cube_val_split_1.pt",
-                # ],
-                # "zannone2019": [
-                #     "results/evaluation/zannone2019/zannone2019-cube_train_split_1-cube_val_split_1.pt",
-                # ],
-            }
-        }
-    }
+TRAINING_ENTRY_REGISTRY: dict[str, TrainingFunction] = {
+    "shim2018": train_shim2018_main,
+    "zannone2019": train_zannone2019_main,
 }

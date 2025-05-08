@@ -3,9 +3,12 @@ import torch.nn as nn
 import numpy as np
 import torch.optim as optim
 from tqdm.auto import tqdm
+from copy import deepcopy
+import os
+from pathlib import Path
 from afa_discriminative.utils import restore_parameters, make_onehot, get_entropy, ind_to_onehot, ConcreteSelector, MaskLayer
 from afa_discriminative.models import fc_Net
-from copy import deepcopy
+from common.custom_types import AFAMethod, AFASelection, FeatureMask, Label, MaskedFeatures
 
 
 class GreedyDynamicSelection(nn.Module):
@@ -338,9 +341,35 @@ class GreedyDynamicSelection(nn.Module):
                 
         return score
     
+
+class Covert2023AFAMethod(AFAMethod):
+    def __init__(self, selector, predictor):
+        super().__init__()
+        
+        # Set up models and mask layer.
+        self.selector = selector
+        self.predictor = predictor
+
+    def predict(self, masked_features: MaskedFeatures, feature_mask: FeatureMask) -> Label:
+        x_masked = torch.cat([masked_features, feature_mask], dim=1)
+        predictor = self.predictor
+        pred = predictor(x_masked)
+        return pred
+    
+    def select(self, masked_features: MaskedFeatures, feature_mask: FeatureMask) -> AFASelection:
+        # mask_layer = self.mask_layer
+        selector = self.selector
+        # x_masked = mask_layer(feature, feature_mask)
+        x_masked = torch.cat([masked_features, feature_mask], dim=1)
+        logits = selector(x_masked).flatten(1)
+        logits = logits - 1e6 * feature_mask
+        # TODO Do we need +1 here?
+        next_feature_idx = logits.argmax(dim=1) + 1
+        return next_feature_idx
+    
     @classmethod
-    def load(cls, checkpoint_path, device='cpu'):
-        checkpoint = torch.load(checkpoint_path, map_location=device)
+    def load(cls, path, device='cpu'):
+        checkpoint = torch.load(path, map_location=device)
         arch = checkpoint['architecture']
         d_in = arch['d_in']
         d_out = arch['d_out']
@@ -367,31 +396,26 @@ class GreedyDynamicSelection(nn.Module):
             flag_drop_out=True,
             flag_only_output_layer=False
         )
-        mask_layer = MaskLayer(append=True)
 
-        model = cls(selector, predictor, mask_layer)
+        model = cls(selector, predictor)
         model.selector.load_state_dict(checkpoint['selector_state_dict'])
         model.predictor.load_state_dict(checkpoint['predictor_state_dict'])
         model.selector.eval()
         model.predictor.eval()
         return model
 
-    def predict(self, feature, feature_mask):
-        mask_layer = self.mask_layer
-        predictor = self.predictor
-        x_masked = mask_layer(feature, feature_mask)
-        pred = predictor(x_masked)
-        return pred
-    
-    def select(self, feature, feature_mask):
-        mask_layer = self.mask_layer
-        selector = self.selector
-        x_masked = mask_layer(feature, feature_mask)
-        logits = selector(x_masked).flatten(1)
-        logits = logits - 1e6 * feature_mask
-        # TODO Do we need +1 here?
-        next_feature_idx = logits.argmax(dim=1) + 1
-        return next_feature_idx
+    def save(self, path: Path):
+        os.makedirs(path, exist_ok=True)
+        torch.save({
+            'selector_state_dict': self.selector.state_dict(),
+            'predictor_state_dict': self.predictor.state_dict(),
+            'architecture': {
+                'd_in': self.selector.output_dim,
+                'd_out': self.predictor.output_dim,
+                'selector_hidden_layers': [128, 128],
+                'predictor_hidden_layers': [128, 128],
+                'dropout': 0.3,
+            }}, os.path.join(path,f'model.pt'))
 
 
 class CMIEstimator(nn.Module):
@@ -619,10 +643,10 @@ class CMIEstimator(nn.Module):
                 print(f'Eps Value = {eps}\n')
 
             # Update scheduler.
-            scheduler.step(val_loss_mean)
+            scheduler.step(val_perf_mean)
 
             # Check if best model.
-            if val_loss_mean == scheduler.best:
+            if val_perf_mean == scheduler.best:
                 best_value_network = deepcopy(value_network)
                 best_predictor = deepcopy(predictor)
                 num_bad_epochs = 0
@@ -648,3 +672,88 @@ class CMIEstimator(nn.Module):
         restore_parameters(value_network, best_value_network)
         restore_parameters(predictor, best_predictor)
 
+
+class Gadgil2023AFAMethod(AFAMethod):
+    def __init__(self,
+                 value_network,
+                 predictor):
+        super().__init__()
+
+        # Save network modules.
+        self.value_network = value_network
+        self.predictor = predictor
+
+    def predict(self, masked_features: MaskedFeatures, feature_mask: FeatureMask) -> Label:
+        x_masked = torch.cat([masked_features, feature_mask], dim=1)
+        predictor = self.predictor
+        pred = predictor(x_masked)
+        return pred
+    
+    def select(self, masked_features: MaskedFeatures, feature_mask: FeatureMask) -> AFASelection:
+        x_masked = torch.cat([masked_features, feature_mask], dim=1)
+        pred = self.predict(masked_features, feature_mask)
+        entropy = get_entropy(pred).unsqueeze(1)
+        value_network = self.value_network
+        pred_cmi = value_network(x_masked).sigmoid() * entropy
+        # check_pos_pred_cmi = pred_cmi.max(dim=1).values >= 0
+        pred_cmi -= 1e6 * feature_mask
+        next_feature_idx = torch.argmax(pred_cmi, dim=1) + 1
+        # selection = ind_to_onehot(next_feature_idx, masked_features.shape[-1])
+
+        # if sum(check_pos_pred_cmi) == 0:
+        #     return 0
+
+        return next_feature_idx
+
+    @classmethod
+    def load(cls, path, device='cpu'):
+        checkpoint = torch.load(path, map_location=device)
+        arch = checkpoint['architecture']
+        d_in = arch['d_in']
+        d_out = arch['d_out']
+        value_network_hidden_layers = arch['value_network_hidden_layers']
+        predictor_hidden_layers = arch['predictor_hidden_layers']
+        dropout = arch['dropout']
+        predictor = fc_Net(
+            input_dim=d_in * 2,
+            output_dim=d_out,
+            hidden_layer_num=len(predictor_hidden_layers),
+            hidden_unit=predictor_hidden_layers,
+            activations='ReLU',
+            drop_out_rate=dropout,
+            flag_drop_out=True,
+            flag_only_output_layer=False
+        )
+        value_network = fc_Net(
+            input_dim=d_in * 2,
+            output_dim=d_in,
+            hidden_layer_num=len(value_network_hidden_layers),
+            hidden_unit=value_network_hidden_layers,
+            activations='ReLU',
+            drop_out_rate=dropout,
+            flag_drop_out=True,
+            flag_only_output_layer=False
+        )
+        # Tie weights
+        value_network.hidden[0] = predictor.hidden[0]
+        value_network.hidden[1] = predictor.hidden[1]
+
+        model = cls(value_network, predictor)
+        model.value_network.load_state_dict(checkpoint['value_network_state_dict'])
+        model.predictor.load_state_dict(checkpoint['predictor_state_dict'])
+        model.value_network.eval()
+        model.predictor.eval()
+        return model
+    
+    def save(self, path: Path):
+        os.makedirs(path, exist_ok=True)
+        torch.save({
+            'value_network_state_dict': self.value_network.state_dict(),
+            'predictor_state_dict': self.predictor.state_dict(),
+            'architecture': {
+                'd_in': self.value_network.output_dim,
+                'd_out': self.predictor.output_dim,
+                'value_network_hidden_layers': [128, 128],
+                'predictor_hidden_layers': [128, 128],
+                'dropout': 0.3,
+            }}, os.path.join(path,f'model.pt'))

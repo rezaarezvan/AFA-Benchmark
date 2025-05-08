@@ -1,15 +1,19 @@
-from tensordict.nn import TensorDictModule
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Self
 import torch
 from tensordict import TensorDict
-from torch.distributions import Categorical
-from torchrl.data import TensorSpec
 from torchrl.envs import ExplorationType, set_exploration_type
-from torchrl.modules import MLP, ProbabilisticActor, QValueActor
+from torchrl_agents import Agent
 
-from afa_rl.agents import Shim2018ValueModule, Zannone2019PolicyModule
-from afa_rl.models import PointNet, ReadProcessEncoder, ShimEmbedder, ShimMLPClassifier, Zannone2019PretrainingModel
-from afa_rl.utils import remove_module_prefix
-from common.custom_types import AFAMethod, AFASelection, FeatureMask, Label, MaskedFeatures
+from afa_rl.custom_types import NNMaskedClassifier
+from common.custom_types import (
+    AFAMethod,
+    AFASelection,
+    FeatureMask,
+    Label,
+    MaskedFeatures,
+)
 
 
 def get_td_from_masked_features(
@@ -26,10 +30,10 @@ def get_td_from_masked_features(
     # The action mask is almost the same as the negated feature mask but with one extra element
     action_mask = torch.ones(
         masked_features.shape[0],
-        masked_features.shape[1] + 1,
+        masked_features.shape[1],
         dtype=torch.bool,
     )
-    action_mask[:, 1:] = ~feature_mask
+    action_mask = ~feature_mask
 
     td = TensorDict(
         {
@@ -43,34 +47,25 @@ def get_td_from_masked_features(
     return td
 
 
-class Shim2018AFAMethod(AFAMethod):
-    """
-    Implements the AFAMethod protocol for the Shim2018 agent.
-    """
+@dataclass
+class RLAFAMethod(AFAMethod):
+    """Implements the AFAMethod protocol for an Agent together with a classifier."""
 
-    def __init__(
-        self,
-        device: torch.device,
-        qvalue_actor: QValueActor,
-        embedder: ShimEmbedder, # reference to the embedder, even though it's already contained within the qvalue_actor
-        classifier: ShimMLPClassifier,
-    ):
-        self.device = device
-        self.qvalue_actor = qvalue_actor.to(self.device)
-        self.embedder = embedder.to(self.device)
-        self.classifier = classifier.to(self.device)
+    agent: Agent
+    classifier: NNMaskedClassifier
+
+    def __post_init__(self):
+        # Set the agent to eval mode
+        self.classifier.eval()
 
     def select(
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
     ) -> AFASelection:
-        masked_features = masked_features.to(self.device)
-        feature_mask = feature_mask.to(self.device)
-
         td = get_td_from_masked_features(masked_features, feature_mask)
 
         # Apply the agent's policy to the tensordict
         with torch.no_grad(), set_exploration_type(ExplorationType.DETERMINISTIC):
-            td = self.qvalue_actor(td)
+            td = self.agent.policy(td)
 
         # Get the action from the tensordict
         afa_selection = td["action"].unsqueeze(-1)
@@ -80,112 +75,33 @@ class Shim2018AFAMethod(AFAMethod):
     def predict(
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
     ) -> Label:
-        masked_features = masked_features.to(self.device)
-        feature_mask = feature_mask.to(self.device)
-
         with torch.no_grad():
-            embedding = self.embedder(masked_features, feature_mask)
-            logits = self.classifier(embedding)
+            logits = self.classifier(masked_features, feature_mask)
         probs: Label = logits.softmax(dim=-1)
         return probs
 
-    def save(self, path: str):
-        torch.save(
-            {
-                "qvalue_actor": self.qvalue_actor.cpu(),
-                "embedder": self.embedder.cpu(),
-                "classifier": self.classifier.cpu(),
-            },
-            path,
+    def save(self, path: Path):
+        # Save the agent in a "agents" folder
+        agent_path = path / "agent"
+        self.agent.save(agent_path)
+
+        # Save the classifier in a file named "classifier.pt"
+        classifier_path = path / "classifier.pt"
+        torch.save(self.classifier.cpu(), classifier_path)
+
+    @classmethod
+    def load(cls, path: Path, device: torch.device) -> Self:
+        agent = Agent.load(path / "agent")
+        agent.device = device
+
+        classifier = torch.load(
+            path / "classifier.pt", weights_only=False, map_location=device
         )
+        classifier = classifier.to(device)
 
-    @staticmethod
-    def load(path: str, device: torch.device) -> "Shim2018AFAMethod":
-        """
-        Loads the Shim2018AFAMethod object, including its components.
-        """
-        data = torch.load(path, weights_only=False, map_location=device)
-
-        qvalue_actor = data["qvalue_actor"].to(device)
-        embedder = data["embedder"].to(device)
-        classifier = data["classifier"].to(device)
-
-        return Shim2018AFAMethod(
-            device=device,
-            qvalue_actor=qvalue_actor,
-            embedder=embedder,
+        return cls(
+            agent=agent,
             classifier=classifier,
-        )
-
-
-class Zannone2019AFAMethod(AFAMethod):
-    """
-    Implements the AFAMethod protocol for the Zannone2019 agent.
-    """
-
-    def __init__(
-        self,
-        device: torch.device,
-        actor_network: ProbabilisticActor,
-        pretrained_model: Zannone2019PretrainingModel
-    ):
-        self.device = device
-        self.actor_network = actor_network
-        self.pretrained_model = pretrained_model
-
-    def select(
-        self,
-        masked_features: MaskedFeatures,
-        feature_mask: FeatureMask,
-    ) -> AFASelection:
-        masked_features = masked_features.to(self.device)
-        feature_mask = feature_mask.to(self.device)
-
-        td = get_td_from_masked_features(masked_features, feature_mask)
-
-        # Apply the agent's policy to the tensordict
-        with torch.no_grad(), set_exploration_type(ExplorationType.DETERMINISTIC):
-            td = self.actor_network(td)
-
-        # Get the action from the tensordict
-        afa_selection = td["action"].unsqueeze(-1)
-
-        return afa_selection
-
-    def predict(self, masked_features: MaskedFeatures, feature_mask: FeatureMask) -> Label:
-        masked_features = masked_features.to(self.device)
-        feature_mask = feature_mask.to(self.device)
-
-        with torch.no_grad():
-            encoding, mu, logvar, z = self.pretrained_model.partial_vae.encode(masked_features, feature_mask)
-            logits = self.pretrained_model.classifier(mu)
-
-        probs: Label = logits.softmax(dim=-1)
-        return probs
-
-    def save(self, path: str):
-        torch.save(
-            {
-                "actor_network": self.actor_network.cpu(),
-                "pretrained_model": self.pretrained_model.cpu(),
-            },
-            path,
-        )
-
-    @staticmethod
-    def load(path: str, device: torch.device) -> "Zannone2019AFAMethod":
-        """
-        Loads the Zannone2019AFAMethod object, including its components.
-        """
-        data = torch.load(path, weights_only=False, map_location=device)
-
-        actor_network = data["actor_network"].to(device)
-        pretrained_model = data["pretrained_model"].to(device)
-
-        return Zannone2019AFAMethod(
-            device=device,
-            actor_network=actor_network,
-            pretrained_model=pretrained_model,
         )
 
 
@@ -247,7 +163,7 @@ class RandomDummyAFAMethod(AFAMethod):
 
         return prediction
 
-    def save(self, path: str) -> None:
+    def save(self, path: Path) -> None:
         """
         Saves the method to a file.
         """
@@ -258,13 +174,13 @@ class RandomDummyAFAMethod(AFAMethod):
             path,
         )
 
-    @staticmethod
-    def load(path: str, device: torch.device) -> "RandomDummyAFAMethod":
+    @classmethod
+    def load(cls, path: Path, device: torch.device) -> Self:
         """
         Loads the method from a file.
         """
         data = torch.load(path)
-        return RandomDummyAFAMethod(device, data["n_classes"])
+        return cls(device, data["n_classes"])
 
 
 class SequentialDummyAFAMethod(AFAMethod):
@@ -315,7 +231,7 @@ class SequentialDummyAFAMethod(AFAMethod):
 
         return prediction
 
-    def save(self, path: str) -> None:
+    def save(self, path: Path) -> None:
         """
         Saves the method to a file.
         """
@@ -326,10 +242,10 @@ class SequentialDummyAFAMethod(AFAMethod):
             path,
         )
 
-    @staticmethod
-    def load(path: str, device: torch.device) -> "SequentialDummyAFAMethod":
+    @classmethod
+    def load(cls, path: Path, device: torch.device) -> Self:
         """
         Loads the method from a file.
         """
         data = torch.load(path)
-        return SequentialDummyAFAMethod(device, data["n_classes"])
+        return cls(device, data["n_classes"])

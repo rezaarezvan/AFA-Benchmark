@@ -1,14 +1,15 @@
+import collections
+import copy
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from afa_generative.utils import generate_uniform_mask, restore_parameters, MaskLayerGrouped
 from copy import deepcopy
-from torch.distributions.normal import Normal
-from torch.distributions.bernoulli import Bernoulli
-import collections
-import copy
-import math
+from afa_generative.utils import generate_uniform_mask, restore_parameters, MaskLayerGrouped
+from common.custom_types import FeatureMask, Features, MaskedFeatures, Label
+from afa_rl.zannone2019.models import PointNet
+from afa_rl.utils import mask_data
 
 
 class BaseModel(nn.Module):
@@ -389,101 +390,74 @@ class MaskingPretrainer(nn.Module):
         return self.model(x_masked)
 
 
-class PVAE(nn.Module):
-    '''
-    Partial VAE (PVAE): a variational autoencoder trained with random feature subsets.
-    
-    Original paper: https://arxiv.org/abs/1809.11142v4
-    
-    Args:
-      encoder: encoder network.
-      decoder: decoder network.
-      mask_layer: layer to perform masking on encoder input.
-      num_samples: number of latent variable samples to use during training.
-      decoder_distribution: distribution for reconstruction, 'gaussian' or
-        'bernoulli'.
-      deterministic_kl: calculate prior/posterior KL divergence
-        deterministically or stochastically.
-    '''
+class PartialVAE(nn.Module):
+    """
+    A partial VAE for masked data, as described in "EDDI: Efficient Dynamic Discovery of High-Value Information with Partial VAE"
 
-    def __init__(self,
-                 encoder,
-                 decoder,
-                 mask_layer,
-                 num_samples=128,
-                 decoder_distribution='gaussian',
-                 deterministic_kl=True):
+    To make the model work with different shapes of data, change the pointnet.
+    """
+
+    def __init__(
+        self,
+        pointnet: PointNet,
+        encoder: nn.Module,
+        decoder: nn.Module,
+        recon_loss_type="squared error",
+    ):
+        """
+        Args:
+            pointnet: maps unordered sets of features to a single vector
+            encoder: a network that maps the output from the pointnet to input for mu_net and logvar_net
+            decoder: the network to use for the decoder
+        """
         super().__init__()
+
+        self.pointnet = pointnet
         self.encoder = encoder
-        self.decoder = decoder
-        self.mask_layer = mask_layer
-        self.num_samples = num_samples
-        self.deterministic_kl = deterministic_kl
-        
-        assert decoder_distribution in ('gaussian', 'bernoulli')
-        self.decoder_distribution = decoder_distribution
+        self.decoder = decoder  # Maps from latent space to the original feature space
+        self.recon_loss_type = recon_loss_type
+        if recon_loss_type not in ["squared error", "cross entropy"]:
+            raise ValueError(
+                f"Unknown reconstruction loss type: {self.recon_loss_type}. Use 'squared error' or 'cross entropy'."
+            )
+
+    def encode(
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+    ):
+        pointnet_output = self.pointnet(masked_features, feature_mask)
+        encoding = self.encoder(pointnet_output)
+
+        mu = encoding[:, : encoding.shape[1] // 2]
+        logvar = encoding[:, encoding.shape[1] // 2 :]
+        std = torch.exp(0.5 * logvar)
+        z = mu + std * torch.randn_like(std)
+
+        return encoding, mu, logvar, z
+
+    def forward(self, masked_features: MaskedFeatures, feature_mask: FeatureMask):
+        # Encode the masked features
+        encoding, mu, logvar, z = self.encode(masked_features, feature_mask)
+
+        # Decode
+        x_hat = self.decoder(z)
+
+        return encoding, mu, logvar, z, x_hat
     
-    def forward(self, x, mask):
-        # Get latent encoding.
-        x_masked = self.mask_layer(x, mask)
-        latent = self.encoder(x_masked)
-    
-        # Sample latent variables and decode.
-        dims = latent.shape[1] // 2
-        mean = latent[:, :dims]
-        std = torch.exp(latent[:, dims:])
-        eps = torch.randn(mean.shape[0], self.num_samples, mean.shape[1], device=mean.device)
-        z =  torch.unsqueeze(mean, 1) + eps * torch.unsqueeze(std, 1)
-    
-        # Decode and return.
-        recon = self.decoder(z)
-        return latent, z, recon
-    
-    def loss(self, x, mask):
-        # Get latent representation and reconstruction.
-        latent, z, recon = self.forward(x, mask)
-        
-        # Calculate latent KL divergence.
-        latent_dims = latent.shape[1] // 2
-        latent_mean = latent[:, :latent_dims]
-        latent_std = torch.exp(latent[:, latent_dims:])
-        if self.deterministic_kl:
-            kl = torch.distributions.kl_divergence(
-                Normal(latent_mean, latent_std),
-                Normal(0.0, 1.0)).sum(1)
-            kl = torch.unsqueeze(kl, 1)
+    def loss(self, estimated_features, features, mu, logvar, kl_scaling_factor):
+        if self.recon_loss_type == "squared error":
+            recon_loss = ((estimated_features - features) ** 2).sum()
+        elif self.recon_loss_type == "cross entropy":
+            recon_loss = F.binary_cross_entropy(
+                estimated_features, features, reduction="sum"
+            )
         else:
-            # Set up prior and posterior distributions.
-            p_dist = Normal(0.0, 1.0)
-            q_dist = Normal(latent_mean, latent_std)
-            
-            # Estimate KL divergence.
-            log_p = p_dist.log_prob(z)
-            log_q = q_dist.log_prob(z.permute(1, 0, 2)).permute(1, 0, 2)
-            kl = (log_q - log_p).sum(dim=2)
-        
-        # Calculate output log prob.
-        if self.decoder_distribution == 'gaussian':
-            # TODO learned std version: unstable training
-            # dims = recon.shape[2] // 2
-            # mean = recon[:, :, :dims]
-            # std = torch.exp(recon[:, :, dims:])
-            mean = recon
-            std = torch.ones_like(mean)
-            dist = Normal(mean, std)
-        elif self.decoder_distribution == 'bernoulli':
-            p = recon.sigmoid()
-            dist = Bernoulli(p)
-            # x = (x > 0.5).float()  # TODO included this only for MNIST, not usually necessary
-        log_prob = dist.log_prob(torch.unsqueeze(x, 1))
-        if isinstance(self.mask_layer, MaskLayerGrouped):  # TODO support for groups is not elegant
-            mask_multiply = mask @ self.mask_layer.group_matrix
-        else:
-            mask_multiply = mask
-        log_prob = (log_prob * torch.unsqueeze(mask_multiply, 1)).sum(dim=2)
-        
-        # Calculate loss.
-        return kl - log_prob
+            raise ValueError(
+                f"Unknown reconstruction loss type: {self.recon_loss_type}. Use 'squared error' or 'cross entropy'."
+            )
+        kl_div = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+        return recon_loss + kl_scaling_factor * kl_div
     
     def fit(self,
             train_loader,
@@ -491,8 +465,10 @@ class PVAE(nn.Module):
             lr,
             nepochs,
             factor=0.2,
+            p_max=0.9,
             patience=2,
             min_lr=1e-6,
+            kl_scaling_factor=0.001,
             early_stopping_epochs=None,
             verbose=True):
         '''
@@ -510,21 +486,11 @@ class PVAE(nn.Module):
           verbose:
         '''
         # Set up optimizer and lr scheduler.
-        mask_layer = self.mask_layer
         device = next(self.parameters()).device
         opt = optim.Adam(self.parameters(), lr=lr)
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(
             opt, factor=factor, patience=patience,
             min_lr=min_lr)
-        
-        # Determine mask size.
-        if hasattr(mask_layer, 'mask_size') and (mask_layer.mask_size is not None):
-            mask_size = mask_layer.mask_size
-        else:
-            # Must be tabular (1d data).
-            x, _ = next(iter(val_loader))
-            assert len(x.shape) == 2
-            mask_size = x.shape[1]
 
         # For tracking best model and early stopping.
         best_encoder = None
@@ -533,16 +499,21 @@ class PVAE(nn.Module):
         if early_stopping_epochs is None:
             early_stopping_epochs = patience + 1
             
-        # for epoch in tqdm(range(nepochs), desc="Epoch number", ncols=80):
         for epoch in range(nepochs):
-            # Switch model to training mode.
             self.train()
+            p_e = torch.rand(1).item() * p_max
 
-            for x, _ in train_loader:
+            for features, _ in train_loader:
                 # Calculate loss.
-                x = x.to(device)
-                m = generate_uniform_mask(len(x), mask_size).to(device)
-                loss = self.loss(x, m).mean()
+                features = features.to(device)
+                masked_features, feature_mask = mask_data(features, p_e)
+                # loss = self.loss(x, m)
+                _, mu, logvar, z, estimated_features = self.forward(
+                    masked_features, feature_mask
+                )
+                loss = self.loss(
+                    estimated_features, features, mu, logvar, kl_scaling_factor
+                )
 
                 # Take gradient step.
                 loss.backward()
@@ -556,16 +527,22 @@ class PVAE(nn.Module):
                 val_loss = 0
                 n = 0
 
-                for x, _ in val_loader:
+                for features, _ in val_loader:
                     # Calculate loss.
-                    # TODO mask should be precomputed and shared across epochs
-                    x = x.to(device)
-                    m = generate_uniform_mask(len(x), mask_size).to(device)
-                    loss = self.loss(x, m).mean()
+                    features = features.to(device)
+                    masked_features, feature_mask = mask_data(features, p_e)
+
+                    _, mu, logvar, z, estimated_features = self.forward(
+                        masked_features, feature_mask
+                    )
+                    loss = self.loss(
+                        estimated_features, features, mu, logvar, kl_scaling_factor
+                    )
                     
                     # Update mean.
-                    val_loss = (loss * len(x) + val_loss * n) / (n + len(x))
-                    n += len(x)
+                    val_loss += loss * features.size(0)
+                    n += features.size(0)
+                val_loss = val_loss / n
 
             # Print progress.
             if verbose:
@@ -582,8 +559,6 @@ class PVAE(nn.Module):
                 num_bad_epochs = 0
             else:
                 num_bad_epochs += 1
-            
-            print(num_bad_epochs, early_stopping_epochs)
                 
             # Early stopping.
             if num_bad_epochs > early_stopping_epochs:
@@ -594,34 +569,14 @@ class PVAE(nn.Module):
         # Copy parameters from best model.
         restore_parameters(self.encoder, best_encoder)
         restore_parameters(self.decoder, best_decoder)
-    
-    def impute(self, x, mask):
+
+    def impute(self, masked_features, feature_mask):
         '''Impute using a partial input.'''
-        _, _, recon = self.forward(x, mask)
-        return self.output_sample(recon)
+        _, _, _, z_, recon = self.forward(
+            masked_features, feature_mask
+        )
+        return recon
     
-    def generate(self, num_samples):
-        '''Generate new samples by sampling from the latent distribution.'''
-        dim = list(self.decoder.parameters())[0].shape[1]
-        device = next(self.decoder.parameters()).device
-        z = torch.randn(num_samples, dim, device=device)
-        
-        # Decode.
-        recon = self.decoder(z)
-        return self.output_sample(recon)
-        
-    def output_sample(self, params):
-        '''Generate output sample given decoder parameters.'''
-        if self.decoder_distribution == 'gaussian':
-            # Return mean.
-            mean = params
-            return mean
-
-        elif self.decoder_distribution == 'bernoulli':
-            # Return probabilities.
-            p = params.sigmoid()
-            return p
-
 
 class fc_Net(nn.Module):
     '''

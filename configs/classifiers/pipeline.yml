@@ -1,0 +1,3 @@
+dataset_types: ["MNIST", "diabetes"]
+dataset_splits: [1, 2]
+seeds: [42, 123]

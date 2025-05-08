@@ -1,6 +1,8 @@
-from typing import Callable, ClassVar, Protocol
+from pathlib import Path
+from typing import Callable, ClassVar, Protocol, Self
 
 from jaxtyping import Bool, Float, Integer
+from sklearn.tests.test_multioutput import n_features
 from torch import Tensor
 import torch
 
@@ -8,6 +10,8 @@ import torch
 type Features = Float[Tensor, "*batch n_features"]
 # We use float here since in general we can have probabilities, not only one-hot
 type Label = Float[Tensor, "*batch n_classes"]
+
+type Logits = Float[Tensor, "*batch model_output_size"]
 
 
 class AFADataset(Protocol):
@@ -18,15 +22,16 @@ class AFADataset(Protocol):
     """
 
     # Used by AFADatasetFn
-    features: Features|None # batched
-    labels: Label|None # batched
+    features: Features # batched
+    labels: Label # batched
 
     # Used by evaluation scripts to avoid loading the dataset
     n_classes: ClassVar[int]
+    n_features: ClassVar[int]
 
     def generate_data(self) -> None:
         """
-        Generates the data for the dataset. This should be called after __init__.
+        A method that does nothing. Purely for backwards compatibility.
         """
         ...
 
@@ -44,15 +49,15 @@ class AFADataset(Protocol):
         """
         ...
 
-    def save(self, path: str) -> None:
+    def save(self, path: Path) -> None:
         """
         Saves the dataset to a file. The file should be in a format that can be loaded by the dataset.
         This enables deterministic loading of datasets.
         """
         ...
 
-    @staticmethod
-    def load(path: str) -> "AFADataset":
+    @classmethod
+    def load(cls, path: Path) -> Self:
         """
         Loads the dataset from a file. The file should contain the dataset in a format that can be loaded by the dataset.
         This enables deterministic loading of datasets.
@@ -93,39 +98,76 @@ class AFAMethod(Protocol):
         """
         ...
 
-    def save(self, path: str) -> None:
+    def save(self, path: Path) -> None:
         """
         Saves the method to a file. The file should be in a format that can be loaded by the method.
         """
         ...
 
-    @staticmethod
-    def load(path: str, device: torch.device) -> "AFAMethod":
+    @classmethod
+    def load(cls, path: Path, device: torch.device) -> Self:
         """
         Loads the method from a file, placing it on the given device.
         """
         ...
 
 
-# A reward function will in general depend on
-# - masked features at time t
-# - feature mask (the features that have been observed so far) at time t
-# - masked features at time x_{t+1}
-# - feature mask (the features that have been observed so far) at time t+1
-# - the selection (the feature that was selected) at time t
-# - the ground truth features
-# - the ground truth label
 
-type AFAReward = Float[Tensor, "*batch 1"]
-type AFARewardFn = Callable[
-    [
-        MaskedFeatures,
-        FeatureMask,
-        MaskedFeatures,
-        FeatureMask,
-        AFASelection,
-        Features,
-        Label,
-    ],
-    AFAReward,
+class AFAClassifier(Protocol):
+    """
+    An AFA classifier is an object that can perform classification on masked features.
+
+    """
+
+    def __call__(
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+    ) -> Logits:
+        """
+        Returns the predicted logits for the features that have been observed so far.
+        """
+        ...
+
+    def save(self, path: Path) -> None:
+        """
+        Saves the classifier to a file. The file should be in a format that can be loaded by the method.
+        """
+        ...
+
+    @classmethod
+    def load(cls, path: Path, device: torch.device) -> Self:
+        """
+        Loads the classifier from a file, placing it on the given device.
+        """
+        ...
+
+# What we assume during evaluation. Includes both AFAClassifiers and AFAMethod.predict
+type AFAClassifierFn = Callable[
+    [MaskedFeatures, FeatureMask], Logits
 ]
+
+class PretrainingFunction(Protocol):
+    def __call__(self, pretrain_config_path: Path, dataset_type: str, train_dataset_path: Path, val_dataset_path: Path, pretrained_model_path: Path, seed: int) -> None: ...
+    """
+    Args:
+        pretrain_config_path: Path to a YAML config file for pretraining. May contain info like learning rate, architecture, etc.
+        dataset_type: The type of dataset to use for pretraining. One of the keys in AFA_DATASET_REGISTRY.
+        train_dataset_path: Path to the .pt file of the training dataset.
+        val_dataset_path: Path to the .pt file of the validation dataset.
+        pretrained_model_path: Path to a folder to save the pretrained model. The model weights will be saved in a model.pt file in this folder, and parameters related to the training will be saved in a params.yml file.
+        seed: Random seed for reproducibility.
+    """
+
+class TrainingFunction(Protocol):
+    def __call__(self, pretrain_config_path: Path, train_config_path: Path, dataset_type: str, train_dataset_path: Path, val_dataset_path: Path, pretrained_model_path: Path, hard_budget: int, seed: int, afa_method_path: Path) -> None: ...
+    """
+        pretrain_config_path: Path to a YAML config file for pretraining. May contain info like learning rate, architecture, etc.
+        train_config_path: Path to a YAML config file for training. May contain info like learning rate, architecture, etc.
+        dataset_type: The type of dataset to use for pretraining. One of the keys in AFA_DATASET_REGISTRY.
+        train_dataset_path: Path to the .pt file of the training dataset.
+        val_dataset_path: Path to the .pt file of the validation dataset.
+        pretrained_model_path: Path to a folder where a pretrained model is saved (see PretrainingFunction).
+        seed: Random seed for reproducibility.
+        afa_method_path: Path to a folder to save the AFA method. The model weights will be saved in a model.pt file in this folder, and parameters related to the training will be saved in a params.yml file.
+    """
