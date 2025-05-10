@@ -18,40 +18,55 @@ from common.custom_types import (
     AFADataset,
 )
 
-
 def remove_module_prefix(state_dict):
     return {k.replace("module.", ""): v for k, v in state_dict.items()}
 
 
 def get_feature_set(
-    masked_features: MaskedFeatures, feature_mask: FeatureMask
-) -> FeatureSet:
-    """Convert partially observed features and their indices to the state representation expected by the embedder."""
-    batch_size, feature_size = masked_features.shape
+    masked_features: torch.Tensor, feature_mask: torch.Tensor
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Convert partially observed features and their indices to the set representation, together with the number of observed features for each batch element, expected by the embedder."""
+    batch_size, n_features = masked_features.shape
 
+    # Preallocate the result tensors
     feature_set = torch.zeros(
-        (batch_size, feature_size, 1 + feature_size),
+        (batch_size, n_features, n_features + 1),
+        dtype=torch.float32,
         device=masked_features.device,
-        dtype=torch.float,
+    )
+    lengths = torch.zeros(
+        (batch_size,), dtype=torch.int64, device=masked_features.device
     )
 
-    # First column: feature values
-    feature_set[:, :, 0] = masked_features
+    # Iterate over the batch
+    for i in range(batch_size):
+        # Get the indices of the observed features
+        observed_feature_indices = feature_mask[i].nonzero(as_tuple=True)[0]
+        lengths[i] = len(observed_feature_indices)
 
-    # Generate one-hot indices
-    one_hot_indices = torch.eye(
-        feature_size, device=masked_features.device
-    )  # shape: (feature_size, feature_size)
+        # Create a mask for the observed features
+        mask = torch.zeros(n_features, dtype=torch.bool, device=masked_features.device)
+        mask[observed_feature_indices] = 1
 
-    # Expand one-hot vectors only for observed features
-    mask_expanded = feature_mask.unsqueeze(-1).expand(
-        -1, -1, feature_size
-    )  # shape: (batch, features, feature_size)
-    feature_set[:, :, 1:] = (
-        one_hot_indices.unsqueeze(0).expand(batch_size, -1, -1) * mask_expanded
-    )
+        # Update feature_set: first column with masked feature values
+        feature_set[i, :len(observed_feature_indices), 0] = masked_features[i, observed_feature_indices]
 
-    return feature_set
+        # Update the rest of the feature_set with one-hot encoded indices
+        feature_set[i, :len(observed_feature_indices), 1:] = F.one_hot(observed_feature_indices, num_classes=n_features).float()
+
+    return feature_set, lengths
+
+
+
+def shuffle_feature_set(feature_set: FeatureSet, lengths: Tensor):
+    """Shuffle a feature set."""
+    shuffled_feature_set = torch.zeros_like(feature_set, device=feature_set.device)
+    for i in range(feature_set.shape[0]):
+        shuffled_feature_set[i, : lengths[i]] = feature_set[
+            i, torch.randperm(int(lengths[i].item()), device=feature_set.device)
+        ]
+
+    return shuffled_feature_set
 
 
 def get_image_feature_set(
@@ -233,19 +248,22 @@ def get_sequential_module_norm(module: nn.Sequential):
     return torch.mean(torch.stack(weight_norms)).item()
 
 
-def mask_data(features: Features, p: float) -> tuple[MaskedFeatures, FeatureMask]:
+def mask_data(
+    features: Features, p: float
+) -> tuple[MaskedFeatures, FeatureMask, Tensor]:
     """Given features, mask them with probability p.
 
-    Returns the masked features and the mask.
+    Returns the masked features, feature mask, and which rows have at least one feature.
 
     Args:
-        batch: The features to mask.
+        features: The features to mask.
         p: The probability of each feature being masked (0).
 
     """
     feature_mask = torch.rand(features.shape, device=features.device) > p
     masked_features = features * feature_mask.float()
-    return masked_features, feature_mask
+
+    return masked_features, feature_mask, feature_mask.any(dim=-1)
 
 
 def recursive_defaultdict():
@@ -262,7 +280,6 @@ def check_masked_classifier_performance(
     masked_classifier: MaskedClassifier,
     dataset: AFADataset,
     class_weights: Float[Tensor, "n_classes"],
-    device: torch.device = torch.device("cpu")
 ):
     """Check that a masked classifier has decent performance on the dataset."""
     # model_device = next(masked_classifier.parameters()).device
@@ -270,42 +287,64 @@ def check_masked_classifier_performance(
     with torch.no_grad():
         # Get the features and labels from the dataset
         features, labels = dataset.get_all_data()
-        features = features.to(device)
-        labels = labels.to(device)
 
         # Allow masked classifier to look at *all* features
-        masked_features_all = features
-        feature_mask_all = torch.ones_like(
+        # masked_features_all = features
+        # feature_mask_all = torch.ones_like(
+        #     features,
+        #     dtype=torch.bool,
+        #     device=device
+        # )
+        # logits_all = masked_classifier(masked_features_all, feature_mask_all)
+        # accuracy_all = (
+        #     (logits_all.argmax(dim=-1) == labels.argmax(dim=-1)).float().mean()
+        # )
+
+        # # Same thing, but only allow masked classifier to look at 50% of the features
+        # feature_mask_half = torch.randint(0, 2, feature_mask_all.shape, device=device)
+        # masked_features_half = features.clone()
+        # masked_features_half[feature_mask_half == 0] = 0
+        # logits_half = masked_classifier(masked_features_half, feature_mask_half)
+        # accuracy_half = (
+        #     (logits_half.argmax(dim=-1) == labels.argmax(dim=-1)).float().mean()
+        # )
+
+        # Only allow classifier to look at the "optimal" feature according to AFAContext
+        feature_mask_optimal = torch.zeros_like(
             features,
             dtype=torch.bool,
-            device=device
         )
-        logits_all = masked_classifier(masked_features_all, feature_mask_all)
-        accuracy_all = (
-            (logits_all.argmax(dim=-1) == labels.argmax(dim=-1)).float().mean()
+        feature_mask_optimal[:, 0] = 1
+        for i in range(feature_mask_optimal.shape[0]):
+            context = features[i, 0].int().item()
+            feature_mask_optimal[i, context * 3 + 1 : context * 3 + 4] = 1
+        masked_features_optimal = features.clone()
+        masked_features_optimal[feature_mask_optimal == 0] = 0
+        logits_optimal = masked_classifier(
+            masked_features_optimal, feature_mask_optimal
         )
-
-        # Same thing, but only allow masked classifier to look at 50% of the features
-        feature_mask_half = torch.randint(0, 2, feature_mask_all.shape, device=device)
-        masked_features_half = features.clone()
-        masked_features_half[feature_mask_half == 0] = 0
-        logits_half = masked_classifier(masked_features_half, feature_mask_half)
-        accuracy_half = (
-            (logits_half.argmax(dim=-1) == labels.argmax(dim=-1)).float().mean()
+        accuracy_optimal = (
+            (logits_optimal.argmax(dim=-1) == labels.argmax(dim=-1)).float().mean()
         )
 
         # Calculate the loss for the 50% feature case. Useful for setting acquisition costs
-        loss_half = F.cross_entropy(logits_half, labels.float(), weight=class_weights)
+        # loss_half = F.cross_entropy(logits_half, labels.float(), weight=class_weights)
 
+        # print(
+        #     f"Masked classifier accuracy with all features: {accuracy_all.item() * 100:.2f}%"
+        # )
+        # print(
+        #     f"Masked classifier accuracy with 50% features: {accuracy_half.item() * 100:.2f}%"
+        # )
         print(
-            f"Embedder and classifier accuracy with all features: {accuracy_all.item() * 100:.2f}%"
+            f"Masked classifier accuracy with optimal features: {accuracy_optimal.item() * 100:.2f}%"
         )
-        print(
-            f"Embedder and classifier accuracy with 50% features: {accuracy_half.item() * 100:.2f}%"
-        )
-        print(f"Average cross-entropy loss with 50% features: {loss_half.item():.4f}")
+        # print(f"Average cross-entropy loss with 50% features: {loss_half.item():.4f}")
 
-def afacontext_optimal_selection(masked_features: MaskedFeatures, feature_mask: FeatureMask) -> AFASelection:
+
+def afacontext_optimal_selection(
+    masked_features: MaskedFeatures, feature_mask: FeatureMask
+) -> AFASelection:
     selection = torch.full(
         (masked_features.shape[0],),
         -1,
@@ -342,6 +381,9 @@ def afacontext_optimal_selection(masked_features: MaskedFeatures, feature_mask: 
 
     return selection
 
+
 def module_norm(module: nn.Module) -> float:
     # Aggregate all parameters from the module and compute the norm
-    return torch.norm(torch.cat([p.view(-1) for p in module.parameters()]), p=2).item()  # L2 norm (Euclidean norm)
+    return torch.norm(
+        torch.cat([p.view(-1) for p in module.parameters()]), p=2
+    ).item()  # L2 norm (Euclidean norm)

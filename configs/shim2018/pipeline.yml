@@ -1,8 +1,7 @@
-dataset_types: ["cube", "AFAContext"]
-dataset_splits: [1, 2]
-seeds: [1, 2]
+dataset_types: ["AFAContext"]
+dataset_splits: [1]
+seeds: [1]
 hard_budgets:
-  cube: [5, 10, 20]
-  AFAContext: [5, 10, 20]
+  AFAContext: [4]
 pretrain_job_path: "src/afa_rl/shim2018/slurm/pretrain_shim2018_job.sh"
 train_job_path: "src/afa_rl/shim2018/slurm/train_shim2018_job.sh"

@@ -275,13 +275,13 @@ class DQNAgent(Agent, ABC):
             storage=LazyTensorStorage(
                 max_size=self.replay_buffer_size, device=self.replay_buffer_device
             ),
-            # sampler=PrioritizedSampler(
-            #     max_capacity=self.replay_buffer_size,
-            #     alpha=self.replay_buffer_alpha,
-            #     beta=self.replay_buffer_beta_init,
-            # ),
-            sampler=SamplerWithoutReplacement(),
-            # priority_key="td_error",
+            sampler=PrioritizedSampler(
+                max_capacity=self.replay_buffer_size,
+                alpha=self.replay_buffer_alpha,
+                beta=self.replay_buffer_beta_init,
+            ),
+            # sampler=SamplerWithoutReplacement(),
+            priority_key="td_error",
             batch_size=self.sub_batch_size,
         )
 
@@ -326,7 +326,7 @@ class DQNAgent(Agent, ABC):
             self.target_net_updater.step()
 
         # Anneal beta for prioritized sampling
-        # self._anneal_replay_buffer_beta()
+        self._anneal_replay_buffer_beta()
 
         # Anneal epsilon for epsilon greedy exploration
         self.egreedy_module.step()
@@ -355,7 +355,7 @@ class DQNAgent(Agent, ABC):
         self.optimizer.step()
 
         # Update priorities in the replay buffer
-        # self.replay_buffer.update_tensordict_priority(td)  # type: ignore
+        self.replay_buffer.update_tensordict_priority(td)  # type: ignore
 
         return loss_td, td["td_error"]
 

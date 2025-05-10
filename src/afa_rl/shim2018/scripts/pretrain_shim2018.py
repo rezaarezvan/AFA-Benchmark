@@ -14,11 +14,15 @@ from lightning.pytorch.loggers import WandbLogger
 
 import wandb
 from afa_rl.shim2018.models import (
+    CopiedSetEncoder,
+    CopiedShim2018Embedder,
     Shim2018MLPClassifier,
     ReadProcessEncoder,
     Shim2018Embedder,
     LitShim2018EmbedderClassifier,
+    Shim2018MaskedClassifier,
 )
+from afa_rl.utils import check_masked_classifier_performance
 from common.custom_types import AFADataset
 from afa_rl.datasets import DataModuleFromDatasets
 from common.utils import dict_to_namespace, get_class_probabilities, set_seed
@@ -32,7 +36,7 @@ def get_shim2018_model_from_config(
     class_probabiities: Float[Tensor, "n_classes"],
 ) -> LitShim2018EmbedderClassifier:
     encoder = ReadProcessEncoder(
-        feature_size=n_features + 1,  # state contains one value and one index
+        set_element_size=n_features + 1,  # state contains one value and one index
         output_size=config.encoder.output_size,
         reading_block_cells=config.encoder.reading_block_cells,
         writing_block_cells=config.encoder.writing_block_cells,
@@ -40,6 +44,18 @@ def get_shim2018_model_from_config(
         processing_steps=config.encoder.processing_steps,
     )
     embedder = Shim2018Embedder(encoder)
+    # encoder = CopiedSetEncoder(
+    #     input_dim=21,
+    #     n_features=20,
+    #     embedder_hidden_sizes=[32, 32],
+    #     embedded_dim=16,
+    #     lstm_size=20,
+    #     n_shuffle=5,
+    #     simple=False,
+    #     proj_dim=16,
+    # )
+    # # embedder = Shim2018Embedder(encoder)
+    # embedder = CopiedShim2018Embedder(encoder)
     classifier = Shim2018MLPClassifier(
         config.encoder.output_size, n_classes, config.classifier.num_cells
     )
@@ -92,9 +108,18 @@ def main(
     )
     lit_model = lit_model.to(config.device)
 
+    class_weights = 1 / train_class_probabilities
+    class_weights = class_weights / class_weights.sum()
+    # Check accuracy before starting training
+    check_masked_classifier_performance(
+        masked_classifier=Shim2018MaskedClassifier(lit_model),
+        dataset=val_dataset,
+        class_weights=class_weights,
+    )
+
     # ModelCheckpoint callback
     checkpoint_callback = ModelCheckpoint(
-        monitor="val_loss_half",  # Replace "val_loss" with the appropriate validation metric
+        monitor="val_loss_full",  # Replace "val_loss" with the appropriate validation metric
         save_top_k=1,
         mode="min",
         dirpath=pretrained_model_path,
@@ -133,6 +158,12 @@ def main(
         pass
     finally:
         run.finish()
+        # Check performance
+        # check_masked_classifier_performance(
+        #     masked_classifier=Shim2018MaskedClassifier(lit_model),
+        #     dataset=val_dataset,
+        #     class_weights=class_weights,
+        # )
         # Move the best checkpoint to the desired location
         best_checkpoint = trainer.checkpoint_callback.best_model_path
         pretrained_model_path.mkdir(parents=True, exist_ok=True)

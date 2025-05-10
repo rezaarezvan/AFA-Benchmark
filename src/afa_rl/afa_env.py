@@ -196,18 +196,18 @@ def get_common_reward_fn(
         label: Label,
         done: Bool[Tensor, "*batch 1"],
     ) -> AFAReward:
-        reward = 0.025 + torch.zeros_like(afa_selection, dtype=torch.float32)
+        reward = torch.zeros_like(afa_selection, dtype=torch.float32)
 
         done_mask = done.squeeze(-1)
 
         # If AFA stops, reward is negative loss
         logits = classifier(new_masked_features[done_mask], new_feature_mask[done_mask])
-        reward[done_mask] = -loss_fn(
-            logits,
-            label[done_mask],
-        )
+        # reward[done_mask] = -loss_fn(
+        #     logits,
+        #     label[done_mask],
+        # )
 
-        # reward[done_mask] = (logits.argmax(-1) == label[done_mask].argmax(-1)).float()
+        reward[done_mask] = (logits.argmax(-1) == label[done_mask].argmax(-1)).float()
 
         # TODO: debugging. Give reward for the last 4 features, punish the rest
         # reward[done_mask] += new_feature_mask[done_mask, -5:].sum(dim=-1).float()

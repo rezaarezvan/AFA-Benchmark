@@ -11,22 +11,49 @@ from afa_rl.utils import (
 
 def test_get_feature_set():
     # First case
-    x1 = torch.tensor([3, 0, 2], dtype=torch.float32)
-    z1 = torch.tensor([1, 0, 1], dtype=torch.bool)
-    s1 = torch.tensor([[3, 1, 0, 0], [0, 0, 0, 0], [2, 0, 0, 1]], dtype=torch.float32)
+    masked_features1 = torch.tensor([3, 0, 0, 2, 0], dtype=torch.float32)
+    feature_mask1 = torch.tensor([1, 0, 0, 1, 0], dtype=torch.bool)
+    expected_feature_set1 = torch.tensor(
+        [
+            [3, 1, 0, 0, 0, 0],
+            [2, 0, 0, 0, 1, 0],
+            [0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0],
+        ],
+        dtype=torch.float32,
+    )
+    expected_length1 = torch.tensor(2, dtype=torch.int64)
 
     # Second case
-    x2 = torch.tensor([5, 0, 0], dtype=torch.float32)
-    z2 = torch.tensor([1, 1, 0], dtype=torch.bool)
-    s2 = torch.tensor([[5, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 0]], dtype=torch.float32)
+    masked_features2 = torch.tensor([0, 4, 0, 3, 2], dtype=torch.float32)
+    feature_mask2 = torch.tensor([1, 1, 0, 1, 1], dtype=torch.bool)
+    expected_feature_set2 = torch.tensor(
+        [
+            [0, 1, 0, 0, 0, 0],
+            [4, 0, 1, 0, 0, 0],
+            [3, 0, 0, 0, 1, 0],
+            [2, 0, 0, 0, 0, 1],
+            [0, 0, 0, 0, 0, 0],
+        ],
+        dtype=torch.float32,
+    )
+    expected_length2 = torch.tensor(4, dtype=torch.int64)
 
     # Batched, stack them
-    x = torch.stack([x1, x2])
-    z = torch.stack([z1, z2])
-    s = torch.stack([s1, s2])
+    masked_features = torch.stack([masked_features1, masked_features2])
+    feature_mask = torch.stack([feature_mask1, feature_mask2])
+    expected_feature_set = torch.stack([expected_feature_set1, expected_feature_set2])
+    expected_lengths = torch.stack([expected_length1, expected_length2])
 
-    s_hat = get_feature_set(x, z)
-    assert torch.allclose(s_hat, s)
+    feature_set, lengths = get_feature_set(masked_features, feature_mask)
+    assert torch.allclose(feature_set, expected_feature_set)
+    assert torch.allclose(lengths, expected_lengths)
+
+    # Should not crash for large inputs
+    masked_features = torch.randn(64, 128)  # Adjust size as needed
+    feature_mask = torch.randint(0, 2, (64, 128))  # Adjust size as needed
+    get_feature_set(masked_features, feature_mask)
 
 
 def test_get_1D_identity():

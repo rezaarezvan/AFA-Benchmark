@@ -8,12 +8,12 @@ agent:
   eps_end: 0.1
   eps_steps: 5000
   replay_buffer_batch_size: 128
-  replay_buffer_size: 512 # same as batch size because original paper does not use replay buffer
+  # replay_buffer_size: 512 # same as batch size because original paper does not use replay buffer
   # replay_buffer_size: 1000000
-  # replay_buffer_size: 512000
+  replay_buffer_size: 1000000
   num_optim: 4 # how many times to sample from replay buffer for each batch of data received
-  replay_buffer_alpha: 0.0 # Disable prioritized replay buffer
-  # replay_buffer_alpha: 0.6
+  # replay_buffer_alpha: 0.0 # Disable prioritized replay buffer
+  replay_buffer_alpha: 0.6
   replay_buffer_beta_init: 0.4
   replay_buffer_beta_end: 1
   max_grad_norm: 10
@@ -21,14 +21,14 @@ agent:
   double_dqn: true
   init_random_frames: 0
 
-n_batches: 100000
+n_batches: 6000
 n_agents: 128
 batch_size: 512
 device: "cuda"
 eval_max_steps: 9001
 eval_every_n_batches: 1000
 n_eval_episodes: 100
-activate_joint_training_after_n_batches: 100000
+activate_joint_training_after_n_batches: 4000
 
 
 wandb:
