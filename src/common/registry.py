@@ -32,7 +32,10 @@ AFA_METHOD_REGISTRY: dict[str, type[AFAMethod]] = {
     "random_dummy": RandomDummyAFAMethod,  # For testing
 }
 
-
+STATIC_METHOD_REGISTRY: list[str] = [
+    "cae", 
+    "permutation",
+]
 
 # Add each AFA dataset here
 AFA_DATASET_REGISTRY: dict[str, type[AFADataset]] = {

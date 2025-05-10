@@ -29,11 +29,13 @@ import torch
 from torch import Tensor
 import matplotlib.pyplot as plt
 
-from common.registry import AFA_DATASET_REGISTRY, AFA_METHOD_REGISTRY
+from common.registry import AFA_DATASET_REGISTRY, AFA_METHOD_REGISTRY, STATIC_METHOD_REGISTRY
 
 from eval.utils import get_eval_results_with_fixed_keys
 
 AFA_METHOD_TYPES = list(AFA_METHOD_REGISTRY.keys())
+STATIC_METHOD_TYPES: list[str] = STATIC_METHOD_REGISTRY
+ALL_METHOD_TYPES: list[str] = AFA_METHOD_TYPES + STATIC_METHOD_TYPES
 AFA_DATASET_NAMES = list(AFA_DATASET_REGISTRY.keys())
 
 # ---------------------------------------------------------------------------
@@ -85,7 +87,7 @@ def main() -> None:
                 }
 
                 at_least_one_method = False
-                for method_type in AFA_METHOD_TYPES:
+                for method_type in ALL_METHOD_TYPES:
                     print("    Processing method:", method_type)
                     # --------------------------------------------------
                     # Query results
