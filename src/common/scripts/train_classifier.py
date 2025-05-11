@@ -6,7 +6,7 @@ from pathlib import Path
 from copy import deepcopy
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, TensorDataset
 from torchmetrics import Accuracy
 from coolname import generate_slug
 from rich import print as rprint
@@ -22,10 +22,11 @@ def train_model(classifier: NNClassifier, train_loader, val_loader, device, num_
     model = classifier.predictor
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     criterion = nn.CrossEntropyLoss()
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=patience, min_lr=1e-6)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=patience, min_lr=1e-6)
     acc_metric = Accuracy(task='multiclass', num_classes=classifier.output_dim)
 
     best_model_state = None
+    best_val_loss = float('inf')
     bad_epochs = 0
 
     for epoch in range(num_epochs):
@@ -44,24 +45,30 @@ def train_model(classifier: NNClassifier, train_loader, val_loader, device, num_
 
         # Validation
         model.eval()
+        val_loss_total = 0.0
+        total_samples = 0
         preds, targets = [], []
 
         with torch.no_grad():
             for x_val, y_val in val_loader:
                 x_val, y_val = x_val.to(device), y_val.to(device)
                 m_val = generate_uniform_mask(len(x_val), x_val.shape[1]).to(device)
-                # m_val = torch.ones(len(x_val), x_val.shape[1]).to(device)
                 x_val_masked = x_val * m_val
                 logits_val = classifier(x_val_masked, m_val)
+                val_loss = criterion(logits_val, y_val)
+                val_loss_total += val_loss.item() * x_val.size(0)
+                total_samples += x_val.size(0)
                 preds.append(logits_val.argmax(dim=1).cpu())
                 targets.append(y_val.cpu())
 
         acc = acc_metric(torch.cat(preds), torch.cat(targets))
-        print(f"[Epoch {epoch+1}] val_acc={acc:.4f}")
+        avg_val_loss = val_loss_total / total_samples
+        print(f"[Epoch {epoch+1}] val_acc={acc:.4f} val_loss={avg_val_loss:.4f}")
 
-        scheduler.step(acc)
+        scheduler.step(avg_val_loss)
 
-        if acc == scheduler.best:
+        if avg_val_loss < best_val_loss:
+            best_val_loss = avg_val_loss
             best_model_state = deepcopy(model.state_dict())
             bad_epochs = 0
         else:
@@ -89,8 +96,12 @@ def main(dataset_type: str, split: int, seed: int, config: dict, classifier_fold
         ds.features = ds.features.float()
         ds.labels = ds.labels.argmax(dim=1).long()
 
-    train_loader = DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=True, pin_memory=True, drop_last=True)
-    val_loader = DataLoader(val_dataset, batch_size=config["batch_size"], pin_memory=True)
+    train_loader = DataLoader(
+        TensorDataset(train_dataset.features, train_dataset.labels),
+        batch_size=config["batch_size"], shuffle=True, pin_memory=True, drop_last=True)
+    val_loader = DataLoader(
+        TensorDataset(val_dataset.features, val_dataset.labels), 
+        batch_size=config["batch_size"], pin_memory=True)
 
     classifier = NNClassifier(input_dim=d_in, output_dim=d_out, device=device)
 
