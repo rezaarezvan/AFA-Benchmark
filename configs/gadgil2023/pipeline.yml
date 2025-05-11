@@ -1,8 +1,11 @@
-dataset_types: ["cube", "AFAContext"]
-dataset_splits: [1,2]
+dataset_types: ["cube", "AFAContext", "MNIST", "diabetes", "physionet"]
+dataset_splits: [1,2,3,4,5]
 seeds: [42]
 hard_budgets:
-  cube: [5, 10, 20]
+  cube: [5, 10, 15]
   AFAContext: [5, 10, 20]
+  MNIST: [20, 50, 100]
+  diabetes: [5, 10, 20]
+  physionet: [5, 10, 20]
 pretrain_job_path: "src/afa_discriminative/slurm/pretrain_gadgil2023_job.sh"
 train_job_path: "src/afa_discriminative/slurm/train_gadgil2023_job.sh"
