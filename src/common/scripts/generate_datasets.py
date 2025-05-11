@@ -150,7 +150,7 @@ def main():
         if dataset_name == "cube":
             kwargs = {
                 "n_samples": 1000,
-                "informative_feature_std": 0.2,
+                "informative_feature_std": 0.3,
                 "non_informative_feature_mean": 0.5,
                 "non_informative_feature_std": 0.3
             }
@@ -162,16 +162,11 @@ def main():
         elif dataset_name == "AFAContext":
             kwargs = {
                 "n_samples": 1000,
-                # "std_bin": 0.1,
-                "std_bin": 0.0,
-                "std_cube": 1,
-                # "std_cube": 0.3,
-                # "std_cube": 0.0,
+                "std_bin": 0.1,
+                "std_cube": 0.3,
                 "bin_feature_cost": 5.0,
                 "non_informative_feature_mean": 0.5,
-                "non_informative_feature_std": 1
-                # "non_informative_feature_std": 0.3
-                # "non_informative_feature_std": 0
+                "non_informative_feature_std": 0.3
             }
         elif dataset_name == "MNIST":
             kwargs = {

@@ -226,7 +226,7 @@ class AFAContextDataset(Dataset, AFADataset):
     """
 
     n_classes = 8
-    n_features = 20  # Fixed number of features
+    n_features = 30  # Fixed number of features
 
     def __init__(
         self,
