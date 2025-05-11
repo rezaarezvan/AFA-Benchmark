@@ -128,7 +128,7 @@ def main(
 
     logger = WandbLogger(project=config.wandb.project, save_dir="logs/afa_rl")
     trainer = pl.Trainer(
-        max_epochs=config.epochs,
+        max_epochs=config_dict["epochs"][dataset_type],
         logger=logger,
         accelerator=config.device,
         # devices=1,  # Use only 1 GPU

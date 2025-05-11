@@ -1,5 +1,8 @@
-epochs: 3000
+# epochs: 200
 # epochs: 1
+epochs:
+  shim2018cube: 200
+  AFAContext: 3000
 
 dataloader:
   batch_size: 128

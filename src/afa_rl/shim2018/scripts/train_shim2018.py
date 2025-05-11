@@ -208,7 +208,7 @@ def main(
         replay_buffer_alpha=train_config.agent.replay_buffer_alpha,
         replay_buffer_beta_init=train_config.agent.replay_buffer_beta_init,
         replay_buffer_beta_end=train_config.agent.replay_buffer_beta_end,
-        replay_buffer_beta_annealing_num_batches=train_config.n_batches,
+        replay_buffer_beta_annealing_num_batches=train_config_dict["n_batches"][dataset_type],
         init_random_frames=train_config.agent.init_random_frames,
     )
 
@@ -221,7 +221,7 @@ def main(
         train_env,
         agent.policy,
         frames_per_batch=train_config.batch_size,
-        total_frames=train_config.n_batches * train_config.batch_size,
+        total_frames=train_config_dict["n_batches"][dataset_type] * train_config.batch_size,
         # device=device,
     )
 
@@ -252,7 +252,7 @@ def main(
     # Training loop
     try:
         for batch_idx, td in tqdm(
-            enumerate(collector), total=train_config.n_batches, desc="Training agent..."
+            enumerate(collector), total=train_config_dict["n_batches"][dataset_type], desc="Training agent..."
         ):
             # Collapse agent and batch dimensions
             td = td.flatten(start_dim=0, end_dim=1)

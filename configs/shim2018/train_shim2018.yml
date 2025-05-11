@@ -21,7 +21,9 @@ agent:
   double_dqn: true
   init_random_frames: 0
 
-n_batches: 6000
+n_batches:
+  shim2018cube: 6000
+  AFAContext: 6000
 n_agents: 128
 batch_size: 512
 device: "cuda"

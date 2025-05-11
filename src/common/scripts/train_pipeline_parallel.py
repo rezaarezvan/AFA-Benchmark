@@ -122,8 +122,9 @@ def process_jobs(
     job_type: str,
     generate_env_vars: Callable[[JobConfig, str, Path], str],
     status_folder: Path,
+    retry_jobs: bool = False
 ) -> None:
-    """Process a set of jobs by submitting them to SLURM, waiting for completion, and retrying failed jobs.
+    """Process a set of jobs by submitting them to SLURM, waiting for completion, and optionally retrying failed jobs.
 
     Args:
         job_configs (set): Set of job configurations.
@@ -133,6 +134,7 @@ def process_jobs(
         job_type (str): Type of the job (e.g., "pretraining" or "training").
         generate_env_vars (callable): Function to generate environment variables for a job configuration.
         status_folder (Path): Folder where status files are stored.
+        retry_jobs (bool): Whether to retry failed jobs. Defaults to False.
 
     """
     remaining_job_configs = set(job_configs)
@@ -148,6 +150,9 @@ def process_jobs(
         wait_for_jobs(
             {job_config_to_id[job_config] for job_config in remaining_job_configs}
         )
+
+        if not retry_jobs:
+            break
 
         completed_jobs = set()
         for job_config in remaining_job_configs:
@@ -234,6 +239,7 @@ def main(
             "pretraining",
             generate_pretrain_env_vars,
             pretrained_model_folder,
+            retry_jobs=False,
         )
 
         print("Pretraining finished, now starting training.")
@@ -283,6 +289,7 @@ def main(
             "training",
             generate_train_env_vars,
             method_folder,
+            retry_jobs=False
         )
 
         print("Training finished.")
