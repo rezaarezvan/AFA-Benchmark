@@ -107,8 +107,7 @@ class PointNet(nn.Module):
 
 
 class PartialVAE(nn.Module):
-    """
-    A partial VAE for masked data, as described in "EDDI: Efficient Dynamic Discovery of High-Value Information with Partial VAE"
+    """A partial VAE for masked data, as described in "EDDI: Efficient Dynamic Discovery of High-Value Information with Partial VAE".
 
     To make the model work with different shapes of data, change the pointnet.
     """
@@ -186,19 +185,14 @@ class Zannone2019PretrainingModel(pl.LightningModule):
                 f"Unknown reconstruction loss type: {self.recon_loss_type}. Use 'squared error' or 'cross entropy'."
             )
 
-        # Initial masking probability
-        self.masking_probability = 0.0
-
-    def on_train_epoch_start(self):
-        # Masking probability uniformly distributed between 0 and self.max_masking_probability
-        self.masking_probability = torch.rand(1).item() * self.max_masking_probability
-        self.log("masking_probability", self.masking_probability, sync_dist=True)
-
     def training_step(self, batch, batch_idx):
         features: Features = batch[0]
         label: Label = batch[1]
 
-        masked_features, feature_mask = mask_data(features, p=self.masking_probability)
+        masking_probability = torch.rand(1).item() * self.max_masking_probability
+        self.log("masking_probability", masking_probability, sync_dist=True)
+
+        masked_features, feature_mask, _ = mask_data(features, p=masking_probability)
 
         # Pass masked features through VAE, returning estimated features but also encoding which will be passed through classifier
         encoding, mu, logvar, z, estimated_features = self.partial_vae(
@@ -224,7 +218,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         label: Label = batch[1]
 
         # Constant masking probability for validation
-        masked_features, feature_mask = mask_data(
+        masked_features, feature_mask, _ = mask_data(
             features, p=self.validation_masking_probability
         )
 

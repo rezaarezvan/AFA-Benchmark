@@ -186,6 +186,7 @@ def main(
     method_folder: Path,
     pretrain_job_path: Path,
     train_job_path: Path,
+    retry_jobs: bool = False,
 ) -> None:
     """Run pretraining and training jobs on SLURM for a given set of parameters.
 
@@ -202,6 +203,7 @@ def main(
         method_folder (Path): Path to the folder where trained methods will be stored.
         pretrain_job_path (Path): Path to the pretrain job script.
         train_job_path (Path): Path to the train job script.
+        retry_jobs (bool): Whether to retry failed jobs. Defaults to False.
 
     """
     if pretrain:
@@ -239,7 +241,7 @@ def main(
             "pretraining",
             generate_pretrain_env_vars,
             pretrained_model_folder,
-            retry_jobs=False,
+            retry_jobs=retry_jobs,
         )
 
         print("Pretraining finished, now starting training.")
@@ -289,7 +291,7 @@ def main(
             "training",
             generate_train_env_vars,
             method_folder,
-            retry_jobs=False
+            retry_jobs=retry_jobs,
         )
 
         print("Training finished.")
@@ -338,6 +340,12 @@ if __name__ == "__main__":
         default=Path("configs/shim2018/pipeline.yml"),
         help="Path to the slurm pipeline configuration file",
     )
+    parser.add_argument(
+        "--retry_jobs",
+        action="store_true",
+        help="Retry failed jobs",
+        default=False,
+    )
     args = parser.parse_args()
 
     # Validate paths
@@ -364,4 +372,5 @@ if __name__ == "__main__":
         method_folder=args.method_folder,
         pretrain_job_path=config["pretrain_job_path"],
         train_job_path=config["train_job_path"],
+        retry_jobs=args.retry_jobs,
     )

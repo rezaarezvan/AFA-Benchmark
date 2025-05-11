@@ -1,8 +1,11 @@
-dataset_types: ["shim2018cube"]
+dataset_types: ["cube", "AFAContext", "MNIST", "diabetes", "physionet"]
 dataset_splits: [1]
 seeds: [1]
 hard_budgets:
-  AFAContext: [5]
-  shim2018cube: [5]
+  cube: [5, 10, 15]
+  AFAContext: [5, 10, 20]
+  MNIST: [20, 50, 100]
+  diabetes: [5, 10, 20]
+  physionet: [5, 10, 20]
 pretrain_job_path: "src/afa_rl/shim2018/slurm/pretrain_shim2018_job.sh"
 train_job_path: "src/afa_rl/shim2018/slurm/train_shim2018_job.sh"

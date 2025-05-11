@@ -113,11 +113,11 @@ def main(
     class_weights = 1 / train_class_probabilities
     class_weights = class_weights / class_weights.sum()
     # Check accuracy before starting training
-    check_masked_classifier_performance(
-        masked_classifier=Shim2018MaskedClassifier(lit_model),
-        dataset=val_dataset,
-        class_weights=class_weights,
-    )
+    # check_masked_classifier_performance(
+    #     masked_classifier=Shim2018MaskedClassifier(lit_model),
+    #     dataset=val_dataset,
+    #     class_weights=class_weights,
+    # )
 
     # ModelCheckpoint callback
     checkpoint_callback = ModelCheckpoint(
