@@ -27,7 +27,7 @@ def train_model(classifier: NNClassifier, train_loader, val_loader, device, num_
 
     best_model_state = None
     best_val_loss = float('inf')
-    bad_epochs = 0
+    val_acc_final = 0
 
     for epoch in range(num_epochs):
         model.train()
@@ -69,15 +69,10 @@ def train_model(classifier: NNClassifier, train_loader, val_loader, device, num_
 
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
+            val_acc_final = acc
             best_model_state = deepcopy(model.state_dict())
-            bad_epochs = 0
-        else:
-            bad_epochs += 1
 
-        if bad_epochs >= patience:
-            print("Early stopping.")
-            break
-
+    print(f"Final validation accuracy={val_acc_final:.4f}")
     if best_model_state:
         model.load_state_dict(best_model_state)
 
