@@ -298,6 +298,9 @@ def main(
                             #     td["action"].tolist(), num_bins=20
                             # ),
                         }
+                        | {
+                            "class_loss": class_loss_next.mean().cpu().item()
+                        }
                     ).items()
                 },
             )
@@ -357,7 +360,6 @@ def main(
                             f"benchmark_eval/{k}": v
                             for k, v in benchmark_metrics_eval.items()
                         },
-                        "eval/class_loss": class_loss_next.mean().cpu().item(),
                     }
                 )
 
