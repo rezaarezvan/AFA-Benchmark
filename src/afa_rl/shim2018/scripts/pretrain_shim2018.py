@@ -22,7 +22,7 @@ from afa_rl.shim2018.models import (
     LitShim2018EmbedderClassifier,
     Shim2018MaskedClassifier,
 )
-from afa_rl.utils import check_masked_classifier_performance
+from afa_rl.utils import check_masked_classifier_performance, resolve_dataset_config
 from common.custom_types import AFADataset
 from afa_rl.datasets import DataModuleFromDatasets
 from common.utils import dict_to_namespace, get_class_probabilities, set_seed
@@ -84,6 +84,8 @@ def main(
     with open(pretrain_config_path, "r") as file:
         config_dict: dict = yaml.safe_load(file)
 
+    config_dict = resolve_dataset_config(config_dict, dataset_type)
+
     config = dict_to_namespace(config_dict)
 
     # Import is delayed until now to avoid circular imports
@@ -128,7 +130,7 @@ def main(
 
     logger = WandbLogger(project=config.wandb.project, save_dir="logs/afa_rl")
     trainer = pl.Trainer(
-        max_epochs=config_dict["epochs"][dataset_type],
+        max_epochs=config.epochs,
         logger=logger,
         accelerator=config.device,
         # devices=1,  # Use only 1 GPU

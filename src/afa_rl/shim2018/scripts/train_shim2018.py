@@ -31,6 +31,7 @@ from afa_rl.utils import (
     afacontext_optimal_selection,
     check_masked_classifier_performance,
     module_norm,
+    resolve_dataset_config,
 )
 from common.custom_types import (
     AFADataset,
@@ -93,12 +94,14 @@ def main(
     # Load train config
     with open(train_config_path) as file:
         train_config_dict: dict = yaml.safe_load(file)
+    train_config_dict = resolve_dataset_config(train_config_dict, dataset_type)
     train_config = dict_to_namespace(train_config_dict)
     device = torch.device(train_config.device)
 
     # Load pretrain config
     with open(pretrain_config_path) as file:
         pretrain_config_dict: dict = yaml.safe_load(file)
+    pretrain_config_dict = resolve_dataset_config(pretrain_config_dict, dataset_type)
     pretrain_config = dict_to_namespace(pretrain_config_dict)
 
     # Import is delayed until now to avoid circular imports
@@ -124,6 +127,7 @@ def main(
     embedder_and_classifier.load_state_dict(
         embedder_classifier_checkpoint["state_dict"]
     )
+    embedder_and_classifier.eval()
     embedder_and_classifier = embedder_and_classifier.to(device)
     # embedder = embedder_and_classifier.embedder
     # classifier = embedder_and_classifier.classifier
@@ -208,7 +212,7 @@ def main(
         replay_buffer_alpha=train_config.agent.replay_buffer_alpha,
         replay_buffer_beta_init=train_config.agent.replay_buffer_beta_init,
         replay_buffer_beta_end=train_config.agent.replay_buffer_beta_end,
-        replay_buffer_beta_annealing_num_batches=train_config_dict["n_batches"][dataset_type],
+        replay_buffer_beta_annealing_num_batches=train_config.n_batches,
         init_random_frames=train_config.agent.init_random_frames,
     )
 
@@ -221,7 +225,7 @@ def main(
         train_env,
         agent.policy,
         frames_per_batch=train_config.batch_size,
-        total_frames=train_config_dict["n_batches"][dataset_type] * train_config.batch_size,
+        total_frames=train_config.n_batches * train_config.batch_size,
         # device=device,
     )
 
@@ -252,7 +256,7 @@ def main(
     # Training loop
     try:
         for batch_idx, td in tqdm(
-            enumerate(collector), total=train_config_dict["n_batches"][dataset_type], desc="Training agent..."
+            enumerate(collector), total=train_config.n_batches, desc="Training agent..."
         ):
             # Collapse agent and batch dimensions
             td = td.flatten(start_dim=0, end_dim=1)
@@ -260,13 +264,24 @@ def main(
 
             # Train classifier and embedder jointly if we have reached the correct batch
             if batch_idx >= train_config.activate_joint_training_after_n_batches:
+                embedder_and_classifier.train()
                 embedder_and_classifier_optim.zero_grad()
+
                 embedding, logits = embedder_and_classifier(
                     td["masked_features"], td["feature_mask"]
                 )
                 class_loss = F.cross_entropy(logits, td["label"], weight=class_weights)
                 class_loss.mean().backward()
+
+                embedding_next, logits_next = embedder_and_classifier(
+                    td["next", "masked_features"], td["next", "feature_mask"]
+                )
+                class_loss_next = F.cross_entropy(logits_next, td["next", "label"], weight=class_weights)
+                class_loss_next.mean().backward()
+
                 embedder_and_classifier_optim.step()
+                embedder_and_classifier.eval()
+
 
             # Log training info
             run.log(

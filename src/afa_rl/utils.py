@@ -387,3 +387,17 @@ def module_norm(module: nn.Module) -> float:
     return torch.norm(
         torch.cat([p.view(-1) for p in module.parameters()]), p=2
     ).item()  # L2 norm (Euclidean norm)
+
+def resolve_dataset_config(config: dict, dataset_type: str) -> dict:
+    def resolve(value) -> dict:
+        if isinstance(value, dict):
+            # If the value has a dataset-specific override
+            if dataset_type in value and all(isinstance(k, str) for k in value):
+                return resolve(value[dataset_type])
+            else:
+                return {k: resolve(v) for k, v in value.items()}
+        elif isinstance(value, list):
+            return [resolve(v) for v in value]
+        else:
+            return value
+    return resolve(config)

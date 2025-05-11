@@ -6,7 +6,9 @@ agent:
   update_tau: 0.005
   eps_init: 1.0
   eps_end: 0.1
-  eps_steps: 5000
+  eps_steps:
+    shim2018cube: 5000
+    AFAContext: 5000
   replay_buffer_batch_size: 128
   # replay_buffer_size: 512 # same as batch size because original paper does not use replay buffer
   # replay_buffer_size: 1000000
@@ -22,15 +24,19 @@ agent:
   init_random_frames: 0
 
 n_batches:
-  shim2018cube: 6000
-  AFAContext: 6000
+  shim2018cube: 10000
+  AFAContext: 10000
 n_agents: 128
 batch_size: 512
 device: "cuda"
 eval_max_steps: 9001
-eval_every_n_batches: 1000
+eval_every_n_batches:
+  shim2018cube: 500
+  AFAContext: 500
 n_eval_episodes: 100
-activate_joint_training_after_n_batches: 4000
+activate_joint_training_after_n_batches:
+  shim2018cube: 0
+  AFAContext: 0
 
 
 wandb:
