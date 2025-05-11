@@ -35,10 +35,11 @@ class ReadProcessEncoder(nn.Module):
         self,
         set_element_size: int,  # size of each element in input set. Usually 1 (scalar sequence)
         output_size: int,  # size of output vector, one output per sequence
-        reading_block_cells: tuple[int,...] = (32, 32),
-        writing_block_cells: tuple[int,...] = (32, 32),
+        reading_block_cells: tuple[int, ...] = (32, 32),
+        writing_block_cells: tuple[int, ...] = (32, 32),
         memory_size: int = 16,  # each element in the sequence gets converted into a memory with this size
         processing_steps: int = 5,  # RNN processing steps. Paper shows that 5-10 is good.
+        dropout: float = 0.0,
     ):
         super().__init__()
         self.set_element_size = set_element_size
@@ -47,18 +48,22 @@ class ReadProcessEncoder(nn.Module):
         self.writing_block_cells = writing_block_cells
         self.memory_size = memory_size
         self.processing_steps = processing_steps
+        self.dropout = dropout
 
         self.reading_block = MLP(
             in_features=set_element_size,
             out_features=memory_size,
             num_cells=reading_block_cells,
             activation_class=nn.ReLU,
+            dropout=dropout,
         )
         # An RNN without input! The input will always be zero and the sequence length will be 1
-        self.process_lstm = nn.LSTMCell(1, 2*memory_size)
+        # self.process_lstm = nn.LSTMCell(1, 2*memory_size)
+        self.process_gru = nn.GRUCell(1, 2 * memory_size)
 
         # The RNN output has to be projected to the memory size
         self.proj = nn.Linear(2 * memory_size, memory_size)
+        self.proj_dropout = nn.Dropout(dropout)
 
         # After the processing steps, the final memory is passed through a MLP to produce the output
         # The paper uses a pointer network but we only want a single feature vector
@@ -67,12 +72,12 @@ class ReadProcessEncoder(nn.Module):
             out_features=output_size,
             num_cells=writing_block_cells,
             activation_class=nn.ReLU,
+            dropout=dropout
         )
 
         # Empty sets are represented by a learnable vector
         self.empty_set_vector = nn.Parameter(torch.zeros(output_size))
         # torch.nn.init.xavier_normal_(self.empty_set_vector)
-
 
     def forward(self, input_set: Tensor, lengths: Tensor) -> Tensor:
         """Forward pass.
@@ -90,7 +95,6 @@ class ReadProcessEncoder(nn.Module):
         original_batch_size = input_set.shape[0]
         nonempty_set_mask = lengths > 0
 
-
         # Now only treat the non-empty sets
         input_set = input_set[nonempty_set_mask]
         lengths = lengths[nonempty_set_mask]
@@ -100,29 +104,40 @@ class ReadProcessEncoder(nn.Module):
         memories = self.reading_block(input_set)  # (batch_size, set_size, memory_size)
 
         # Initialize Process block state
-        q_star_t = torch.zeros(batch_size, 2*self.memory_size, device=input_set.device)
-        c_t = torch.zeros(batch_size, 2*self.memory_size, device=input_set.device)
+        q_star_t = torch.zeros(
+            batch_size, 2 * self.memory_size, device=input_set.device
+        )
+        # c_t = torch.zeros(batch_size, 2*self.memory_size, device=input_set.device)
 
         # Process: Iteratively refine state with attention over memories
         for _ in range(self.processing_steps):
             # LSTM update
-            q_t, c_t = self.process_lstm(torch.zeros(batch_size, 1, device=input_set.device), (q_star_t, c_t)) # q_t: (batch_size, 2*memory_size)
+            # q_t, c_t = self.process_lstm(torch.zeros(batch_size, 1, device=input_set.device), (q_star_t, c_t)) # q_t: (batch_size, 2*memory_size)
+            q_t = self.process_gru(
+                torch.zeros(batch_size, 1, device=input_set.device), q_star_t
+            )  # q_t: (batch_size, 2*memory_size)
 
             # Project LSTM output to memory size
-            q_t = self.proj(q_t)  # (batch_size, memory_size)
+            q_t = self.proj_dropout(self.proj(q_t))  # (batch_size, memory_size)
 
             # Attention between each memory vector and all memories, even the invalid ones, to produce logits
-            e_t = torch.bmm(memories, q_t.unsqueeze(-1)).squeeze(-1)  # (batch_size, set_size)
+            e_t = torch.bmm(memories, q_t.unsqueeze(-1)).squeeze(
+                -1
+            )  # (batch_size, set_size)
 
             # Mask padding elements
-            mask = torch.arange(set_size, device=input_set.device).repeat(batch_size, 1) < lengths.unsqueeze(1).repeat(1, set_size)
-            e_t[~mask] = float('-inf')
+            mask = torch.arange(set_size, device=input_set.device).repeat(
+                batch_size, 1
+            ) < lengths.unsqueeze(1).repeat(1, set_size)
+            e_t[~mask] = float("-inf")
 
             # Compute attention weights
             a_t = torch.softmax(e_t, dim=-1)  # (batch_size, set_size)
 
             # Read from memory with attention
-            r_t = torch.bmm(a_t.unsqueeze(1), memories).squeeze(1)  # (batch_size, memory_size)
+            r_t = torch.bmm(a_t.unsqueeze(1), memories).squeeze(
+                1
+            )  # (batch_size, memory_size)
 
             # Concatenate query and read vectors
             q_star_t = torch.cat([q_t, r_t], dim=-1)  # (batch_size, 2*memory_size)
@@ -131,15 +146,24 @@ class ReadProcessEncoder(nn.Module):
         output = self.write_block(q_star_t)
 
         # Empty sets are represented by a learnable vector
-        complete_output = torch.zeros(original_batch_size, self.output_size, device=input_set.device)
+        complete_output = self.empty_set_vector.expand(original_batch_size, -1).clone()
         complete_output[nonempty_set_mask] = output
-        complete_output[~nonempty_set_mask] = self.empty_set_vector
 
         return complete_output
 
+
 class CopiedMLP(nn.Module):
-    def __init__(self, input_size, hidden_sizes, output_size, bias=True,
-            dropout=False, p=0, group_norm=0, batch_norm=False):
+    def __init__(
+        self,
+        input_size,
+        hidden_sizes,
+        output_size,
+        bias=True,
+        dropout=False,
+        p=0,
+        group_norm=0,
+        batch_norm=False,
+    ):
         super().__init__()
         self.layers = []
         self.n_features = int(input_size / 2)
@@ -156,13 +180,13 @@ class CopiedMLP(nn.Module):
                 print("Batchnorm")
                 self.layers.append(nn.BatchNorm1d(hidden_size))
             self.layers.append(nn.ReLU())
-            if dropout: # for classifier
+            if dropout:  # for classifier
                 print("Dropout!")
                 assert p > 0 and p < 1
                 self.layers.append(nn.Dropout(p=p))
             in_size = hidden_size
         self.layers.append(nn.Linear(in_size, output_size, bias=bias))
-        if batch_norm: # FIXME is it good?
+        if batch_norm:  # FIXME is it good?
             print("Batchnorm")
             self.layers.append(nn.BatchNorm1d(output_size))
         self.layers = nn.ModuleList(self.layers)
@@ -174,21 +198,31 @@ class CopiedMLP(nn.Module):
             x = layer(x)
         return x
 
+
 class CopiedSetEncoder(nn.Module):
-    def __init__(self,
-                 input_dim, n_features,
-                 embedder_hidden_sizes, embedded_dim,
-                 lstm_size, n_shuffle,
-                 simple=True, proj_dim=None, normalize=False,
-                 dropout=False, p=0):
+    def __init__(
+        self,
+        input_dim,
+        n_features,
+        embedder_hidden_sizes,
+        embedded_dim,
+        lstm_size,
+        n_shuffle,
+        simple=True,
+        proj_dim=None,
+        normalize=False,
+        dropout=False,
+        p=0,
+    ):
         # embedder + lstm
         super().__init__()
 
         self.n_shuffle = n_shuffle
-        self.embedder = CopiedMLP(input_dim, embedder_hidden_sizes, embedded_dim,
-                dropout=dropout, p=p)
+        self.embedder = CopiedMLP(
+            input_dim, embedder_hidden_sizes, embedded_dim, dropout=dropout, p=p
+        )
         self.lstm = nn.LSTMCell(embedded_dim, lstm_size)
-        #self.module_list = nn.ModuleList([self.embedder, self.lstm])
+        # self.module_list = nn.ModuleList([self.embedder, self.lstm])
         self.n_features = n_features
         self.normalize = normalize
 
@@ -198,13 +232,14 @@ class CopiedSetEncoder(nn.Module):
         if not simple:
             assert proj_dim is not None
             self.attention = nn.ModuleList(
-                [nn.Linear(lstm_size, proj_dim, bias=False),
-                 nn.Linear(embedded_dim, proj_dim, bias=True),
-                 nn.Linear(proj_dim, 1, bias=True)]
+                [
+                    nn.Linear(lstm_size, proj_dim, bias=False),
+                    nn.Linear(embedded_dim, proj_dim, bias=True),
+                    nn.Linear(proj_dim, 1, bias=True),
+                ]
             )
         elif embedded_dim != lstm_size:
-            self.attention = torch.nn.Linear(lstm_size, embedded_dim,
-                    bias=False)
+            self.attention = torch.nn.Linear(lstm_size, embedded_dim, bias=False)
             # torch.nn.init.xavier_normal(self.attention.weight)
             # module.apply(weight_xavier_init)
 
@@ -215,8 +250,10 @@ class CopiedSetEncoder(nn.Module):
             max_len = m.size()[1]
             if simple:
                 if q.size()[-1] != m.size()[-1]:
-                    q = self.attention(q) # batch_size x embedded_dim
-                weight_logit = torch.bmm(m, q.unsqueeze(-1)).squeeze(2) # batch_size x n_features
+                    q = self.attention(q)  # batch_size x embedded_dim
+                weight_logit = torch.bmm(m, q.unsqueeze(-1)).squeeze(
+                    2
+                )  # batch_size x n_features
             else:
                 linear_m = self.attention[1]
                 linear_q = self.attention[0]
@@ -224,28 +261,34 @@ class CopiedSetEncoder(nn.Module):
 
                 packed = pack(m, list(length), batch_first=True)
                 proj_m = PackedSequence(linear_m(packed.data), packed.batch_sizes)
-                proj_m, _ = pad(proj_m, batch_first=True)  # batch_size x n_features x proj_dim
-                proj_q = linear_q(q).unsqueeze(1) # batch_size x 1 x proj_dim
+                proj_m, _ = pad(
+                    proj_m, batch_first=True
+                )  # batch_size x n_features x proj_dim
+                proj_q = linear_q(q).unsqueeze(1)  # batch_size x 1 x proj_dim
                 packed = pack(F.relu(proj_m + proj_q), list(length), batch_first=True)
-                weight_logit = PackedSequence(linear_out(packed.data), packed.batch_sizes)
-                weight_logit, _ = pad(weight_logit, batch_first=True) # batch_size x n_features x 1
+                weight_logit = PackedSequence(
+                    linear_out(packed.data), packed.batch_sizes
+                )
+                weight_logit, _ = pad(
+                    weight_logit, batch_first=True
+                )  # batch_size x n_features x 1
                 weight_logit = weight_logit.squeeze(2)
 
             # max_len = weight_logit.size()[1]
-            indices = torch.arange(0, max_len,
-                out=torch.LongTensor(max_len).unsqueeze(0)).cuda()
+            indices = torch.arange(
+                0, max_len, out=torch.LongTensor(max_len).unsqueeze(0)
+            ).cuda()
             # TODO here.. cuda..
-            mask = indices < length.unsqueeze(1)#.long()
+            mask = indices < length.unsqueeze(1)  # .long()
             weight_logit[~mask] = -np.inf
-            weight = F.softmax(weight_logit, dim=1) # nonzero x max_len
+            weight = F.softmax(weight_logit, dim=1)  # nonzero x max_len
             weighted = torch.bmm(weight.unsqueeze(1), m)
             # batch_size x 1 x max_len
             # batch_size x     max_len x embedded_dim
             # = batch_size x 1 x embedded_dim
-            return weighted.squeeze(1), weight  #nonzero x embedded_dim
+            return weighted.squeeze(1), weight  # nonzero x embedded_dim
 
         self.attending = _compute_attention_sum
-
 
     def forward(self, state, length):
         """
@@ -257,28 +300,33 @@ class CopiedSetEncoder(nn.Module):
             encoded: a tensor of shape (batch_size, embedded_dim)
         """
         # length should be sorted
-        assert len(state.size()) == 3 # batch x n_features x input_dim
-                                      # input_dim == n_features + 1
+        assert len(state.size()) == 3  # batch x n_features x input_dim
+        # input_dim == n_features + 1
         batch_size = state.size()[0]
-        self.weight = np.zeros((int(batch_size), self.n_features))#state.data.new(int(batch_size), self.n_features).fill_(0.)
-        nonzero = torch.sum(length > 0).cpu().numpy() # encode only nonzero points
+        self.weight = np.zeros(
+            (int(batch_size), self.n_features)
+        )  # state.data.new(int(batch_size), self.n_features).fill_(0.)
+        nonzero = torch.sum(length > 0).cpu().numpy()  # encode only nonzero points
         if nonzero == 0:
-            return state.new(int(batch_size), self.lstm_size + self.embedded_dim).fill_(0.)
+            return state.new(int(batch_size), self.lstm_size + self.embedded_dim).fill_(
+                0.0
+            )
 
         length_ = list(length[:nonzero].cpu().numpy())
         packed = pack(state[:nonzero], length_, batch_first=True)
 
         embedded = self.embedder(packed.data)
 
-
         if self.normalize:
             embedded = F.normalize(embedded, dim=1)
         embedded = PackedSequence(embedded, packed.batch_sizes)
-        embedded, _ = pad(embedded, batch_first=True) # nonzero x max(length) x embedded_dim
+        embedded, _ = pad(
+            embedded, batch_first=True
+        )  # nonzero x max(length) x embedded_dim
 
         # define initial state
-        qt = embedded.new(embedded.size()[0], self.lstm_size).fill_(0.)
-        ct = embedded.new(embedded.size()[0], self.lstm_size).fill_(0.)
+        qt = embedded.new(embedded.size()[0], self.lstm_size).fill_(0.0)
+        ct = embedded.new(embedded.size()[0], self.lstm_size).fill_(0.0)
 
         ###########################
         # shuffling (set encoding)
@@ -292,21 +340,25 @@ class CopiedSetEncoder(nn.Module):
         # TODO edit here!
         weight = weight.detach().cpu().numpy()
         tmp = state[:, :, 1:]
-        val, acq = torch.max(tmp, 2) # batch x n_features
+        val, acq = torch.max(tmp, 2)  # batch x n_features
         tmp = (val.long() * acq).cpu().numpy()
-        #tmp = tmp.cpu().numpy()
-        tmp = tmp[:weight.shape[0], :weight.shape[1]]
+        # tmp = tmp.cpu().numpy()
+        tmp = tmp[: weight.shape[0], : weight.shape[1]]
         self.weight[np.arange(nonzero).reshape(-1, 1), tmp] = weight
 
         encoded = torch.cat((attended, qt), dim=1)
         if batch_size > nonzero:
             encoded = torch.cat(
-                (encoded,
-                 encoded.new(int(batch_size - nonzero),
-                     encoded.size()[1]).fill_(0.)),
-                dim=0
+                (
+                    encoded,
+                    encoded.new(int(batch_size - nonzero), encoded.size()[1]).fill_(
+                        0.0
+                    ),
+                ),
+                dim=0,
             )
         return encoded
+
 
 class CopiedShim2018Embedder(Embedder):
     def __init__(self, encoder: CopiedSetEncoder):
@@ -316,11 +368,13 @@ class CopiedShim2018Embedder(Embedder):
     def forward(
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
     ) -> Embedding:
-        feature_set = get_feature_set(masked_features, feature_mask)
-        batch_size = masked_features.shape[0]
-        n_features = feature_set.shape[1]
-        length = torch.full((batch_size,), n_features, dtype=torch.long, device=masked_features.device)
-        return self.encoder(feature_set, length)
+        feature_set, lengths = get_feature_set(masked_features, feature_mask)
+
+        # Encoder expects set to be order in decreasing lengths
+        lengths, indices = torch.sort(lengths, descending=True)
+        feature_set = feature_set[indices]
+
+        return self.encoder(feature_set, lengths)
 
 
 class Shim2018Embedder(Embedder):
@@ -336,7 +390,9 @@ class Shim2018Embedder(Embedder):
     def forward(
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
     ) -> Embedding:
-        feature_set, lengths = get_feature_set(masked_features, feature_mask) # (batch_size, n_features, state_size)
+        feature_set, lengths = get_feature_set(
+            masked_features, feature_mask
+        )  # (batch_size, n_features, state_size)
 
         # Shuffling set should improve training
         feature_set = shuffle_feature_set(feature_set, lengths)
@@ -366,7 +422,7 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
 
     def __init__(
         self,
-        embedder: Shim2018Embedder,
+        embedder: Shim2018Embedder | CopiedShim2018Embedder,
         classifier: Shim2018MLPClassifier,
         class_probabilities: Float[Tensor, "n_classes"],
         max_masking_probability=1.0,
@@ -409,25 +465,27 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
         label: Label = batch[1]
 
         # WARNING: this block is only valid for AFAContextDataset
-        feature_mask_optimal = torch.zeros_like(
-            features, dtype=torch.bool, device=features.device
-        )
-        feature_mask_optimal[:, 0] = 1
-        for i in range(feature_mask_optimal.shape[0]):
-            context = features[i, 0].int().item()
-            feature_mask_optimal[i, 1 + context * 3 : 4 + context * 3] = 1
-        feature_values_optimal = features.clone()
-        feature_values_optimal[feature_mask_optimal == 0] = 0
-        loss_optimal, acc_optimal = self._get_loss_and_acc(
-            feature_values_optimal, feature_mask_optimal, label
-        )
-        self.log("train_loss_optimal", loss_optimal)
-        self.log("train_acc_optimal", acc_optimal)
+        # feature_mask_optimal = torch.zeros_like(
+        #     features, dtype=torch.bool, device=features.device
+        # )
+        # feature_mask_optimal[:, 0] = 1
+        # for i in range(feature_mask_optimal.shape[0]):
+        #     context = features[i, 0].int().item()
+        #     feature_mask_optimal[i, 1 + context * 3 : 4 + context * 3] = 1
+        # feature_values_optimal = features.clone()
+        # feature_values_optimal[feature_mask_optimal == 0] = 0
+        # loss_optimal, acc_optimal = self._get_loss_and_acc(
+        #     feature_values_optimal, feature_mask_optimal, label
+        # )
+        # self.log("train_loss_optimal", loss_optimal)
+        # self.log("train_acc_optimal", acc_optimal)
         # return loss_optimal
         # masked_features = feature_values_optimal
         # feature_mask = feature_mask_optimal
 
-        masked_features, feature_mask, nonzero_mask = mask_data(features, p=self.masking_probability)
+        masked_features, feature_mask, nonzero_mask = mask_data(
+            features, p=self.masking_probability
+        )
         _, y_hat = self(masked_features, feature_mask)
         loss = F.cross_entropy(y_hat, label, weight=self.class_weight.to(y_hat.device))
         self.log("train_loss", loss)
@@ -461,20 +519,20 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
         self.log("val_acc_half", acc)
 
         # WARNING: this block is only valid for AFAContextDataset
-        feature_mask_optimal = torch.zeros_like(
-            feature_values, dtype=torch.bool, device=feature_values.device
-        )
-        feature_mask_optimal[:, 0] = 1
-        for i in range(feature_mask_optimal.shape[0]):
-            context = feature_values[i, 0].int().item()
-            feature_mask_optimal[i, 1 + context * 3 : 4 + context * 3] = 1
-        feature_values_optimal = feature_values.clone()
-        feature_values_optimal[feature_mask_optimal == 0] = 0
-        loss, acc = self._get_loss_and_acc(
-            feature_values_optimal, feature_mask_optimal, y
-        )
-        self.log("val_loss_optimal", loss)
-        self.log("val_acc_optimal", acc)
+        # feature_mask_optimal = torch.zeros_like(
+        #     feature_values, dtype=torch.bool, device=feature_values.device
+        # )
+        # feature_mask_optimal[:, 0] = 1
+        # for i in range(feature_mask_optimal.shape[0]):
+        #     context = feature_values[i, 0].int().item()
+        #     feature_mask_optimal[i, 1 + context * 3 : 4 + context * 3] = 1
+        # feature_values_optimal = feature_values.clone()
+        # feature_values_optimal[feature_mask_optimal == 0] = 0
+        # loss, acc = self._get_loss_and_acc(
+        #     feature_values_optimal, feature_mask_optimal, y
+        # )
+        # self.log("val_loss_optimal", loss)
+        # self.log("val_acc_optimal", acc)
 
         loss, acc = self._get_loss_and_acc(
             feature_values,

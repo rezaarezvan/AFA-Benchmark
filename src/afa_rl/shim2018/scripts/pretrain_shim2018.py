@@ -42,6 +42,7 @@ def get_shim2018_model_from_config(
         writing_block_cells=config.encoder.writing_block_cells,
         memory_size=config.encoder.memory_size,
         processing_steps=config.encoder.processing_steps,
+        dropout=config.encoder.dropout,
     )
     embedder = Shim2018Embedder(encoder)
     # encoder = CopiedSetEncoder(
@@ -54,7 +55,6 @@ def get_shim2018_model_from_config(
     #     simple=False,
     #     proj_dim=16,
     # )
-    # # embedder = Shim2018Embedder(encoder)
     # embedder = CopiedShim2018Embedder(encoder)
     classifier = Shim2018MLPClassifier(
         config.encoder.output_size, n_classes, config.classifier.num_cells

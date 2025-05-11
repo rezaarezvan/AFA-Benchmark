@@ -231,7 +231,7 @@ def main(
         project=train_config.wandb.project,
     )
 
-    # TEMP: check how large the loss differenc is between good and bad policies
+    # TEMP: check how large the loss difference is between good and bad policies
     # features, label = train_dataset[42]
     # bad_feature_mask = torch.zeros_like(features)
     # bad_feature_mask[-4:] = 1

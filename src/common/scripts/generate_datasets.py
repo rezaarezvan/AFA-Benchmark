@@ -154,6 +154,11 @@ def main():
                 "non_informative_feature_mean": 0.5,
                 "non_informative_feature_std": 0.3
             }
+        elif dataset_name == "shim2018cube":
+            kwargs = {
+                "n_samples": 10000,
+                "sigma": 0.1
+            }
         elif dataset_name == "AFAContext":
             kwargs = {
                 "n_samples": 1000,

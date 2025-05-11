@@ -11,6 +11,85 @@ import os
 
 from common.custom_types import AFADataset, FeatureMask, MaskedFeatures, Features, Label
 
+
+class Shim2018CubeDataset(Dataset, AFADataset):
+    """
+    The Cube dataset, as described in the paper "Minimizing data consumption with sequential online feature selection" (https://doi.org/10.1007/s13042-012-0092-x).
+    """
+
+    n_classes = 8
+    n_features = 20  # Fixed number of features
+
+    def __init__(
+        self,
+        n_samples: int = 20000,
+        sigma: float = 0.1,
+        seed: int = 123,
+    ):
+        self.n_samples = n_samples
+        self.sigma = sigma
+        self.seed = seed
+
+        rng = torch.Generator()
+        rng.manual_seed(seed)
+        # Each coordinate is drawn from a Bernoulli distribution with p=0.5, which is the same as uniform
+        coords = torch.randint(
+            low=0, high=2, size=(n_samples, 3), dtype=torch.int64, generator=rng
+        )
+        # Each corner in the cube is a different label
+        labels = torch.einsum(
+            "bi,i->b", coords, torch.tensor([1, 2, 4], dtype=torch.int64)
+        )
+        # Add Gaussian noise to coords
+        coords = coords.float()
+        coords += torch.randn(n_samples, 3, dtype=torch.float32, generator=rng) * sigma
+        # The final features are the coordinates offset according to the labels, and uniform noise for all other features
+        self.features = torch.zeros(n_samples, self.n_features, dtype=torch.float32)
+        for i in range(n_samples):
+            offset: int = int(labels[i].item())
+            self.features[i, offset : offset + 3] += coords[i]
+            # uniform noise on all other features
+            self.features[i, :offset] = torch.rand(
+                (1, offset), dtype=torch.float32, generator=rng
+            )
+            self.features[i, offset + 3 :] = torch.rand(
+                (1, self.n_features - offset - 3), dtype=torch.float32, generator=rng
+            )
+        # Convert labels to one-hot encoding
+        self.labels = torch.nn.functional.one_hot(labels, num_classes=8).float()
+
+    def __getitem__(self, idx):
+        return self.features[idx], self.labels[idx]
+
+    def __len__(self):
+        return len(self.features)
+
+    def get_all_data(self) -> tuple[MaskedFeatures, FeatureMask]:
+        return self.features, self.labels
+
+    def save(self, path: Path) -> None:
+        torch.save(
+            {
+                "features": self.features,
+                "labels": self.labels,
+                "config": {
+                    "n_samples": self.n_samples,
+                    "seed": self.seed,
+                    "sigma": self.sigma,
+                },
+            },
+            path,
+        )
+
+    @classmethod
+    def load(cls, path: Path) -> Self:
+        data = torch.load(path)
+        dataset = cls(**data["config"])
+        dataset.features = data["features"]
+        dataset.labels = data["labels"]
+        return dataset
+
+
 class CubeDataset(Dataset, AFADataset):
     """
     The Cube dataset, as described in the paper "ODIN: Optimal Discovery of High-value INformation Using Model-based Deep Reinforcement Learning"
@@ -38,7 +117,9 @@ class CubeDataset(Dataset, AFADataset):
 
         # Constants
         self.n_cube_features = 10  # Number of cube features
-        self.n_dummy_features = self.n_features - self.n_cube_features  # Remaining features are dummy features
+        self.n_dummy_features = (
+            self.n_features - self.n_cube_features
+        )  # Remaining features are dummy features
 
         self._generate_data()
 
@@ -50,13 +131,18 @@ class CubeDataset(Dataset, AFADataset):
         rng.manual_seed(self.seed)
 
         # Draw labels
-        y_int = torch.randint(0, self.n_classes, (self.n_samples,), dtype=torch.int64, generator=rng)
+        y_int = torch.randint(
+            0, self.n_classes, (self.n_samples,), dtype=torch.int64, generator=rng
+        )
 
         # Binary codes for labels (8×3)
-        binary_codes = torch.stack([
-            torch.tensor([int(b) for b in format(i, '03b')])
-            for i in range(self.n_classes)
-        ], dim=0).flip(-1)
+        binary_codes = torch.stack(
+            [
+                torch.tensor([int(b) for b in format(i, "03b")])
+                for i in range(self.n_classes)
+            ],
+            dim=0,
+        ).flip(-1)
 
         # Initialize feature blocks
         X_cube = torch.normal(
@@ -80,12 +166,12 @@ class CubeDataset(Dataset, AFADataset):
 
             # Cube features: 3 bumps
             idxs = [(lbl + j) for j in range(3)]
-            X_cube[i, idxs] = torch.normal(
-                mean=0.0,
-                std=self.informative_feature_std,
-                size=(3,),
-                generator=rng
-            ) + mu_bin
+            X_cube[i, idxs] = (
+                torch.normal(
+                    mean=0.0, std=self.informative_feature_std, size=(3,), generator=rng
+                )
+                + mu_bin
+            )
 
         # Concatenate all features
         self.features = torch.cat([X_cube, X_dummy], dim=1)
@@ -93,7 +179,9 @@ class CubeDataset(Dataset, AFADataset):
 
         # Labels
         self.labels = y_int
-        self.labels = torch.nn.functional.one_hot(self.labels, num_classes=self.n_classes).float()
+        self.labels = torch.nn.functional.one_hot(
+            self.labels, num_classes=self.n_classes
+        ).float()
         assert self.labels.shape[1] == self.n_classes
 
     def __getitem__(self, idx: int) -> tuple[MaskedFeatures, FeatureMask]:
@@ -129,6 +217,7 @@ class CubeDataset(Dataset, AFADataset):
         dataset.labels = data["labels"]
         return dataset
 
+
 class AFAContextDataset(Dataset, AFADataset):
     """
     A PyTorch Dataset merging AFA structure with cube-dataset dummy-feature behavior.
@@ -161,9 +250,11 @@ class AFAContextDataset(Dataset, AFADataset):
         # Constants
         self.n_context_groups = 3
         self.group_size = 3
-        self.n_bin_features = self.n_context_groups * self.group_size # 9
+        self.n_bin_features = self.n_context_groups * self.group_size  # 9
         self.n_cube_features = 10
-        self.n_dummy_features = self.n_features - (1 + self.n_bin_features + self.n_cube_features)
+        self.n_dummy_features = self.n_features - (
+            1 + self.n_bin_features + self.n_cube_features
+        )
 
         self._generate_data()
 
@@ -175,14 +266,25 @@ class AFAContextDataset(Dataset, AFADataset):
         rng.manual_seed(self.seed)
 
         # Draw labels and context
-        y_int = torch.randint(0, self.n_classes, (self.n_samples,), dtype=torch.int64, generator=rng)
-        S = torch.randint(0, self.n_context_groups, (self.n_samples,), dtype=torch.int64, generator=rng)
+        y_int = torch.randint(
+            0, self.n_classes, (self.n_samples,), dtype=torch.int64, generator=rng
+        )
+        S = torch.randint(
+            0,
+            self.n_context_groups,
+            (self.n_samples,),
+            dtype=torch.int64,
+            generator=rng,
+        )
 
         # Binary codes for labels (8×3)
-        binary_codes = torch.stack([
-            torch.tensor([int(b) for b in format(i, '03b')])
-            for i in range(self.n_classes)
-        ], dim=0).flip(-1)
+        binary_codes = torch.stack(
+            [
+                torch.tensor([int(b) for b in format(i, "03b")])
+                for i in range(self.n_classes)
+            ],
+            dim=0,
+        ).flip(-1)
 
         # Initialize feature blocks
         X_context = S.unsqueeze(1).float()
@@ -217,21 +319,19 @@ class AFAContextDataset(Dataset, AFADataset):
             # Binary features in active group
             start = ctx * self.group_size
             end = start + self.group_size
-            X_bin[i, start:end] = torch.normal(
-                mean=0.0,
-                std=self.std_bin,
-                size=(self.group_size,),
-                generator=rng
-            ) + mu_bin
+            X_bin[i, start:end] = (
+                torch.normal(
+                    mean=0.0, std=self.std_bin, size=(self.group_size,), generator=rng
+                )
+                + mu_bin
+            )
 
             # Cube features: 3 bumps
             idxs = [(lbl + j) for j in range(3)]
-            X_cube[i, idxs] = torch.normal(
-                mean=0.0,
-                std=self.std_cube,
-                size=(3,),
-                generator=rng
-            ) + mu_bin
+            X_cube[i, idxs] = (
+                torch.normal(mean=0.0, std=self.std_cube, size=(3,), generator=rng)
+                + mu_bin
+            )
 
         # Concatenate all features
         self.features = torch.cat([X_context, X_bin, X_cube, X_dummy], dim=1)
@@ -240,12 +340,14 @@ class AFAContextDataset(Dataset, AFADataset):
         # Build costs vector
         total_dim = self.features.shape[1]
         costs = torch.ones(total_dim)
-        costs[1:1 + self.n_bin_features] = self.bin_feature_cost
+        costs[1 : 1 + self.n_bin_features] = self.bin_feature_cost
         self.costs = costs
 
         # One-hot labels
         self.labels = y_int
-        self.labels = torch.nn.functional.one_hot(self.labels, num_classes=self.n_classes).float()
+        self.labels = torch.nn.functional.one_hot(
+            self.labels, num_classes=self.n_classes
+        ).float()
         assert self.labels.shape[1] == self.n_classes
 
     def __getitem__(self, idx: int):
@@ -260,17 +362,17 @@ class AFAContextDataset(Dataset, AFADataset):
     def save(self, path: Path) -> None:
         torch.save(
             {
-                'features': self.features,
-                'labels': self.labels,
-                'costs': self.costs,
-                'config': {
-                    'n_samples': self.n_samples,
-                    'std_bin': self.std_bin,
-                    'std_cube': self.std_cube,
-                    'bin_feature_cost': self.bin_feature_cost,
-                    'seed': self.seed,
-                    'non_informative_feature_mean': self.non_informative_feature_mean,
-                    'non_informative_feature_std': self.non_informative_feature_std,
+                "features": self.features,
+                "labels": self.labels,
+                "costs": self.costs,
+                "config": {
+                    "n_samples": self.n_samples,
+                    "std_bin": self.std_bin,
+                    "std_cube": self.std_cube,
+                    "bin_feature_cost": self.bin_feature_cost,
+                    "seed": self.seed,
+                    "non_informative_feature_mean": self.non_informative_feature_mean,
+                    "non_informative_feature_std": self.non_informative_feature_std,
                 },
             },
             path,
@@ -279,12 +381,13 @@ class AFAContextDataset(Dataset, AFADataset):
     @classmethod
     def load(cls, path: Path) -> Self:
         data = torch.load(path)
-        cfg = data['config']
+        cfg = data["config"]
         ds = cls(**cfg)
-        ds.features = data['features']
-        ds.labels = data['labels']
-        ds.costs = data['costs']
+        ds.features = data["features"]
+        ds.labels = data["labels"]
+        ds.costs = data["costs"]
         return ds
+
 
 class MNISTDataset(Dataset, AFADataset):
     """
@@ -317,13 +420,15 @@ class MNISTDataset(Dataset, AFADataset):
             root=self.root,
             train=self.train,
             transform=self.transform,
-            download=self.download
+            download=self.download,
         )
         # Convert images to features (flatten)
         self.features = torch.stack([x[0].flatten() for x in self.dataset])
         assert self.features.shape[1] == self.n_features
         self.labels = torch.tensor([x[1] for x in self.dataset])
-        self.labels = torch.nn.functional.one_hot(self.labels, num_classes=self.n_classes).float()
+        self.labels = torch.nn.functional.one_hot(
+            self.labels, num_classes=self.n_classes
+        ).float()
         assert self.labels.shape[1] == self.n_classes
 
     def __getitem__(self, idx: int) -> tuple[Features, Label]:
@@ -355,6 +460,7 @@ class MNISTDataset(Dataset, AFADataset):
         dataset.features = data["features"]
         dataset.labels = data["labels"]
         return dataset
+
 
 class DiabetesDataset(Dataset, AFADataset):
     """
@@ -402,7 +508,9 @@ class DiabetesDataset(Dataset, AFADataset):
         self.features = torch.tensor(features_df.values)
         assert self.features.shape[1] == self.n_features
         self.labels = torch.tensor(labels_df.values, dtype=torch.long)
-        self.labels = torch.nn.functional.one_hot(self.labels, num_classes=self.n_classes).float()
+        self.labels = torch.nn.functional.one_hot(
+            self.labels, num_classes=self.n_classes
+        ).float()
         assert self.labels.shape[1] == self.n_classes
 
         # Store feature names
@@ -444,6 +552,7 @@ class DiabetesDataset(Dataset, AFADataset):
         dataset.labels = data["labels"]
         dataset.feature_names = data["feature_names"]
         return dataset
+
 
 class PhysionetDataset(Dataset, AFADataset):
     """
@@ -495,7 +604,9 @@ class PhysionetDataset(Dataset, AFADataset):
         assert self.features.shape[1] == self.n_features
         # Convert labels to LongTensor for one_hot encoding
         self.labels = torch.tensor(labels_df.values, dtype=torch.long)
-        self.labels = torch.nn.functional.one_hot(self.labels, num_classes=self.n_classes).float()
+        self.labels = torch.nn.functional.one_hot(
+            self.labels, num_classes=self.n_classes
+        ).float()
         assert self.labels.shape[1] == self.n_classes
 
         # Store feature names

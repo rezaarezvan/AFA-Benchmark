@@ -10,7 +10,7 @@ from afa_discriminative.afa_methods import (
     Gadgil2023AFAMethod,
 )
 from common.custom_types import AFAClassifier, AFADataset, AFAMethod, PretrainingFunction, TrainingFunction
-from common.datasets import CubeDataset, AFAContextDataset, MNISTDataset, DiabetesDataset, PhysionetDataset
+from common.datasets import CubeDataset, AFAContextDataset, MNISTDataset, DiabetesDataset, PhysionetDataset, Shim2018CubeDataset
 from common.classifiers import (
     RandomDummyAFAClassifier,
     UniformDummyAFAClassifier,
@@ -40,6 +40,7 @@ STATIC_METHOD_REGISTRY: list[str] = [
 # Add each AFA dataset here
 AFA_DATASET_REGISTRY: dict[str, type[AFADataset]] = {
     "cube": CubeDataset,
+    "shim2018cube": Shim2018CubeDataset,
     "AFAContext": AFAContextDataset,
     "MNIST": MNISTDataset,
     "diabetes": DiabetesDataset,
