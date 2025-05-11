@@ -57,13 +57,8 @@ class ReadProcessEncoder(nn.Module):
             activation_class=nn.ReLU,
             dropout=dropout,
         )
-        # An RNN without input! The input will always be zero and the sequence length will be 1
-        # self.process_lstm = nn.LSTMCell(1, 2*memory_size)
-        self.process_gru = nn.GRUCell(1, 2 * memory_size)
 
-        # The RNN output has to be projected to the memory size
-        self.proj = nn.Linear(2 * memory_size, memory_size)
-        self.proj_dropout = nn.Dropout(dropout)
+        self.process_lstm = nn.LSTMCell(memory_size, memory_size)
 
         # After the processing steps, the final memory is passed through a MLP to produce the output
         # The paper uses a pointer network but we only want a single feature vector
@@ -72,12 +67,11 @@ class ReadProcessEncoder(nn.Module):
             out_features=output_size,
             num_cells=writing_block_cells,
             activation_class=nn.ReLU,
-            dropout=dropout
+            dropout=dropout,
         )
 
         # Empty sets are represented by a learnable vector
         self.empty_set_vector = nn.Parameter(torch.zeros(output_size))
-        # torch.nn.init.xavier_normal_(self.empty_set_vector)
 
     def forward(self, input_set: Tensor, lengths: Tensor) -> Tensor:
         """Forward pass.
@@ -90,7 +84,6 @@ class ReadProcessEncoder(nn.Module):
             output: a tensor of shape (batch_size, output_size)
 
         """
-
         # We want to support empty sets as well, but these have to be handled separately, look at the end of the function
         original_batch_size = input_set.shape[0]
         nonempty_set_mask = lengths > 0
@@ -103,22 +96,18 @@ class ReadProcessEncoder(nn.Module):
         # Read: Map each set elements to a memory vector
         memories = self.reading_block(input_set)  # (batch_size, set_size, memory_size)
 
-        # Initialize Process block state
-        q_star_t = torch.zeros(
-            batch_size, 2 * self.memory_size, device=input_set.device
-        )
-        # c_t = torch.zeros(batch_size, 2*self.memory_size, device=input_set.device)
+        # Initialize lstm state
+        q_t = torch.zeros(batch_size, self.memory_size, device=input_set.device)
+        c_t = torch.zeros(batch_size, self.memory_size, device=input_set.device)
+        # Initial input
+        r_t = torch.zeros(batch_size, self.memory_size, device=input_set.device)
 
         # Process: Iteratively refine state with attention over memories
         for _ in range(self.processing_steps):
             # LSTM update
-            # q_t, c_t = self.process_lstm(torch.zeros(batch_size, 1, device=input_set.device), (q_star_t, c_t)) # q_t: (batch_size, 2*memory_size)
-            q_t = self.process_gru(
-                torch.zeros(batch_size, 1, device=input_set.device), q_star_t
-            )  # q_t: (batch_size, 2*memory_size)
-
-            # Project LSTM output to memory size
-            q_t = self.proj_dropout(self.proj(q_t))  # (batch_size, memory_size)
+            q_t, c_t = self.process_lstm(
+                r_t, (q_t, c_t)
+            )  # q_t: (batch_size, memory_size)
 
             # Attention between each memory vector and all memories, even the invalid ones, to produce logits
             e_t = torch.bmm(memories, q_t.unsqueeze(-1)).squeeze(
@@ -139,11 +128,10 @@ class ReadProcessEncoder(nn.Module):
                 1
             )  # (batch_size, memory_size)
 
-            # Concatenate query and read vectors
-            q_star_t = torch.cat([q_t, r_t], dim=-1)  # (batch_size, 2*memory_size)
-
         # Write: Transform final state to output
-        output = self.write_block(q_star_t)
+        output = self.write_block(
+            torch.cat((q_t, r_t), dim=1)
+        )  # (batch_size, output_size)
 
         # Empty sets are represented by a learnable vector
         complete_output = self.empty_set_vector.expand(original_batch_size, -1).clone()
