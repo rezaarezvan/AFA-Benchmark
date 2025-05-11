@@ -267,12 +267,6 @@ def main(
                 embedder_and_classifier.train()
                 embedder_and_classifier_optim.zero_grad()
 
-                embedding, logits = embedder_and_classifier(
-                    td["masked_features"], td["feature_mask"]
-                )
-                class_loss = F.cross_entropy(logits, td["label"], weight=class_weights)
-                class_loss.mean().backward()
-
                 embedding_next, logits_next = embedder_and_classifier(
                     td["next", "masked_features"], td["next", "feature_mask"]
                 )
@@ -281,6 +275,10 @@ def main(
 
                 embedder_and_classifier_optim.step()
                 embedder_and_classifier.eval()
+            else:
+                class_loss_next = torch.zeros(
+                    (1,), device=device, dtype=torch.float32
+                )
 
 
             # Log training info
@@ -359,6 +357,7 @@ def main(
                             f"benchmark_eval/{k}": v
                             for k, v in benchmark_metrics_eval.items()
                         },
+                        "eval/class_loss": class_loss_next.mean().cpu().item(),
                     }
                 )
 
