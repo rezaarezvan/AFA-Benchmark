@@ -40,9 +40,6 @@ class LitMaskedClassifier(pl.LightningModule):
         self.class_weight = self.class_weight / torch.sum(self.class_weight)
         self.max_masking_probability = max_masking_probability
 
-        # Initial masking probability
-        self.masking_probability = 0.0
-
     def forward(
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
     ) -> Logits:
@@ -58,19 +55,19 @@ class LitMaskedClassifier(pl.LightningModule):
         """
         return self.classifier(masked_features, feature_mask)
 
-    def on_train_epoch_start(self):
-        # Masking probability uniformly distributed between 0 and self.max_masking_probability
-        self.masking_probability = torch.rand(1).item() * self.max_masking_probability
-        self.log("masking_probability", self.masking_probability, sync_dist=True)
-
     def training_step(self, batch, batch_idx):
         features: Features = batch[0]
         label: Label = batch[1]
 
-        masked_features, feature_mask = mask_data(features, p=self.masking_probability)
+        masking_probability = torch.rand(1).item() * self.max_masking_probability
+        self.log("masking_probability", masking_probability, sync_dist=True)
+
+        masked_features, feature_mask, _ = mask_data(features, p=masking_probability)
 
         logits = self(masked_features, feature_mask)
-        loss = F.cross_entropy(logits, label, weight=self.class_weight.to(logits.device))
+        loss = F.cross_entropy(
+            logits, label, weight=self.class_weight.to(logits.device)
+        )
         self.log("train_loss", loss)
         return loss
 
@@ -97,22 +94,6 @@ class LitMaskedClassifier(pl.LightningModule):
         )
         self.log("val_loss_half", loss)
         self.log("val_acc_half", acc)
-
-        # WARNING: this block is only valid for AFAContextDataset
-        feature_mask_optimal = torch.zeros_like(
-            feature_values, dtype=torch.bool, device=feature_values.device
-        )
-        feature_mask_optimal[:, 0] = 1
-        for i in range(feature_mask_optimal.shape[0]):
-            context = feature_values[i, 0].int().item()
-            feature_mask_optimal[i, 1 + context * 3 : 4 + context * 3] = 1
-        feature_values_optimal = feature_values.clone()
-        feature_values_optimal[feature_mask_optimal == 0] = 0
-        loss, acc = self._get_loss_and_acc(
-            feature_values_optimal, feature_mask_optimal, y
-        )
-        self.log("val_loss_optimal", loss)
-        self.log("val_acc_optimal", acc)
 
         loss, acc = self._get_loss_and_acc(
             feature_values,
