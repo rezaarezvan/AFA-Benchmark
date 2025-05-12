@@ -88,8 +88,8 @@ def main(
         feature_costs=None)
 
     afa_method = Gadgil2023AFAMethod(greedy_cmi_estimator.value_network.cpu(), greedy_cmi_estimator.predictor.cpu())
-    afa_method_path.mkdir(parents=True, exist_ok=True)
-    afa_method.save(afa_method_path / "model.pt")
+    # afa_method_path.mkdir(parents=True, exist_ok=True)
+    afa_method.save(afa_method_path)
     with open(afa_method_path / "params.yml", "w") as file:
         yaml.dump(
             {

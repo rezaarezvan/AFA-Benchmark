@@ -9,6 +9,7 @@ from afa_discriminative.afa_methods import (
     Covert2023AFAMethod,
     Gadgil2023AFAMethod,
 )
+from afa_generative.afa_methods import Ma2018AFAMethod
 from common.custom_types import AFAClassifier, AFADataset, AFAMethod, PretrainingFunction, TrainingFunction
 from common.datasets import CubeDataset, AFAContextDataset, MNISTDataset, DiabetesDataset, PhysionetDataset, Shim2018CubeDataset
 from common.classifiers import (
@@ -26,8 +27,9 @@ from afa_rl.zannone2019.scripts.train_zannone2019_old import main as train_zanno
 AFA_METHOD_REGISTRY: dict[str, type[AFAMethod]] = {
     "shim2018": RLAFAMethod,
     "zannone2019": RLAFAMethod,
-    "GDFS": Covert2023AFAMethod,
-    "DIME": Gadgil2023AFAMethod,
+    "covert2023": Covert2023AFAMethod,
+    "gadgil2023": Gadgil2023AFAMethod,
+    "ma2018": Ma2018AFAMethod,
     "sequential_dummy": SequentialDummyAFAMethod,  # For testing
     "random_dummy": RandomDummyAFAMethod,  # For testing
 }

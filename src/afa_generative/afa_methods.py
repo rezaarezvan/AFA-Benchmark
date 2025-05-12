@@ -418,7 +418,7 @@ class Ma2018AFAMethod(AFAMethod):
             next_feature_idx.append(best_j)
         
         next_feature_idx = torch.tensor(next_feature_idx, device=device)
-        return next_feature_idx + 1
+        return next_feature_idx
         
     @classmethod
     def load(cls, path, device='cpu'):
