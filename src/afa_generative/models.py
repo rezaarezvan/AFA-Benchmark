@@ -506,7 +506,7 @@ class PartialVAE(nn.Module):
             for features, _ in train_loader:
                 # Calculate loss.
                 features = features.to(device)
-                masked_features, feature_mask = mask_data(features, p_e)
+                masked_features, feature_mask, _ = mask_data(features, p_e)
                 # loss = self.loss(x, m)
                 _, mu, logvar, z, estimated_features = self.forward(
                     masked_features, feature_mask
@@ -530,7 +530,7 @@ class PartialVAE(nn.Module):
                 for features, _ in val_loader:
                     # Calculate loss.
                     features = features.to(device)
-                    masked_features, feature_mask = mask_data(features, p_e)
+                    masked_features, feature_mask, _ = mask_data(features, p_e)
 
                     _, mu, logvar, z, estimated_features = self.forward(
                         masked_features, feature_mask
