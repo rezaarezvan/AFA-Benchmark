@@ -94,6 +94,7 @@ def submit_job(
     env_vars: str,
     job_path: Path,
     job_type: str,
+    slug: str
 ) -> str:
     result = subprocess.run(
         ["sbatch", f"--export={env_vars}", job_path],
@@ -104,7 +105,7 @@ def submit_job(
     output = result.stdout.strip()
     job_id = output.split()[-1]
     print(
-        f"Submitted {job_type} job with ID {job_id} for dataset_type={job_config.dataset_type}, split={job_config.split}, seed={job_config.seed}"
+        f"Submitted {job_type} job {slug} with ID {job_id} for dataset_type={job_config.dataset_type}, split={job_config.split}, seed={job_config.seed}"
         + (
             f", hard_budget={job_config.hard_budget}"
             if hasattr(job_config, "hard_budget")
@@ -144,7 +145,7 @@ def process_jobs(
             slug = job_config_to_slug[job_config]
             status_file = status_folder / slug / "status.txt"
             env_vars = generate_env_vars(job_config, slug, status_file)
-            job_id = submit_job(job_config, env_vars, job_path, job_type)
+            job_id = submit_job(job_config, env_vars, job_path, job_type, slug)
             job_config_to_id[job_config] = job_id
 
         wait_for_jobs(
