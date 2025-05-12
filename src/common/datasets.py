@@ -334,7 +334,7 @@ class AFAContextDataset(Dataset, AFADataset):
             )
 
         # Concatenate all features
-        self.features = torch.cat([X_context, X_bin, X_cube, X_dummy], dim=1)
+        self.features = torch.cat([X_context, X_bin, X_cube, X_dummy], dim=1).float()
         assert self.features.shape[1] == self.n_features
 
         # Build costs vector
@@ -390,9 +390,7 @@ class AFAContextDataset(Dataset, AFADataset):
 
 
 class MNISTDataset(Dataset, AFADataset):
-    """
-    MNIST dataset wrapped to follow the AFADataset protocol.
-    """
+    """MNIST dataset wrapped to follow the AFADataset protocol."""
 
     n_classes = 10
     n_features = 784  # Fixed number of features (28x28 images flattened)
@@ -423,7 +421,7 @@ class MNISTDataset(Dataset, AFADataset):
             download=self.download,
         )
         # Convert images to features (flatten)
-        self.features = torch.stack([x[0].flatten() for x in self.dataset])
+        self.features = torch.stack([x[0].flatten() for x in self.dataset]).float()
         assert self.features.shape[1] == self.n_features
         self.labels = torch.tensor([x[1] for x in self.dataset])
         self.labels = torch.nn.functional.one_hot(
@@ -505,7 +503,7 @@ class DiabetesDataset(Dataset, AFADataset):
         labels_df = df.iloc[:, -1]
 
         # Convert to tensors
-        self.features = torch.tensor(features_df.values)
+        self.features = torch.tensor(features_df.values, dtype=torch.float32)
         assert self.features.shape[1] == self.n_features
         self.labels = torch.tensor(labels_df.values, dtype=torch.long)
         self.labels = torch.nn.functional.one_hot(
@@ -555,8 +553,7 @@ class DiabetesDataset(Dataset, AFADataset):
 
 
 class PhysionetDataset(Dataset, AFADataset):
-    """
-    Physionet dataset wrapped to follow the AFADataset protocol.
+    """Physionet dataset wrapped to follow the AFADataset protocol.
 
     This dataset contains medical measurements from ICU patients.
     The target variable has 2 classes (0, 1) representing different outcomes.
@@ -600,7 +597,7 @@ class PhysionetDataset(Dataset, AFADataset):
         features_df = features_df.fillna(features_df.mean())
 
         # Convert to tensors
-        self.features = torch.tensor(features_df.values)
+        self.features = torch.tensor(features_df.values, dtype=torch.float32)
         assert self.features.shape[1] == self.n_features
         # Convert labels to LongTensor for one_hot encoding
         self.labels = torch.tensor(labels_df.values, dtype=torch.long)
