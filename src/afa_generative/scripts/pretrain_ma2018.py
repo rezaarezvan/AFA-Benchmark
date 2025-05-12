@@ -120,7 +120,7 @@ def main(pretrain_config_path: Path, dataset_type: str, train_dataset_path: Path
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--pretrain_config", type=str,
+    parser.add_argument("--pretrain_config_path", type=str,
                         default="configs/ma2018/pretrain_ma2018.yml")
     parser.add_argument("--dataset_type", type=str, required=True, choices=AFA_DATASET_REGISTRY.keys())
     parser.add_argument("--train_dataset_path", type=Path, required=True)
@@ -130,7 +130,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(
-        pretrain_config_path=args.pretrain_config,
+        pretrain_config_path=args.pretrain_config_path,
         dataset_type=args.dataset_type,
         train_dataset_path=args.train_dataset_path,
         val_dataset_path=args.val_dataset_path,
