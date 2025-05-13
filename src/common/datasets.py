@@ -750,11 +750,12 @@ class PhysionetDataset(Dataset, AFADataset):
         features_df = features_df.fillna(features_df.mean())
 
         # === Standardize features ===
-        scaler = StandardScaler()
-        scaled_features = scaler.fit_transform(features_df.values)
+        # scaler = StandardScaler()
+        # scaled_features = scaler.fit_transform(features_df.values)
 
         # Convert to tensors
-        self.features = torch.tensor(scaled_features, dtype=torch.float32)
+        # self.features = torch.tensor(scaled_features, dtype=torch.float32)
+        self.features = torch.tensor(features_df.values, dtype=torch.float32)
         assert self.features.shape[1] == self.n_features
 
         self.labels = torch.tensor(labels_df.values, dtype=torch.long)

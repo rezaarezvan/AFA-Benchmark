@@ -67,6 +67,14 @@ def generate_and_save_splits(dataset_class, dataset_name, split_idx, data_dir, *
     val_dataset = create_split_dataset(dataset, val_subset, "val", split_idx)
     test_dataset = create_split_dataset(dataset, test_subset, "test", split_idx)
 
+    if dataset_name in ("miniboone", "physionet"):
+        feat = train_dataset.features
+        mean = feat.mean(dim=0, keepdim=True)
+        std  = feat.std(dim=0, unbiased=False, keepdim=True)
+
+        for ds in (train_dataset, val_dataset, test_dataset):
+            ds.features = (ds.features - mean) / std
+
     # Create dataset directory
     dataset_dir = os.path.join(data_dir, dataset_name)
     os.makedirs(dataset_dir, exist_ok=True)
