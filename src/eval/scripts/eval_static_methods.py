@@ -151,167 +151,112 @@ def write_eval_results(
 
 
 def main(args):
-    eval_seed = 42
+    eval_seed = args.eval_seed
     set_seed(eval_seed)
     device = torch.device(args.device)
 
-    for method in STATIC_METHOD_REGISTRY:
-        print(f"Start evaluating {method} method on {args.dataset_type} dataset")
-        for split in list(range(1, 6)):
-            print(f"Dataset split {split}")
-            train_dataset_path = Path(f"data/{args.dataset_type}/train_split_{split}.pt")
-            val_dataset_path = Path(f"data/{args.dataset_type}/val_split_{split}.pt")
-            test_dataset_path = Path(f"data/{args.dataset_type}/{args.dataset_fraction_name}_split_{split}.pt")
-            train_dataset: AFADataset = AFA_DATASET_REGISTRY[args.dataset_type].load(train_dataset_path)
-            val_dataset:   AFADataset = AFA_DATASET_REGISTRY[args.dataset_type].load(val_dataset_path)
-            test_dataset:  AFADataset = AFA_DATASET_REGISTRY[args.dataset_type].load(test_dataset_path)
+    print(f"Start evaluating {args.method} method on {args.dataset_type} dataset split {args.split}")
+    train_dataset_path = Path(f"data/{args.dataset_type}/train_split_{args.split}.pt")
+    val_dataset_path = Path(f"data/{args.dataset_type}/val_split_{args.split}.pt")
+    test_dataset_path = Path(f"data/{args.dataset_type}/{args.dataset_fraction_name}_split_{args.split}.pt")
+    train_dataset: AFADataset = AFA_DATASET_REGISTRY[args.dataset_type].load(train_dataset_path)
+    val_dataset:   AFADataset = AFA_DATASET_REGISTRY[args.dataset_type].load(val_dataset_path)
+    test_dataset:  AFADataset = AFA_DATASET_REGISTRY[args.dataset_type].load(test_dataset_path)
 
-            labels_all = []
-            for _, label in iter(test_dataset):
-                labels_all.append(label)
-            
-            for ds in (train_dataset, val_dataset, test_dataset):
-                ds.features = ds.features.float()
-                ds.labels   = ds.labels.argmax(dim=1).long()
+    labels_all = []
+    for _, label in iter(test_dataset):
+        labels_all.append(label)
+    
+    for ds in (train_dataset, val_dataset, test_dataset):
+        ds.features = ds.features.float()
+        ds.labels   = ds.labels.argmax(dim=1).long()
 
-            d_in  = train_dataset.features.shape[-1]
-            d_out = int(train_dataset.labels.max().item()) + 1
+    d_in  = train_dataset.features.shape[-1]
+    d_out = train_dataset.labels.shape[-1]
 
-            # TODO should we use d_in? also can only start from 1, not 0
-            budgets = list(range(1, d_in + 1))
+    sel_folder = (
+        args.selected_root
+        / f"{args.method}_{args.dataset_type}_split{args.split}_s{args.start_feature_num}_e{args.end_feature_num}"
+    )
+    if not (sel_folder/"selected.pt").exists():
+        raise FileNotFoundError(f"Cannot find selected.pt in {str(sel_folder)}!")
 
-            n_samples = len(test_dataset)
-            B = len(budgets)
-            feature_mask_history_all: list[list[Optional[Tensor]]] = [[None]*B for _ in range(n_samples)]
-            prediction_history_all: list[list[Optional[Tensor]]] = [[None]*B for _ in range(n_samples)]
+    info = torch.load(sel_folder/"selected.pt")
+    budgets = info["budgets"]
+    selected_history = info["selected_history"]
 
-            auroc_metric = lambda pred, y: AUROC(task="multiclass", num_classes=d_out)(
-                pred.softmax(dim=1), y
-            )
+    n_samples = len(test_dataset)
+    B = len(budgets)
+    feature_mask_history_all: list[list[Optional[Tensor]]] = [[None]*B for _ in range(n_samples)]
+    prediction_history_all: list[list[Optional[Tensor]]] = [[None]*B for _ in range(n_samples)]
 
-            # select features & retrain for each budget
-            for j, budget in enumerate(tqdm(budgets, desc="budgets")):
-                if method == "cae":
-                    model = get_network(d_in, d_out).to(device)
-                    selector_layer = ConcreteMask(d_in, budget)
-                    diff = DifferentiableSelector(model, selector_layer).to(device)
-                    diff.fit(
-                        train_loader=DataLoader(
-                            TensorDataset(train_dataset.features, train_dataset.labels),
-                            batch_size=128,
-                            shuffle=True,
-                            drop_last=True,
-                        ),
-                        val_loader=DataLoader(
-                            TensorDataset(val_dataset.features, val_dataset.labels),
-                            batch_size=1024,
-                        ),
-                        lr=1e-3,
-                        nepochs=250,
-                        loss_fn=torch.nn.CrossEntropyLoss(),
-                        patience=5,
-                        verbose=False,
-                    )
-                    # Extract top features.
-                    logits = selector_layer.logits.cpu().data.numpy()
-                    selected_features = np.sort(logits.argmax(axis=1))
-                    
-                    unique = np.unique(selected_features)
-                    if len(unique) != budget:
-                        num_extras = budget - len(unique)
-                        remaining_features = np.setdiff1d(np.arange(d_in), unique)
-                        selected_features = np.sort(np.concatenate([unique, remaining_features[:num_extras]]))
-                    selected = selected_features
-                elif method == "permutation":
-                    base = BaseModel(get_network(d_in, d_out).to(device))
-                    base.fit(
-                        train_loader=DataLoader(
-                            TensorDataset(train_dataset.features, train_dataset.labels),
-                            batch_size=128,
-                            shuffle=True,
-                            drop_last=True,
-                        ),
-                        val_loader=DataLoader(
-                            TensorDataset(val_dataset.features, val_dataset.labels),
-                            batch_size=1024,
-                        ),
-                        lr=1e-3,
-                        nepochs=250,
-                        loss_fn=torch.nn.CrossEntropyLoss(),
-                        verbose=False,
-                    )
-                    # compute importances
-                    permutation_importance = np.zeros(d_in)
-                    X_train = train_dataset.features
-                    for feat in range(d_in):
-                        X_val = val_dataset.features.clone()
-                        # permute feature feat
-                        X_val[:, feat] = X_train[torch.randint(len(X_train), (len(X_val),)), feat]
-                        with torch.no_grad():
-                            p = base.model(X_val.to(device)).cpu()
-                        permutation_importance[feat] = -auroc_metric(p, val_dataset.labels)
-                    ranked = np.argsort(permutation_importance)[::-1].copy()
-                    selected = ranked[:budget]
-                else:
-                    raise NotImplementedError("Static feature selection method not implemented")
+    # select features & retrain for each budget
+    for j, budget in enumerate(tqdm(budgets, desc="budgets")):
+        selected = selected_history[j]
+        # retrain classifier on selected features
+        train_subset_loader = make_loader(train_dataset, selected)
+        val_subset_loader   = make_loader(val_dataset, selected)
 
-                # retrain classifier on selected features
-                train_subset_loader = make_loader(train_dataset, selected)
-                val_subset_loader   = make_loader(val_dataset, selected)
+        best_model = None
+        best_loss = float("inf")
+        for _ in range(args.num_restarts):
+            model = BaseModel(get_network(budget, d_out).to(device))
+            model.fit(train_subset_loader, val_subset_loader, lr=1e-3, nepochs=250, loss_fn=torch.nn.CrossEntropyLoss(), verbose=False)
+            val_loss = model.evaluate(val_subset_loader, torch.nn.CrossEntropyLoss())
+            if val_loss < best_loss:
+                best_loss = val_loss
+                best_model = model
+        assert best_model is not None
 
-                best_model = None
-                best_loss = float("inf")
-                for _ in range(args.num_restarts):
-                    model = BaseModel(get_network(budget, d_out).to(device))
-                    model.fit(train_subset_loader, val_subset_loader, lr=1e-3, nepochs=250, loss_fn=torch.nn.CrossEntropyLoss(), verbose=False)
-                    val_loss = model.evaluate(val_subset_loader, torch.nn.CrossEntropyLoss())
-                    if val_loss < best_loss:
-                        best_loss = val_loss
-                        best_model = model
-                assert best_model is not None
+        test_loader = make_loader(test_dataset, selected, shuffle=False, batch_size=1, drop_last=False)
+        for i, (x_sel, _) in enumerate(test_loader):
+            with torch.no_grad():
+                logits = best_model.model(x_sel.to(device)).squeeze(0).cpu()
+            feature_mask_history_all[i][j] = torch.zeros(d_in, dtype=torch.bool, device="cpu").scatter_(0, torch.tensor(selected), True)
+            prediction_history_all[i][j] = logits
 
-                test_loader = make_loader(test_dataset, selected, shuffle=False, batch_size=1, drop_last=False)
-                for i, (x_sel, _) in enumerate(test_loader):
-                    with torch.no_grad():
-                        logits = best_model.model(x_sel.to(device)).squeeze(0).cpu()
-                    feature_mask_history_all[i][j] = torch.zeros(d_in, dtype=torch.bool, device="cpu").scatter_(0, torch.tensor(selected), True)
-                    prediction_history_all[i][j] = logits
+    metrics = evaluator(feature_mask_history_all, prediction_history_all, labels_all)
 
-            metrics = evaluator(feature_mask_history_all, prediction_history_all, labels_all)
-
-            write_eval_results(
-                args.results_folder / f"static_{method}_{args.dataset_type}_{split}",
-                metrics,
-                method,
-                __file__,
-                {
-                    "dataset_type": args.dataset_type,
-                    "hard_budget": d_in,
-                    "pretrained_model_path": None,
-                    "seed": 42,
-                    "train_dataset_path": str(train_dataset_path),
-                    "val_dataset_path": str(val_dataset_path),
-                },
-                True,
-                None,
-                None,
-                None,
-                {
-                    "seed": eval_seed,
-                    "dataset_path": str(test_dataset_path),
-                    "hard_budget": d_in,
-                },
-                args.dataset_type,
-            )
+    write_eval_results(
+        args.results_folder / f"static_{args.method}_{args.dataset_type}_{args.split}_s{args.start_feature_num}_e{args.end_feature_num}",
+        metrics,
+        args.method,
+        __file__,
+        {
+            "dataset_type": args.dataset_type,
+            "hard_budget": args.end_feature_num,
+            "pretrained_model_path": None,
+            "seed": 42,
+            "train_dataset_path": str(train_dataset_path),
+            "val_dataset_path": str(val_dataset_path),
+        },
+        True,
+        None,
+        None,
+        None,
+        {
+            "seed": eval_seed,
+            "dataset_path": str(test_dataset_path),
+            "hard_budget": args.end_feature_num,
+            "start_feature_num": args.start_feature_num,
+            "end_feature_num": args.end_feature_num,
+        },
+        args.dataset_type,
+    )
 
 
 if __name__ == "__main__":
-    # TODO maybe should use configuration file to control training?
     parser = argparse.ArgumentParser(description="Evaluate static feature selection methods")
     parser.add_argument("--dataset_type", type=str, required=True, choices=AFA_DATASET_REGISTRY.keys())
     parser.add_argument("--dataset_fraction_name", type=str, default="test")
     parser.add_argument("--num_restarts", type=int, default=5)
     parser.add_argument("--results_folder", type=Path, default=Path("results"))
-    parser.add_argument("--device", type=str, default="cpu")
+    parser.add_argument("--device", type=str, default="cuda")
+    parser.add_argument("--start_feature_num", type=int, default=1)
+    parser.add_argument("--end_feature_num", type=int, default=20)
+    parser.add_argument("--split", type=int, required=True)
+    parser.add_argument("--selected_root", type=Path, default=Path("models/static/selected"))
+    parser.add_argument("--eval_seed", type=int, default=42)
+    parser.add_argument("--method", type=str, required=True, choices=STATIC_METHOD_REGISTRY)
     args = parser.parse_args()
     main(args)
