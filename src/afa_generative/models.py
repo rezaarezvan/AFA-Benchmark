@@ -431,6 +431,7 @@ class PartialVAE(nn.Module):
 
         mu = encoding[:, : encoding.shape[1] // 2]
         logvar = encoding[:, encoding.shape[1] // 2 :]
+        logvar = torch.clamp(logvar, min=-10, max=10)
         std = torch.exp(0.5 * logvar)
         z = mu + std * torch.randn_like(std)
 
@@ -540,7 +541,7 @@ class PartialVAE(nn.Module):
                     )
                     
                     # Update mean.
-                    val_loss += loss * features.size(0)
+                    val_loss += loss.item()
                     n += features.size(0)
                 val_loss = val_loss / n
 
