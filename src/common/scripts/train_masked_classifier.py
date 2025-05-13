@@ -67,7 +67,7 @@ def main(config_path: Path, dataset_type: str, train_dataset_path: Path, val_dat
 
     # ModelCheckpoint callback
     checkpoint_callback = ModelCheckpoint(
-        monitor="val_loss_optimal",
+        monitor="val_loss_full",
         save_top_k=1,
         mode="min",
         dirpath=save_path,
