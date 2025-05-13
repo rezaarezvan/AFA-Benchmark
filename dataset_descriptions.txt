@@ -1,0 +1,48 @@
+CUBE: 
+
+* type synthetic
+* Training set size: 700
+* Validation set size: 150
+* test set size: 150
+* num features: 30
+* num classes: 8
+
+
+AFAContext:
+
+* type synthetic
+* Training set size: 700
+* Validation set size: 150
+* test set size: 150
+* num features: 20
+* num classes: 8
+
+MNIST:
+
+* type: real world
+* training set size: 42000
+* validation set size: 9000
+* test set size: 9000
+* num features: 784
+* num classes: 10
+
+diabetes:
+
+* type: real world
+* training set size: 64443
+* validation set size: 13810
+* test set size: 13810
+* num features: 45
+* num classes: 3
+
+physionet:
+
+* type: real world
+* training set size: 8400
+* validation set size: 1800
+* test set size: 1800
+* num features: 41
+* num classes: 2
+
+
+
