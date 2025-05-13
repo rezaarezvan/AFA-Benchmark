@@ -11,7 +11,7 @@ from afa_discriminative.afa_methods import (
 )
 from afa_generative.afa_methods import Ma2018AFAMethod
 from common.custom_types import AFAClassifier, AFADataset, AFAMethod, PretrainingFunction, TrainingFunction
-from common.datasets import CubeDataset, AFAContextDataset, MNISTDataset, DiabetesDataset, PhysionetDataset, Shim2018CubeDataset
+from common.datasets import CubeDataset, AFAContextDataset, MNISTDataset, DiabetesDataset, PhysionetDataset, Shim2018CubeDataset, MiniBooNEDataset, FashionMNISTDataset
 from common.classifiers import (
     RandomDummyAFAClassifier,
     UniformDummyAFAClassifier,
@@ -46,7 +46,9 @@ AFA_DATASET_REGISTRY: dict[str, type[AFADataset]] = {
     "AFAContext": AFAContextDataset,
     "MNIST": MNISTDataset,
     "diabetes": DiabetesDataset,
-    "physionet": PhysionetDataset
+    "physionet": PhysionetDataset,
+    "miniboone": MiniBooNEDataset,
+    "FashionMNIST": FashionMNISTDataset
 }
 
 # Add each common classifier that you want to use during evaluation here

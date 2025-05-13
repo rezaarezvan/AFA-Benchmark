@@ -8,6 +8,8 @@ from torchvision import datasets, transforms
 import math
 import pandas as pd
 import os
+from sklearn.preprocessing import StandardScaler
+
 
 from common.custom_types import AFADataset, FeatureMask, MaskedFeatures, Features, Label
 
@@ -459,6 +461,76 @@ class MNISTDataset(Dataset, AFADataset):
         dataset.labels = data["labels"]
         return dataset
 
+class FashionMNISTDataset(Dataset, AFADataset):
+    """FashionMNIST dataset wrapped to follow the AFADataset protocol."""
+
+    n_classes = 10
+    n_features = 784  # 28x28 flattened images
+
+    def __init__(
+        self,
+        train: bool = True,
+        transform=None,
+        download: bool = True,
+        root: str = "data/FashionMNIST",
+    ):
+        super().__init__()
+        self.train = train
+        self.transform = transform if transform is not None else transforms.ToTensor()
+        self.download = download
+        self.root = root
+
+        self._generate_data()
+
+    def generate_data(self):
+        pass
+
+    def _generate_data(self) -> None:
+        self.dataset = datasets.FashionMNIST(
+            root=self.root,
+            train=self.train,
+            transform=self.transform,
+            download=self.download,
+        )
+        # Convert images to flattened feature vectors
+        self.features = torch.stack([x[0].flatten() for x in self.dataset]).float()
+        assert self.features.shape[1] == self.n_features
+        self.labels = torch.tensor([x[1] for x in self.dataset])
+        self.labels = torch.nn.functional.one_hot(
+            self.labels, num_classes=self.n_classes
+        ).float()
+        assert self.labels.shape[1] == self.n_classes
+
+    def __getitem__(self, idx: int) -> tuple[Features, Label]:
+        return self.features[idx], self.labels[idx]
+
+    def __len__(self):
+        return self.features.size(0)
+
+    def get_all_data(self) -> tuple[Features, Label]:
+        return self.features, self.labels
+
+    def save(self, path: Path) -> None:
+        torch.save(
+            {
+                "features": self.features,
+                "labels": self.labels,
+                "config": {
+                    "train": self.train,
+                    "root": self.root,
+                },
+            },
+            path,
+        )
+
+    @classmethod
+    def load(cls, path: Path) -> Self:
+        data = torch.load(path)
+        dataset = cls(**data["config"])
+        dataset.features = data["features"]
+        dataset.labels = data["labels"]
+        return dataset
+
 
 class DiabetesDataset(Dataset, AFADataset):
     """
@@ -492,7 +564,8 @@ class DiabetesDataset(Dataset, AFADataset):
 
         # Check if file exists
         if not os.path.exists(self.data_path):
-            raise FileNotFoundError(f"Diabetes dataset not found at {self.data_path}")
+            return
+            #raise FileNotFoundError(f"Diabetes dataset not found at {self.data_path}")
 
         # Load the dataset
         df = pd.read_csv(self.data_path)
@@ -551,9 +624,93 @@ class DiabetesDataset(Dataset, AFADataset):
         dataset.feature_names = data["feature_names"]
         return dataset
 
+class MiniBooNEDataset(Dataset, AFADataset):
+    """
+    MiniBooNE dataset wrapped to follow the AFADataset protocol.
+
+    This dataset contains particle physics measurements from the MiniBooNE experiment.
+    The target variable has 2 classes (signal and background).
+    """
+
+    n_classes = 2
+    n_features = 50
+
+    def __init__(
+        self,
+        data_path: str = "datasets/miniboone.csv",
+        seed: int = 123,
+    ):
+        super().__init__()
+        self.data_path = data_path
+        self.seed = seed
+
+        self._generate_data()
+
+    def generate_data(self):
+        pass
+
+    def _generate_data(self) -> None:
+        """Load and preprocess the MiniBooNE dataset."""
+        torch.manual_seed(self.seed)
+
+        if not os.path.exists(self.data_path):
+            return
+            #raise FileNotFoundError(f"MiniBooNE dataset not found at {self.data_path}")
+
+        df = pd.read_csv(self.data_path)
+
+        # Assuming the last column is the binary target variable
+        features_df = df.iloc[:, :-1]
+        labels_df = df.iloc[:, -1]
+
+        self.features = torch.tensor(features_df.values, dtype=torch.float32)
+        assert self.features.shape[1] == self.n_features
+
+        self.labels = torch.tensor(labels_df.values, dtype=torch.long)
+        self.labels = torch.nn.functional.one_hot(
+            self.labels, num_classes=self.n_classes
+        ).float()
+        assert self.labels.shape[1] == self.n_classes
+
+        self.feature_names = features_df.columns.tolist()
+
+    def __getitem__(self, idx: int) -> tuple[Features, Label]:
+        return self.features[idx], self.labels[idx]
+
+    def __len__(self) -> int:
+        return len(self.features)
+
+    def get_all_data(self) -> tuple[Features, Label]:
+        return self.features, self.labels
+
+    def save(self, path: Path) -> None:
+        torch.save(
+            {
+                "features": self.features,
+                "labels": self.labels,
+                "feature_names": self.feature_names,
+                "config": {
+                    "data_path": self.data_path,
+                    "seed": self.seed,
+                },
+            },
+            path,
+        )
+
+    @classmethod
+    def load(cls, path: Path) -> Self:
+        data = torch.load(path)
+        dataset = cls(**data["config"])
+        dataset.features = data["features"]
+        dataset.labels = data["labels"]
+        dataset.feature_names = data["feature_names"]
+        return dataset
+
+
 
 class PhysionetDataset(Dataset, AFADataset):
-    """Physionet dataset wrapped to follow the AFADataset protocol.
+    """
+    Physionet dataset wrapped to follow the AFADataset protocol.
 
     This dataset contains medical measurements from ICU patients.
     The target variable has 2 classes (0, 1) representing different outcomes.
@@ -578,51 +735,46 @@ class PhysionetDataset(Dataset, AFADataset):
 
     def _generate_data(self) -> None:
         """Load and preprocess the Physionet dataset."""
-        # Set random seed for reproducibility
         torch.manual_seed(self.seed)
 
-        # Check if file exists
         if not os.path.exists(self.data_path):
-            raise FileNotFoundError(f"Physionet dataset not found at {self.data_path}")
+            return
+            #raise FileNotFoundError(f"Physionet dataset not found at {self.data_path}")
 
-        # Load the dataset
         df = pd.read_csv(self.data_path)
 
-        # Extract features and labels
-        # The last column is the target variable (Outcome)
         features_df = df.iloc[:, :-1]
         labels_df = df.iloc[:, -1]
 
         # Handle missing values by filling with column means
         features_df = features_df.fillna(features_df.mean())
 
+        # === Standardize features ===
+        scaler = StandardScaler()
+        scaled_features = scaler.fit_transform(features_df.values)
+
         # Convert to tensors
-        self.features = torch.tensor(features_df.values, dtype=torch.float32)
+        self.features = torch.tensor(scaled_features, dtype=torch.float32)
         assert self.features.shape[1] == self.n_features
-        # Convert labels to LongTensor for one_hot encoding
+
         self.labels = torch.tensor(labels_df.values, dtype=torch.long)
         self.labels = torch.nn.functional.one_hot(
             self.labels, num_classes=self.n_classes
         ).float()
         assert self.labels.shape[1] == self.n_classes
 
-        # Store feature names
         self.feature_names = features_df.columns.tolist()
 
     def __getitem__(self, idx: int) -> tuple[Features, Label]:
-        """Return a single sample from the dataset."""
         return self.features[idx], self.labels[idx]
 
     def __len__(self) -> int:
-        """Return the number of samples in the dataset."""
         return len(self.features)
 
     def get_all_data(self) -> tuple[Features, Label]:
-        """Return all features and labels."""
         return self.features, self.labels
 
     def save(self, path: Path) -> None:
-        """Save the dataset to a file."""
         torch.save(
             {
                 "features": self.features,
@@ -638,7 +790,6 @@ class PhysionetDataset(Dataset, AFADataset):
 
     @classmethod
     def load(cls, path: Path) -> Self:
-        """Load a dataset from a file."""
         data = torch.load(path)
         dataset = cls(**data["config"])
         dataset.features = data["features"]

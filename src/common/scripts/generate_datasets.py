@@ -183,6 +183,17 @@ def main():
             kwargs = {
                 "data_path": "datasets/physionet_data.csv"
             }
+        elif dataset_name == "miniboone":
+            kwargs = {
+                "data_path": "datasets/miniboone.csv"
+            }
+        elif dataset_name == "FashionMNIST":
+            kwargs = {
+                "train": True,  # Use training set as base
+                "transform": None,  # Will use default ToTensor()
+                "download": True,
+                "root": os.path.join(data_dir, "MNIST")
+            }
         else:
             print(f"Warning: Unknown dataset type {dataset_name}, skipping...")
             continue
