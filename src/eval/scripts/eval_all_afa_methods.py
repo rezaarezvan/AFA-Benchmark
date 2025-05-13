@@ -295,6 +295,7 @@ def main(
             print(f"  Using dataset {eval_dataset_path} for evaluation")
 
             # Loop through each classifier type in the classifier folder
+            classifier_folder.mkdir(parents=True, exist_ok=True)
             for i, classifier_type_path in enumerate(classifier_folder.iterdir()):
                 classifier_type = classifier_type_path.name
                 # Get paths to all classifiers of this type that were trained on the same dataset

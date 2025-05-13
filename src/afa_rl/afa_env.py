@@ -89,6 +89,9 @@ class AFAEnv(EnvBase):
         self.reward_spec = Unbounded(
             shape=self.batch_size + torch.Size((1,)), dtype=torch.float32
         )
+        self.done_spec = Binary(
+            shape=self.batch_size + torch.Size((1,)), dtype=torch.bool
+        )
 
     def _reset(self, tensordict: TensorDictBase, **_):
         if tensordict is None:
@@ -142,7 +145,7 @@ class AFAEnv(EnvBase):
         new_action_mask[batch_idx, tensordict["action"]] = False
 
         # Done if we exceed the hard budget
-        done = tensordict["feature_mask"].sum(-1) >= self.hard_budget
+        done = (new_feature_mask.sum(-1) >= self.hard_budget).unsqueeze(-1)
 
         # Always calculate a possible reward
         reward = self.reward_fn(
@@ -195,12 +198,20 @@ def get_common_reward_fn(
     ) -> AFAReward:
         reward = torch.zeros_like(afa_selection, dtype=torch.float32)
 
+        done_mask = done.squeeze(-1)
+
         # If AFA stops, reward is negative loss
-        logits = classifier(masked_features[done], feature_mask[done])
-        reward[done] = -loss_fn(
-            logits,
-            label[done],
-        )
+        logits = classifier(new_masked_features[done_mask], new_feature_mask[done_mask])
+        # reward[done_mask] = -loss_fn(
+        #     logits,
+        #     label[done_mask],
+        # )
+
+        reward[done_mask] = (logits.argmax(-1) == label[done_mask].argmax(-1)).float()
+
+        # TODO: debugging. Give reward for the last 4 features, punish the rest
+        # reward[done_mask] += new_feature_mask[done_mask, -5:].sum(dim=-1).float()
+        # reward[done_mask] -= new_feature_mask[done_mask, :-5].sum(dim=-1).float()
 
         return reward
 

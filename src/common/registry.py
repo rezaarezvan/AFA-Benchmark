@@ -9,8 +9,9 @@ from afa_discriminative.afa_methods import (
     Covert2023AFAMethod,
     Gadgil2023AFAMethod,
 )
+from afa_generative.afa_methods import Ma2018AFAMethod
 from common.custom_types import AFAClassifier, AFADataset, AFAMethod, PretrainingFunction, TrainingFunction
-from common.datasets import CubeDataset, AFAContextDataset, MNISTDataset, DiabetesDataset, PhysionetDataset
+from common.datasets import CubeDataset, AFAContextDataset, MNISTDataset, DiabetesDataset, PhysionetDataset, Shim2018CubeDataset
 from common.classifiers import (
     RandomDummyAFAClassifier,
     UniformDummyAFAClassifier,
@@ -19,24 +20,29 @@ from common.classifiers import (
 from afa_rl.shim2018.scripts.pretrain_shim2018 import main as pretrain_shim2018_main
 from afa_rl.shim2018.scripts.train_shim2018 import main as train_shim2018_main
 from afa_rl.zannone2019.scripts.pretrain_zannone2019 import main as pretrain_zannone2019_main
-from afa_rl.zannone2019.scripts.train_zannone2019 import main as train_zannone2019_main
+from afa_rl.zannone2019.scripts.train_zannone2019_old import main as train_zannone2019_main
 
 
 # Add each AFA method here
 AFA_METHOD_REGISTRY: dict[str, type[AFAMethod]] = {
     "shim2018": RLAFAMethod,
     "zannone2019": RLAFAMethod,
-    "GDFS": Covert2023AFAMethod,
-    "DIME": Gadgil2023AFAMethod,
+    "covert2023": Covert2023AFAMethod,
+    "gadgil2023": Gadgil2023AFAMethod,
+    "ma2018": Ma2018AFAMethod,
     "sequential_dummy": SequentialDummyAFAMethod,  # For testing
     "random_dummy": RandomDummyAFAMethod,  # For testing
 }
 
-
+STATIC_METHOD_REGISTRY: list[str] = [
+    "cae", 
+    "permutation",
+]
 
 # Add each AFA dataset here
 AFA_DATASET_REGISTRY: dict[str, type[AFADataset]] = {
     "cube": CubeDataset,
+    "shim2018cube": Shim2018CubeDataset,
     "AFAContext": AFAContextDataset,
     "MNIST": MNISTDataset,
     "diabetes": DiabetesDataset,

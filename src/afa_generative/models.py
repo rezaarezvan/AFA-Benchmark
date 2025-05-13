@@ -431,6 +431,7 @@ class PartialVAE(nn.Module):
 
         mu = encoding[:, : encoding.shape[1] // 2]
         logvar = encoding[:, encoding.shape[1] // 2 :]
+        logvar = torch.clamp(logvar, min=-10, max=10)
         std = torch.exp(0.5 * logvar)
         z = mu + std * torch.randn_like(std)
 
@@ -506,7 +507,7 @@ class PartialVAE(nn.Module):
             for features, _ in train_loader:
                 # Calculate loss.
                 features = features.to(device)
-                masked_features, feature_mask = mask_data(features, p_e)
+                masked_features, feature_mask, _ = mask_data(features, p_e)
                 # loss = self.loss(x, m)
                 _, mu, logvar, z, estimated_features = self.forward(
                     masked_features, feature_mask
@@ -530,7 +531,7 @@ class PartialVAE(nn.Module):
                 for features, _ in val_loader:
                     # Calculate loss.
                     features = features.to(device)
-                    masked_features, feature_mask = mask_data(features, p_e)
+                    masked_features, feature_mask, _ = mask_data(features, p_e)
 
                     _, mu, logvar, z, estimated_features = self.forward(
                         masked_features, feature_mask
@@ -540,7 +541,7 @@ class PartialVAE(nn.Module):
                     )
                     
                     # Update mean.
-                    val_loss += loss * features.size(0)
+                    val_loss += loss.item()
                     n += features.size(0)
                 val_loss = val_loss / n
 

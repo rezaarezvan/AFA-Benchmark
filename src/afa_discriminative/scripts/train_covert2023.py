@@ -79,8 +79,8 @@ def main(
         verbose=True)
 
     afa_method = Covert2023AFAMethod(gdfs.selector.cpu(), gdfs.predictor.cpu())
-    afa_method_path.mkdir(parents=True, exist_ok=True)
-    afa_method.save(afa_method_path / "model.pt")
+    # afa_method_path.mkdir(parents=True, exist_ok=True)
+    afa_method.save(afa_method_path)
     with open(afa_method_path / "params.yml", "w") as file:
         yaml.dump(
             {

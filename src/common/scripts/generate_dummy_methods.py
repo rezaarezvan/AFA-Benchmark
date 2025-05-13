@@ -68,23 +68,24 @@ def main(args: argparse.Namespace):
         assert train_path.exists() and val_path.exists()
 
         for seed in range(1, args.n_seeds+1):
-            save_dummy_method(
-                "sequential_dummy",
-                args.hard_budget,
-                train_path,
-                val_path,
-                seed,
-                method_folder=args.method_folder,
-            )
+            for hard_budget in args.hard_budgets:
+                save_dummy_method(
+                    "sequential_dummy",
+                    hard_budget,
+                    train_path,
+                    val_path,
+                    seed,
+                    method_folder=args.method_folder,
+                )
 
-            save_dummy_method(
-                "random_dummy",
-                args.hard_budget,
-                train_path,
-                val_path,
-                seed,
-                method_folder=args.method_folder,
-            )
+                save_dummy_method(
+                    "random_dummy",
+                    hard_budget,
+                    train_path,
+                    val_path,
+                    seed,
+                    method_folder=args.method_folder,
+                )
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -103,19 +104,20 @@ if __name__ == "__main__":
     parser.add_argument(
         "--n_splits",
         type=int,
-        default=3,
+        default=2,
         help="Number of splits for the dataset",
     )
     parser.add_argument(
-        "--hard_budget",
+        "--hard_budgets",
         type=int,
-        default=10,
-        help="Hard budget for the method",
+        nargs='+',
+        default=[5,10,20],
+        help="List of hard budgets for the method",
     )
     parser.add_argument(
         "--n_seeds",
         type=int,
-        default=5,
+        default=2,
         help="How many different seeds to use",
     )
     args = parser.parse_args()

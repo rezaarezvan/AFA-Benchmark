@@ -13,12 +13,14 @@ from torchrl.modules import MLP
 
 import wandb
 from afa_rl.custom_types import (
+    MaskedClassifier,
+    NNMaskedClassifier,
     NaiveIdentityFn,
 )
 from afa_rl.utils import (
     mask_data,
 )
-from common.custom_types import FeatureMask, Features, MaskedFeatures, Label
+from common.custom_types import FeatureMask, Features, Logits, MaskedFeatures, Label
 
 class PointNetType(Enum):
     POINTNET = 1
@@ -105,8 +107,7 @@ class PointNet(nn.Module):
 
 
 class PartialVAE(nn.Module):
-    """
-    A partial VAE for masked data, as described in "EDDI: Efficient Dynamic Discovery of High-Value Information with Partial VAE"
+    """A partial VAE for masked data, as described in "EDDI: Efficient Dynamic Discovery of High-Value Information with Partial VAE".
 
     To make the model work with different shapes of data, change the pointnet.
     """
@@ -184,19 +185,14 @@ class Zannone2019PretrainingModel(pl.LightningModule):
                 f"Unknown reconstruction loss type: {self.recon_loss_type}. Use 'squared error' or 'cross entropy'."
             )
 
-        # Initial masking probability
-        self.masking_probability = 0.0
-
-    def on_train_epoch_start(self):
-        # Masking probability uniformly distributed between 0 and self.max_masking_probability
-        self.masking_probability = torch.rand(1).item() * self.max_masking_probability
-        self.log("masking_probability", self.masking_probability, sync_dist=True)
-
     def training_step(self, batch, batch_idx):
         features: Features = batch[0]
         label: Label = batch[1]
 
-        masked_features, feature_mask = mask_data(features, p=self.masking_probability)
+        masking_probability = torch.rand(1).item() * self.max_masking_probability
+        self.log("masking_probability", masking_probability, sync_dist=True)
+
+        masked_features, feature_mask, _ = mask_data(features, p=masking_probability)
 
         # Pass masked features through VAE, returning estimated features but also encoding which will be passed through classifier
         encoding, mu, logvar, z, estimated_features = self.partial_vae(
@@ -222,7 +218,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         label: Label = batch[1]
 
         # Constant masking probability for validation
-        masked_features, feature_mask = mask_data(
+        masked_features, feature_mask, _ = mask_data(
             features, p=self.validation_masking_probability
         )
 
@@ -318,3 +314,33 @@ class Zannone2019PretrainingModel(pl.LightningModule):
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.lr)
+
+class Zannone2019NNMaskedClassifier(NNMaskedClassifier):
+    """Wraps Zannone2019PretrainingModel to make it compatible with the NNMaskedClassifier interface."""
+
+    def __init__(self, pretrained_model: Zannone2019PretrainingModel):
+        super().__init__()
+        self.pretrained_model = pretrained_model
+
+    def forward(
+        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+    ) -> Logits:
+        encoding, mu, logvar, z= self.pretrained_model.partial_vae.encode(masked_features, feature_mask)
+        logits = self.pretrained_model.classifier(mu)
+        return logits
+
+
+class Zannone2019MaskedClassifier(MaskedClassifier):
+    """Wrap Zannone2019PretrainingModel to make it compatible with the MaskedClassifier interface."""
+
+    def __init__(self, pretrained_model: Zannone2019PretrainingModel):
+        self.pretrained_model  = pretrained_model
+
+    def __call__(self, masked_features: MaskedFeatures, feature_mask: FeatureMask) -> Logits:
+        model_device = next(self.pretrained_model.parameters()).device
+        masked_features = masked_features.to(model_device)
+        feature_mask = feature_mask.to(model_device)
+        with torch.no_grad():
+            encoding, mu, logvar, z= self.pretrained_model.partial_vae.encode(masked_features, feature_mask)
+            logits = self.pretrained_model.classifier(mu)
+        return logits

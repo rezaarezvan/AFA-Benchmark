@@ -4,7 +4,7 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 from torchrl.modules import MLP
-from afa_generative.afa_methods import EDDI, UniformSampler, IterativeSelector
+from afa_generative.afa_methods import EDDI, UniformSampler, IterativeSelector, Ma2018AFAMethod
 from afa_generative.utils import MaskLayer
 from afa_generative.models import PartialVAE, fc_Net
 from afa_generative.datasets import prepare_datasets
@@ -75,6 +75,7 @@ def main(pretrain_config_path: Path, dataset_type: str, train_dataset_path: Path
             nn.Identity(),
         ),
     )
+    pv = pv.to(device)
     pv.fit(train_loader=train_loader, 
            val_loader=val_loader, 
            lr=config.lr, 
@@ -105,15 +106,22 @@ def main(pretrain_config_path: Path, dataset_type: str, train_dataset_path: Path
         loss_fn=nn.CrossEntropyLoss(),
         patience=5,
         verbose=True)
-    
-    # Set up EDDI feature selection object.
-    eddi_selector = EDDI(pv, model, mask_layer, 'classification').to(device)
 
-    # TODO save eddi and evaluate
+    eddi_selector = Ma2018AFAMethod(pv, model)
+    eddi_selector.save(pretrained_model_path)
+
+    with open(pretrained_model_path / "params.yml", "w") as file:
+        yaml.dump({
+            "dataset_type": dataset_type,
+            "train_dataset_path": str(train_dataset_path),
+            "val_dataset_path": str(val_dataset_path),
+            "seed": seed,
+        }, file)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--pretrain_config", type=str, required=True)
+    parser.add_argument("--pretrain_config_path", type=str,
+                        default="configs/ma2018/pretrain_ma2018.yml")
     parser.add_argument("--dataset_type", type=str, required=True, choices=AFA_DATASET_REGISTRY.keys())
     parser.add_argument("--train_dataset_path", type=Path, required=True)
     parser.add_argument("--val_dataset_path", type=Path, required=True)
@@ -122,7 +130,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(
-        pretrain_config_path=args.pretrain_config,
+        pretrain_config_path=args.pretrain_config_path,
         dataset_type=args.dataset_type,
         train_dataset_path=args.train_dataset_path,
         val_dataset_path=args.val_dataset_path,

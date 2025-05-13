@@ -9,34 +9,50 @@ from coolname import generate_slug
 import yaml
 from tqdm import tqdm
 import time
+from collections import defaultdict
+from typing import Callable, Container, NamedTuple
 
 from common.utils import get_folders_with_matching_params
 
 
-def are_jobs_finished(job_ids: list[int]) -> bool:
-    """Check if all jobs in job_ids are finished."""
-    for job_id in job_ids:
-        result = subprocess.run(
-            ["squeue", "--job", str(job_id)],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-        if result.returncode != 0:
-            print(f"Error checking job {job_id}: {result.stderr}")
-            continue
-        if str(job_id) in str(result.stdout):
-            return False
-    return True
+class PretrainJobConfig(NamedTuple):
+    dataset_type: str
+    split: int
+    seed: int
 
 
-def wait_for_jobs(job_ids: list[int]) -> None:
+class TrainJobConfig(NamedTuple):
+    dataset_type: str
+    split: int
+    seed: int
+    hard_budget: int
+
+
+class JobConfig(NamedTuple):
+    dataset_type: str
+    split: int
+    seed: int
+    hard_budget: int | None  # only used for training jobs
+
+
+def is_job_finished(job_id: str) -> bool:
+    """Check if the job with job_id is finished."""
+    result = subprocess.run(
+        ["squeue", "--job", job_id],
+        capture_output=True,
+        text=True,
+        check=False
+    )
+    # If the job ID is not found in the output, it means the job is finished
+    return job_id not in result.stdout
+
+
+def wait_for_jobs(job_ids: set[str]) -> None:
     """Wait for all jobs in job_ids to finish."""
     start_time = time.time()
-    # Use a progress bar to visualize job completion
+    completed_jobs = set()
     with tqdm(total=len(job_ids), desc="Jobs progress") as pbar:
-        completed_jobs = set()
-        while len(completed_jobs) < len(job_ids):
+        while len(job_ids - completed_jobs) > 0:
             elapsed_time = time.time() - start_time
             hours, remainder = divmod(int(elapsed_time), 3600)
             minutes, seconds = divmod(remainder, 60)
@@ -44,10 +60,118 @@ def wait_for_jobs(job_ids: list[int]) -> None:
                 f"Jobs progress (Elapsed: {hours:02}:{minutes:02}:{seconds:02})"
             )
             time.sleep(10)  # Sleep for 10 seconds
-            for job_id in job_ids:
-                if job_id not in completed_jobs and are_jobs_finished([job_id]):
+            for job_id in job_ids - completed_jobs:
+                if is_job_finished(job_id):
                     completed_jobs.add(job_id)
                     pbar.update(1)
+
+
+def get_suitable_pretrained_model(
+    pretrained_model_folder: Path, train_job_config: JobConfig
+) -> Path:
+    """Find a suitable pretrained model for the given training job configuration."""
+    # Find a pretrained model that has the same dataset_type, split and seed
+    pretrained_model_folders = get_folders_with_matching_params(
+        pretrained_model_folder,
+        {
+            "dataset_type": train_job_config.dataset_type,
+            "train_dataset_path": f"data/{train_job_config.dataset_type}/train_split_{train_job_config.split}.pt",
+            "val_dataset_path": f"data/{train_job_config.dataset_type}/val_split_{train_job_config.split}.pt",
+            "seed": train_job_config.seed,
+        },
+    )
+    # There should be exactly one pretrained model
+    assert len(pretrained_model_folders) == 1, (
+        f"Found {len(pretrained_model_folders)} pretrained models for dataset_type={train_job_config.dataset_type}, split={train_job_config.split}, seed={train_job_config.seed} at {pretrained_model_folder}. Expected 1."
+    )
+    pretrained_model_path = pretrained_model_folders[0]
+
+    return pretrained_model_path
+
+
+def submit_job(
+    job_config: JobConfig,
+    env_vars: str,
+    job_path: Path,
+    job_type: str,
+    slug: str
+) -> str:
+    result = subprocess.run(
+        ["sbatch", f"--export={env_vars}", job_path],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    output = result.stdout.strip()
+    job_id = output.split()[-1]
+    print(
+        f"Submitted {job_type} job {slug} with ID {job_id} for dataset_type={job_config.dataset_type}, split={job_config.split}, seed={job_config.seed}"
+        + (
+            f", hard_budget={job_config.hard_budget}"
+            if hasattr(job_config, "hard_budget")
+            else ""
+        )
+    )
+    return job_id
+
+
+def process_jobs(
+    job_configs: set[JobConfig],
+    job_config_to_slug: dict[JobConfig, str],
+    job_config_to_id: dict[JobConfig, str],
+    job_path: Path,
+    job_type: str,
+    generate_env_vars: Callable[[JobConfig, str, Path], str],
+    status_folder: Path,
+    retry_jobs: bool = False
+) -> None:
+    """Process a set of jobs by submitting them to SLURM, waiting for completion, and optionally retrying failed jobs.
+
+    Args:
+        job_configs (set): Set of job configurations.
+        job_config_to_slug (dict): Mapping of job configurations to unique slugs.
+        job_config_to_id (dict): Mapping of job configurations to SLURM job IDs.
+        job_path (Path): Path to the job script.
+        job_type (str): Type of the job (e.g., "pretraining" or "training").
+        generate_env_vars (callable): Function to generate environment variables for a job configuration.
+        status_folder (Path): Folder where status files are stored.
+        retry_jobs (bool): Whether to retry failed jobs. Defaults to False.
+
+    """
+    remaining_job_configs = set(job_configs)
+
+    while remaining_job_configs:
+        for job_config in remaining_job_configs:
+            slug = job_config_to_slug[job_config]
+            status_file = status_folder / slug / "status.txt"
+            env_vars = generate_env_vars(job_config, slug, status_file)
+            job_id = submit_job(job_config, env_vars, job_path, job_type, slug)
+            job_config_to_id[job_config] = job_id
+
+        wait_for_jobs(
+            {job_config_to_id[job_config] for job_config in remaining_job_configs}
+        )
+
+        if not retry_jobs:
+            break
+
+        completed_jobs = set()
+        for job_config in remaining_job_configs:
+            status_file = status_folder / job_config_to_slug[job_config] / "status.txt"
+            job_id = job_config_to_id[job_config]
+            if status_file.exists() and status_file.read_text().strip() == "success":
+                completed_jobs.add(job_config)
+            else:
+                print(
+                    f"Job {job_id} for dataset_type={job_config.dataset_type}, split={job_config.split}, seed={job_config.seed}"
+                    + (
+                        f", hard_budget={job_config.hard_budget}"
+                        if hasattr(job_config, "hard_budget")
+                        else ""
+                    )
+                    + " failed. Retrying."
+                )
+        remaining_job_configs -= completed_jobs
 
 
 def main(
@@ -63,6 +187,7 @@ def main(
     method_folder: Path,
     pretrain_job_path: Path,
     train_job_path: Path,
+    retry_jobs: bool = False,
 ) -> None:
     """Run pretraining and training jobs on SLURM for a given set of parameters.
 
@@ -79,96 +204,96 @@ def main(
         method_folder (Path): Path to the folder where trained methods will be stored.
         pretrain_job_path (Path): Path to the pretrain job script.
         train_job_path (Path): Path to the train job script.
+        retry_jobs (bool): Whether to retry failed jobs. Defaults to False.
 
     """
     if pretrain:
-        pretraining_job_ids = []
+        pretrain_job_configs: set[JobConfig] = {
+            JobConfig(
+                dataset_type=dataset_type, split=split, seed=seed, hard_budget=None
+            )
+            for dataset_type in dataset_types
+            for split in splits
+            for seed in seeds
+        }
+        pretrain_job_config_to_slug: dict[JobConfig, str] = defaultdict(
+            lambda: generate_slug(2)
+        )
+        pretrain_job_config_to_id: dict[JobConfig, str] = {}
 
-        for dataset_type in dataset_types:
-            for split in splits:
-                for seed in seeds:
-                    slug = generate_slug(2)
-                    env_vars: str = (
-                        f"pretrain_config_path={pretrain_config_path},"
-                        f"dataset_type={dataset_type},"
-                        f"train_dataset_path=data/{dataset_type}/train_split_{split}.pt,"
-                        f"val_dataset_path=data/{dataset_type}/val_split_{split}.pt,"
-                        f"pretrained_model_path={pretrained_model_folder / slug},"
-                        f"seed={seed}"
-                    )
-                    result = subprocess.run(
-                        ["sbatch", f"--export={env_vars}", pretrain_job_path],
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        text=True,
-                    )
-                    assert result.returncode == 0, (
-                        f"Error submitting job: {result.stderr}"
-                    )
-                    output = result.stdout.strip()
-                    job_id = output.split()[-1]  # Extract the job ID from the output
-                    print(
-                        f"Submitted pretraining job with ID {job_id} for dataset_type={dataset_type}, split={split}, seed={seed}"
-                    )
-                    pretraining_job_ids.append(job_id)
+        def generate_pretrain_env_vars(
+            job_config: JobConfig, slug: str, status_file: Path
+        ) -> str:
+            return (
+                f"pretrain_config_path={pretrain_config_path},"
+                f"dataset_type={job_config.dataset_type},"
+                f"train_dataset_path=data/{job_config.dataset_type}/train_split_{job_config.split}.pt,"
+                f"val_dataset_path=data/{job_config.dataset_type}/val_split_{job_config.split}.pt,"
+                f"pretrained_model_path={pretrained_model_folder / slug},"
+                f"seed={job_config.seed},"
+                f"status_file={status_file}"
+            )
 
-        wait_for_jobs(pretraining_job_ids)
+        process_jobs(
+            pretrain_job_configs,
+            pretrain_job_config_to_slug,
+            pretrain_job_config_to_id,
+            pretrain_job_path,
+            "pretraining",
+            generate_pretrain_env_vars,
+            pretrained_model_folder,
+            retry_jobs=retry_jobs,
+        )
 
         print("Pretraining finished, now starting training.")
 
     if train:
-        training_job_ids = []
-        for dataset_type in dataset_types:
-            for split in splits:
-                for seed in seeds:
-                    # Find a pretrained model that has the same dataset_type, split and seed
-                    pretrained_model_folders = get_folders_with_matching_params(
-                        pretrained_model_folder,
-                        {
-                            "dataset_type": dataset_type,
-                            "train_dataset_path": f"data/{dataset_type}/train_split_{split}.pt",
-                            "val_dataset_path": f"data/{dataset_type}/val_split_{split}.pt",
-                            "seed": seed,
-                        },
-                    )
-                    # There should be exactly one pretrained model
-                    assert len(pretrained_model_folders) == 1, (
-                        f"Found {len(pretrained_model_folders)} pretrained models for dataset_type={dataset_type}, split={split}, seed={seed} at {pretrained_model_folder}. Expected 1."
-                    )
-                    pretrained_model_path = pretrained_model_folders[0]
+        train_job_configs: set[JobConfig] = {
+            JobConfig(
+                dataset_type=dataset_type,
+                split=split,
+                seed=seed,
+                hard_budget=hard_budget,
+            )
+            for dataset_type in dataset_types
+            for split in splits
+            for seed in seeds
+            for hard_budget in hard_budgets[dataset_type]
+        }
+        train_job_config_to_slug: dict[JobConfig, str] = defaultdict(
+            lambda: generate_slug(2)
+        )
+        train_job_config_to_id: dict[JobConfig, str] = {}
 
-                    for hard_budget in hard_budgets[dataset_type]:
-                        slug = generate_slug(2)
-                        env_vars: str = (
-                            f"pretrain_config={pretrain_config_path},"
-                            f"train_config={train_config_path},"
-                            f"dataset_type={dataset_type},"
-                            f"train_dataset_path=data/{dataset_type}/train_split_{split}.pt,"
-                            f"val_dataset_path=data/{dataset_type}/val_split_{split}.pt,"
-                            f"pretrained_model_path={pretrained_model_path},"
-                            f"hard_budget={hard_budget},"
-                            f"seed={seed},"
-                            f"afa_method_path={method_folder / slug}"
-                        )
-                        result = subprocess.run(
-                            ["sbatch", f"--export={env_vars}", train_job_path],
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE,
-                            text=True,
-                        )
-                        assert result.returncode == 0, (
-                            f"Error submitting job: {result.stderr}"
-                        )
-                        output = result.stdout.strip()
-                        job_id = output.split()[
-                            -1
-                        ]  # Extract the job ID from the output
-                        training_job_ids.append(job_id)
-                        print(
-                            f"Submitted training job with ID {job_id} for dataset_type={dataset_type}, split={split}, seed={seed}, hard_budget={hard_budget}"
-                        )
+        def generate_train_env_vars(
+            job_config: JobConfig, slug: str, status_file: Path
+        ) -> str:
+            pretrained_model_path = get_suitable_pretrained_model(
+                pretrained_model_folder, job_config
+            )
+            return (
+                f"pretrain_config={pretrain_config_path},"
+                f"train_config={train_config_path},"
+                f"dataset_type={job_config.dataset_type},"
+                f"train_dataset_path=data/{job_config.dataset_type}/train_split_{job_config.split}.pt,"
+                f"val_dataset_path=data/{job_config.dataset_type}/val_split_{job_config.split}.pt,"
+                f"pretrained_model_path={pretrained_model_path},"
+                f"hard_budget={job_config.hard_budget},"
+                f"seed={job_config.seed},"
+                f"afa_method_path={method_folder / slug},"
+                f"status_file={status_file}"
+            )
 
-        wait_for_jobs(training_job_ids)
+        process_jobs(
+            train_job_configs,
+            train_job_config_to_slug,
+            train_job_config_to_id,
+            train_job_path,
+            "training",
+            generate_train_env_vars,
+            method_folder,
+            retry_jobs=retry_jobs,
+        )
 
         print("Training finished.")
 
@@ -216,6 +341,12 @@ if __name__ == "__main__":
         default=Path("configs/shim2018/pipeline.yml"),
         help="Path to the slurm pipeline configuration file",
     )
+    parser.add_argument(
+        "--retry_jobs",
+        action="store_true",
+        help="Retry failed jobs",
+        default=False,
+    )
     args = parser.parse_args()
 
     # Validate paths
@@ -226,7 +357,7 @@ if __name__ == "__main__":
     )
 
     # Load pipeline config
-    with open(args.pipeline_config_path, "r") as config_file:
+    with open(args.pipeline_config_path) as config_file:
         config = yaml.safe_load(config_file)
 
     main(
@@ -242,4 +373,5 @@ if __name__ == "__main__":
         method_folder=args.method_folder,
         pretrain_job_path=config["pretrain_job_path"],
         train_job_path=config["train_job_path"],
+        retry_jobs=args.retry_jobs,
     )

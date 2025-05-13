@@ -364,7 +364,7 @@ class Covert2023AFAMethod(AFAMethod):
         logits = selector(x_masked).flatten(1)
         logits = logits - 1e6 * feature_mask
         # TODO Do we need +1 here?
-        next_feature_idx = logits.argmax(dim=1) + 1
+        next_feature_idx = logits.argmax(dim=1)
         return next_feature_idx
     
     @classmethod
@@ -697,7 +697,7 @@ class Gadgil2023AFAMethod(AFAMethod):
         pred_cmi = value_network(x_masked).sigmoid() * entropy
         # check_pos_pred_cmi = pred_cmi.max(dim=1).values >= 0
         pred_cmi -= 1e6 * feature_mask
-        next_feature_idx = torch.argmax(pred_cmi, dim=1) + 1
+        next_feature_idx = torch.argmax(pred_cmi, dim=1)
         # selection = ind_to_onehot(next_feature_idx, masked_features.shape[-1])
 
         # if sum(check_pos_pred_cmi) == 0:

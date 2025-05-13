@@ -2,7 +2,7 @@
 #SBATCH --account=NAISS2025-22-448 -p alvis
 #SBATCH -N 1 --gpus-per-node=T4:1
 #SBATCH -t 24:00:00
-#SBATCH --output=/mimer/NOBACKUP/groups/meta-project/projects/AFA-Benchmark/logs/slurm/train_gadgil2023_%j.out
+#SBATCH --output=/mimer/NOBACKUP/groups/active-learning/projects/AFA-Benchmark/logs/slurm/train_gadgil2023_%j.out
 
 module load virtualenv
 
@@ -15,4 +15,6 @@ uv run src/afa_discriminative/scripts/train_gadgil2023.py \
     --pretrained_model_path $pretrained_model_path \
     --hard_budget $hard_budget \
     --seed $seed \
-    --afa_method_path $afa_method_path
+    --afa_method_path $afa_method_path && \
+echo "Saved model to $afa_method_path. Writing to $status_file ..."
+echo "success" > $status_file

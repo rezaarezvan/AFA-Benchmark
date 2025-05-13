@@ -2,7 +2,7 @@
 #SBATCH --account=NAISS2025-22-448 -p alvis
 #SBATCH -N 1 --gpus-per-node=T4:1
 #SBATCH --time 24:00:00
-#SBATCH --output=/mimer/NOBACKUP/groups/meta-project/projects/AFA-Benchmark/logs/slurm/pretrain_covert2023_%j.out
+#SBATCH --output=/mimer/NOBACKUP/groups/active-learning/projects/AFA-Benchmark/logs/slurm/pretrain_covert2023_%j.out
 
 module load virtualenv
 
@@ -12,4 +12,6 @@ uv run src/afa_discriminative/scripts/pretrain_covert2023.py \
     --train_dataset_path $train_dataset_path \
     --val_dataset_path $val_dataset_path \
     --pretrained_model_path $pretrained_model_path \
-    --seed $seed
+    --seed $seed && \
+echo "Saved model to $pretrained_model_path. Writing to $status_file ..." && \
+echo "success" > $status_file

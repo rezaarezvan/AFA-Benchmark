@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import torch
+from torch import nn
 import yaml
 from jaxtyping import Float
 from tensordict import TensorDictBase
@@ -11,7 +12,7 @@ from torch import Tensor, optim
 from torch.nn import functional as F
 from torchrl.collectors import SyncDataCollector
 from torchrl.envs import ExplorationType, check_env_specs, set_exploration_type
-from torchrl_agents import Agent
+from afa_rl.agents import Agent
 from tqdm import tqdm
 
 import wandb
@@ -20,70 +21,60 @@ from afa_rl.afa_methods import RLAFAMethod
 from afa_rl.shim2018.agents import Shim2018Agent
 from afa_rl.custom_types import MaskedClassifier
 from afa_rl.datasets import get_afa_dataset_fn
-from afa_rl.shim2018.models import Shim2018MaskedClassifier, Shim2018NNMaskedClassifier
+from afa_rl.shim2018.models import (
+    LitShim2018EmbedderClassifier,
+    Shim2018MaskedClassifier,
+    Shim2018NNMaskedClassifier,
+)
 from afa_rl.shim2018.scripts.pretrain_shim2018 import get_shim2018_model_from_config
+from afa_rl.utils import (
+    afacontext_optimal_selection,
+    check_masked_classifier_performance,
+    module_norm,
+    resolve_dataset_config,
+)
 from common.custom_types import (
     AFADataset,
 )
+from common.models import LitMaskedClassifier, MaskedMLPClassifier
 from common.utils import dict_to_namespace, get_class_probabilities, set_seed
 
 
-def check_masked_classifier_performance(
-    masked_classifier: MaskedClassifier,
-    dataset: AFADataset,
-    class_weights: Float[Tensor, "n_classes"],
-):
-    """
-    Check that a masked classifier has decent performance on the dataset.
-    """
-    # model_device = next(masked_classifier.parameters()).device
-    # Calculate average accuracy over the whole dataset
-    with torch.no_grad():
-        # Get the features and labels from the dataset
-        features, labels = dataset.get_all_data()
-        # features = features.to(model_device)
-        # labels = labels.to(model_device)
-
-        # Allow masked classifier to look at *all* features
-        masked_features_all = features
-        feature_mask_all = torch.ones_like(
-            features,
-            dtype=torch.bool,
-            # device=model_device
-        )
-        logits_all = masked_classifier(masked_features_all, feature_mask_all).cpu()
-        accuracy_all = (
-            (logits_all.argmax(dim=-1) == labels.argmax(dim=-1)).float().mean()
-        )
-
-        # Same thing, but only allow masked classifier to look at 50% of the features
-        feature_mask_half = torch.randint(0, 2, feature_mask_all.shape)
-        masked_features_half = features.clone()
-        masked_features_half[feature_mask_half == 0] = 0
-        logits_half = masked_classifier(masked_features_half, feature_mask_half).cpu()
-        accuracy_half = (
-            (logits_half.argmax(dim=-1) == labels.argmax(dim=-1)).float().mean()
-        )
-
-        # Calculate the loss for the 50% feature case. Useful for setting acquisition costs
-        loss_half = F.cross_entropy(logits_half, labels.float(), weight=class_weights)
-
-        print(
-            f"Embedder and classifier accuracy with all features: {accuracy_all.item() * 100:.2f}%"
-        )
-        print(
-            f"Embedder and classifier accuracy with 50% features: {accuracy_half.item() * 100:.2f}%"
-        )
-        print(f"Average cross-entropy loss with 50% features: {loss_half.item():.4f}")
-
-
-def get_eval_metrics(eval_tds: list[TensorDictBase]) -> dict[str, Any]:
+def get_eval_metrics(
+    eval_tds: list[TensorDictBase], masked_classifier: MaskedClassifier
+) -> dict[str, Any]:
     eval_metrics = {}
     eval_metrics["reward_sum"] = 0.0
+    eval_metrics["actions"] = []
+    n_correct_samples = 0
     for td in eval_tds:
+        td = td.cpu()
         eval_metrics["reward_sum"] += td["next", "reward"].sum()
+        eval_metrics["actions"].extend(td["action"].tolist())
+        # Check whether prediction is correct
+        td_end = td[-1:]
+        logits = masked_classifier(
+            td_end["next", "masked_features"], td_end["next", "feature_mask"]
+        )
+        if logits.argmax(dim=-1) == td_end["label"].argmax(dim=-1):
+            n_correct_samples += 1
     eval_metrics["reward_sum"] /= len(eval_tds)
+    eval_metrics["actions"] = wandb.Histogram(eval_metrics["actions"], num_bins=20)
+    eval_metrics["accuracy"] = n_correct_samples / len(eval_tds)
     return eval_metrics
+
+
+def afacontext_benchmark_policy(
+    tensordict: TensorDictBase,
+) -> TensorDictBase:
+    """Select features optimally in AFAContext."""
+    masked_features = tensordict["masked_features"]
+    feature_mask = tensordict["feature_mask"]
+
+    selection = afacontext_optimal_selection(masked_features, feature_mask)
+
+    tensordict["action"] = selection
+    return tensordict
 
 
 def main(
@@ -101,14 +92,16 @@ def main(
     torch.set_float32_matmul_precision("medium")
 
     # Load train config
-    with open(train_config_path, "r") as file:
+    with open(train_config_path) as file:
         train_config_dict: dict = yaml.safe_load(file)
+    train_config_dict = resolve_dataset_config(train_config_dict, dataset_type)
     train_config = dict_to_namespace(train_config_dict)
     device = torch.device(train_config.device)
 
     # Load pretrain config
-    with open(pretrain_config_path, "r") as file:
+    with open(pretrain_config_path) as file:
         pretrain_config_dict: dict = yaml.safe_load(file)
+    pretrain_config_dict = resolve_dataset_config(pretrain_config_dict, dataset_type)
     pretrain_config = dict_to_namespace(pretrain_config_dict)
 
     # Import is delayed until now to avoid circular imports
@@ -134,18 +127,30 @@ def main(
     embedder_and_classifier.load_state_dict(
         embedder_classifier_checkpoint["state_dict"]
     )
+    embedder_and_classifier.eval()
     embedder_and_classifier = embedder_and_classifier.to(device)
-    embedder = embedder_and_classifier.embedder
-    classifier = embedder_and_classifier.classifier
+    # embedder = embedder_and_classifier.embedder
+    # classifier = embedder_and_classifier.classifier
+    # pretrained_model = LitMaskedClassifier.load_from_checkpoint(
+    #     pretrained_model_path / "model.pt",
+    #     map_location=device,
+    #     strict=False,
+    #     classifier=MaskedMLPClassifier(
+    #         n_features=n_features,
+    #         n_classes=n_classes,
+    #     )
+    # )
+    # masked_classifier = pretrained_model.classifier
+    # masked_classifier = masked_classifier.to(device)
 
-    embedder_classifier_optim = optim.Adam(
-        embedder_and_classifier.parameters(), lr=train_config.embedder_classifier.lr
+    embedder_and_classifier_optim = optim.Adam(
+        embedder_and_classifier.parameters(), lr=train_config.pretrained_model.lr
     )
 
-    # Check that embedder+classifier indeed have decent performance
+    # Check that the pretrained model indeed has decent performance
     class_weights = 1 / train_class_probabilities
     class_weights = class_weights / class_weights.sum()
-    class_weights_device = class_weights.to(device)
+    class_weights = class_weights.to(device)
     check_masked_classifier_performance(
         masked_classifier=Shim2018MaskedClassifier(embedder_and_classifier),
         dataset=val_dataset,
@@ -154,8 +159,8 @@ def main(
 
     # The RL reward function depends on a specific AFAClassifier
     reward_fn = get_common_reward_fn(
-        Shim2018MaskedClassifier(embedder_and_classifier),
-        loss_fn=partial(F.cross_entropy, weight=class_weights_device),
+        Shim2018NNMaskedClassifier(embedder_and_classifier),
+        loss_fn=partial(F.cross_entropy, weight=class_weights),
     )
 
     # MDP expects special dataset functions
@@ -184,16 +189,17 @@ def main(
     )
 
     agent: Agent = Shim2018Agent(
-        embedder=embedder,
+        embedder=embedder_and_classifier.embedder,
         embedding_size=pretrain_config.encoder.output_size,
+        n_features=n_features,
         action_mask_key="action_mask",
         action_spec=train_env.action_spec,
         _device=device,
         gamma=1.0,
         loss_function="l2",
-        delay_value=True,
-        double_dqn=True,
-        eps_annealing_num_batches=train_config.n_batches,
+        delay_value=train_config.agent.delay_value,
+        double_dqn=train_config.agent.double_dqn,
+        eps_annealing_num_batches=train_config.agent.eps_steps,
         eps_init=train_config.agent.eps_init,
         eps_end=train_config.agent.eps_end,
         update_tau=train_config.agent.update_tau,
@@ -207,8 +213,13 @@ def main(
         replay_buffer_beta_init=train_config.agent.replay_buffer_beta_init,
         replay_buffer_beta_end=train_config.agent.replay_buffer_beta_end,
         replay_buffer_beta_annealing_num_batches=train_config.n_batches,
-        init_random_frames=0,
+        init_random_frames=train_config.agent.init_random_frames,
     )
+
+    # Manual debugging
+    td = train_env.reset()
+    td = agent.policy(td)
+    td = train_env.step(td)
 
     collector = SyncDataCollector(
         train_env,
@@ -224,6 +235,24 @@ def main(
         project=train_config.wandb.project,
     )
 
+    # TEMP: check how large the loss difference is between good and bad policies
+    # features, label = train_dataset[42]
+    # bad_feature_mask = torch.zeros_like(features)
+    # bad_feature_mask[-4:] = 1
+    # bad_masked_features = features * bad_feature_mask
+    # bad_logits = masked_classifier(bad_masked_features.unsqueeze(0).to(device), bad_feature_mask.unsqueeze(0).to(device))
+    # bad_loss = F.cross_entropy(bad_logits.cpu(), label.unsqueeze(0))
+    # print(f"Bad loss: {bad_loss.item()}")
+
+    # good_feature_mask = torch.zeros_like(features)
+    # good_feature_mask[0] = 1
+    # context = features[0].int().item()
+    # good_feature_mask[1+context*3:4+context*3] = 1
+    # good_masked_features = features * good_feature_mask
+    # good_logits = masked_classifier(good_masked_features.unsqueeze(0).to(device), good_feature_mask.unsqueeze(0).to(device))
+    # good_loss = F.cross_entropy(good_logits.cpu(), label.unsqueeze(0))
+    # print(f"Good loss: {good_loss.item()}")
+
     # Training loop
     try:
         for batch_idx, td in tqdm(
@@ -233,15 +262,24 @@ def main(
             td = td.flatten(start_dim=0, end_dim=1)
             loss_info = agent.process_batch(td)
 
-            # Train classifier and embedder jointly
-            embedder_classifier_optim.zero_grad()
-            embedding = embedder(td["masked_features"], td["feature_mask"])
-            logits = classifier(embedding)
-            class_loss = F.cross_entropy(
-                logits, td["label"], weight=class_weights_device
-            )
-            class_loss.mean().backward()
-            embedder_classifier_optim.step()
+            # Train classifier and embedder jointly if we have reached the correct batch
+            if batch_idx >= train_config.activate_joint_training_after_n_batches:
+                embedder_and_classifier.train()
+                embedder_and_classifier_optim.zero_grad()
+
+                embedding_next, logits_next = embedder_and_classifier(
+                    td["next", "masked_features"], td["next", "feature_mask"]
+                )
+                class_loss_next = F.cross_entropy(logits_next, td["next", "label"], weight=class_weights)
+                class_loss_next.mean().backward()
+
+                embedder_and_classifier_optim.step()
+                embedder_and_classifier.eval()
+            else:
+                class_loss_next = torch.zeros(
+                    (1,), device=device, dtype=torch.float32
+                )
+
 
             # Log training info
             run.log(
@@ -250,7 +288,19 @@ def main(
                     for k, v in (
                         loss_info
                         | agent.get_train_info()
-                        | {"reward": td["next", "reward"].mean().item()}
+                        | {
+                            "reward": td["next", "reward"].mean().item(),
+                            # "action value": td["action_value"].mean().item(),
+                            "chosen action value": td["chosen_action_value"]
+                            .mean()
+                            .item(),
+                            # "actions": wandb.Histogram(
+                            #     td["action"].tolist(), num_bins=20
+                            # ),
+                        }
+                        | {
+                            "class_loss": class_loss_next.mean().cpu().item()
+                        }
                     ).items()
                 },
             )
@@ -260,21 +310,56 @@ def main(
                     torch.no_grad(),
                     set_exploration_type(ExplorationType.DETERMINISTIC),
                 ):
+                    if batch_idx == 10000:  # TEMP
+                        pass
                     # HACK: Set the action spec of the agent to the eval env action spec
                     agent.egreedy_module._spec = eval_env.action_spec
                     td_evals = [
-                        eval_env.rollout(train_config.eval_max_steps, agent.policy)
+                        eval_env.rollout(
+                            train_config.eval_max_steps, agent.policy
+                        ).squeeze(0)
+                        for _ in tqdm(
+                            range(train_config.n_eval_episodes), desc="Evaluating"
+                        )
+                    ]
+                    benchmark_td_evals = [
+                        eval_env.rollout(
+                            train_config.eval_max_steps, afacontext_benchmark_policy
+                        ).squeeze(0)
                         for _ in tqdm(
                             range(train_config.n_eval_episodes), desc="Evaluating"
                         )
                     ]
                     # Reset the action spec of the agent to the train env action spec
                     agent.egreedy_module._spec = train_env.action_spec
-                metrics_eval = get_eval_metrics(td_evals)
+                metrics_eval = get_eval_metrics(
+                    td_evals, Shim2018MaskedClassifier(embedder_and_classifier)
+                )
+                benchmark_metrics_eval = get_eval_metrics(
+                    benchmark_td_evals,
+                    Shim2018MaskedClassifier(embedder_and_classifier),
+                )
                 run.log(
                     {
-                        f"eval/{k}": v
-                        for k, v in (metrics_eval | agent.get_eval_info()).items()
+                        **{
+                            f"eval/{k}": v
+                            for k, v in (
+                                metrics_eval
+                                | agent.get_eval_info()
+                                | {
+                                    "classifier_norm": module_norm(
+                                        embedder_and_classifier.classifier
+                                    ),
+                                    "embedder_norm": module_norm(
+                                        embedder_and_classifier.embedder
+                                    ),
+                                }
+                            ).items()
+                        },
+                        **{
+                            f"benchmark_eval/{k}": v
+                            for k, v in benchmark_metrics_eval.items()
+                        },
                     }
                 )
 
@@ -283,12 +368,22 @@ def main(
     finally:
         run.finish()
 
-        # Check that embedder+classifier still have decent performance
+        # Check performance in the end, after joint training
         check_masked_classifier_performance(
             masked_classifier=Shim2018MaskedClassifier(embedder_and_classifier),
             dataset=val_dataset,
             class_weights=class_weights,
         )
+        # HACK: Set the action spec of the agent to the eval env action spec
+        agent.egreedy_module._spec = eval_env.action_spec
+        with torch.no_grad():
+            td_evals = [
+                eval_env.rollout(train_config.eval_max_steps, agent.policy).squeeze(0)
+                for _ in tqdm(range(train_config.n_eval_episodes), desc="Evaluating")
+            ]
+        # Reset the action spec of the agent to the train env action spec
+        agent.egreedy_module._spec = train_env.action_spec
+        metrics_eval = get_eval_metrics(td_evals, Shim2018MaskedClassifier(embedder_and_classifier))
 
         # Convert the embedder+agent to an AFAMethod and save it
         afa_method = RLAFAMethod(
@@ -318,13 +413,6 @@ def main(
             afa_method_path / "model.pt", device=torch.device("cpu")
         )
 
-        # Check that the classifier still has decent performance
-        check_masked_classifier_performance(
-            masked_classifier=afa_method.classifier,
-            dataset=val_dataset,
-            class_weights=class_weights,
-        )
-
 
 if __name__ == "__main__":
     from common.registry import AFA_DATASET_REGISTRY
@@ -334,32 +422,39 @@ if __name__ == "__main__":
     parser.add_argument(
         "--pretrain_config_path",
         type=Path,
-        required=True,
+        default="configs/shim2018/pretrain_shim2018.yml",
         help="Path to YAML config file used for pretraining",
     )
     parser.add_argument(
         "--train_config_path",
         type=Path,
-        required=True,
+        default="configs/shim2018/train_shim2018.yml",
         help="Path to YAML config file for this training",
     )
     parser.add_argument(
-        "--dataset_type", type=str, required=True, choices=AFA_DATASET_REGISTRY.keys()
+        "--dataset_type",
+        type=str,
+        default="AFAContext",
+        choices=AFA_DATASET_REGISTRY.keys(),
     )
-    parser.add_argument("--train_dataset_path", type=Path, required=True)
-    parser.add_argument("--val_dataset_path", type=Path, required=True)
+    parser.add_argument(
+        "--train_dataset_path", type=Path, default="data/AFAContext/train_split_1.pt"
+    )
+    parser.add_argument(
+        "--val_dataset_path", type=Path, default="data/AFAContext/val_split_1.pt"
+    )
     parser.add_argument(
         "--pretrained_model_path",
         type=Path,
-        required=True,
+        default="models/pretrained/shim2018/temp",
         help="Path to pretrained model folder",
     )
-    parser.add_argument("--hard_budget", type=int, required=True)
-    parser.add_argument("--seed", type=int, required=True)
+    parser.add_argument("--hard_budget", type=int, default=4)
+    parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
         "--afa_method_path",
         type=Path,
-        required=True,
+        default="models/methods/shim2018/temp",
         help="Path to folder to save the trained AFA method",
     )
     args = parser.parse_args()

@@ -1,0 +1,38 @@
+#!/usr/bin/bash
+#SBATCH --account=NAISS2025-22-448 -p alvis
+#SBATCH -N 1 --gpus-per-node=T4:1
+#SBATCH -t 24:00:00
+#SBATCH --output=/mimer/NOBACKUP/groups/meta-project/projects/AFA-Benchmark/logs/slurm/train_shim2018_%j.out
+
+module load virtualenv
+
+dataset_type=AFAContext
+train_dataset_path=data/AFAContext/train_split_1.pt
+val_dataset_path=data/AFAContext/val_split_1.pt
+pretrained_model_path=models/pretrained/shim2018/temp
+hard_budget=4
+seed=42
+afa_method_path=models/methods/shim2018/temp
+status_file=status.txt
+
+if uv run src/afa_rl/shim2018/scripts/train_shim2018.py \
+    --pretrain_config configs/shim2018/pretrain_shim2018.yml \
+    --train_config configs/shim2018/train_shim2018.yml \
+    --dataset_type $dataset_type \
+    --train_dataset_path $train_dataset_path \
+    --val_dataset_path $val_dataset_path \
+    --pretrained_model_path $pretrained_model_path \
+    --hard_budget $hard_budget \
+    --seed $seed \
+    --afa_method_path $afa_method_path; then
+    echo "Saved model to $afa_method_path. Writing to $status_file ..." && \
+    echo "success" > $status_file
+
+    # Add a suffix to the log file
+    suffix="_completed"
+    log_file="/mimer/NOBACKUP/groups/meta-project/projects/AFA-Benchmark/logs/slurm/train_shim2018_${SLURM_JOB_ID}.out"
+    mv "$log_file" "${log_file}${suffix}"
+else
+    echo "uv run failed. Writing failure to $status_file ..." && \
+    echo "failure" > $status_file
+fi
