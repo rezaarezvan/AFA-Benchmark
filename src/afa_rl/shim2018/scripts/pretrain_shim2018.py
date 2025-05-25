@@ -1,4 +1,5 @@
 import argparse
+import hydra
 from jaxtyping import Float
 import os
 from types import SimpleNamespace
@@ -23,6 +24,7 @@ from afa_rl.shim2018.models import (
     Shim2018MaskedClassifier,
 )
 from afa_rl.utils import check_masked_classifier_performance, resolve_dataset_config
+from common.config_classes import Shim2018PretrainConfig
 from common.custom_types import AFADataset
 from afa_rl.datasets import DataModuleFromDatasets
 from common.utils import dict_to_namespace, get_class_probabilities, set_seed
@@ -30,73 +32,58 @@ from pathlib import Path
 
 
 def get_shim2018_model_from_config(
-    config: SimpleNamespace,
+    cfg: Shim2018PretrainConfig,
     n_features: int,
     n_classes: int,
     class_probabiities: Float[Tensor, "n_classes"],
 ) -> LitShim2018EmbedderClassifier:
     encoder = ReadProcessEncoder(
         set_element_size=n_features + 1,  # state contains one value and one index
-        output_size=config.encoder.output_size,
-        reading_block_cells=config.encoder.reading_block_cells,
-        writing_block_cells=config.encoder.writing_block_cells,
-        memory_size=config.encoder.memory_size,
-        processing_steps=config.encoder.processing_steps,
-        dropout=config.encoder.dropout,
+        output_size=cfg.encoder.output_size,
+        reading_block_cells=cfg.encoder.reading_block_cells,
+        writing_block_cells=cfg.encoder.writing_block_cells,
+        memory_size=cfg.encoder.memory_size,
+        processing_steps=cfg.encoder.processing_steps,
+        dropout=cfg.encoder.dropout,
     )
     embedder = Shim2018Embedder(encoder)
-    # encoder = CopiedSetEncoder(
-    #     input_dim=21,
-    #     n_features=20,
-    #     embedder_hidden_sizes=[32, 32],
-    #     embedded_dim=16,
-    #     lstm_size=20,
-    #     n_shuffle=5,
-    #     simple=False,
-    #     proj_dim=16,
-    # )
-    # embedder = CopiedShim2018Embedder(encoder)
     classifier = Shim2018MLPClassifier(
-        config.encoder.output_size, n_classes, config.classifier.num_cells
+        cfg.encoder.output_size, n_classes, cfg.classifier.num_cells
     )
     lit_model = LitShim2018EmbedderClassifier(
         embedder=embedder,
         classifier=classifier,
         class_probabilities=class_probabiities,
-        max_masking_probability=config.max_masking_probability,
-        lr=config.embedder_classifier.lr,
+        max_masking_probability=cfg.max_masking_probability,
+        lr=cfg.lr,
     )
     return lit_model
 
 
-def main(
-    pretrain_config_path: Path,
-    dataset_type: str,
-    train_dataset_path: Path,
-    val_dataset_path: Path,
-    pretrained_model_path: Path,
-    seed: int,
-):
-    set_seed(seed)
+@hydra.main(version_base=None)
+def main(cfg: Shim2018PretrainConfig) -> None:
+    set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
 
-    # Load config from yaml file
-    with open(pretrain_config_path, "r") as file:
-        config_dict: dict = yaml.safe_load(file)
-
-    config_dict = resolve_dataset_config(config_dict, dataset_type)
-
-    config = dict_to_namespace(config_dict)
+    # Load dataset artifact
+    dataset_artifact = wandb.use_artifact(cfg.dataset_artifact_name, type="dataset")
+    dataset_artifact_dir = Path(dataset_artifact.download())
+    # The dataset dir should contain the files train.pt, val.pt and test.pt
+    assert {"train.pt", "val.pt", "test.pt"}.issubset(dataset_artifact_dir.iterdir()), (
+        "Dataset artifact must contain train.pt, val.pt and test.pt files."
+    )
 
     # Import is delayed until now to avoid circular imports
     from common.registry import AFA_DATASET_REGISTRY
 
-    train_dataset: AFADataset = AFA_DATASET_REGISTRY[dataset_type].load(
-        train_dataset_path
-    )
-    val_dataset: AFADataset = AFA_DATASET_REGISTRY[dataset_type].load(val_dataset_path)
+    train_dataset: AFADataset = AFA_DATASET_REGISTRY[
+        dataset_artifact.metadata.class_name
+    ].load(dataset_artifact_dir / "train.pt")
+    val_dataset: AFADataset = AFA_DATASET_REGISTRY[
+        dataset_artifact.metadata.class_name
+    ].load(dataset_artifact_dir / "val.pt")
     datamodule = DataModuleFromDatasets(
-        train_dataset, val_dataset, batch_size=config.dataloader.batch_size
+        train_dataset, val_dataset, batch_size=cfg.batch_size
     )
 
     # Get the number of features and classes from the dataset
@@ -106,12 +93,12 @@ def main(
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
     print(f"Class probabilities in training set: {train_class_probabilities}")
     lit_model = get_shim2018_model_from_config(
-        config, n_features, n_classes, train_class_probabilities
+        cfg, n_features, n_classes, train_class_probabilities
     )
-    lit_model = lit_model.to(config.device)
+    lit_model = lit_model.to(cfg.device)
 
-    class_weights = 1 / train_class_probabilities
-    class_weights = class_weights / class_weights.sum()
+    # class_weights = 1 / train_class_probabilities
+    # class_weights = class_weights / class_weights.sum()
     # Check accuracy before starting training
     # check_masked_classifier_performance(
     #     masked_classifier=Shim2018MaskedClassifier(lit_model),
@@ -124,102 +111,36 @@ def main(
         monitor="val_loss_full",  # Replace "val_loss" with the appropriate validation metric
         save_top_k=1,
         mode="min",
-        dirpath=pretrained_model_path,
-        filename="best-checkpoint",
+        # dirpath=pretrained_model_path,
+        # filename="best-checkpoint",
     )
 
-    logger = WandbLogger(project=config.wandb.project, save_dir="logs/afa_rl")
+    run = wandb.init(config=cfg)
+
+    logger = WandbLogger()
+    # logger = WandbLogger(project=config.wandb.project, save_dir="logs/afa_rl")
     trainer = pl.Trainer(
-        max_epochs=config.epochs,
+        max_epochs=cfg.epochs,
         logger=logger,
-        accelerator=config.device,
-        # devices=1,  # Use only 1 GPU
-        # strategy="ddp",
-        # accelerator=config.device,
+        accelerator=cfg.device,
         devices=1,  # Use only 1 GPU
         callbacks=[checkpoint_callback],
     )
 
-    # Find lr
-    # tuner = Tuner(trainer)
-    # lr_finder = tuner.lr_find(lit_model)
-
-    # if lr_finder is not None:
-    #     fig = lr_finder.plot(suggest=True)
-    #     if isinstance(fig, Figure):
-    #         fig.show()
-
-    run = wandb.init(
-        entity=config_dict["wandb"]["entity"],
-        project=config_dict["wandb"]["project"],
-        config=config_dict,
-    )
     try:
         trainer.fit(lit_model, datamodule)
     except KeyboardInterrupt:
         pass
     finally:
-        run.finish()
-        # Check performance
-        # check_masked_classifier_performance(
-        #     masked_classifier=Shim2018MaskedClassifier(lit_model),
-        #     dataset=val_dataset,
-        #     class_weights=class_weights,
-        # )
-        # Move the best checkpoint to the desired location
+        # Save best model as wandb artifact
         best_checkpoint = trainer.checkpoint_callback.best_model_path
-        pretrained_model_path.mkdir(parents=True, exist_ok=True)
-        torch.save(torch.load(best_checkpoint), pretrained_model_path / "model.pt")
-        # Save params.yml file
-        with open(pretrained_model_path / "params.yml", "w") as file:
-            yaml.dump(
-                {
-                    "dataset_type": dataset_type,
-                    "train_dataset_path": str(train_dataset_path),
-                    "val_dataset_path": str(val_dataset_path),
-                    "seed": seed,
-                },
-                file,
-            )
-        print(f"ShimEmbedderClassifier saved to {pretrained_model_path}")
+        pretrained_model_artifact = wandb.Artifact(
+            name=f"shim2018-{cfg.dataset_artifact_name}", type="pretrained_model"
+        )
+        pretrained_model_artifact.add_file(local_path=best_checkpoint)
+        run.log_artifact(pretrained_model_artifact)
+        run.finish()
 
 
 if __name__ == "__main__":
-    from common.registry import AFA_DATASET_REGISTRY
-
-    # Use argparse to choose config file
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--pretrain_config_path",
-        type=Path,
-        default="configs/shim2018/pretrain_shim2018.yml",
-    )
-    parser.add_argument(
-        "--dataset_type",
-        type=str,
-        default="AFAContext",
-        choices=AFA_DATASET_REGISTRY.keys(),
-    )
-    parser.add_argument(
-        "--train_dataset_path", type=Path, default="data/AFAContext/train_split_1.pt"
-    )
-    parser.add_argument(
-        "--val_dataset_path", type=Path, default="data/AFAContext/val_split_1.pt"
-    )
-    parser.add_argument(
-        "--pretrained_model_path",
-        type=Path,
-        default="models/pretrained/shim2018/temp",
-        help="Path to folder to save the pretrained model",
-    )
-    parser.add_argument("--seed", type=int, default=42)
-    args = parser.parse_args()
-
-    main(
-        pretrain_config_path=args.pretrain_config_path,
-        dataset_type=args.dataset_type,
-        train_dataset_path=args.train_dataset_path,
-        val_dataset_path=args.val_dataset_path,
-        pretrained_model_path=args.pretrained_model_path,
-        seed=args.seed,
-    )
+    main()
