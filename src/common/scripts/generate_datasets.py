@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 
+from datetime import datetime
 import os
 import argparse
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from time import strftime
 import torch
 import copy
@@ -77,7 +79,7 @@ def generate_and_save_splits(
 
     # Create dataset with the specific seed
     dataset = dataset_class(**dataset_kwargs)
-    dataset.generate_data()
+    # dataset.generate_data()
 
     # Calculate split sizes
     total_size = len(dataset)
@@ -109,7 +111,7 @@ def generate_and_save_splits(
     dataset_dir = os.path.join(data_dir, dataset_name)
     os.makedirs(dataset_dir, exist_ok=True)
 
-    # Save splits
+    # Save splits locally
     train_path = os.path.join(dataset_dir, f"train_split_{split_idx + 1}.pt")
     train_dataset.save(train_path)
     val_path = os.path.join(dataset_dir, f"val_split_{split_idx + 1}.pt")
@@ -117,26 +119,37 @@ def generate_and_save_splits(
     test_path = os.path.join(dataset_dir, f"test_split_{split_idx + 1}.pt")
     test_dataset.save(test_path)
 
+    # Also save as wandb artifact
+    artifact = wandb.Artifact(
+        name=f"{dataset_name}-split_{split_idx + 1}",
+        type="dataset",
+        metadata=dataset_kwargs
+        | {
+            "class_name": dataset_class.__name__,
+            "split_idx": split_idx + 1,
+            "seed": seed,
+        },
+    )
+
+    # Add a dummy file with the current time to ensure a new artifact version is created
+    with NamedTemporaryFile("w", delete=False) as f:
+        f.write(f"Generated at {strftime('%Y-%m-%d %H:%M:%S')}\n")
+        dummy_path = f.name  # Save the name before closing
+
+    artifact.add_file(dummy_path, name="dummy.txt")
+    artifact.add_file(train_path, name="train.pt")
+    artifact.add_file(val_path, name="val.pt")
+    artifact.add_file(test_path, name="test.pt")
+
+    if artifact_alias is not None:
+        run.log_artifact(artifact, aliases=[artifact_alias])
+    else:
+        run.log_artifact(artifact)
+
     print(f"Saved {dataset_name} splits to {dataset_dir}")
     print(
         f"Train size: {len(train_dataset)}, Val size: {len(val_dataset)}, Test size: {len(test_dataset)}"
     )
-
-    # Also save as wandb artifact
-    for path, split_type in zip(
-        [train_path, val_path, test_path], ["train", "val", "test"], strict=False
-    ):
-        artifact = wandb.Artifact(
-            name=f"{dataset_name}-{split_type}_split_{split_idx + 1}",
-            type="dataset",
-            metadata=dataset_kwargs
-            | {"split_type": split_type, "split_idx": split_idx + 1},
-        )
-        artifact.add_file(local_path=path)
-        if artifact_alias is not None:
-            run.log_artifact(artifact, aliases=[artifact_alias])
-        else:
-            run.log_artifact(artifact)
 
 
 def generate_all_splits(
