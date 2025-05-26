@@ -1,11 +1,11 @@
-dataset:
-  artifact_name: "cube-split_1:May26"
+dataset_artifact:
+  name: "cube_split_1:May26"
 batch_size: 128
-epochs: 3000
+epochs: 50
 
 device: cuda
 seed: 42
-lr: 1e-3
+lr: 1e-4
 max_masking_probability: 0.9
 encoder:
   output_size: 16

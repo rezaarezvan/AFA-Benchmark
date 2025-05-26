@@ -190,8 +190,8 @@ class DQNAgent(Agent, ABC):
 
     # Replay buffer parameters
     replay_buffer_size: int = serializable(default=1000)
-    sub_batch_size: int = serializable(default=100)
-    num_samples: int = serializable(default=10)
+    replay_buffer_batch_size: int = serializable(default=100)
+    num_optim: int = serializable(default=10)
     replay_buffer_alpha: float = serializable(default=0.6)
     replay_buffer_beta_init: float = serializable(default=0.4)
     replay_buffer_beta_end: float = serializable(default=1.0)
@@ -282,7 +282,7 @@ class DQNAgent(Agent, ABC):
             ),
             # sampler=SamplerWithoutReplacement(),
             priority_key="td_error",
-            batch_size=self.sub_batch_size,
+            batch_size=self.replay_buffer_batch_size,
         )
 
         self.post_init_hook()
@@ -312,7 +312,7 @@ class DQNAgent(Agent, ABC):
         td_errors = []
         # td_weights = []
 
-        for _ in range(self.num_samples):
+        for _ in range(self.num_optim):
             loss_td, td_error = self._sample_and_train()
             td_errors.append(td_error)
             # td_weights.append(td_weight)
@@ -332,7 +332,7 @@ class DQNAgent(Agent, ABC):
         self.egreedy_module.step()
 
         # Compute average loss
-        process_td = {k: v / self.num_samples for k, v in total_loss_td.items()}
+        process_td = {k: v / self.num_optim for k, v in total_loss_td.items()}
         process_td["td_error"] = torch.mean(torch.stack(td_errors)).item()
         # process_td["td_weight"] = torch.mean(torch.stack(td_weights)).item()
 

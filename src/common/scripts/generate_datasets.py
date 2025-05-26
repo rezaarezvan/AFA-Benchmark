@@ -121,7 +121,7 @@ def generate_and_save_splits(
 
     # Also save as wandb artifact
     artifact = wandb.Artifact(
-        name=f"{dataset_name}-split_{split_idx + 1}",
+        name=f"{dataset_name}_split_{split_idx + 1}",
         type="dataset",
         metadata=dataset_kwargs
         | {
@@ -227,7 +227,7 @@ def main():
         print("Some splits will reuse seeds.")
 
     # Data will be logged as a wandb artifact
-    run = wandb.init()
+    run = wandb.init(job_type="data_generation")
 
     # Generate splits for all registered datasets
     for dataset_name, dataset_class in AFA_DATASET_REGISTRY.items():

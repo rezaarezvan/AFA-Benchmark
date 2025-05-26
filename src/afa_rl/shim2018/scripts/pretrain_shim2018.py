@@ -1,36 +1,54 @@
-import argparse
 import logging
 import hydra
 from jaxtyping import Float
-import os
-from types import SimpleNamespace
 from omegaconf import OmegaConf
 
 import lightning as pl
 from lightning.pytorch.callbacks import ModelCheckpoint
-from lightning.pytorch.tuner.tuning import Tuner
-from matplotlib.figure import Figure
 import torch
 from torch import Tensor
-import yaml
 from lightning.pytorch.loggers import WandbLogger
 
 import wandb
 from afa_rl.shim2018.models import (
-    CopiedSetEncoder,
-    CopiedShim2018Embedder,
     Shim2018MLPClassifier,
     ReadProcessEncoder,
     Shim2018Embedder,
     LitShim2018EmbedderClassifier,
-    Shim2018MaskedClassifier,
 )
-from afa_rl.utils import check_masked_classifier_performance, resolve_dataset_config
 from common.config_classes import Shim2018PretrainConfig
 from common.custom_types import AFADataset
 from afa_rl.datasets import DataModuleFromDatasets
-from common.utils import dict_to_namespace, get_class_probabilities, set_seed
+from common.utils import get_class_probabilities, set_seed
 from pathlib import Path
+
+
+def load_dataset_artifact(
+    artifact_name: str,
+) -> tuple[AFADataset, AFADataset, AFADataset]:
+    """Load train, validation, and test datasets from a WandB artifact."""
+    dataset_artifact = wandb.use_artifact(artifact_name, type="dataset")
+    dataset_artifact_dir = Path(dataset_artifact.download())
+    # The dataset dir should contain the files train.pt, val.pt and test.pt
+    artifact_filenames = [f.name for f in dataset_artifact_dir.iterdir()]
+    assert {"train.pt", "val.pt", "test.pt"}.issubset(artifact_filenames), (
+        f"Dataset artifact must contain train.pt, val.pt and test.pt files. Instead found: {artifact_filenames}"
+    )
+
+    # Import is delayed until now to avoid circular imports
+    from common.registry import AFA_DATASET_REGISTRY
+
+    train_dataset: AFADataset = AFA_DATASET_REGISTRY[
+        dataset_artifact.metadata["dataset_name"]
+    ].load(dataset_artifact_dir / "train.pt")
+    val_dataset: AFADataset = AFA_DATASET_REGISTRY[
+        dataset_artifact.metadata["dataset_name"]
+    ].load(dataset_artifact_dir / "val.pt")
+    test_dataset: AFADataset = AFA_DATASET_REGISTRY[
+        dataset_artifact.metadata["dataset_name"]
+    ].load(dataset_artifact_dir / "test.pt")
+
+    return train_dataset, val_dataset, test_dataset
 
 
 def get_shim2018_model_from_config(
@@ -42,8 +60,8 @@ def get_shim2018_model_from_config(
     encoder = ReadProcessEncoder(
         set_element_size=n_features + 1,  # state contains one value and one index
         output_size=cfg.encoder.output_size,
-        reading_block_cells=cfg.encoder.reading_block_cells,
-        writing_block_cells=cfg.encoder.writing_block_cells,
+        reading_block_cells=tuple(cfg.encoder.reading_block_cells),
+        writing_block_cells=tuple(cfg.encoder.writing_block_cells),
         memory_size=cfg.encoder.memory_size,
         processing_steps=cfg.encoder.processing_steps,
         dropout=cfg.encoder.dropout,
@@ -68,33 +86,21 @@ log = logging.getLogger(__name__)
 @hydra.main(
     version_base=None,
     config_path="../../../../cfg/pretrain/shim2018",
-    config_name="cube",
+    config_name="tmp",
 )
 def main(cfg: Shim2018PretrainConfig) -> None:
-    print(cfg)
+    log.debug(cfg)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
 
-    run = wandb.init(config=OmegaConf.to_container(cfg, resolve=True))
-
-    # Load dataset artifact
-    dataset_artifact = wandb.use_artifact(cfg.dataset.artifact_name, type="dataset")
-    dataset_artifact_dir = Path(dataset_artifact.download())
-    # The dataset dir should contain the files train.pt, val.pt and test.pt
-    artifact_filenames = [f.name for f in dataset_artifact_dir.iterdir()]
-    assert {"train.pt", "val.pt", "test.pt"}.issubset(artifact_filenames), (
-        f"Dataset artifact must contain train.pt, val.pt and test.pt files. Instead found: {artifact_filenames}"
+    run = wandb.init(
+        group="pretrain_shim2018",
+        job_type="pretraining",
+        config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore
     )
 
-    # Import is delayed until now to avoid circular imports
-    from common.registry import AFA_DATASET_REGISTRY
-
-    train_dataset: AFADataset = AFA_DATASET_REGISTRY[
-        dataset_artifact.metadata["dataset_name"]
-    ].load(dataset_artifact_dir / "train.pt")
-    val_dataset: AFADataset = AFA_DATASET_REGISTRY[
-        dataset_artifact.metadata["dataset_name"]
-    ].load(dataset_artifact_dir / "val.pt")
+    # Load dataset artifact
+    train_dataset, val_dataset, _ = load_dataset_artifact(cfg.dataset_artifact.name)
     datamodule = DataModuleFromDatasets(
         train_dataset, val_dataset, batch_size=cfg.batch_size
     )
@@ -109,15 +115,6 @@ def main(cfg: Shim2018PretrainConfig) -> None:
         cfg, n_features, n_classes, train_class_probabilities
     )
     lit_model = lit_model.to(cfg.device)
-
-    # class_weights = 1 / train_class_probabilities
-    # class_weights = class_weights / class_weights.sum()
-    # Check accuracy before starting training
-    # check_masked_classifier_performance(
-    #     masked_classifier=Shim2018MaskedClassifier(lit_model),
-    #     dataset=val_dataset,
-    #     class_weights=class_weights,
-    # )
 
     # ModelCheckpoint callback
     checkpoint_callback = ModelCheckpoint(
@@ -144,12 +141,12 @@ def main(cfg: Shim2018PretrainConfig) -> None:
         pass
     finally:
         # Save best model as wandb artifact
-        best_checkpoint = trainer.checkpoint_callback.best_model_path
+        best_checkpoint = trainer.checkpoint_callback.best_model_path  # pyright: ignore
         pretrained_model_artifact = wandb.Artifact(
-            name=f"shim2018-{dataset_artifact.name.split(':')[0]}",
+            name=f"pretrain_shim2018-{cfg.dataset_artifact.name.split(':')[0]}",
             type="pretrained_model",
         )
-        pretrained_model_artifact.add_file(local_path=best_checkpoint)
+        pretrained_model_artifact.add_file(local_path=best_checkpoint, name="model.pt")
         run.log_artifact(pretrained_model_artifact)
         run.finish()
 
