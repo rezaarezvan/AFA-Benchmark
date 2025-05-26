@@ -179,8 +179,9 @@ cython_debug/
 # Logs
 logs
 
-# Wandb folder
+# Wandb folders
 wandb
+artifacts
 
 # Data folders
 data*
@@ -193,3 +194,6 @@ results
 
 # Plots folder, includes generated plots
 plots
+
+# Hydra output folder
+outputs

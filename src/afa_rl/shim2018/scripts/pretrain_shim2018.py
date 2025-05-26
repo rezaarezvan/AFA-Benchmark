@@ -1,8 +1,10 @@
 import argparse
+import logging
 import hydra
 from jaxtyping import Float
 import os
 from types import SimpleNamespace
+from omegaconf import OmegaConf
 
 import lightning as pl
 from lightning.pytorch.callbacks import ModelCheckpoint
@@ -60,27 +62,38 @@ def get_shim2018_model_from_config(
     return lit_model
 
 
-@hydra.main(version_base=None)
+log = logging.getLogger(__name__)
+
+
+@hydra.main(
+    version_base=None,
+    config_path="../../../../cfg/pretrain/shim2018",
+    config_name="cube",
+)
 def main(cfg: Shim2018PretrainConfig) -> None:
+    print(cfg)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
 
+    run = wandb.init(config=OmegaConf.to_container(cfg, resolve=True))
+
     # Load dataset artifact
-    dataset_artifact = wandb.use_artifact(cfg.dataset_artifact_name, type="dataset")
+    dataset_artifact = wandb.use_artifact(cfg.dataset.artifact_name, type="dataset")
     dataset_artifact_dir = Path(dataset_artifact.download())
     # The dataset dir should contain the files train.pt, val.pt and test.pt
-    assert {"train.pt", "val.pt", "test.pt"}.issubset(dataset_artifact_dir.iterdir()), (
-        "Dataset artifact must contain train.pt, val.pt and test.pt files."
+    artifact_filenames = [f.name for f in dataset_artifact_dir.iterdir()]
+    assert {"train.pt", "val.pt", "test.pt"}.issubset(artifact_filenames), (
+        f"Dataset artifact must contain train.pt, val.pt and test.pt files. Instead found: {artifact_filenames}"
     )
 
     # Import is delayed until now to avoid circular imports
     from common.registry import AFA_DATASET_REGISTRY
 
     train_dataset: AFADataset = AFA_DATASET_REGISTRY[
-        dataset_artifact.metadata.class_name
+        dataset_artifact.metadata["dataset_name"]
     ].load(dataset_artifact_dir / "train.pt")
     val_dataset: AFADataset = AFA_DATASET_REGISTRY[
-        dataset_artifact.metadata.class_name
+        dataset_artifact.metadata["dataset_name"]
     ].load(dataset_artifact_dir / "val.pt")
     datamodule = DataModuleFromDatasets(
         train_dataset, val_dataset, batch_size=cfg.batch_size
@@ -91,7 +104,7 @@ def main(cfg: Shim2018PretrainConfig) -> None:
     n_classes = train_dataset.labels.shape[-1]
 
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
-    print(f"Class probabilities in training set: {train_class_probabilities}")
+    log.debug(f"Class probabilities in training set: {train_class_probabilities}")
     lit_model = get_shim2018_model_from_config(
         cfg, n_features, n_classes, train_class_probabilities
     )
@@ -115,8 +128,6 @@ def main(cfg: Shim2018PretrainConfig) -> None:
         # filename="best-checkpoint",
     )
 
-    run = wandb.init(config=cfg)
-
     logger = WandbLogger()
     # logger = WandbLogger(project=config.wandb.project, save_dir="logs/afa_rl")
     trainer = pl.Trainer(
@@ -135,7 +146,8 @@ def main(cfg: Shim2018PretrainConfig) -> None:
         # Save best model as wandb artifact
         best_checkpoint = trainer.checkpoint_callback.best_model_path
         pretrained_model_artifact = wandb.Artifact(
-            name=f"shim2018-{cfg.dataset_artifact_name}", type="pretrained_model"
+            name=f"shim2018-{dataset_artifact.name.split(':')[0]}",
+            type="pretrained_model",
         )
         pretrained_model_artifact.add_file(local_path=best_checkpoint)
         run.log_artifact(pretrained_model_artifact)

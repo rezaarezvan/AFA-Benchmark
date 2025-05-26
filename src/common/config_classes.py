@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from hydra.core.config_store import ConfigStore
 
 # @dataclass
 # class DatasetConfig:
@@ -21,15 +22,25 @@ class Shim2018ClassifierConfig:
 
 
 @dataclass
+class DatasetConfig:
+    artifact_name: str  # e.g "afacontext:may26"
+
+
+@dataclass
 class Shim2018PretrainConfig:
-    seed: int
-    dataset_artifact_name: str  # wandb artifact name, e.g., "afa_context:may13"
+    dataset: DatasetConfig
     batch_size: int  # batch size for dataloader
+    epochs: int
+
+    device: str = "cuda"
+    seed: int = 42
+    lr: float = 1e-3
+    max_masking_probability: float = 0.9
     encoder: Shim2018EncoderConfig = field(default_factory=Shim2018EncoderConfig)
     classifier: Shim2018ClassifierConfig = field(
         default_factory=Shim2018ClassifierConfig
     )
-    lr: float = 1e-3
-    max_masking_probability: float = 0.9
-    device: str = "cuda"
-    epochs: int = 100
+
+
+cs = ConfigStore.instance()
+cs.store(name="shim2018_pretrain", node=Shim2018PretrainConfig)
