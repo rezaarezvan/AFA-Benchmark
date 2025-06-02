@@ -1,10 +1,12 @@
 from functools import partial
+from matplotlib import pyplot as plt
 import logging
 from pathlib import Path
 from typing import Any
-from tempfile import NamedTemporaryFile, TemporaryDirectory
+from tempfile import TemporaryDirectory
 
 import hydra
+import numpy as np
 from omegaconf import OmegaConf
 import torch
 from tensordict import TensorDictBase
@@ -29,7 +31,6 @@ from afa_rl.shim2018.models import (
 )
 from afa_rl.shim2018.scripts.pretrain_shim2018 import (
     get_shim2018_model_from_config,
-    load_dataset_artifact,
 )
 from afa_rl.utils import (
     afacontext_optimal_selection,
@@ -39,8 +40,9 @@ from common.config_classes import Shim2018PretrainConfig, Shim2018TrainConfig
 from common.custom_types import (
     AFADataset,
 )
-from common.utils import get_class_probabilities, set_seed
-import tempfile
+from common.utils import get_class_probabilities, load_dataset_artifact, set_seed
+
+from eval.metrics import eval_afa_method
 
 
 def get_eval_metrics(
@@ -143,9 +145,8 @@ def load_pretrained_model_artifacts(
 
 log = logging.getLogger(__name__)
 
-
 @hydra.main(
-    version_base=None, config_path="../../../../cfg/train/shim2018", config_name="tmp"
+    version_base=None, config_path="../../../../conf/train/shim2018", config_name="tmp"
 )
 def main(cfg: Shim2018TrainConfig):
     log.debug(cfg)
@@ -335,19 +336,61 @@ def main(cfg: Shim2018TrainConfig):
         pass
     finally:
         # Convert the embedder+agent to an AFAMethod and save it as a temporary file
+        agent.device = torch.device("cpu")  # Move agent to CPU for saving
+        pretrained_model = pretrained_model.to(torch.device("cpu"))
         afa_method = RLAFAMethod(
             agent,
             Shim2018NNMaskedClassifier(pretrained_model),
         )
+        # Save the method to a temporary directory and load it again to ensure it is saved correctly
         with TemporaryDirectory() as tmpdirname:
             afa_method.save(Path(tmpdirname))
+            del afa_method
+            afa_method = RLAFAMethod.load(
+                Path(tmpdirname),
+                device=torch.device("cpu"),
+            )
+            # Check what the final performance of the method is
+            # TODO
+            metrics = eval_afa_method(
+                afa_method,
+                val_dataset,
+                cfg.hard_budget,
+                afa_method.predict,
+            )
+        fig, ax = plt.subplots()
+        budgets = np.arange(1, cfg.hard_budget + 1, 1)
+        ax.plot(
+            budgets,
+            metrics["accuracy_all"],
+            label="Accuracy",
+            marker="o",
+        )
+        ax.plot(
+            budgets,
+            metrics["f1_all"],
+            label="F1 Score",
+            marker="o",
+        )
+        ax.set_xlabel("Number of Selected Features (Budget)")
+        run.log({
+            "final_performance_plot": fig,
+        })
 
             # Save the model as a WandB artifact
+            # Save the name of the afa method class as metadata
             afa_method_artifact = wandb.Artifact(
                 name=f"train_shim2018-{pretrained_model_config.dataset_artifact.name.split(':')[0]}-budget_{cfg.hard_budget}-seed_{cfg.seed}",
                 type="trained_method",
+                metadata={
+                    "afa_method_class": afa_method.__class__.__name__,
+                    "dataset_artifact_name": pretrained_model_config.dataset_artifact.name,
+                    "hard_budget": cfg.hard_budget,
+                    "seed": cfg.seed,
+                }
             )
-            afa_method_artifact.add_dir(tmpdirname, name="method")
+
+            afa_method_artifact.add_dir(tmpdirname)
             run.log_artifact(afa_method_artifact)
 
         run.finish()

@@ -1,0 +1,24 @@
+hydra:
+  launcher:
+    # @package hydra.launcher
+    _target_: hydra_plugins.hydra_submitit_launcher.submitit_launcher.SlurmLauncher
+
+    submitit_folder: ${hydra.sweep.dir}/.submitit/%j
+    timeout_min: 1440  # 24 hours
+
+    # cpus_per_task: 4
+    # mem_gb: 8
+    # gpus_per_node: 1
+    # tasks_per_node: 1
+    # nodes: 1
+    name: ${hydra.job.name}
+
+    partition: alvis
+    account: NAISS2025-22-448
+
+    # signal_delay_s: 120
+    # max_num_timeout: 0
+    additional_parameters:
+      gres: gpu:T4:1
+
+    # array_parallelism: 256

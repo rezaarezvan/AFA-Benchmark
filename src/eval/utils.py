@@ -1,10 +1,13 @@
 from pathlib import Path
 from typing import Any
 import torch
-import yaml
 
 from common.utils import get_folders_with_matching_params
 
+from pathlib import Path
+from typing import Any
+
+import torch
 
 
 def get_eval_results_with_fixed_keys(fixed_params_mapping: dict[str, Any]={}, results_path=Path("results")) -> list[dict[str, Any]]:

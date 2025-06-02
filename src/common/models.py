@@ -19,7 +19,7 @@ from afa_rl.utils import (
     get_feature_set,
     mask_data,
 )
-from common.custom_types import FeatureMask, MaskedFeatures
+from common.custom_types import AFAClassifier, FeatureMask, MaskedFeatures
 
 
 class LitMaskedClassifier(pl.LightningModule):
@@ -116,14 +116,18 @@ class MaskedMLPClassifier(nn.Module):
         self,
         n_features: int,
         n_classes: int,
+        num_cells: tuple[int, ...] = (128, 128)
     ):
         super().__init__()
-        self.classifier = nn.Sequential(
-            nn.Linear(n_features * 2, 128),
-            nn.ReLU(),
-            nn.Linear(128, 128),
-            nn.ReLU(),
-            nn.Linear(128, n_classes),
+        self.n_features = n_features
+        self.n_classes = n_classes
+        self.num_cells = num_cells
+
+        self.classifier = MLP(
+            in_features=n_features * 2,
+            out_features=n_classes,
+            num_cells=num_cells,
+            activation_class=nn.ReLU,
         )
 
     def forward(
@@ -133,3 +137,8 @@ class MaskedMLPClassifier(nn.Module):
         x = torch.cat((masked_features, feature_mask), dim=1)
         logits = self.classifier(x)
         return logits
+
+    def __call__(
+        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+    ) -> Logits:
+        return self.forward(masked_features, feature_mask)

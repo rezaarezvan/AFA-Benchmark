@@ -1,3 +1,4 @@
+from torchvision.tv_tensors import Mask
 from afa_rl.afa_methods import (
     # Shim2018AFAMethod,
     RandomDummyAFAMethod,
@@ -15,18 +16,21 @@ from common.datasets import CubeDataset, AFAContextDataset, MNISTDataset, Diabet
 from common.classifiers import (
     RandomDummyAFAClassifier,
     UniformDummyAFAClassifier,
+    WrappedMaskedMLPClassifier,
 )
 
 from afa_rl.shim2018.scripts.pretrain_shim2018 import main as pretrain_shim2018_main
 from afa_rl.shim2018.scripts.train_shim2018 import main as train_shim2018_main
 from afa_rl.zannone2019.scripts.pretrain_zannone2019 import main as pretrain_zannone2019_main
 from afa_rl.zannone2019.scripts.train_zannone2019_old import main as train_zannone2019_main
+from common.models import MaskedMLPClassifier
 
 
 # Add each AFA method here
 AFA_METHOD_REGISTRY: dict[str, type[AFAMethod]] = {
-    "shim2018": RLAFAMethod,
-    "zannone2019": RLAFAMethod,
+    # "shim2018": RLAFAMethod,
+    # "zannone2019": RLAFAMethod,
+    "RLAFAMethod": RLAFAMethod,
     "covert2023": Covert2023AFAMethod,
     "gadgil2023": Gadgil2023AFAMethod,
     "ma2018": Ma2018AFAMethod,
@@ -35,7 +39,7 @@ AFA_METHOD_REGISTRY: dict[str, type[AFAMethod]] = {
 }
 
 STATIC_METHOD_REGISTRY: list[str] = [
-    "cae", 
+    "cae",
     "permutation",
 ]
 
@@ -55,6 +59,7 @@ AFA_DATASET_REGISTRY: dict[str, type[AFADataset]] = {
 AFA_CLASSIFIER_REGISTRY: dict[str, type[AFAClassifier]] = {
     "random_dummy": RandomDummyAFAClassifier,
     "uniform_dummy": UniformDummyAFAClassifier,
+    "WrappedMaskedMLPClassifier": WrappedMaskedMLPClassifier,
 }
 
 # Keep these last to avoid circular imports

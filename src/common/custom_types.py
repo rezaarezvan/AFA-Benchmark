@@ -117,34 +117,35 @@ class AFAClassifier(Protocol):
     """
     An AFA classifier is an object that can perform classification on masked features.
 
+    Classifiers saved as artifacts should follow this protocol to ensure compatibility with the evaluation scripts.
     """
 
     def __call__(
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-    ) -> Logits:
+    ) -> Label:
         """
-        Returns the predicted logits for the features that have been observed so far.
+        Returns the predicted label for the features that have been observed so far.
         """
         ...
 
     def save(self, path: Path) -> None:
         """
-        Saves the classifier to a file. The file should be in a format that can be loaded by the method.
+        Saves the classifier to a file or folder. The file/folder should be in a format that can be loaded by the method.
         """
         ...
 
     @classmethod
     def load(cls, path: Path, device: torch.device) -> Self:
         """
-        Loads the classifier from a file, placing it on the given device.
+        Loads the classifier from a file or folder, placing it on the given device.
         """
         ...
 
 # What we assume during evaluation. Includes both AFAClassifiers and AFAMethod.predict
 type AFAClassifierFn = Callable[
-    [MaskedFeatures, FeatureMask], Logits
+    [MaskedFeatures, FeatureMask], Label
 ]
 
 class PretrainingFunction(Protocol):

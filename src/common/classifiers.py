@@ -1,8 +1,11 @@
+"""Various AFAClassifier implementations."""
 
+from typing import Self
 import torch
 import torch.nn as nn
 from pathlib import Path
-from common.custom_types import AFAClassifier, FeatureMask, Logits, MaskedFeatures
+from common.custom_types import AFAClassifier, FeatureMask, Label, Logits, MaskedFeatures
+from common.models import MaskedMLPClassifier
 
 
 class RandomDummyAFAClassifier(AFAClassifier):
@@ -26,8 +29,8 @@ class RandomDummyAFAClassifier(AFAClassifier):
         """
         torch.save(self.n_classes, path)
 
-    @staticmethod
-    def load(path: str, device: torch.device) -> "RandomDummyAFAClassifier":
+    @classmethod
+    def load(cls, path: Path, device: torch.device) -> "RandomDummyAFAClassifier":
         """
         Loads the classifier from a file, placing it on the given device.
         """
@@ -53,7 +56,7 @@ class UniformDummyAFAClassifier(AFAClassifier):
 
         return logits
 
-    def save(self, path: str) -> None:
+    def save(self, path: Path) -> None:
         """
         Saves the classifier to a file. n_classes is all we need.
         """
@@ -69,7 +72,7 @@ class UniformDummyAFAClassifier(AFAClassifier):
 
         # Return a new DummyClassifier instance
         return UniformDummyAFAClassifier(n_classes)
-    
+
 
 class Predictor(nn.Module):
     def __init__(self, input_dim, output_dim):
@@ -82,7 +85,7 @@ class Predictor(nn.Module):
             nn.ReLU(),
             nn.Linear(128, output_dim)
         )
-    
+
     def forward(self, x):
         return self.model(x)
 
@@ -102,7 +105,7 @@ class NNClassifier(AFAClassifier):
     def __call__(self, masked_features: MaskedFeatures, feature_mask: FeatureMask) -> Logits:
         x_masked = torch.cat([masked_features, feature_mask], dim=1)
         return self.predictor(x_masked)
-    
+
     def save(self, path: Path) -> None:
         torch.save({
             "model_state_dict": self.predictor.state_dict(),
@@ -116,3 +119,43 @@ class NNClassifier(AFAClassifier):
         classifier = cls(checkpoint["input_dim"], checkpoint["output_dim"], device)
         classifier.predictor.load_state_dict(checkpoint["model_state_dict"])
         return classifier
+
+class WrappedMaskedMLPClassifier:
+    def __init__(self, model: MaskedMLPClassifier, device: torch.device):
+        self.model = model.to(device)
+        self.device = device
+
+    def __call__(
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+    ) -> Label:
+        self.model.eval()
+        with torch.no_grad():
+            masked_features = masked_features.to(self.device)
+            feature_mask = feature_mask.to(self.device)
+            logits = self.model(masked_features, feature_mask)
+            return torch.argmax(logits, dim=-1)
+
+    def save(self, path: Path) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(
+            {
+                "state_dict": self.model.state_dict(),
+                "n_features": self.model.n_features,
+                "n_classes": self.model.n_classes,
+                "num_cells": self.model.num_cells,
+            },
+            path,
+        )
+
+    @classmethod
+    def load(cls, path: Path, device: torch.device) -> Self:
+        checkpoint = torch.load(path, map_location=device)
+        model = MaskedMLPClassifier(
+            n_features=checkpoint["n_features"],
+            n_classes=checkpoint["n_classes"],
+            num_cells=tuple(checkpoint["num_cells"]),
+        )
+        model.load_state_dict(checkpoint["state_dict"])
+        return cls(model=model, device=device)

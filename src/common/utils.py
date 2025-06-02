@@ -18,7 +18,11 @@ from types import SimpleNamespace
 from typing import Any
 from jaxtyping import Float, Bool
 from torch import Tensor
+import torch
+import wandb
 import yaml
+
+from common.custom_types import AFADataset
 
 
 def get_class_probabilities(labels: Bool[Tensor, "*batch n_classes"]) -> Float[Tensor, "n_classes"]:
@@ -81,3 +85,30 @@ def dict_to_namespace(d: dict) -> SimpleNamespace:
             setattr(ns, key, value)
 
     return ns
+
+def load_dataset_artifact(
+    artifact_name: str,
+) -> tuple[AFADataset, AFADataset, AFADataset]:
+    """Load train, validation, and test datasets from a WandB artifact."""
+    dataset_artifact = wandb.use_artifact(artifact_name, type="dataset")
+    dataset_artifact_dir = Path(dataset_artifact.download())
+    # The dataset dir should contain the files train.pt, val.pt and test.pt
+    artifact_filenames = [f.name for f in dataset_artifact_dir.iterdir()]
+    assert {"train.pt", "val.pt", "test.pt"}.issubset(artifact_filenames), (
+        f"Dataset artifact must contain train.pt, val.pt and test.pt files. Instead found: {artifact_filenames}"
+    )
+
+    # Import is delayed until now to avoid circular imports
+    from common.registry import AFA_DATASET_REGISTRY
+
+    train_dataset: AFADataset = AFA_DATASET_REGISTRY[
+        dataset_artifact.metadata["dataset_name"]
+    ].load(dataset_artifact_dir / "train.pt")
+    val_dataset: AFADataset = AFA_DATASET_REGISTRY[
+        dataset_artifact.metadata["dataset_name"]
+    ].load(dataset_artifact_dir / "val.pt")
+    test_dataset: AFADataset = AFA_DATASET_REGISTRY[
+        dataset_artifact.metadata["dataset_name"]
+    ].load(dataset_artifact_dir / "test.pt")
+
+    return train_dataset, val_dataset, test_dataset
