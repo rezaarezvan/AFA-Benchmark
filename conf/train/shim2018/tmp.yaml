@@ -1,4 +1,5 @@
 pretrained_model_artifact_name: "pretrain_shim2018-cube_split_1:v6"
+artifact_aliases: ["tmp"]
 n_agents: 128
 hard_budget: 5
 agent:

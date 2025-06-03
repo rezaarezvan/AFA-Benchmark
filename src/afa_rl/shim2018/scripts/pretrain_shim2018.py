@@ -1,3 +1,4 @@
+from datetime import datetime
 import logging
 import hydra
 from jaxtyping import Float
@@ -117,7 +118,7 @@ def main(cfg: Shim2018PretrainConfig) -> None:
             type="pretrained_model",
         )
         pretrained_model_artifact.add_file(local_path=best_checkpoint, name="model.pt")
-        run.log_artifact(pretrained_model_artifact)
+        run.log_artifact(pretrained_model_artifact, aliases=[*cfg.artifact_aliases, datetime.now().strftime("%b%d")])
         run.finish()
 
 

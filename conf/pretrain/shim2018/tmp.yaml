@@ -1,4 +1,5 @@
 dataset_artifact_name: "cube_split_1:Jun03"
+artifact_aliases: ["tmp"]
 batch_size: 128
 epochs: 3000
 

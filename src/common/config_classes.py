@@ -36,6 +36,7 @@ class Shim2018PretrainConfig:
     classifier: Shim2018ClassifierConfig = field(
         default_factory=Shim2018ClassifierConfig
     )
+    artifact_aliases: list[str] = field(default_factory=lambda: [])
 
 
 cs = ConfigStore.instance()
@@ -78,6 +79,7 @@ class Shim2018TrainConfig:
     seed: int = 42
     pretrained_model_lr: float = 1e-3
     activate_joint_training_after_n_batches: int = 0
+    artifact_aliases: list[str] = field(default_factory=lambda: [])
 
 
 cs.store(name="train_shim2018", node=Shim2018TrainConfig)
@@ -94,6 +96,7 @@ class TrainMaskedMLPClassifierConfig:
     device: str = "cuda"
     num_cells: list[int] = field(default_factory=lambda: [128, 128])
     dropout: float = 0.1
+    artifact_aliases: list[str] = field(default_factory=lambda: [])
 
 
 cs.store(name="train_masked_mlp_classifier", node=TrainMaskedMLPClassifierConfig)
@@ -104,6 +107,8 @@ class EvalConfig:
     trained_method_artifact_name: str
     trained_classifier_artifact_name: str | None  # if None, use the method's classifier
     seed: int = 42
+    artifact_aliases: list[str] = field(default_factory=lambda: [])
+
 
 
 @dataclass
