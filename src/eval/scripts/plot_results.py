@@ -39,52 +39,6 @@ def load_eval_results(
     return eval_results
 
 
-# @hydra.main(version_base=None, config_path="../../../conf/plot", config_name="tmp")
-# def main(cfg: PlotConfig):
-#     log.debug(cfg)
-#     torch.set_float32_matmul_precision("medium")
-#
-#     run = wandb.init(
-#         job_type="evaluation",
-#         config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore
-#     )
-#
-#     eval_results = load_eval_results(cfg.eval_artifact_names)
-#
-#     # Produce one plot per (dataset_type, classifier_type, budget) combination. Each method_type gets a separate line, seed and split are averaged over.
-#
-#     # First get a list of all datasets that we have results for
-#     dataset_types = set(info["dataset_type"] for (info, _) in eval_results)
-#
-#     for dataset_type in dataset_types:
-#         # Get all classifier types for this dataset type
-#         classifier_types = set(
-#             info["classifier_type"]
-#             for (info, _) in eval_results
-#             if info["dataset_type"] == dataset_type
-#         )
-#         for classifier_type in classifier_types:
-#             # Get all budgets for this dataset and classifier type
-#             budgets = set(
-#                 info["budget"]
-#                 for (info, _) in eval_results
-#                 if info["dataset_type"] == dataset_type
-#                 and info["classifier_type"] == classifier_type
-#             )
-#             for budget in budgets:
-#                 # Now get all results for this dataset, classifier type, and budget
-#                 all_metrics = [
-#                     metrics
-#                     for (info, metrics) in eval_results
-#                     if info["dataset_type"] == dataset_type
-#                     and info["classifier_type"] == classifier_type
-#                     and info["budget"] == budget
-#                 ]
-#                 # Each element in all_metrics is a dict with keys like "accuracy", "f1", etc. Create two new dicts: one that contains the average metrics and one that contains the standard deviation.
-#                 avg_metrics = {}
-#                 std_metrics = {}
-
-
 @hydra.main(version_base=None, config_path="../../../conf/plot", config_name="tmp")
 def main(cfg: PlotConfig):
     log.debug(cfg)
@@ -113,6 +67,8 @@ def main(cfg: PlotConfig):
                 and info["classifier_type"] == classifier_type
             )
             for budget in budgets:
+                # x-axis will be [1, budget]
+                x = np.arange(1, budget + 1)
                 # Organize by method_type
                 grouped_metrics: dict[str, list[dict[str, torch.Tensor]]] = defaultdict(
                     list
@@ -130,18 +86,14 @@ def main(cfg: PlotConfig):
                 if not grouped_metrics:
                     continue
 
-                # Extract all metric keys
-                all_metric_keys = list(next(iter(grouped_metrics.values()))[0].keys())
-
-                for metric_key in all_metric_keys:
+                for metric_key, metric_description in cfg.metric_keys_and_descriptions:
                     fig, ax = plt.subplots()
 
                     for method_type, metrics_list in grouped_metrics.items():
                         # Shape: [num_runs, T]
-                        data = np.stack([np.array(m[metric_key]) for m in metrics_list])
-                        mean = data.mean(axis=0)
-                        std = data.std(axis=0)
-                        x = np.arange(len(mean))
+                        data = torch.stack([m[metric_key] for m in metrics_list])
+                        mean = data.mean(dim=0)
+                        std = data.std(dim=0)
 
                         ax.plot(x, mean, label=method_type)
                         ax.fill_between(x, mean - std, mean + std, alpha=0.3)
@@ -149,16 +101,14 @@ def main(cfg: PlotConfig):
                     ax.set_title(
                         f"{metric_key} – {dataset_type} | {classifier_type} | Budget: {budget}"
                     )
-                    ax.set_xlabel("Step")
-                    ax.set_ylabel(metric_key)
+                    ax.set_xlabel("Number of features selected")
+                    ax.set_ylabel(metric_description)
                     ax.legend()
                     ax.grid(True)
 
                     wandb.log(
                         {
-                            f"{dataset_type}_{classifier_type}_budget{budget}_{metric_key}": wandb.Image(
-                                fig
-                            )
+                            f"{dataset_type}_{classifier_type}_budget{budget}_{metric_key}": fig
                         }
                     )
                     plt.close(fig)

@@ -114,7 +114,7 @@ def main(
     class_weights = class_weights / class_weights.sum()
     class_weights_device = class_weights.to(device)
     check_masked_classifier_performance(
-        masked_classifier=Zannone2019MaskedClassifier(pretrained_model),
+        afa_predict_fn=Zannone2019MaskedClassifier(pretrained_model),
         dataset=val_dataset,
         class_weights=class_weights,
     )
@@ -233,7 +233,7 @@ def main(
 
         # Check that embedder+classifier still have decent performance
         check_masked_classifier_performance(
-            masked_classifier=Zannone2019MaskedClassifier(pretrained_model),
+            afa_predict_fn=Zannone2019MaskedClassifier(pretrained_model),
             dataset=val_dataset,
             class_weights=class_weights,
         )
@@ -268,7 +268,7 @@ def main(
 
         # # Check that the classifier still has decent performance
         check_masked_classifier_performance(
-            masked_classifier=afa_method.classifier,
+            afa_predict_fn=afa_method.afa_classifier,
             dataset=val_dataset,
             class_weights=class_weights,
         )

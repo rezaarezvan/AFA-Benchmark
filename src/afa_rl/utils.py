@@ -7,16 +7,16 @@ from jaxtyping import Integer
 from torch import Tensor, nn
 
 from afa_rl.custom_types import FeatureMask, FeatureSet
-from common.custom_types import AFASelection, Features, MaskedFeatures
+from common.custom_types import AFAPredictFn, AFASelection, Features, MaskedFeatures
 
 
 from jaxtyping import Float
 from torch.nn import functional as F
 
-from afa_rl.custom_types import MaskedClassifier
 from common.custom_types import (
     AFADataset,
 )
+
 
 def remove_module_prefix(state_dict):
     return {k.replace("module.", ""): v for k, v in state_dict.items()}
@@ -49,13 +49,16 @@ def get_feature_set(
         mask[observed_feature_indices] = 1
 
         # Update feature_set: first column with masked feature values
-        feature_set[i, :len(observed_feature_indices), 0] = masked_features[i, observed_feature_indices]
+        feature_set[i, : len(observed_feature_indices), 0] = masked_features[
+            i, observed_feature_indices
+        ]
 
         # Update the rest of the feature_set with one-hot encoded indices
-        feature_set[i, :len(observed_feature_indices), 1:] = F.one_hot(observed_feature_indices, num_classes=n_features).float()
+        feature_set[i, : len(observed_feature_indices), 1:] = F.one_hot(
+            observed_feature_indices, num_classes=n_features
+        ).float()
 
     return feature_set, lengths
-
 
 
 def shuffle_feature_set(feature_set: FeatureSet, lengths: Tensor):
@@ -277,7 +280,7 @@ def to_regular_dict(d) -> dict:
 
 
 def check_masked_classifier_performance(
-    masked_classifier: MaskedClassifier,
+    afa_predict_fn: AFAPredictFn,
     dataset: AFADataset,
     class_weights: Float[Tensor, "n_classes"],
 ):
@@ -320,11 +323,9 @@ def check_masked_classifier_performance(
             feature_mask_optimal[i, context * 3 + 1 : context * 3 + 4] = 1
         masked_features_optimal = features.clone()
         masked_features_optimal[feature_mask_optimal == 0] = 0
-        logits_optimal = masked_classifier(
-            masked_features_optimal, feature_mask_optimal
-        )
+        probs_optimal = afa_predict_fn(masked_features_optimal, feature_mask_optimal)
         accuracy_optimal = (
-            (logits_optimal.argmax(dim=-1) == labels.argmax(dim=-1)).float().mean()
+            (probs_optimal.argmax(dim=-1) == labels.argmax(dim=-1)).float().mean()
         )
 
         # Calculate the loss for the 50% feature case. Useful for setting acquisition costs
@@ -388,6 +389,7 @@ def module_norm(module: nn.Module) -> float:
         torch.cat([p.view(-1) for p in module.parameters()]), p=2
     ).item()  # L2 norm (Euclidean norm)
 
+
 def resolve_dataset_config(config: dict, dataset_type: str) -> dict:
     def resolve(value) -> dict:
         if isinstance(value, dict):
@@ -400,4 +402,5 @@ def resolve_dataset_config(config: dict, dataset_type: str) -> dict:
             return [resolve(v) for v in value]
         else:
             return value
+
     return resolve(config)

@@ -59,6 +59,7 @@ class Shim2018AgentConfig:
     replay_buffer_beta_end: float = 1.0
     delay_value: bool = True
     double_dqn: bool = True
+    action_value_num_cells: list[int] = field(default_factory=lambda: [128, 128])
 
 
 @dataclass
@@ -91,6 +92,8 @@ class TrainMaskedMLPClassifierConfig:
     lr: float = 1e-3
     seed: int = 42
     device: str = "cuda"
+    num_cells: list[int] = field(default_factory=lambda: [128, 128])
+    dropout: float = 0.1
 
 
 cs.store(name="train_masked_mlp_classifier", node=TrainMaskedMLPClassifierConfig)
@@ -106,6 +109,9 @@ class EvalConfig:
 @dataclass
 class PlotConfig:
     eval_artifact_names: list[str]
+    metric_keys_and_descriptions: list[
+        list[str]
+    ]  # Inner list has two elements: [metric_key, description]
 
 
 cs.store(name="plot", node=PlotConfig)

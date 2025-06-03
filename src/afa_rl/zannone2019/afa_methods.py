@@ -10,7 +10,14 @@ from afa_rl.agents import Agent
 from afa_rl.afa_methods import get_td_from_masked_features
 from afa_rl.custom_types import NNMaskedClassifier
 from afa_rl.zannone2019.models import Zannone2019PretrainingModel
-from common.custom_types import AFAMethod, AFASelection, FeatureMask, Label, MaskedFeatures
+from common.custom_types import (
+    AFAMethod,
+    AFASelection,
+    FeatureMask,
+    Label,
+    MaskedFeatures,
+)
+
 
 class Zannone2019AFAMethod(AFAMethod):
     """
@@ -21,9 +28,9 @@ class Zannone2019AFAMethod(AFAMethod):
         self,
         device: torch.device,
         probabilistic_policy_module: ProbabilisticActor,
-        pretrained_model: Zannone2019PretrainingModel
+        pretrained_model: Zannone2019PretrainingModel,
     ):
-        self.device = device
+        self._device = device
         self.probabilistic_policy_module = probabilistic_policy_module
         self.pretrained_model = pretrained_model
 
@@ -32,8 +39,8 @@ class Zannone2019AFAMethod(AFAMethod):
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
     ) -> AFASelection:
-        masked_features = masked_features.to(self.device)
-        feature_mask = feature_mask.to(self.device)
+        masked_features = masked_features.to(self._device)
+        feature_mask = feature_mask.to(self._device)
 
         td = get_td_from_masked_features(masked_features, feature_mask)
 
@@ -46,12 +53,16 @@ class Zannone2019AFAMethod(AFAMethod):
 
         return afa_selection
 
-    def predict(self, masked_features: MaskedFeatures, feature_mask: FeatureMask) -> Label:
-        masked_features = masked_features.to(self.device)
-        feature_mask = feature_mask.to(self.device)
+    def predict(
+        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+    ) -> Label:
+        masked_features = masked_features.to(self._device)
+        feature_mask = feature_mask.to(self._device)
 
         with torch.no_grad():
-            encoding, mu, logvar, z = self.pretrained_model.partial_vae.encode(masked_features, feature_mask)
+            encoding, mu, logvar, z = self.pretrained_model.partial_vae.encode(
+                masked_features, feature_mask
+            )
             logits = self.pretrained_model.classifier(mu)
 
         probs: Label = logits.softmax(dim=-1)

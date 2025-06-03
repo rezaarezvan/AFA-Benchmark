@@ -1,4 +1,4 @@
-pretrained_model_artifact_name: pretrain_shim2018-AFAContext_split_1:v3
+pretrained_model_artifact_name: "pretrain_shim2018-cube_split_1:v6"
 n_agents: 128
 hard_budget: 5
 agent:
@@ -18,6 +18,7 @@ agent:
   replay_buffer_beta_end: 1.0
   delay_value: True
   double_dqn: True
+  action_value_num_cells: [128, 128]
 n_batches: 10000
 batch_size: 512
 eval_every_n_batches: 500

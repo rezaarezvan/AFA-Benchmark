@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import MISSING, dataclass, field
 from pathlib import Path
-from typing import Any, ClassVar, TypeVar
+from typing import Any, ClassVar, Self, TypeVar, override
 
 import torch
 import yaml
@@ -85,6 +85,10 @@ class Agent(ABC):
     def device(self, device: torch.device) -> None:
         """Move agent networks to a specific device."""
         ...
+
+    def to(self, device: torch.device) -> Self:
+        self.device = device
+        return self
 
     def save(self, path: Path) -> None:
         path.mkdir(parents=True, exist_ok=True)
@@ -288,6 +292,7 @@ class DQNAgent(Agent, ABC):
         self.post_init_hook()
 
     @property
+    @override
     def policy(self) -> TensorDictModule:
         return self.egreedy_policy_module
 
@@ -298,6 +303,7 @@ class DQNAgent(Agent, ABC):
                 self.replay_buffer_beta_end - self.replay_buffer_beta_init
             ) / self.replay_buffer_beta_annealing_num_batches
 
+    @override
     def process_batch(self, td: TensorDictBase) -> dict[str, float]:
         """Process a batch of training data, returning the average loss for each loss key."""
         # Add to replay buffer
@@ -359,6 +365,7 @@ class DQNAgent(Agent, ABC):
 
         return loss_td, td["td_error"]
 
+    @override
     def get_train_info(self) -> dict[str, Any]:
         """Get training information."""
         return {
@@ -368,6 +375,7 @@ class DQNAgent(Agent, ABC):
         }
 
     @property
+    @override
     def device(self) -> torch.device:
         """Get the device of the agent."""
         return self._device

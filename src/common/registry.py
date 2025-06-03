@@ -1,77 +1,92 @@
-from torchvision.tv_tensors import Mask
-from afa_rl.afa_methods import (
-    # Shim2018AFAMethod,
-    RandomDummyAFAMethod,
-    SequentialDummyAFAMethod,
-    # Zannone2019AFAMethod,
-    RLAFAMethod,
-)
-from afa_discriminative.afa_methods import (
-    Covert2023AFAMethod,
-    Gadgil2023AFAMethod,
-)
-from afa_generative.afa_methods import Ma2018AFAMethod
-from common.custom_types import AFAClassifier, AFADataset, AFAMethod, PretrainingFunction, TrainingFunction
-from common.datasets import CubeDataset, AFAContextDataset, MNISTDataset, DiabetesDataset, PhysionetDataset, Shim2018CubeDataset, MiniBooNEDataset, FashionMNISTDataset
-from common.classifiers import (
-    RandomDummyAFAClassifier,
-    UniformDummyAFAClassifier,
-    WrappedMaskedMLPClassifier,
+from common.custom_types import (
+    AFAMethod,
+    AFADataset,
+    AFAClassifier,
 )
 
-from afa_rl.shim2018.scripts.pretrain_shim2018 import main as pretrain_shim2018_main
-from afa_rl.shim2018.scripts.train_shim2018 import main as train_shim2018_main
-from afa_rl.zannone2019.scripts.pretrain_zannone2019 import main as pretrain_zannone2019_main
-from afa_rl.zannone2019.scripts.train_zannone2019_old import main as train_zannone2019_main
-from common.models import MaskedMLPClassifier
+
+def get_afa_method_class(name: str) -> type[AFAMethod]:
+    if name == "RLAFAMethod":
+        from afa_rl.afa_methods import RLAFAMethod
+
+        return RLAFAMethod
+    elif name == "covert2023":
+        from afa_discriminative.afa_methods import Covert2023AFAMethod
+
+        return Covert2023AFAMethod
+    elif name == "gadgil2023":
+        from afa_discriminative.afa_methods import Gadgil2023AFAMethod
+
+        return Gadgil2023AFAMethod
+    elif name == "ma2018":
+        from afa_generative.afa_methods import Ma2018AFAMethod
+
+        return Ma2018AFAMethod
+    elif name == "sequential_dummy":
+        from afa_rl.afa_methods import SequentialDummyAFAMethod
+
+        return SequentialDummyAFAMethod
+    elif name == "random_dummy":
+        from afa_rl.afa_methods import RandomDummyAFAMethod
+
+        return RandomDummyAFAMethod
+    else:
+        raise ValueError(f"Unknown AFA method: {name}")
 
 
-# Add each AFA method here
-AFA_METHOD_REGISTRY: dict[str, type[AFAMethod]] = {
-    # "shim2018": RLAFAMethod,
-    # "zannone2019": RLAFAMethod,
-    "RLAFAMethod": RLAFAMethod,
-    "covert2023": Covert2023AFAMethod,
-    "gadgil2023": Gadgil2023AFAMethod,
-    "ma2018": Ma2018AFAMethod,
-    "sequential_dummy": SequentialDummyAFAMethod,  # For testing
-    "random_dummy": RandomDummyAFAMethod,  # For testing
-}
+def get_afa_dataset_class(name: str) -> type[AFADataset]:
+    if name == "cube":
+        from common.datasets import CubeDataset
 
-STATIC_METHOD_REGISTRY: list[str] = [
-    "cae",
-    "permutation",
-]
+        return CubeDataset
+    elif name == "shim2018cube":
+        from common.datasets import Shim2018CubeDataset
 
-# Add each AFA dataset here
-AFA_DATASET_REGISTRY: dict[str, type[AFADataset]] = {
-    "cube": CubeDataset,
-    "shim2018cube": Shim2018CubeDataset,
-    "AFAContext": AFAContextDataset,
-    "MNIST": MNISTDataset,
-    "diabetes": DiabetesDataset,
-    "physionet": PhysionetDataset,
-    "miniboone": MiniBooNEDataset,
-    "FashionMNIST": FashionMNISTDataset
-}
+        return Shim2018CubeDataset
+    elif name == "AFAContext":
+        from common.datasets import AFAContextDataset
 
-# Add each common classifier that you want to use during evaluation here
-AFA_CLASSIFIER_REGISTRY: dict[str, type[AFAClassifier]] = {
-    "random_dummy": RandomDummyAFAClassifier,
-    "uniform_dummy": UniformDummyAFAClassifier,
-    "WrappedMaskedMLPClassifier": WrappedMaskedMLPClassifier,
-}
+        return AFAContextDataset
+    elif name == "MNIST":
+        from common.datasets import MNISTDataset
 
-# Keep these last to avoid circular imports
+        return MNISTDataset
+    elif name == "diabetes":
+        from common.datasets import DiabetesDataset
+
+        return DiabetesDataset
+    elif name == "physionet":
+        from common.datasets import PhysionetDataset
+
+        return PhysionetDataset
+    elif name == "miniboone":
+        from common.datasets import MiniBooNEDataset
+
+        return MiniBooNEDataset
+    elif name == "FashionMNIST":
+        from common.datasets import FashionMNISTDataset
+
+        return FashionMNISTDataset
+    else:
+        raise ValueError(f"Unknown AFA dataset: {name}")
 
 
+def get_afa_classifier_class(name: str) -> type[AFAClassifier]:
+    if name == "random_dummy":
+        from common.classifiers import RandomDummyAFAClassifier
 
-PRETRAINING_ENTRY_REGISTRY: dict[str, PretrainingFunction] = {
-    "shim2018": pretrain_shim2018_main,
-    "zannone2019": pretrain_zannone2019_main,
-}
+        return RandomDummyAFAClassifier
+    elif name == "uniform_dummy":
+        from common.classifiers import UniformDummyAFAClassifier
 
-TRAINING_ENTRY_REGISTRY: dict[str, TrainingFunction] = {
-    "shim2018": train_shim2018_main,
-    "zannone2019": train_zannone2019_main,
-}
+        return UniformDummyAFAClassifier
+    elif name == "WrappedMaskedMLPClassifier":
+        from common.classifiers import WrappedMaskedMLPClassifier
+
+        return WrappedMaskedMLPClassifier
+    elif name == "Shim2018AFAClassifier":
+        from afa_rl.shim2018.models import Shim2018AFAClassifier
+
+        return Shim2018AFAClassifier
+    else:
+        raise ValueError(f"Unknown AFA classifier: {name}")

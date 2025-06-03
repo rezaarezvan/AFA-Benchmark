@@ -1,33 +1,34 @@
-from typing import Tuple
+from pathlib import Path
+from typing import Self, final, override
 
 import lightning as pl
-from pandas.core.arrays import masked
 import torch
 import torch.nn.functional as F
-from jaxtyping import Float, Shaped
-from torch import Tensor, nn, optim
+from jaxtyping import Float
+from torch import Tensor, nn
 from torchrl.modules import MLP
-
-from afa_rl.custom_types import (
-    Features,
-    Label,
-    MaskedClassifier,
-    Logits,
-    NNMaskedClassifier,
-)
 from afa_rl.shim2018.custom_types import Embedder, Embedding, EmbeddingClassifier
 from afa_rl.utils import (
     get_feature_set,
     mask_data,
     shuffle_feature_set,
 )
-from common.custom_types import FeatureMask, MaskedFeatures
+from common.custom_types import (
+    AFAClassifier,
+    AFAPredictFn,
+    FeatureMask,
+    MaskedFeatures,
+    Features,
+    Label,
+    Logits,
+)
 import numpy as np
 from torch.nn.utils.rnn import pack_padded_sequence as pack
 from torch.nn.utils.rnn import PackedSequence
 from torch.nn.utils.rnn import pad_packed_sequence as pad
 
 
+@final
 class ReadProcessEncoder(nn.Module):
     """A set encoder using RNNs, as described in the paper "Order Matters: Sequence to sequence for sets" (http://arxiv.org/abs/1511.06391)."""
 
@@ -73,6 +74,7 @@ class ReadProcessEncoder(nn.Module):
         # Empty sets are represented by a learnable vector
         self.empty_set_vector = nn.Parameter(torch.zeros(output_size))
 
+    @override
     def forward(self, input_set: Tensor, lengths: Tensor) -> Tensor:
         """Forward pass.
 
@@ -91,7 +93,7 @@ class ReadProcessEncoder(nn.Module):
         # Now only treat the non-empty sets
         input_set = input_set[nonempty_set_mask]
         lengths = lengths[nonempty_set_mask]
-        batch_size, set_size, element_size = input_set.shape
+        batch_size, set_size, _ = input_set.shape
 
         # Read: Map each set elements to a memory vector
         memories = self.reading_block(input_set)  # (batch_size, set_size, memory_size)
@@ -365,16 +367,15 @@ class CopiedShim2018Embedder(Embedder):
         return self.encoder(feature_set, lengths)
 
 
+@final
 class Shim2018Embedder(Embedder):
-    """
-    Wraps a ReadProcessEmbedder to handle inputs consisting of features and their indices, using the representation
-    described in "Joint Active Feature Acquisition and Classification with Variable-Size Set Encoding"
-    """
+    """Wrap a ReadProcessEmbedder to handle inputs consisting of features and their indices, using the representation described in "Joint Active Feature Acquisition and Classification with Variable-Size Set Encoding."""
 
     def __init__(self, encoder: ReadProcessEncoder):
         super().__init__()
         self.encoder = encoder
 
+    @override
     def forward(
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
     ) -> Embedding:
@@ -388,8 +389,9 @@ class Shim2018Embedder(Embedder):
         return self.encoder(feature_set, lengths)
 
 
+@final
 class Shim2018MLPClassifier(EmbeddingClassifier):
-    def __init__(self, input_size: int, num_classes: int, num_cells):
+    def __init__(self, input_size: int, num_classes: int, num_cells: tuple[int, ...]):
         super().__init__()
         self.input_size = input_size
         self.num_classes = num_classes
@@ -399,22 +401,22 @@ class Shim2018MLPClassifier(EmbeddingClassifier):
             input_size, num_classes, num_cells=num_cells, activation_class=nn.ReLU
         )
 
+    @override
     def forward(self, embedding: Embedding) -> Logits:
         return self.mlp(embedding)
 
 
+@final
 class LitShim2018EmbedderClassifier(pl.LightningModule):
-    """
-    A module that combines the ShimEncoder with a classifier for pretraining.
-    """
+    """A module that combines the ShimEncoder with a classifier for pretraining."""
 
     def __init__(
         self,
         embedder: Shim2018Embedder | CopiedShim2018Embedder,
         classifier: Shim2018MLPClassifier,
         class_probabilities: Float[Tensor, "n_classes"],
-        max_masking_probability=1.0,
-        lr=1e-3,
+        max_masking_probability: float = 1.0,
+        lr: float = 1e-3,
     ):
         super().__init__()
         self.save_hyperparameters(ignore=["embedder", "classifier"])
@@ -425,14 +427,15 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
         self.class_weight = self.class_weight / torch.sum(self.class_weight)
         self.max_masking_probability = max_masking_probability
 
+    @override
     def forward(
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
-    ) -> Tuple[Embedding, Logits]:
+    ) -> tuple[Embedding, Logits]:
         """Forward pass.
 
         Args:
-            x: currently observed features, with zeros for missing features
-            z: indicator for missing features, 1 if feature is observed, 0 if missing
+            masked_features: currently observed features, with zeros for missing features
+            feature_mask: indicator for missing features, 1 if feature is observed, 0 if missing
 
         Returns:
             embedding: the embedding of the input features
@@ -443,16 +446,15 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
         classifier_output = self.classifier(embedding)
         return embedding, classifier_output
 
-    def training_step(self, batch, batch_idx):
+    @override
+    def training_step(self, batch: tuple[Tensor, Tensor], batch_idx: int):
         features: Features = batch[0]
         label: Label = batch[1]
 
         masking_probability = torch.rand(1).item() * self.max_masking_probability
         self.log("masking_probability", masking_probability, sync_dist=True)
 
-        masked_features, feature_mask, nonzero_mask = mask_data(
-            features, p=masking_probability
-        )
+        masked_features, feature_mask, _ = mask_data(features, p=masking_probability)
         _, y_hat = self(masked_features, feature_mask)
         loss = F.cross_entropy(y_hat, label, weight=self.class_weight.to(y_hat.device))
         self.log("train_loss", loss)
@@ -468,7 +470,8 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
         acc = (predicted_class == true_class).float().mean()
         return loss, acc
 
-    def validation_step(self, batch, batch_idx):
+    @override
+    def validation_step(self, batch: tuple[Tensor, Tensor], batch_idx: int):
         feature_values, y = batch
 
         feature_mask_half_observed = torch.randint(
@@ -494,40 +497,91 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
 
         return loss
 
+    @override
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.lr)
 
 
-class Shim2018NNMaskedClassifier(NNMaskedClassifier):
-    """A wrapper for the ShimEmbedderClassifier to make it compatible with the NNMaskedClassifier interface."""
+@final
+class Shim2018AFAPredictFn(AFAPredictFn):
+    """A wrapper for the ShimEmbedderClassifier to make it compatible with the AFAPredictFn interface."""
 
     def __init__(self, embedder_and_classifier: LitShim2018EmbedderClassifier):
         super().__init__()
         self.embedder_and_classifier = embedder_and_classifier
 
-    def forward(
-        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
-    ) -> Logits:
-        embedding, logits = self.embedder_and_classifier(masked_features, feature_mask)
-        return logits
-
-
-class Shim2018MaskedClassifier(MaskedClassifier):
-    """A wrapper for the ShimEmbedderClassifier to make it compatible with the MaskedClassifier interface."""
-
-    def __init__(self, embedder_and_classifier: LitShim2018EmbedderClassifier):
-        self.embedder_and_classifier: LitShim2018EmbedderClassifier = (
-            embedder_and_classifier
-        )
-
+    @override
     def __call__(
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
-    ) -> Logits:
-        model_device = next(self.embedder_and_classifier.parameters()).device
-        masked_features = masked_features.to(model_device)
-        feature_mask = feature_mask.to(model_device)
-        with torch.no_grad():
-            embedding, logits = self.embedder_and_classifier.forward(
-                masked_features, feature_mask
-            )
-        return logits.cpu()
+    ) -> Label:
+        _, logits = self.embedder_and_classifier(masked_features, feature_mask)
+        return logits.softmax(dim=-1)
+
+
+@final
+class Shim2018AFAClassifier(AFAClassifier):
+    """A wrapper for the ShimEmbedderClassifier to make it compatible with the AFAClassifier interface."""
+
+    def __init__(
+        self,
+        embedder_and_classifier: LitShim2018EmbedderClassifier,
+        device: torch.device,
+    ):
+        super().__init__()
+        self._device = device
+        self.embedder_and_classifier = embedder_and_classifier.to(self._device)
+
+    @override
+    def __call__(
+        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+    ) -> Label:
+        original_device = masked_features.device
+
+        masked_features = masked_features.to(self._device)
+        feature_mask = feature_mask.to(self._device)
+
+        _, logits = self.embedder_and_classifier(masked_features, feature_mask)
+        return logits.softmax(dim=-1).to(original_device)
+
+    @override
+    def save(self, path: Path) -> None:
+        torch.save(self.embedder_and_classifier.cpu(), path)
+
+    @classmethod
+    @override
+    def load(cls, path: Path, device: torch.device) -> Self:
+        embedder_and_classifier = torch.load(
+            path, weights_only=False, map_location=device
+        )
+        return cls(embedder_and_classifier, device)
+
+    @override
+    def to(self, device: torch.device) -> Self:
+        self.embedder_and_classifier = self.embedder_and_classifier.to(device)
+        return self
+
+    @property
+    @override
+    def device(self) -> torch.device:
+        return self._device
+
+
+# class Shim2018MaskedClassifier(MaskedClassifier):
+#     """A wrapper for the ShimEmbedderClassifier to make it compatible with the MaskedClassifier interface."""
+#
+#     def __init__(self, embedder_and_classifier: LitShim2018EmbedderClassifier):
+#         self.embedder_and_classifier: LitShim2018EmbedderClassifier = (
+#             embedder_and_classifier
+#         )
+#
+#     def __call__(
+#         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+#     ) -> Logits:
+#         model_device = next(self.embedder_and_classifier.parameters()).device
+#         masked_features = masked_features.to(model_device)
+#         feature_mask = feature_mask.to(model_device)
+#         with torch.no_grad():
+#             embedding, logits = self.embedder_and_classifier.forward(
+#                 masked_features, feature_mask
+#             )
+#         return logits.cpu()

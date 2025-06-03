@@ -1,4 +1,4 @@
-dataset_artifact_name: "AFAContext_split_1:Jun03"
+dataset_artifact_name: "cube_split_1:Jun03"
 batch_size: 128
 epochs: 3000
 
@@ -7,14 +7,16 @@ seed: 42
 lr: 1e-3
 max_masking_probability: 0.9
 encoder:
-  output_size: 16
-  reading_block_cells: [32, 32]
-  writing_block_cells: [32, 32]
-  memory_size: 16
+  output_size: 128
+  # reading_block_cells: [32, 32]
+  reading_block_cells: [128, 128]
+  # writing_block_cells: [32, 32]
+  writing_block_cells: [128, 128]
+  memory_size: 128
   processing_steps: 5
   dropout: 0.1
 classifier:
-  num_cells: [32, 32]
+  num_cells: [128, 128]
 
 defaults:
   - override hydra/launcher: submitit_slurm

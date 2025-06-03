@@ -200,3 +200,5 @@ outputs
 
 # Temporary folder for storing intermediate files
 tmp
+
+lightning_logs

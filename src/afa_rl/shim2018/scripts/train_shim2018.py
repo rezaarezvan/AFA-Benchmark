@@ -1,12 +1,10 @@
 from functools import partial
-from matplotlib import pyplot as plt
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from tempfile import TemporaryDirectory
 
 import hydra
-import numpy as np
 from omegaconf import OmegaConf
 import torch
 from tensordict import TensorDictBase
@@ -22,12 +20,11 @@ import wandb
 from afa_rl.afa_env import AFAEnv, get_common_reward_fn
 from afa_rl.afa_methods import RLAFAMethod
 from afa_rl.shim2018.agents import Shim2018Agent
-from afa_rl.custom_types import MaskedClassifier
 from afa_rl.datasets import get_afa_dataset_fn
 from afa_rl.shim2018.models import (
     LitShim2018EmbedderClassifier,
-    Shim2018MaskedClassifier,
-    Shim2018NNMaskedClassifier,
+    Shim2018AFAClassifier,
+    Shim2018AFAPredictFn,
 )
 from afa_rl.shim2018.scripts.pretrain_shim2018 import (
     get_shim2018_model_from_config,
@@ -39,14 +36,16 @@ from afa_rl.utils import (
 from common.config_classes import Shim2018PretrainConfig, Shim2018TrainConfig
 from common.custom_types import (
     AFADataset,
+    AFAPredictFn,
 )
 from common.utils import get_class_probabilities, load_dataset_artifact, set_seed
 
 from eval.metrics import eval_afa_method
+from eval.utils import plot_metrics
 
 
 def get_eval_metrics(
-    eval_tds: list[TensorDictBase], masked_classifier: MaskedClassifier
+    eval_tds: list[TensorDictBase], afa_predict_fn: AFAPredictFn
 ) -> dict[str, Any]:
     eval_metrics = {}
     eval_metrics["reward_sum"] = 0.0
@@ -58,10 +57,10 @@ def get_eval_metrics(
         eval_metrics["actions"].extend(td_["action"].tolist())
         # Check whether prediction is correct
         td_end = td_[-1:]
-        logits = masked_classifier(
+        probs = afa_predict_fn(
             td_end["next", "masked_features"], td_end["next", "feature_mask"]
         )
-        if logits.argmax(dim=-1) == td_end["label"].argmax(dim=-1):
+        if probs.argmax(dim=-1) == td_end["label"].argmax(dim=-1):
             n_correct_samples += 1
     eval_metrics["reward_sum"] /= len(eval_tds)
     eval_metrics["actions"] = wandb.Histogram(eval_metrics["actions"], num_bins=20)
@@ -158,8 +157,9 @@ def main(cfg: Shim2018TrainConfig):
     device = torch.device(cfg.device)
 
     run = wandb.init(
-        config=OmegaConf.to_container(cfg, resolve=True), job_type="training"
-    )  # pyright: ignore
+        config=cast(dict[str, Any], OmegaConf.to_container(cfg, resolve=True)),
+        job_type="training",
+    )
 
     # Load pretrained model and dataset from artifacts
     (
@@ -185,7 +185,7 @@ def main(cfg: Shim2018TrainConfig):
 
     # The RL reward function depends on a specific AFAClassifier
     reward_fn = get_common_reward_fn(
-        Shim2018NNMaskedClassifier(pretrained_model),
+        Shim2018AFAPredictFn(pretrained_model),
         loss_fn=partial(F.cross_entropy, weight=class_weights),
     )
 
@@ -310,11 +310,11 @@ def main(cfg: Shim2018TrainConfig):
                     # Reset the action spec of the agent to the train env action spec
                     agent.egreedy_module._spec = train_env.action_spec  # pyright: ignore
                 metrics_eval = get_eval_metrics(
-                    td_evals, Shim2018MaskedClassifier(pretrained_model)
+                    td_evals, Shim2018AFAPredictFn(pretrained_model)
                 )
                 benchmark_metrics_eval = get_eval_metrics(
                     benchmark_td_evals,
-                    Shim2018MaskedClassifier(pretrained_model),
+                    Shim2018AFAPredictFn(pretrained_model),
                 )
                 run.log(
                     {
@@ -348,7 +348,7 @@ def main(cfg: Shim2018TrainConfig):
         pretrained_model = pretrained_model.to(torch.device("cpu"))
         afa_method = RLAFAMethod(
             agent,
-            Shim2018NNMaskedClassifier(pretrained_model),
+            Shim2018AFAClassifier(pretrained_model, device=torch.device("cpu")),
         )
         # Save the method to a temporary directory and load it again to ensure it is saved correctly
         tmp_dir = TemporaryDirectory(delete=False)
@@ -361,26 +361,12 @@ def main(cfg: Shim2018TrainConfig):
         )
         # Check what the final performance of the method is
         metrics = eval_afa_method(
-            afa_method,
+            afa_method.select,
             val_dataset,
             cfg.hard_budget,
             afa_method.predict,
         )
-        fig, ax = plt.subplots()
-        budgets = np.arange(1, cfg.hard_budget + 1, 1)
-        ax.plot(
-            budgets,
-            metrics["accuracy_all"],
-            label="Accuracy",
-            marker="o",
-        )
-        ax.plot(
-            budgets,
-            metrics["f1_all"],
-            label="F1 Score",
-            marker="o",
-        )
-        ax.set_xlabel("Number of Selected Features (Budget)")
+        fig = plot_metrics(metrics)
         run.log(
             {
                 "final_performance_plot": fig,

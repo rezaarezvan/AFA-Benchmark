@@ -5,14 +5,15 @@ from torch import Tensor
 from tqdm import tqdm
 
 from common.custom_types import (
-    AFAClassifierFn,
+    AFASelectFn,
+    AFAPredictFn,
     AFADataset,
-    AFAMethod,
     FeatureMask,
     Label,
 )
 from sklearn.metrics import accuracy_score, f1_score
 import numpy as np
+
 
 def aggregate_metrics(prediction_history_all, y_true) -> tuple[Tensor, Tensor]:
     """
@@ -83,19 +84,20 @@ def evaluator(
         ],
     }
 
+
 def eval_afa_method(
-    afa_method: AFAMethod,
+    afa_select_fn: AFASelectFn,
     dataset: AFADataset,
-    hard_budget: int,
-    afa_classifier_fn: AFAClassifierFn,
+    budget: int,
+    afa_predict_fn: AFAPredictFn,
 ) -> dict[str, Any]:
     """Evaluate an AFA method.
 
     Args:
-        afa_method (AFAMethod): The AFA method to evaluate.
+        afa_select_fn (AFASelectFn): How to select new features.
         dataset (AFADataset): The dataset to evaluate on.
-        hard_budget (int): The number of features to select.
-        afa_classifier_fn (AFAClassifierFn): The classifier function to use for evaluation.
+        budget (int): The number of features to select.
+        afa_predict_fn (AFAPredictFn): The label prediction function to use for evaluation.
 
     Returns:
         dict[str, float]: A dictionary containing the evaluation results.
@@ -126,16 +128,16 @@ def eval_afa_method(
         masked_features[~feature_mask] = 0.0
 
         # Let AFA method select features for a fixed number of steps
-        for _ in range(hard_budget):
+        for _ in range(budget):
             # Always calculate a prediction
-            prediction = afa_classifier_fn(
+            prediction = afa_predict_fn(
                 masked_features.unsqueeze(0), feature_mask.unsqueeze(0)
             ).squeeze(0)
 
             prediction_history.append(prediction)
 
             # Select new features
-            selection = afa_method.select(
+            selection = afa_select_fn(
                 masked_features.unsqueeze(0), feature_mask.unsqueeze(0)
             ).squeeze(0)
 

@@ -6,7 +6,14 @@ import torch
 from jaxtyping import Float, Integer
 from torch import Tensor, nn
 
-from common.custom_types import AFASelection, FeatureMask, Features, Label, Logits, MaskedFeatures
+from common.custom_types import (
+    AFASelection,
+    FeatureMask,
+    Features,
+    Label,
+    Logits,
+    MaskedFeatures,
+)
 
 type State = Float[
     Tensor, "*batch state_size"
@@ -16,11 +23,11 @@ type FeatureSet = Float[
 ]  # A feature set is the set version of State. Each element-index tuple becomes a vector.
 
 
-class MaskedClassifier(Protocol):
-    """
-    A function that returns class logits given a set of features and a feature mask.
-    """
-    def __call__(self, masked_features: MaskedFeatures, feature_mask: FeatureMask) -> Logits: ...
+# class MaskedClassifier(Protocol):
+#     """
+#     A function that returns class logits given a set of features and a feature mask.
+#     """
+#     def __call__(self, masked_features: MaskedFeatures, feature_mask: FeatureMask) -> Logits: ...
 
 
 class AFADatasetFn(Protocol):
@@ -36,20 +43,26 @@ class AFADatasetFn(Protocol):
 type NaiveIdentity = Integer[Tensor, "*batch n_features naive_identity_size"]
 type NaiveIdentityFn = Callable[[FeatureMask], NaiveIdentity]
 
-class NNMaskedClassifier(nn.Module, MaskedClassifier, ABC):
-    """
-    A neural network classifier that takes a set of features and a feature mask as input and returns class logits.
-    """
 
-    @abstractmethod
-    def forward(self, masked_features: MaskedFeatures, feature_mask: FeatureMask) -> Logits:
-        pass
+# class NNMaskedClassifier(nn.Module, MaskedClassifier, ABC):
+#     """
+#     A neural network classifier that takes a set of features and a feature mask as input and returns class logits.
+#     """
+#
+#     @abstractmethod
+#     def forward(
+#         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+#     ) -> Logits:
+#         pass
+#
+#     def __call__(
+#         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+#     ) -> Logits:
+#         """
+#         Calls the forward method and returns the class logits.
+#         """
+#         return self.forward(masked_features, feature_mask)
 
-    def __call__(self, masked_features: MaskedFeatures, feature_mask: FeatureMask) -> Logits:
-        """
-        Calls the forward method and returns the class logits.
-        """
-        return self.forward(masked_features, feature_mask)
 
 # A reward function will in general depend on
 # - masked features at time t
@@ -70,7 +83,7 @@ type AFARewardFn = Callable[
         AFASelection,
         Features,
         Label,
-        Bool[Tensor, "*batch 1"], # done key
+        Bool[Tensor, "*batch 1"],  # done key
     ],
     AFAReward,
 ]

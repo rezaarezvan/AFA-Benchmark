@@ -17,10 +17,8 @@ from afa_rl.shim2018.models import (
     LitShim2018EmbedderClassifier,
 )
 from common.config_classes import Shim2018PretrainConfig
-from common.custom_types import AFADataset
 from afa_rl.datasets import DataModuleFromDatasets
 from common.utils import get_class_probabilities, load_dataset_artifact, set_seed
-from pathlib import Path
 
 
 def get_shim2018_model_from_config(
@@ -40,7 +38,7 @@ def get_shim2018_model_from_config(
     )
     embedder = Shim2018Embedder(encoder)
     classifier = Shim2018MLPClassifier(
-        cfg.encoder.output_size, n_classes, cfg.classifier.num_cells
+        cfg.encoder.output_size, n_classes, tuple(cfg.classifier.num_cells)
     )
     lit_model = LitShim2018EmbedderClassifier(
         embedder=embedder,

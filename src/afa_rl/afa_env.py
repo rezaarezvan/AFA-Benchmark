@@ -10,11 +10,11 @@ from torchrl.envs import EnvBase
 from afa_rl.custom_types import (
     AFAReward,
     AFARewardFn,
-    MaskedClassifier,
     AFADatasetFn,
     Logits,
 )
 from common.custom_types import (
+    AFAPredictFn,
     AFASelection,
     FeatureMask,
     Features,
@@ -179,12 +179,9 @@ class AFAEnv(EnvBase):
 
 
 def get_common_reward_fn(
-    classifier: MaskedClassifier, loss_fn: Callable[[Logits, Label], AFAReward]
+    afa_predict_fn: AFAPredictFn, loss_fn: Callable[[Logits, Label], AFAReward]
 ) -> AFARewardFn:
-    """
-    A standard AFA-RL reward function where the only reward the agent receives is the negative
-    classification loss at the end.
-    """
+    """Return reward for a standard AFA-RL reward function where the only reward the agent receives is the negative classification loss at the end."""
 
     def f(
         masked_features: MaskedFeatures,
@@ -201,13 +198,15 @@ def get_common_reward_fn(
         done_mask = done.squeeze(-1)
 
         # If AFA stops, reward is negative loss
-        logits = classifier(new_masked_features[done_mask], new_feature_mask[done_mask])
+        probs = afa_predict_fn(
+            new_masked_features[done_mask], new_feature_mask[done_mask]
+        )
         # reward[done_mask] = -loss_fn(
         #     logits,
         #     label[done_mask],
         # )
 
-        reward[done_mask] = (logits.argmax(-1) == label[done_mask].argmax(-1)).float()
+        reward[done_mask] = (probs.argmax(-1) == label[done_mask].argmax(-1)).float()
 
         # TODO: debugging. Give reward for the last 4 features, punish the rest
         # reward[done_mask] += new_feature_mask[done_mask, -5:].sum(dim=-1).float()

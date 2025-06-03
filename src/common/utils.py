@@ -24,6 +24,7 @@ import wandb
 import yaml
 
 from common.custom_types import AFADataset
+from common.registry import get_afa_dataset_class
 
 
 def get_class_probabilities(
@@ -69,7 +70,7 @@ def get_folders_with_matching_params(
     return matching_folders
 
 
-def dict_to_namespace(d: dict) -> SimpleNamespace:
+def dict_to_namespace(d: Any) -> SimpleNamespace:
     """Convert a dict to a SimpleNamespace recursively."""
     if not isinstance(d, dict):
         return d
@@ -111,17 +112,9 @@ def load_dataset_artifact(
         f"Dataset artifact must contain train.pt, val.pt and test.pt files. Instead found: {artifact_filenames}"
     )
 
-    # Import is delayed until now to avoid circular imports
-    from common.registry import AFA_DATASET_REGISTRY
-
-    train_dataset: AFADataset = AFA_DATASET_REGISTRY[
-        dataset_artifact.metadata["dataset_type"]
-    ].load(dataset_artifact_dir / "train.pt")
-    val_dataset: AFADataset = AFA_DATASET_REGISTRY[
-        dataset_artifact.metadata["dataset_type"]
-    ].load(dataset_artifact_dir / "val.pt")
-    test_dataset: AFADataset = AFA_DATASET_REGISTRY[
-        dataset_artifact.metadata["dataset_type"]
-    ].load(dataset_artifact_dir / "test.pt")
+    dataset_class = get_afa_dataset_class(dataset_artifact.metadata["dataset_type"])
+    train_dataset: AFADataset = dataset_class.load(dataset_artifact_dir / "train.pt")
+    val_dataset: AFADataset = dataset_class.load(dataset_artifact_dir / "val.pt")
+    test_dataset: AFADataset = dataset_class.load(dataset_artifact_dir / "test.pt")
 
     return train_dataset, val_dataset, test_dataset, dataset_artifact.metadata

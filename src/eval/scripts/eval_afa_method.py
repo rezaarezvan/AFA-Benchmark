@@ -1,6 +1,4 @@
-"""
-Evaluates a single AFA method on a dataset, using a trained classifier if specified.
-"""
+"""Evaluate a single AFA method on a dataset, using a trained classifier if specified."""
 
 from matplotlib import pyplot as plt
 import logging
@@ -15,16 +13,13 @@ import wandb
 from common.config_classes import EvalConfig
 from common.custom_types import (
     AFAClassifier,
-    AFAClassifierFn,
+    AFAPredictFn,
     AFADataset,
     AFAMethod,
 )
-from common.registry import (
-    AFA_CLASSIFIER_REGISTRY,
-    AFA_METHOD_REGISTRY,
-)
 import numpy as np
 
+from common.registry import get_afa_classifier_class, get_afa_method_class
 from common.utils import load_dataset_artifact, set_seed
 
 from omegaconf import OmegaConf
@@ -41,14 +36,14 @@ def load_trained_method_artifacts(
     trained_method_artifact = wandb.use_artifact(artifact_name, type="trained_method")
     trained_method_artifact_dir = Path(trained_method_artifact.download())
     method_class_name = trained_method_artifact.metadata["afa_method_class"]
-    method_class = AFA_METHOD_REGISTRY[method_class_name]
+    method_class = get_afa_method_class(method_class_name)
     log.debug(
         f"Loading trained AFA method of class {method_class_name} from artifact {artifact_name}"
     )
     method = method_class.load(trained_method_artifact_dir, device=torch.device("cpu"))
 
     # Load the dataset that the method was trained on
-    train_dataset, val_dataset, test_dataset, dataset_metadata = load_dataset_artifact(
+    train_dataset, val_dataset, test_dataset, _ = load_dataset_artifact(
         trained_method_artifact.metadata["dataset_artifact_name"]
     )
 
@@ -72,7 +67,7 @@ def load_trained_classifier_artifact(
     classifier_class_name = trained_classifier_artifact.metadata[
         "classifier_class_name"
     ]
-    classifier_class = AFA_CLASSIFIER_REGISTRY[classifier_class_name]
+    classifier_class = get_afa_classifier_class(classifier_class_name)
     log.debug(
         f"Loading trained classifier of class {classifier_class_name} from artifact {artifact_name}"
     )
@@ -135,28 +130,35 @@ def main(cfg: EvalConfig) -> None:
 
     # Load a classifier if it was specified
     if cfg.trained_classifier_artifact_name:
+        log.debug("Using external classifier")
         validate_artifacts(
             cfg.trained_method_artifact_name, cfg.trained_classifier_artifact_name
         )
-        afa_classifier_fn, classifier_metadata = load_trained_classifier_artifact(
+        afa_predict_fn, classifier_metadata = load_trained_classifier_artifact(
             cfg.trained_classifier_artifact_name
         )
         classifier_type = classifier_metadata["classifier_type"]
     else:
-        afa_classifier_fn: AFAClassifierFn = afa_method.predict
+        log.debug("Using builtin classifier")
+        afa_predict_fn: AFAPredictFn = afa_method.predict
         classifier_type = "builtin"
 
     # Use the same hard budget during evaluation as during training
     # Note that this can be None, in which case we will use the maximum number of features in the dataset
     # during evaluation
-    hard_budget = method_metadata["budget"]
+    if method_metadata["budget"] is None:
+        log.debug("Using maximum number of features in the dataset as budget")
+        eval_budget = eval_dataset.n_features
+    else:
+        log.debug("Using same budget as during training")
+        eval_budget = method_metadata["budget"]
 
     # Do the evaluation
     metrics = eval_afa_method(
-        afa_method,
+        afa_method.select,
         eval_dataset,
-        hard_budget if hard_budget else eval_dataset.features.shape[-1],
-        afa_classifier_fn,
+        eval_budget,
+        afa_predict_fn,
     )
 
     # Log F1 and accuracy to wandb run
@@ -175,7 +177,7 @@ def main(cfg: EvalConfig) -> None:
         metadata={
             "dataset_type": method_metadata["dataset_type"],
             "method_type": method_metadata["method_type"],
-            "budget": method_metadata["budget"],
+            "budget": eval_budget,
             "seed": method_metadata["seed"],
             "classifier_type": classifier_type,
         },

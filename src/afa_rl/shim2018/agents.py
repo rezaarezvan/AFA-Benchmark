@@ -1,4 +1,3 @@
-
 from dataclasses import dataclass
 from typing import Any
 from tensordict.nn import TensorDictModule
@@ -10,6 +9,7 @@ from afa_rl.agents import DQNAgent, serializable, unserializable
 from afa_rl.shim2018.models import Shim2018Embedder
 from afa_rl.utils import get_sequential_module_norm, module_norm
 from common.custom_types import FeatureMask, MaskedFeatures
+
 
 class Shim2018ActionValueNet(nn.Module):
     def __init__(
@@ -41,6 +41,7 @@ class Shim2018ActionValueNet(nn.Module):
         # By setting the Q-values of invalid actions to -inf, we prevent them from being selected greedily.
         qvalues[~action_mask] = float("-inf")
         return qvalues
+
 
 # class DummyShim2018ActionValueNet(nn.Module):
 #     def __init__(
@@ -77,13 +78,14 @@ class Shim2018Agent(DQNAgent):
     embedder: Shim2018Embedder = unserializable()
     embedding_size: int = serializable(default=int)
     n_features: int = serializable()
+    action_value_num_cells: list[int] = serializable(default_factory=lambda: [128, 128])
 
     def get_action_value_module(self) -> TensorDictModule:
         self.action_value_net = Shim2018ActionValueNet(
             embedder=self.embedder,
             embedding_size=self.embedding_size,
             action_size=self.action_spec.n,
-            num_cells=[32, 32],
+            num_cells=self.action_value_num_cells,
         )
         # self.action_value_net = DummyShim2018ActionValueNet(
         #     n_features=self.n_features,
@@ -93,7 +95,7 @@ class Shim2018Agent(DQNAgent):
         action_value_module = TensorDictModule(
             module=self.action_value_net,
             in_keys=["masked_features", "feature_mask", "action_mask"],
-            out_keys=["action_value"]
+            out_keys=["action_value"],
         )
         return action_value_module
 

@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, final, override
 
 import lightning as pl
 import torch
@@ -10,9 +10,7 @@ from torchrl.modules import MLP
 from afa_rl.custom_types import (
     Features,
     Label,
-    MaskedClassifier,
     Logits,
-    NNMaskedClassifier,
 )
 from afa_rl.shim2018.custom_types import Embedder, Embedding, EmbeddingClassifier
 from afa_rl.utils import (
@@ -22,24 +20,48 @@ from afa_rl.utils import (
 from common.custom_types import AFAClassifier, FeatureMask, MaskedFeatures
 
 
-class LitMaskedClassifier(pl.LightningModule):
-    """A lit module for classifiers that take masked features and feature masks as input."""
+@final
+class LitMaskedMLPClassifier(pl.LightningModule):
+    """A lit module for a MaskedMLPClassifier that takes masked features and feature masks as input."""
 
     def __init__(
         self,
-        classifier: nn.Module,
-        class_probabilities: Float[Tensor, "n_classes"],
-        max_masking_probability=1.0,
-        lr=1e-3,
+        n_features: int,
+        n_classes: int,
+        num_cells: tuple[int, ...] = (128, 128),
+        dropout: float = 0.1,
+        class_probabilities: Float[Tensor, "n_classes"] | None = None,
+        max_masking_probability: float = 1.0,
+        lr: float = 1e-3,
     ):
         super().__init__()
-        self.save_hyperparameters(ignore=["classifier"])
-        self.lr = lr
-        self.classifier = classifier
-        self.class_weight = 1 / class_probabilities
+
+        self.n_features = n_features
+        self.n_classes = n_classes
+        self.num_cells = num_cells
+        self.dropout = dropout
+
+        self.classifier = MaskedMLPClassifier(
+            n_features=n_features,
+            n_classes=n_classes,
+            num_cells=num_cells,
+            dropout=dropout,
+        )
+
+        if class_probabilities is None:
+            self.class_probabilities = torch.ones(n_classes) / n_classes
+        else:
+            self.class_probabilities = class_probabilities
+        self.class_weight = 1 / self.class_probabilities
         self.class_weight = self.class_weight / torch.sum(self.class_weight)
+
+        self.lr = lr
+
         self.max_masking_probability = max_masking_probability
 
+        self.save_hyperparameters()
+
+    @override
     def forward(
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
     ) -> Logits:
@@ -55,7 +77,8 @@ class LitMaskedClassifier(pl.LightningModule):
         """
         return self.classifier(masked_features, feature_mask)
 
-    def training_step(self, batch, batch_idx):
+    @override
+    def training_step(self, batch: tuple[Tensor, Tensor], batch_idx: int):
         features: Features = batch[0]
         label: Label = batch[1]
 
@@ -81,7 +104,8 @@ class LitMaskedClassifier(pl.LightningModule):
         acc = (predicted_class == true_class).float().mean()
         return loss, acc
 
-    def validation_step(self, batch, batch_idx):
+    @override
+    def validation_step(self, batch: tuple[Tensor, Tensor], batch_idx: int):
         feature_values, y = batch
 
         feature_mask_half_observed = torch.randint(
@@ -107,29 +131,35 @@ class LitMaskedClassifier(pl.LightningModule):
 
         return loss
 
+    @override
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.lr)
 
 
+@final
 class MaskedMLPClassifier(nn.Module):
     def __init__(
         self,
         n_features: int,
         n_classes: int,
-        num_cells: tuple[int, ...] = (128, 128)
+        num_cells: tuple[int, ...] = (128, 128),
+        dropout: float = 0.1,
     ):
         super().__init__()
         self.n_features = n_features
         self.n_classes = n_classes
         self.num_cells = num_cells
+        self.dropout = dropout
 
         self.classifier = MLP(
-            in_features=n_features * 2,
-            out_features=n_classes,
-            num_cells=num_cells,
+            in_features=self.n_features * 2,
+            out_features=self.n_classes,
+            num_cells=self.num_cells,
             activation_class=nn.ReLU,
+            dropout=self.dropout,
         )
 
+    @override
     def forward(
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
     ) -> Logits:
@@ -138,6 +168,7 @@ class MaskedMLPClassifier(nn.Module):
         logits = self.classifier(x)
         return logits
 
+    @override
     def __call__(
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
     ) -> Logits:
