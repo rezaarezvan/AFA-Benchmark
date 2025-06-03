@@ -54,3 +54,43 @@ Things to consider for synthetic data generation in the context of AFA (extensio
 - Class balance
 - Synthetic data where non-greedy selection is better than greedy
 
+## Terminology
+
+- AFA method / method: An algorithm that sequentially selects features to acquire, based on the current state of acquired features and the data. Is usually also able to make label predictions in each step.
+- Model: A neural network.
+- Dataset/method/classifier type: "Type" refers to strings that can be passed to the functions in the `registry` module.
+
+## Artifact structure
+
+### Datasets
+
+Each dataset artifact is expected to contain a `dataset_type` key in its metadata. Passing this string to the `get_afa_dataset_class` function should return the correct dataset class. The `load` method of the dataset class is then called on the files "train.pt", "val.pt" and "test.pt" in the artifact. See `load_dataset_artifact` for more info.
+
+### Trained methods (AFA methods)
+
+Each trained method should have the following keys in its metadata:
+- `afa_method_class` (`str`): A string that can be passed to the `get_afa_method_class` function to return the correct AFA method class. The `load` method of this class is then called with the contents of the artifact. See `load_trained_method_artifact` for more info.
+- `budget`` (`int|None`): Which budget this method was trained with. For some methods, this is not applicable, in which case it should be set to `None`.
+- `dataset_artifact_name` (`str`): Which artifact this method was trained on. This is used to load the same dataset artifact with `load_dataset_artifact` during evaluation.
+- `dataset_type` (`str`): The dataset type of `dataset_artifact_name`. Superfluous but convenient.
+- `method_type` (`str`): The method type of the trained afa method.
+- `seed` (`int`): The random seed used for training this method.
+
+Note that `afa_method_class` can be the same for several different `method_type`s. This is the case for the RL methods which have a common AFA method class `RLAFAMethod` but have different `method_type`s like `"shim2018"` and `"zannone2019"` in order to distinguish them during evaluation.
+
+### Evaluation results
+
+The `eval_afa_method.py` script generates artifacts with the following keys in their metadata:
+- `budget` (`int`): The budget used for evaluation. If the trained method artifact had a budget set, the same budget is used here. If the trained method artifact had no budget set, the budget is equal to the number of features in the dataset.
+- `classifier_type` (`str`): The classifier type used for evaluation. Either a "normal" classifier type that can be passed to `get_afa_classifier_class`, or `"builtin"`, in which case the built-in classifier of the trained method was used.
+- `dataset_type` (`str`): The dataset type of the dataset used for evaluation. Always the same as the `dataset_type` of the trained method artifact.
+- `method_type` (`str`): The method type of the trained method artifact.
+- `seed` (`int`): The random seed used for evaluation.
+
+## Hydra
+
+All scripts in this repository use [Hydra](https://hydra.cc/) for configuration management, mainly to simplify batching of experiments. [Structured configs](https://hydra.cc/docs/tutorials/structured_config/intro/) are defined in `src/common/config_classes.py` and the configurations themselves are defined in the `conf` directory.
+
+## Full pipeline example using shim2018
+
+TODO
