@@ -27,13 +27,23 @@ from common.config_classes import TrainMaskedMLPClassifierConfig
 from common.custom_types import AFADataset
 from afa_rl.datasets import DataModuleFromDatasets
 from common.models import LitMaskedClassifier, MaskedMLPClassifier
-from common.utils import dict_to_namespace, get_class_probabilities, load_dataset_artifact, set_seed
+from common.utils import (
+    dict_to_namespace,
+    get_class_probabilities,
+    load_dataset_artifact,
+    set_seed,
+)
 from pathlib import Path
 from omegaconf import OmegaConf
 
 log = logging.getLogger(__name__)
 
-@hydra.main(version_base=None, config_path="../../../conf/classifiers/masked_mlp_classifier", config_name="tmp")
+
+@hydra.main(
+    version_base=None,
+    config_path="../../../conf/classifiers/masked_mlp_classifier",
+    config_name="tmp",
+)
 def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
     log.debug(cfg)
     set_seed(cfg.seed)
@@ -46,7 +56,9 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
     )
 
     # Load dataset artifact
-    train_dataset, val_dataset, _ = load_dataset_artifact(cfg.dataset_artifact.name)
+    train_dataset, val_dataset, _, dataset_metadata = load_dataset_artifact(
+        cfg.dataset_artifact_name
+    )
     datamodule = DataModuleFromDatasets(
         train_dataset, val_dataset, batch_size=cfg.batch_size
     )
@@ -67,7 +79,6 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
         max_masking_probability=cfg.max_masking_probability,
         lr=cfg.lr,
     )
-
 
     # ModelCheckpoint callback
     checkpoint_callback = ModelCheckpoint(
@@ -101,19 +112,22 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
             lr=cfg.lr,
         )
         best_model = cast(MaskedMLPClassifier, best_lit_model.classifier)
-        wrapped_classifier = WrappedMaskedMLPClassifier(model=best_model, device=torch.device(cfg.device))
+        wrapped_classifier = WrappedMaskedMLPClassifier(
+            model=best_model, device=torch.device(cfg.device)
+        )
         # Save model in a temporary file
         with NamedTemporaryFile(delete=False) as tmp_file:
             save_path = Path(tmp_file.name)
             wrapped_classifier.save(save_path)
         # Save classifier as wandb artifact
         trained_classifier_artifact = wandb.Artifact(
-            name=f"masked_mlp_classifier-{cfg.dataset_artifact.name.split(':')[0]}",
+            name=f"masked_mlp_classifier-{cfg.dataset_artifact_name.split(':')[0]}",
             type="trained_classifier",
             metadata={
-                "dataset_name": cfg.dataset_artifact.name.split(":")[0],
+                "dataset_type": dataset_metadata["dataset_type"],
                 "seed": cfg.seed,
-                "classifier_class": wrapped_classifier.__class__.__name__,
+                "classifier_class_name": wrapped_classifier.__class__.__name__,
+                "classifier_type": wrapped_classifier.__class__.__name__,
             },
         )
         trained_classifier_artifact.add_file(str(save_path), name="classifier.pt")

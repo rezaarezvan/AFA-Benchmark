@@ -13,6 +13,7 @@ def set_seed(seed: int):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
+
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -25,13 +26,16 @@ import yaml
 from common.custom_types import AFADataset
 
 
-def get_class_probabilities(labels: Bool[Tensor, "*batch n_classes"]) -> Float[Tensor, "n_classes"]:
+def get_class_probabilities(
+    labels: Bool[Tensor, "*batch n_classes"],
+) -> Float[Tensor, "n_classes"]:
     """
     Returns the class probabilities for a given set of labels.
     """
     class_counts = labels.float().sum(dim=0)
     class_probabilities = class_counts / class_counts.sum()
     return class_probabilities
+
 
 def yaml_file_matches_mapping(yaml_file_path: Path, mapping: dict[str, Any]) -> bool:
     """
@@ -48,14 +52,22 @@ def yaml_file_matches_mapping(yaml_file_path: Path, mapping: dict[str, Any]) -> 
 
     return True
 
-def get_folders_with_matching_params(folder: Path, mapping: dict[str, Any]) -> list[Path]:
+
+def get_folders_with_matching_params(
+    folder: Path, mapping: dict[str, Any]
+) -> list[Path]:
     """
     Get all folders in a given folder that have a matching params.yml file.
     """
 
-    matching_folders = [f for f in folder.iterdir() if yaml_file_matches_mapping(f / "params.yml", mapping)]
+    matching_folders = [
+        f
+        for f in folder.iterdir()
+        if yaml_file_matches_mapping(f / "params.yml", mapping)
+    ]
 
     return matching_folders
+
 
 def dict_to_namespace(d: dict) -> SimpleNamespace:
     """Convert a dict to a SimpleNamespace recursively."""
@@ -86,10 +98,11 @@ def dict_to_namespace(d: dict) -> SimpleNamespace:
 
     return ns
 
+
 def load_dataset_artifact(
     artifact_name: str,
-) -> tuple[AFADataset, AFADataset, AFADataset]:
-    """Load train, validation, and test datasets from a WandB artifact."""
+) -> tuple[AFADataset, AFADataset, AFADataset, dict[str, Any]]:
+    """Load train, validation, and test datasets from a WandB artifact, together with its metadata."""
     dataset_artifact = wandb.use_artifact(artifact_name, type="dataset")
     dataset_artifact_dir = Path(dataset_artifact.download())
     # The dataset dir should contain the files train.pt, val.pt and test.pt
@@ -102,13 +115,13 @@ def load_dataset_artifact(
     from common.registry import AFA_DATASET_REGISTRY
 
     train_dataset: AFADataset = AFA_DATASET_REGISTRY[
-        dataset_artifact.metadata["dataset_name"]
+        dataset_artifact.metadata["dataset_type"]
     ].load(dataset_artifact_dir / "train.pt")
     val_dataset: AFADataset = AFA_DATASET_REGISTRY[
-        dataset_artifact.metadata["dataset_name"]
+        dataset_artifact.metadata["dataset_type"]
     ].load(dataset_artifact_dir / "val.pt")
     test_dataset: AFADataset = AFA_DATASET_REGISTRY[
-        dataset_artifact.metadata["dataset_name"]
+        dataset_artifact.metadata["dataset_type"]
     ].load(dataset_artifact_dir / "test.pt")
 
-    return train_dataset, val_dataset, test_dataset
+    return train_dataset, val_dataset, test_dataset, dataset_artifact.metadata

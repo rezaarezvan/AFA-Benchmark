@@ -1,5 +1,4 @@
-pretrained_model_artifact:
-  name: pretrain_shim2018-AFAContext_split_1:v0
+pretrained_model_artifact_name: pretrain_shim2018-AFAContext_split_1:v3
 n_agents: 128
 hard_budget: 5
 agent:

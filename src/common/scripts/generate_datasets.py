@@ -63,7 +63,7 @@ def create_split_dataset(original_dataset, subset, split_name, split_idx):
 def generate_and_save_splits(
     run: Run,
     dataset_class,
-    dataset_name,
+    dataset_type,
     split_idx,
     data_dir,
     artifact_alias: str | None = None,
@@ -74,7 +74,7 @@ def generate_and_save_splits(
     seed = BASE_SEEDS[split_idx]
 
     print(
-        f"\nGenerating {dataset_name} dataset (split {split_idx + 1}/{args.num_splits}) with seed {seed}..."
+        f"\nGenerating {dataset_type} dataset (split {split_idx + 1}/{args.num_splits}) with seed {seed}..."
     )
 
     # Create dataset with the specific seed
@@ -99,7 +99,7 @@ def generate_and_save_splits(
     val_dataset = create_split_dataset(dataset, val_subset, "val", split_idx)
     test_dataset = create_split_dataset(dataset, test_subset, "test", split_idx)
 
-    if dataset_name in ("miniboone", "physionet"):
+    if dataset_type in ("miniboone", "physionet"):
         feat = train_dataset.features
         mean = feat.mean(dim=0, keepdim=True)
         std = feat.std(dim=0, unbiased=False, keepdim=True)
@@ -108,7 +108,7 @@ def generate_and_save_splits(
             ds.features = (ds.features - mean) / std
 
     # Create dataset directory
-    dataset_dir = os.path.join(data_dir, dataset_name)
+    dataset_dir = os.path.join(data_dir, dataset_type)
     os.makedirs(dataset_dir, exist_ok=True)
 
     # Save splits locally
@@ -121,11 +121,11 @@ def generate_and_save_splits(
 
     # Also save as wandb artifact
     artifact = wandb.Artifact(
-        name=f"{dataset_name}_split_{split_idx + 1}",
+        name=f"{dataset_type}_split_{split_idx + 1}",
         type="dataset",
         metadata=dataset_kwargs
         | {
-            "dataset_name": dataset_name,
+            "dataset_type": dataset_type,
             "split_idx": split_idx + 1,
             "seed": seed,
         },
@@ -146,7 +146,7 @@ def generate_and_save_splits(
     else:
         run.log_artifact(artifact)
 
-    print(f"Saved {dataset_name} splits to {dataset_dir}")
+    print(f"Saved {dataset_type} splits to {dataset_dir}")
     print(
         f"Train size: {len(train_dataset)}, Val size: {len(val_dataset)}, Test size: {len(test_dataset)}"
     )
@@ -155,7 +155,7 @@ def generate_and_save_splits(
 def generate_all_splits(
     run: Run,
     dataset_class,
-    dataset_name,
+    dataset_type,
     data_dir,
     artifact_alias: str | None = None,
     **dataset_kwargs,
@@ -165,7 +165,7 @@ def generate_all_splits(
         generate_and_save_splits(
             run,
             dataset_class,
-            dataset_name,
+            dataset_type,
             i,
             data_dir,
             artifact_alias=artifact_alias,
@@ -173,20 +173,20 @@ def generate_all_splits(
         )
 
 
-def verify_dataset(dataset_name, split_idx, data_dir):
+def verify_dataset(dataset_type, split_idx, data_dir):
     """Verify that a dataset can be loaded correctly."""
-    dataset_class = AFA_DATASET_REGISTRY[dataset_name]
+    dataset_class = AFA_DATASET_REGISTRY[dataset_type]
 
     # Load train, val, and test splits
-    train_path = os.path.join(data_dir, dataset_name, f"train_split_{split_idx + 1}.pt")
-    val_path = os.path.join(data_dir, dataset_name, f"val_split_{split_idx + 1}.pt")
-    test_path = os.path.join(data_dir, dataset_name, f"test_split_{split_idx + 1}.pt")
+    train_path = os.path.join(data_dir, dataset_type, f"train_split_{split_idx + 1}.pt")
+    val_path = os.path.join(data_dir, dataset_type, f"val_split_{split_idx + 1}.pt")
+    test_path = os.path.join(data_dir, dataset_type, f"test_split_{split_idx + 1}.pt")
 
     train_dataset = dataset_class.load(Path(train_path))
     val_dataset = dataset_class.load(Path(val_path))
     test_dataset = dataset_class.load(Path(test_path))
 
-    print(f"Verified {dataset_name} split {split_idx + 1}:")
+    print(f"Verified {dataset_type} split {split_idx + 1}:")
     print(f"  Train: {len(train_dataset)} samples")
     print(f"  Val: {len(val_dataset)} samples")
     print(f"  Test: {len(test_dataset)} samples")
@@ -230,20 +230,20 @@ def main():
     run = wandb.init(job_type="data_generation")
 
     # Generate splits for all registered datasets
-    for dataset_name, dataset_class in AFA_DATASET_REGISTRY.items():
-        print(f"\nProcessing dataset: {dataset_name}")
+    for dataset_type, dataset_class in AFA_DATASET_REGISTRY.items():
+        print(f"\nProcessing dataset: {dataset_type}")
 
         # Set default parameters based on dataset type
-        if dataset_name == "cube":
+        if dataset_type == "cube":
             kwargs = {
                 "n_samples": 1000,
                 "informative_feature_std": 0.3,
                 "non_informative_feature_mean": 0.5,
                 "non_informative_feature_std": 0.3,
             }
-        elif dataset_name == "shim2018cube":
+        elif dataset_type == "shim2018cube":
             kwargs = {"n_samples": 10000, "sigma": 0.1}
-        elif dataset_name == "AFAContext":
+        elif dataset_type == "AFAContext":
             kwargs = {
                 "n_samples": 1000,
                 "std_bin": 0.1,
@@ -252,20 +252,20 @@ def main():
                 "non_informative_feature_mean": 0.5,
                 "non_informative_feature_std": 0.3,
             }
-        elif dataset_name == "MNIST":
+        elif dataset_type == "MNIST":
             kwargs = {
                 "train": True,  # Use training set as base
                 "transform": None,  # Will use default ToTensor()
                 "download": True,
                 "root": os.path.join(data_dir, "MNIST"),
             }
-        elif dataset_name == "diabetes":
+        elif dataset_type == "diabetes":
             kwargs = {"data_path": "datasets/diabetes.csv"}
-        elif dataset_name == "physionet":
+        elif dataset_type == "physionet":
             kwargs = {"data_path": "datasets/physionet_data.csv"}
-        elif dataset_name == "miniboone":
+        elif dataset_type == "miniboone":
             kwargs = {"data_path": "datasets/miniboone.csv"}
-        elif dataset_name == "FashionMNIST":
+        elif dataset_type == "FashionMNIST":
             kwargs = {
                 "train": True,  # Use training set as base
                 "transform": None,  # Will use default ToTensor()
@@ -273,21 +273,21 @@ def main():
                 "root": os.path.join(data_dir, "MNIST"),
             }
         else:
-            print(f"Warning: Unknown dataset type {dataset_name}, skipping...")
+            print(f"Warning: Unknown dataset type {dataset_type}, skipping...")
             continue
 
         # Generate splits
         generate_all_splits(
             run,
             dataset_class,
-            dataset_name,
+            dataset_type,
             data_dir,
             artifact_alias=args.artifact_alias,
             **kwargs,
         )
 
         # Verify first split
-        verify_dataset(dataset_name, 0, data_dir)
+        verify_dataset(dataset_type, 0, data_dir)
 
 
 if __name__ == "__main__":

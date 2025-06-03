@@ -85,9 +85,10 @@ def afacontext_benchmark_policy(
 def load_pretrained_model_artifacts(
     artifact_name: str,
 ) -> tuple[
-    AFADataset,
-    AFADataset,
-    AFADataset,
+    AFADataset,  # train dataset
+    AFADataset,  # val dataset
+    AFADataset,  # test dataset
+    dict[str, Any],  # dataset metadata
     LitShim2018EmbedderClassifier,
     Shim2018PretrainConfig,
 ]:
@@ -113,8 +114,8 @@ def load_pretrained_model_artifacts(
     )
 
     # Load the dataset that the pretrained model was trained on
-    train_dataset, val_dataset, test_dataset = load_dataset_artifact(
-        pretrained_model_config.dataset_artifact.name
+    train_dataset, val_dataset, test_dataset, dataset_metadata = load_dataset_artifact(
+        pretrained_model_config.dataset_artifact_name
     )
 
     # Get the number of features and classes from the dataset
@@ -138,12 +139,14 @@ def load_pretrained_model_artifacts(
         train_dataset,
         val_dataset,
         test_dataset,
+        dataset_metadata,
         pretrained_model,
         pretrained_model_config,
     )
 
 
 log = logging.getLogger(__name__)
+
 
 @hydra.main(
     version_base=None, config_path="../../../../conf/train/shim2018", config_name="tmp"
@@ -159,9 +162,14 @@ def main(cfg: Shim2018TrainConfig):
     )  # pyright: ignore
 
     # Load pretrained model and dataset from artifacts
-    train_dataset, val_dataset, _, pretrained_model, pretrained_model_config = (
-        load_pretrained_model_artifacts(cfg.pretrained_model_artifact.name)
-    )
+    (
+        train_dataset,
+        val_dataset,
+        _,
+        dataset_metadata,
+        pretrained_model,
+        pretrained_model_config,
+    ) = load_pretrained_model_artifacts(cfg.pretrained_model_artifact_name)
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
     log.debug(f"Class probabilities in training set: {train_class_probabilities}")
     class_weights = F.softmax(1 / train_class_probabilities, dim=-1).to(device)
@@ -343,21 +351,21 @@ def main(cfg: Shim2018TrainConfig):
             Shim2018NNMaskedClassifier(pretrained_model),
         )
         # Save the method to a temporary directory and load it again to ensure it is saved correctly
-        with TemporaryDirectory() as tmpdirname:
-            afa_method.save(Path(tmpdirname))
-            del afa_method
-            afa_method = RLAFAMethod.load(
-                Path(tmpdirname),
-                device=torch.device("cpu"),
-            )
-            # Check what the final performance of the method is
-            # TODO
-            metrics = eval_afa_method(
-                afa_method,
-                val_dataset,
-                cfg.hard_budget,
-                afa_method.predict,
-            )
+        tmp_dir = TemporaryDirectory(delete=False)
+        tmp_path = Path(str(tmp_dir))
+        afa_method.save(tmp_path)
+        del afa_method
+        afa_method = RLAFAMethod.load(
+            tmp_path,
+            device=torch.device("cpu"),
+        )
+        # Check what the final performance of the method is
+        metrics = eval_afa_method(
+            afa_method,
+            val_dataset,
+            cfg.hard_budget,
+            afa_method.predict,
+        )
         fig, ax = plt.subplots()
         budgets = np.arange(1, cfg.hard_budget + 1, 1)
         ax.plot(
@@ -373,25 +381,29 @@ def main(cfg: Shim2018TrainConfig):
             marker="o",
         )
         ax.set_xlabel("Number of Selected Features (Budget)")
-        run.log({
-            "final_performance_plot": fig,
-        })
+        run.log(
+            {
+                "final_performance_plot": fig,
+            }
+        )
 
-            # Save the model as a WandB artifact
-            # Save the name of the afa method class as metadata
-            afa_method_artifact = wandb.Artifact(
-                name=f"train_shim2018-{pretrained_model_config.dataset_artifact.name.split(':')[0]}-budget_{cfg.hard_budget}-seed_{cfg.seed}",
-                type="trained_method",
-                metadata={
-                    "afa_method_class": afa_method.__class__.__name__,
-                    "dataset_artifact_name": pretrained_model_config.dataset_artifact.name,
-                    "hard_budget": cfg.hard_budget,
-                    "seed": cfg.seed,
-                }
-            )
+        # Save the model as a WandB artifact
+        # Save the name of the afa method class as metadata
+        afa_method_artifact = wandb.Artifact(
+            name=f"train_shim2018-{pretrained_model_config.dataset_artifact_name.split(':')[0]}-budget_{cfg.hard_budget}-seed_{cfg.seed}",
+            type="trained_method",
+            metadata={
+                "afa_method_class": afa_method.__class__.__name__,
+                "method_type": "shim2018",
+                "dataset_artifact_name": pretrained_model_config.dataset_artifact_name,
+                "dataset_type": dataset_metadata["dataset_type"],
+                "budget": cfg.hard_budget,
+                "seed": cfg.seed,
+            },
+        )
 
-            afa_method_artifact.add_dir(tmpdirname)
-            run.log_artifact(afa_method_artifact)
+        afa_method_artifact.add_dir(str(tmp_path))
+        run.log_artifact(afa_method_artifact)
 
         run.finish()
 

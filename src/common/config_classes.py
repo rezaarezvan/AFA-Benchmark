@@ -1,9 +1,11 @@
 from dataclasses import dataclass, field
 from hydra.core.config_store import ConfigStore
 
-@dataclass
-class ArtifactConfig:
-    name: str  # e.g "pretrain_shim2018-cube_split_1:May26"
+
+# @dataclass
+# class ArtifactConfig:
+#     name: str  # e.g "pretrain_shim2018-cube_split_1:May26"
+
 
 @dataclass
 class Shim2018EncoderConfig:
@@ -20,10 +22,9 @@ class Shim2018ClassifierConfig:
     num_cells: list[int] = field(default_factory=lambda: [32, 32])
 
 
-
 @dataclass
 class Shim2018PretrainConfig:
-    dataset_artifact: ArtifactConfig
+    dataset_artifact_name: str
     batch_size: int  # batch size for dataloader
     epochs: int
 
@@ -39,8 +40,6 @@ class Shim2018PretrainConfig:
 
 cs = ConfigStore.instance()
 cs.store(name="pretrain_shim2018", node=Shim2018PretrainConfig)
-
-
 
 
 @dataclass
@@ -64,7 +63,7 @@ class Shim2018AgentConfig:
 
 @dataclass
 class Shim2018TrainConfig:
-    pretrained_model_artifact: ArtifactConfig
+    pretrained_model_artifact_name: str
     n_agents: int
     hard_budget: int
     agent: Shim2018AgentConfig
@@ -82,9 +81,10 @@ class Shim2018TrainConfig:
 
 cs.store(name="train_shim2018", node=Shim2018TrainConfig)
 
+
 @dataclass
 class TrainMaskedMLPClassifierConfig:
-    dataset_artifact: ArtifactConfig
+    dataset_artifact_name: str
     batch_size: int
     epochs: int
     max_masking_probability: float = 0.9
@@ -92,13 +92,20 @@ class TrainMaskedMLPClassifierConfig:
     seed: int = 42
     device: str = "cuda"
 
+
 cs.store(name="train_masked_mlp_classifier", node=TrainMaskedMLPClassifierConfig)
+
 
 @dataclass
 class EvalConfig:
-    trained_method_artifact: ArtifactConfig
-    trained_classifier_artifact: ArtifactConfig | None # if None, use the method's classifier
+    trained_method_artifact_name: str
+    trained_classifier_artifact_name: str | None  # if None, use the method's classifier
     seed: int = 42
 
 
-cs.store(name="eval", node=EvalConfig)
+@dataclass
+class PlotConfig:
+    eval_artifact_names: list[str]
+
+
+cs.store(name="plot", node=PlotConfig)

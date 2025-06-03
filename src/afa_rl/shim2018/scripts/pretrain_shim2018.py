@@ -72,7 +72,7 @@ def main(cfg: Shim2018PretrainConfig) -> None:
     )
 
     # Load dataset artifact
-    train_dataset, val_dataset, _ = load_dataset_artifact(cfg.dataset_artifact.name)
+    train_dataset, val_dataset, _, _ = load_dataset_artifact(cfg.dataset_artifact_name)
     datamodule = DataModuleFromDatasets(
         train_dataset, val_dataset, batch_size=cfg.batch_size
     )
@@ -115,7 +115,7 @@ def main(cfg: Shim2018PretrainConfig) -> None:
         # Save best model as wandb artifact
         best_checkpoint = trainer.checkpoint_callback.best_model_path  # pyright: ignore
         pretrained_model_artifact = wandb.Artifact(
-            name=f"pretrain_shim2018-{cfg.dataset_artifact.name.split(':')[0]}",
+            name=f"pretrain_shim2018-{cfg.dataset_artifact_name.split(':')[0]}",
             type="pretrained_model",
         )
         pretrained_model_artifact.add_file(local_path=best_checkpoint, name="model.pt")

@@ -35,7 +35,7 @@ from eval.metrics import eval_afa_method
 def load_trained_method_artifacts(
     artifact_name: str,
 ) -> tuple[
-    AFADataset, AFADataset, AFADataset, AFAMethod, dict[str, Any]  # method_metadata
+    AFADataset, AFADataset, AFADataset, AFAMethod, dict[str, Any]  # method metadata
 ]:
     """Load a trained afa method and the dataset it was trained on, from a WandB artifact."""
     trained_method_artifact = wandb.use_artifact(artifact_name, type="trained_method")
@@ -48,7 +48,7 @@ def load_trained_method_artifacts(
     method = method_class.load(trained_method_artifact_dir, device=torch.device("cpu"))
 
     # Load the dataset that the method was trained on
-    train_dataset, val_dataset, test_dataset = load_dataset_artifact(
+    train_dataset, val_dataset, test_dataset, dataset_metadata = load_dataset_artifact(
         trained_method_artifact.metadata["dataset_artifact_name"]
     )
 
@@ -63,13 +63,15 @@ def load_trained_method_artifacts(
 
 def load_trained_classifier_artifact(
     artifact_name: str,
-) -> AFAClassifier:
+) -> tuple[AFAClassifier, dict[str, Any]]:  # classifier metadata
     """Load a trained masked classifier from a WandB artifact."""
     trained_classifier_artifact = wandb.use_artifact(
         artifact_name, type="trained_classifier"
     )
     trained_classifier_artifact_dir = Path(trained_classifier_artifact.download())
-    classifier_class_name = trained_classifier_artifact.metadata["classifier_class"]
+    classifier_class_name = trained_classifier_artifact.metadata[
+        "classifier_class_name"
+    ]
     classifier_class = AFA_CLASSIFIER_REGISTRY[classifier_class_name]
     log.debug(
         f"Loading trained classifier of class {classifier_class_name} from artifact {artifact_name}"
@@ -78,7 +80,7 @@ def load_trained_classifier_artifact(
         trained_classifier_artifact_dir / "classifier.pt", device=torch.device("cpu")
     )
 
-    return classifier
+    return classifier, trained_classifier_artifact.metadata
 
 
 def validate_artifacts(
@@ -101,7 +103,7 @@ def validate_artifacts(
 
     assert (
         method_artifact.metadata["dataset_artifact_name"]
-        == classifier_run.config["dataset_artifact"]["name"]
+        == classifier_run.config["dataset_artifact_name"]
     ), (
         f"The trained method artifact {trained_method_artifact_name} and the trained classifier artifact {trained_classifier_artifact_name} "
         "should have been trained on the same dataset, but they are not."
@@ -128,24 +130,26 @@ def main(cfg: EvalConfig) -> None:
 
     # Load trained afa method and dataset from artifacts
     _, _, eval_dataset, afa_method, method_metadata = load_trained_method_artifacts(
-        cfg.trained_method_artifact.name,
+        cfg.trained_method_artifact_name,
     )
 
     # Load a classifier if it was specified
-    if cfg.trained_classifier_artifact:
+    if cfg.trained_classifier_artifact_name:
         validate_artifacts(
-            cfg.trained_method_artifact.name, cfg.trained_classifier_artifact.name
+            cfg.trained_method_artifact_name, cfg.trained_classifier_artifact_name
         )
-        afa_classifier_fn: AFAClassifierFn = load_trained_classifier_artifact(
-            cfg.trained_classifier_artifact.name
+        afa_classifier_fn, classifier_metadata = load_trained_classifier_artifact(
+            cfg.trained_classifier_artifact_name
         )
+        classifier_type = classifier_metadata["classifier_type"]
     else:
         afa_classifier_fn: AFAClassifierFn = afa_method.predict
+        classifier_type = "builtin"
 
     # Use the same hard budget during evaluation as during training
     # Note that this can be None, in which case we will use the maximum number of features in the dataset
     # during evaluation
-    hard_budget = method_metadata["hard_budget"]
+    hard_budget = method_metadata["budget"]
 
     # Do the evaluation
     metrics = eval_afa_method(
@@ -162,16 +166,19 @@ def main(cfg: EvalConfig) -> None:
     ax.plot(budgets, metrics["f1_all"], label="F1 Score", marker="o")
     ax.set_xlabel("Number of Selected Features (Budget)")
 
-    run.log(
-        {
-            "metrics_plot": fig
-        }
-    )
+    run.log({"metrics_plot": fig})
 
     # Save results as wandb artifact
     eval_results_artifact = wandb.Artifact(
-        name=f"{cfg.trained_method_artifact.name.split(':')[0]}-{cfg.trained_classifier_artifact.name.split(':')[0] if cfg.trained_classifier_artifact else 'builtin'}",
+        name=f"{cfg.trained_method_artifact_name.split(':')[0]}-{cfg.trained_classifier_artifact_name.split(':')[0] if cfg.trained_classifier_artifact_name else 'builtin'}",
         type="eval_results",
+        metadata={
+            "dataset_type": method_metadata["dataset_type"],
+            "method_type": method_metadata["method_type"],
+            "budget": method_metadata["budget"],
+            "seed": method_metadata["seed"],
+            "classifier_type": classifier_type,
+        },
     )
     with NamedTemporaryFile("w", delete=False) as f:
         metrics_save_path = Path(f.name)

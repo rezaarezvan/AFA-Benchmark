@@ -1,5 +1,4 @@
-dataset_artifact:
-  name: "AFAContext_split_1:Jun02"
+dataset_artifact_name: "AFAContext_split_1:Jun03"
 batch_size: 128
 epochs: 100
 max_masking_probability: 0.9
