@@ -1,0 +1,22 @@
+data_dir: "data"
+split_idx: 1
+seeds: 
+  - 42
+  - 123
+  - 456
+  - 789
+  - 101112
+  - 131415
+  - 161718
+  - 192021
+  - 222324
+  - 252627
+split_ratio:
+  train: 0.7
+  val: 0.15
+  test: 0.15
+output_artifact_aliases: []
+
+defaults:
+  - dataset: MNIST
+

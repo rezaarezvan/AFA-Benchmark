@@ -177,30 +177,30 @@ cython_debug/
 .pypirc
 
 # Logs
-logs
+/logs
 
 # Wandb folders
-wandb
-artifacts
+/wandb
+/artifacts
 
-# Data folders
-data*
+# Data folder
+/data*
 
 # Model folder, includes weights and other types of saved models
-models
+/models
 
 # Results folder, includes evaluation results
-results
+/results
 
 # Plots folder, includes generated plots
-plots
+/plots
 
 # Hydra output folder
-outputs
+/outputs
 
 # Temporary folder for storing intermediate files
-tmp
+/tmp
 
-lightning_logs
+/lightning_logs
 
-multirun
+/multirun
