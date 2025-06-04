@@ -1,10 +1,62 @@
 from dataclasses import dataclass, field
+from enum import Enum
+from pathlib import Path
+from typing import Any, Literal
 from hydra.core.config_store import ConfigStore
 
+cs = ConfigStore.instance()
 
-# @dataclass
-# class ArtifactConfig:
-#     name: str  # e.g "pretrain_shim2018-cube_split_1:May26"
+
+@dataclass
+class SplitRatioConfig:
+    train: float = 0.7  # ratio of training data
+    val: float = 0.15  # ratio of validation data
+    test: float = 0.15  # ratio of test data
+
+
+class DatasetType(str, Enum):
+    cube = "cube"
+    MNIST = "MNIST"
+    shim2018cube = "shim2018cube"
+    diabetes = "diabetes"
+    physionet = "physionet"
+    miniboone = "miniboone"
+    FashionMNIST = "FashionMNIST"
+
+
+@dataclass
+class DatasetConfig:
+    type: DatasetType
+    kwargs: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class DatasetGenerationConfig:
+    data_dir: str = (
+        "data"  # where to store the generated dataset (apart from wandb artifacts)
+    )
+    split_idx: int = 1  # which split to use
+    seeds: list[int] = field(
+        default_factory=lambda: [
+            42,
+            123,
+            456,
+            789,
+            101112,
+            131415,
+            161718,
+            192021,
+            222324,
+            252627,
+        ]
+    )  # which seeds to use, only the seed at index `split - 1` will be used
+    split_ratio: SplitRatioConfig = field(default_factory=SplitRatioConfig)
+    output_artifact_aliases: list[str] = field(default_factory=lambda: [])
+
+    dataset: DatasetConfig = field(default_factory=lambda: DatasetConfig("cube"))
+
+
+cs.store(name="dataset_generation", node=DatasetGenerationConfig)
 
 
 @dataclass
@@ -36,9 +88,9 @@ class Shim2018PretrainConfig:
     classifier: Shim2018ClassifierConfig = field(
         default_factory=Shim2018ClassifierConfig
     )
+    output_artifact_aliases: list[str] = field(default_factory=lambda: [])
 
 
-cs = ConfigStore.instance()
 cs.store(name="pretrain_shim2018", node=Shim2018PretrainConfig)
 
 
@@ -78,6 +130,8 @@ class Shim2018TrainConfig:
     seed: int = 42
     pretrained_model_lr: float = 1e-3
     activate_joint_training_after_n_batches: int = 0
+    output_artifact_aliases: list[str] = field(default_factory=lambda: [])
+    evaluate_final_performance: bool = True
 
 
 cs.store(name="train_shim2018", node=Shim2018TrainConfig)
@@ -94,6 +148,8 @@ class TrainMaskedMLPClassifierConfig:
     device: str = "cuda"
     num_cells: list[int] = field(default_factory=lambda: [128, 128])
     dropout: float = 0.1
+    output_artifact_aliases: list[str] = field(default_factory=lambda: [])
+    evaluate_final_performance: bool = True
 
 
 cs.store(name="train_masked_mlp_classifier", node=TrainMaskedMLPClassifierConfig)
@@ -104,6 +160,10 @@ class EvalConfig:
     trained_method_artifact_name: str
     trained_classifier_artifact_name: str | None  # if None, use the method's classifier
     seed: int = 42
+    output_artifact_aliases: list[str] = field(default_factory=lambda: [])
+    eval_only_n_samples: int | None = (
+        None  # if specified, only evaluate on this many samples
+    )
 
 
 @dataclass

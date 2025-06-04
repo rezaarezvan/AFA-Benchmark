@@ -90,6 +90,7 @@ def eval_afa_method(
     dataset: AFADataset,
     budget: int,
     afa_predict_fn: AFAPredictFn,
+    only_n_samples: int | None = None,
 ) -> dict[str, Any]:
     """Evaluate an AFA method.
 
@@ -98,6 +99,7 @@ def eval_afa_method(
         dataset (AFADataset): The dataset to evaluate on.
         budget (int): The number of features to select.
         afa_predict_fn (AFAPredictFn): The label prediction function to use for evaluation.
+        only_n_samples (int|None, optional): If specified, only evaluate on this many samples from the dataset. Defaults to None.
 
     Returns:
         dict[str, float]: A dictionary containing the evaluation results.
@@ -109,7 +111,12 @@ def eval_afa_method(
     labels_all: list[Label] = []
 
     # Loop over the dataset
-    for data in tqdm(iter(dataset), total=len(dataset), desc="Evaluating"):
+    n_evaluated_samples = 0
+    for data in tqdm(
+        iter(dataset),
+        total=only_n_samples if only_n_samples is not None else len(dataset),
+        desc="Evaluating",
+    ):
         # Each datasample has a vector of features and a class (label)
         features, label = data
 
@@ -151,6 +158,10 @@ def eval_afa_method(
         # Add the feature mask history and prediction history of this sample to the overall history
         feature_mask_history_all.append(feature_mask_history)
         prediction_history_all.append(prediction_history)
+
+        n_evaluated_samples += 1
+        if only_n_samples is not None and n_evaluated_samples >= only_n_samples:
+            break
 
     # Now we have a history of feature masks and predictions for each sample in the dataset
     eval_results = evaluator(

@@ -4,6 +4,15 @@ from common.custom_types import (
     AFAClassifier,
 )
 
+AFA_METHOD_TYPES = {
+    "RLAFAMethod",
+    "covert2023",
+    "gadgil2023",
+    "ma2018",
+    "sequential_dummy",
+    "random_dummy",
+}
+
 
 def get_afa_method_class(name: str) -> type[AFAMethod]:
     if name == "RLAFAMethod":
@@ -32,6 +41,18 @@ def get_afa_method_class(name: str) -> type[AFAMethod]:
         return RandomDummyAFAMethod
     else:
         raise ValueError(f"Unknown AFA method: {name}")
+
+
+AFA_DATASET_TYPES = {
+    "cube",
+    "shim2018cube",
+    "AFAContext",
+    "MNIST",
+    "diabetes",
+    "physionet",
+    "miniboone",
+    "FashionMNIST",
+}
 
 
 def get_afa_dataset_class(name: str) -> type[AFADataset]:
@@ -69,6 +90,14 @@ def get_afa_dataset_class(name: str) -> type[AFADataset]:
         return FashionMNISTDataset
     else:
         raise ValueError(f"Unknown AFA dataset: {name}")
+
+
+AFA_CLASSIFIER_TYPES = {
+    "random_dummy",
+    "uniform_dummy",
+    "WrappedMaskedMLPClassifier",
+    "Shim2018AFAClassifier",
+}
 
 
 def get_afa_classifier_class(name: str) -> type[AFAClassifier]:

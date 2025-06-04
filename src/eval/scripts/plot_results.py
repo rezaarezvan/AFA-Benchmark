@@ -26,6 +26,7 @@ def load_eval_results(
     eval_results = []
     for artifact_name in artifact_names:
         eval_artifact = wandb.use_artifact(artifact_name, type="eval_results")
+        log.info(f"Downloading evaluation artifact {artifact_name}")
         eval_artifact_dir = Path(eval_artifact.download())
         metrics = torch.load(eval_artifact_dir / "metrics.pt")
         info = {
@@ -45,21 +46,24 @@ def main(cfg: PlotConfig):
     torch.set_float32_matmul_precision("medium")
 
     run = wandb.init(
-        job_type="evaluation",
+        job_type="plotting",
         config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore
     )
 
     eval_results = load_eval_results(cfg.eval_artifact_names)
+    log.info("All evaluation result artifacts loaded.")
 
     dataset_types = set(info["dataset_type"] for (info, _) in eval_results)
 
     for dataset_type in dataset_types:
+        log.info(f"Plotting results for dataset type: {dataset_type}")
         classifier_types = set(
             info["classifier_type"]
             for (info, _) in eval_results
             if info["dataset_type"] == dataset_type
         )
         for classifier_type in classifier_types:
+            log.info(f"  Plotting results for classifier type: {classifier_type}")
             budgets = set(
                 info["budget"]
                 for (info, _) in eval_results
@@ -67,6 +71,7 @@ def main(cfg: PlotConfig):
                 and info["classifier_type"] == classifier_type
             )
             for budget in budgets:
+                log.info(f"    Plotting results for budget: {budget}")
                 # x-axis will be [1, budget]
                 x = np.arange(1, budget + 1)
                 # Organize by method_type

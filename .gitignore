@@ -202,3 +202,5 @@ outputs
 tmp
 
 lightning_logs
+
+multirun
