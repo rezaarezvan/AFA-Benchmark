@@ -2,16 +2,4 @@ trained_method_artifact_name: "train_shim2018-cube_split_1-budget_5-seed_42:tmp"
 trained_classifier_artifact_name: "masked_mlp_classifier-cube_split_1:tmp"
 output_artifact_aliases: ["tmp"]
 seed: 42
-
-defaults:
-  - override hydra/launcher: submitit_slurm
-
-hydra:
-  launcher:
-    timeout_min: 1440  # 24 hours
-
-    partition: alvis
-    account: NAISS2025-22-448
-
-    additional_parameters:
-      gres: gpu:T4:1
+eval_only_n_samples: null

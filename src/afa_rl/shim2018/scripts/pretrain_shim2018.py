@@ -62,6 +62,7 @@ log = logging.getLogger(__name__)
 def main(cfg: Shim2018PretrainConfig) -> None:
     log.debug(cfg)
     set_seed(cfg.seed)
+    torch.cuda.empty_cache()
     torch.set_float32_matmul_precision("medium")
 
     run = wandb.init(
@@ -118,8 +119,15 @@ def main(cfg: Shim2018PretrainConfig) -> None:
             type="pretrained_model",
         )
         pretrained_model_artifact.add_file(local_path=best_checkpoint, name="model.pt")
-        run.log_artifact(pretrained_model_artifact, aliases=[*cfg.artifact_aliases, datetime.now().strftime("%b%d")])
+        run.log_artifact(
+            pretrained_model_artifact,
+            aliases=[*cfg.output_artifact_aliases, datetime.now().strftime("%b%d")],
+        )
         run.finish()
+
+        gc.collect()  # Force Python GC
+        torch.cuda.empty_cache()  # Release cached memory held by PyTorch CUDA allocator
+        torch.cuda.synchronize()  # Optional, wait for CUDA ops to finish
 
 
 if __name__ == "__main__":

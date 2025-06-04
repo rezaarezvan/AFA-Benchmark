@@ -1,4 +1,5 @@
 from functools import partial
+import gc
 import logging
 from pathlib import Path
 from typing import Any, cast
@@ -246,6 +247,7 @@ def main(cfg: Shim2018TrainConfig):
         ):
             # Collapse agent and batch dimensions
             td = tds.flatten(start_dim=0, end_dim=1)
+            log.info(td)
             loss_info = agent.process_batch(td)
 
             # Train classifier and embedder jointly if we have reached the correct batch
@@ -359,19 +361,20 @@ def main(cfg: Shim2018TrainConfig):
             tmp_path,
             device=torch.device("cpu"),
         )
-        # Check what the final performance of the method is
-        metrics = eval_afa_method(
-            afa_method.select,
-            val_dataset,
-            cfg.hard_budget,
-            afa_method.predict,
-        )
-        fig = plot_metrics(metrics)
-        run.log(
-            {
-                "final_performance_plot": fig,
-            }
-        )
+        if cfg.evaluate_final_performance:
+            # Check what the final performance of the method is. Costly for large datasets.
+            metrics = eval_afa_method(
+                afa_method.select,
+                val_dataset,
+                cfg.hard_budget,
+                afa_method.predict,
+            )
+            fig = plot_metrics(metrics)
+            run.log(
+                {
+                    "final_performance_plot": fig,
+                }
+            )
 
         # Save the model as a WandB artifact
         # Save the name of the afa method class as metadata
@@ -389,9 +392,13 @@ def main(cfg: Shim2018TrainConfig):
         )
 
         afa_method_artifact.add_dir(str(tmp_path))
-        run.log_artifact(afa_method_artifact)
+        run.log_artifact(afa_method_artifact, aliases=cfg.output_artifact_aliases)
 
         run.finish()
+
+        gc.collect()  # Force Python GC
+        torch.cuda.empty_cache()  # Release cached memory held by PyTorch CUDA allocator
+        torch.cuda.synchronize()  # Optional, wait for CUDA ops to finish
 
 
 if __name__ == "__main__":

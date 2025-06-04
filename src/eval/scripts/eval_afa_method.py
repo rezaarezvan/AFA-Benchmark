@@ -127,10 +127,10 @@ def main(cfg: EvalConfig) -> None:
     _, _, eval_dataset, afa_method, method_metadata = load_trained_method_artifacts(
         cfg.trained_method_artifact_name,
     )
+    log.info("Loaded trained AFA method and dataset from artifacts")
 
     # Load a classifier if it was specified
     if cfg.trained_classifier_artifact_name:
-        log.debug("Using external classifier")
         validate_artifacts(
             cfg.trained_method_artifact_name, cfg.trained_classifier_artifact_name
         )
@@ -138,8 +138,9 @@ def main(cfg: EvalConfig) -> None:
             cfg.trained_classifier_artifact_name
         )
         classifier_type = classifier_metadata["classifier_type"]
+        log.info("Loaded external classifier")
     else:
-        log.debug("Using builtin classifier")
+        log.info("Using builtin classifier")
         afa_predict_fn: AFAPredictFn = afa_method.predict
         classifier_type = "builtin"
 
@@ -147,10 +148,10 @@ def main(cfg: EvalConfig) -> None:
     # Note that this can be None, in which case we will use the maximum number of features in the dataset
     # during evaluation
     if method_metadata["budget"] is None:
-        log.debug("Using maximum number of features in the dataset as budget")
+        log.info("Using maximum number of features in the dataset as budget")
         eval_budget = eval_dataset.n_features
     else:
-        log.debug("Using same budget as during training")
+        log.info("Using same budget as during training")
         eval_budget = method_metadata["budget"]
 
     # Do the evaluation
@@ -159,6 +160,7 @@ def main(cfg: EvalConfig) -> None:
         eval_dataset,
         eval_budget,
         afa_predict_fn,
+        only_n_samples=cfg.eval_only_n_samples,
     )
 
     # Log F1 and accuracy to wandb run
@@ -186,7 +188,7 @@ def main(cfg: EvalConfig) -> None:
         metrics_save_path = Path(f.name)
         torch.save(metrics, metrics_save_path)
     eval_results_artifact.add_file(str(metrics_save_path), name="metrics.pt")
-    run.log_artifact(eval_results_artifact)
+    run.log_artifact(eval_results_artifact, aliases=cfg.output_artifact_aliases)
     run.finish()
 
 

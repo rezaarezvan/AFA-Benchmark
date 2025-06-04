@@ -131,6 +131,7 @@ class Shim2018TrainConfig:
     pretrained_model_lr: float = 1e-3
     activate_joint_training_after_n_batches: int = 0
     output_artifact_aliases: list[str] = field(default_factory=lambda: [])
+    evaluate_final_performance: bool = True
 
 
 cs.store(name="train_shim2018", node=Shim2018TrainConfig)
@@ -148,6 +149,7 @@ class TrainMaskedMLPClassifierConfig:
     num_cells: list[int] = field(default_factory=lambda: [128, 128])
     dropout: float = 0.1
     output_artifact_aliases: list[str] = field(default_factory=lambda: [])
+    evaluate_final_performance: bool = True
 
 
 cs.store(name="train_masked_mlp_classifier", node=TrainMaskedMLPClassifierConfig)
@@ -159,6 +161,9 @@ class EvalConfig:
     trained_classifier_artifact_name: str | None  # if None, use the method's classifier
     seed: int = 42
     output_artifact_aliases: list[str] = field(default_factory=lambda: [])
+    eval_only_n_samples: int | None = (
+        None  # if specified, only evaluate on this many samples
+    )
 
 
 @dataclass

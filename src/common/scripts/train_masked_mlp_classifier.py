@@ -105,18 +105,19 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
         wrapped_classifier = WrappedMaskedMLPClassifier(
             module=best_model, device=torch.device(cfg.device)
         )
-        # Evaluate an AFA method that randomly selects features and uses this classifier
-        afa_method = RandomClassificationAFAMethod(
-            afa_classifier=wrapped_classifier, device=torch.device("cpu")
-        )
-        metrics = eval_afa_method(
-            afa_select_fn=afa_method.select,
-            dataset=val_dataset,
-            budget=n_features,
-            afa_predict_fn=afa_method.predict,
-        )
-        fig = plot_metrics(metrics)
-        run.log({"metrics_plot": fig})
+        if cfg.evaluate_final_performance:
+            # Evaluate an AFA method that randomly selects features and uses this classifier
+            afa_method = RandomClassificationAFAMethod(
+                afa_classifier=wrapped_classifier, device=torch.device("cpu")
+            )
+            metrics = eval_afa_method(
+                afa_select_fn=afa_method.select,
+                dataset=val_dataset,
+                budget=n_features,
+                afa_predict_fn=afa_method.predict,
+            )
+            fig = plot_metrics(metrics)
+            run.log({"metrics_plot": fig})
         # Save model in a temporary file
         with NamedTemporaryFile(delete=False) as tmp_file:
             save_path = Path(tmp_file.name)
@@ -133,7 +134,9 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
             },
         )
         trained_classifier_artifact.add_file(str(save_path), name="classifier.pt")
-        run.log_artifact(trained_classifier_artifact)
+        run.log_artifact(
+            trained_classifier_artifact, aliases=cfg.output_artifact_aliases
+        )
         run.finish()
 
 

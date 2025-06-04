@@ -79,21 +79,21 @@ def generate_and_save_split(
     dataset_dir.mkdir(parents=True, exist_ok=True)
 
     # Save splits locally
-    train_path = dataset_dir / f"train_split_{split_idx + 1}.pt"
+    train_path = dataset_dir / f"train_split_{split_idx}.pt"
     train_dataset.save(train_path)
-    val_path = dataset_dir / f"val_split_{split_idx + 1}.pt"
+    val_path = dataset_dir / f"val_split_{split_idx}.pt"
     val_dataset.save(val_path)
-    test_path = dataset_dir / f"test_split_{split_idx + 1}.pt"
+    test_path = dataset_dir / f"test_split_{split_idx}.pt"
     test_dataset.save(test_path)
 
     # Also save as wandb artifact
     artifact = wandb.Artifact(
-        name=f"{dataset_type}_split_{split_idx + 1}",
+        name=f"{dataset_type}_split_{split_idx}",
         type="dataset",
         metadata=dataset_kwargs
         | {
             "dataset_type": dataset_type,
-            "split_idx": split_idx + 1,
+            "split_idx": split_idx,
             "seed": seed,
         },
     )
