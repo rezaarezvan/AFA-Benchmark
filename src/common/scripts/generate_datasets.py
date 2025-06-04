@@ -10,7 +10,7 @@ import torch
 import copy
 from torch.utils.data import random_split
 from wandb.sdk.wandb_run import Run
-from common.registry import AFA_DATASET_REGISTRY
+from common.registry import AFA_DATASET_TYPES, get_afa_dataset_class
 import wandb
 
 # Define split ratios
@@ -37,10 +37,10 @@ def parse_args():
         help="Directory to save the generated datasets (default: data)",
     )
     parser.add_argument(
-        "--artifact_alias",
-        type=str,
-        default=strftime("%b%d"),
-        help="An alias to add to all generated dataset artifacts.",
+        "--output_artifact_aliases",
+        type=list[str],
+        default=[strftime("%b%d")],
+        help="Aliases to add to all generated dataset artifacts.",
     )
     return parser.parse_args()
 
@@ -66,7 +66,7 @@ def generate_and_save_splits(
     dataset_type,
     split_idx,
     data_dir,
-    artifact_alias: str | None = None,
+    output_artifact_aliases: list[str] = [],
     **dataset_kwargs,
 ):
     """Generate and save train/val/test splits for a dataset with a specific seed."""
@@ -141,8 +141,8 @@ def generate_and_save_splits(
     artifact.add_file(val_path, name="val.pt")
     artifact.add_file(test_path, name="test.pt")
 
-    if artifact_alias is not None:
-        run.log_artifact(artifact, aliases=[artifact_alias])
+    if output_artifact_aliases is not None:
+        run.log_artifact(artifact, aliases=output_artifact_aliases)
     else:
         run.log_artifact(artifact)
 
@@ -157,7 +157,7 @@ def generate_all_splits(
     dataset_class,
     dataset_type,
     data_dir,
-    artifact_alias: str | None = None,
+    output_artifact_aliases: list[str] = [],
     **dataset_kwargs,
 ):
     """Generate all splits for a dataset."""
@@ -168,14 +168,14 @@ def generate_all_splits(
             dataset_type,
             i,
             data_dir,
-            artifact_alias=artifact_alias,
+            output_artifact_aliases=output_artifact_aliases,
             **dataset_kwargs,
         )
 
 
 def verify_dataset(dataset_type, split_idx, data_dir):
     """Verify that a dataset can be loaded correctly."""
-    dataset_class = AFA_DATASET_REGISTRY[dataset_type]
+    dataset_class = get_afa_dataset_class(dataset_type)
 
     # Load train, val, and test splits
     train_path = os.path.join(data_dir, dataset_type, f"train_split_{split_idx + 1}.pt")
@@ -230,7 +230,8 @@ def main():
     run = wandb.init(job_type="data_generation")
 
     # Generate splits for all registered datasets
-    for dataset_type, dataset_class in AFA_DATASET_REGISTRY.items():
+    for dataset_type in AFA_DATASET_TYPES:
+        dataset_class = get_afa_dataset_class(dataset_type)
         print(f"\nProcessing dataset: {dataset_type}")
 
         # Set default parameters based on dataset type
@@ -282,7 +283,7 @@ def main():
             dataset_class,
             dataset_type,
             data_dir,
-            artifact_alias=args.artifact_alias,
+            output_artifact_aliases=args.output_artifact_aliases,
             **kwargs,
         )
 
