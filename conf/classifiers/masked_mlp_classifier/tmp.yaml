@@ -1,4 +1,4 @@
-dataset_artifact_name: "cube_split_1:Jun03"
+dataset_artifact_name: "cube_split_1:tmp"
 batch_size: 128
 epochs: 100
 max_masking_probability: 0.9

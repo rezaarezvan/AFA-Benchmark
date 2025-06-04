@@ -1,7 +1,6 @@
-trained_method_artifact_name: "train_shim2018-cube_split_1-budget_5-seed_42:v8"
-trained_classifier_artifact_name: "masked_mlp_classifier-cube_split_1:v9"
-artifact_aliases: ["tmp"]
-# trained_classifier_artifact_name: null
+trained_method_artifact_name: "train_shim2018-cube_split_1-budget_5-seed_42:tmp"
+trained_classifier_artifact_name: "masked_mlp_classifier-cube_split_1:tmp"
+output_artifact_aliases: ["tmp"]
 seed: 42
 
 defaults:

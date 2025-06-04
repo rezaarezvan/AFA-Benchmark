@@ -1,10 +1,62 @@
 from dataclasses import dataclass, field
+from enum import Enum
+from pathlib import Path
+from typing import Any, Literal
 from hydra.core.config_store import ConfigStore
 
+cs = ConfigStore.instance()
 
-# @dataclass
-# class ArtifactConfig:
-#     name: str  # e.g "pretrain_shim2018-cube_split_1:May26"
+
+@dataclass
+class SplitRatioConfig:
+    train: float = 0.7  # ratio of training data
+    val: float = 0.15  # ratio of validation data
+    test: float = 0.15  # ratio of test data
+
+
+class DatasetType(str, Enum):
+    cube = "cube"
+    MNIST = "MNIST"
+    shim2018cube = "shim2018cube"
+    diabetes = "diabetes"
+    physionet = "physionet"
+    miniboone = "miniboone"
+    FashionMNIST = "FashionMNIST"
+
+
+@dataclass
+class DatasetConfig:
+    type: DatasetType
+    kwargs: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class DatasetGenerationConfig:
+    data_dir: str = (
+        "data"  # where to store the generated dataset (apart from wandb artifacts)
+    )
+    split_idx: int = 1  # which split to use
+    seeds: list[int] = field(
+        default_factory=lambda: [
+            42,
+            123,
+            456,
+            789,
+            101112,
+            131415,
+            161718,
+            192021,
+            222324,
+            252627,
+        ]
+    )  # which seeds to use, only the seed at index `split - 1` will be used
+    split_ratio: SplitRatioConfig = field(default_factory=SplitRatioConfig)
+    output_artifact_aliases: list[str] = field(default_factory=lambda: [])
+
+    dataset: DatasetConfig = field(default_factory=lambda: DatasetConfig("cube"))
+
+
+cs.store(name="dataset_generation", node=DatasetGenerationConfig)
 
 
 @dataclass
@@ -39,7 +91,6 @@ class Shim2018PretrainConfig:
     output_artifact_aliases: list[str] = field(default_factory=lambda: [])
 
 
-cs = ConfigStore.instance()
 cs.store(name="pretrain_shim2018", node=Shim2018PretrainConfig)
 
 
