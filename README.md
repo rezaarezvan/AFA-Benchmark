@@ -64,13 +64,41 @@ Dependencies are handled using [uv](https://docs.astral.sh/uv/). Install uv and 
 - Model: A neural network.
 - Dataset/method/classifier type: "Type" refers to strings that can be passed to the functions in the `registry` module.
 
+## Pipeline parts
+
+### 1. Data generation
+
+Generate data with `uv run src/common/scripts/generate_data.py`. This will place the data in the `data` directory but also upload it to wandb. By default, the dataset artifacts are saved with names in the format `<dataset_type>_split_<split_idx>`, e.g `MNIST_SPLIT_1`. You can add custom aliases using the `--output_artifact_aliases` argument.
+
+### 2. Pre-training
+
+This phase is only relevant for AFA methods which require pre-training of some model, such as the RL methods. Since this phase can be different for each method, there is no common interface.
+
+### 3. Method training
+
+Training is also method-dependent, but the resulting artifact has to have the same format, as explained [here](#trained-method-artifacts).
+
+### 4. Training a classifier (optional)
+
+During evaluation, it can be useful to use a common classifier to compare different AFA methods, in order to isolate the effect of the feature selection mechanism.
+
+To train a MLP classifier, run `uv run src/common/scripts/train_masked_classifier.py` which will use the configuration defined in `conf/classifiers/masked_mlp_classifier/tmp.yaml`.
+
+### 5. Evaluation
+
+Once the model has been trained (and optionally a classifier as well), you can evaluate it using `uv run src/common/scripts/eval_afa_method.py`. This will use the configuration defined in `conf/eval/tmp.yaml`, where you can also specify whether an external classifier should be used. The evaluation results will be saved as an artifact with the metadata keys described [here](#evaluation-artifacts).
+
+Note that the same evaluation script is used for all AFA methods, you just have to point the configuration artifact name to the correct method.
+
+### 6. Plotting results
+
 ## Artifact structure
 
-### Datasets
+### Dataset artifacts
 
 Each dataset artifact is expected to contain a `dataset_type` key in its metadata. Passing this string to the `get_afa_dataset_class` function should return the correct dataset class. The `load` method of the dataset class is then called on the files "train.pt", "val.pt" and "test.pt" in the artifact. See `load_dataset_artifact` for more info.
 
-### Trained methods (AFA methods)
+### Trained method artifacts
 
 Each trained method should have the following keys in its metadata:
 - `afa_method_class` (`str`): A string that can be passed to the `get_afa_method_class` function to return the correct AFA method class. The `load` method of this class is then called with the contents of the artifact. See `load_trained_method_artifact` for more info.
@@ -81,6 +109,10 @@ Each trained method should have the following keys in its metadata:
 - `seed` (`int`): The random seed used for training this method.
 
 Note that `afa_method_class` can be the same for several different `method_type`s. This is the case for the RL methods which have a common AFA method class `RLAFAMethod` but have different `method_type`s like `"shim2018"` and `"zannone2019"` in order to distinguish them during evaluation.
+
+### Trained classifier artifacts
+
+TODO
 
 ### Evaluation artifacts
 
@@ -244,7 +276,6 @@ This produces 16 evaluation artifacts in total:
 - `train_shim2018-MNIST_split_2-budget_5-seed_42-masked_mlp_classifier-MNIST_split_2:example`
 - `train_shim2018-MNIST_split_2-budget_10-seed_42-builtin:example`
 - `train_shim2018-MNIST_split_2-budget_10-seed_42-masked_mlp_classifier-MNIST_split_2:example`
-
 
 ### 6. Plotting results
 
