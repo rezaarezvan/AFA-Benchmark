@@ -13,10 +13,6 @@ from lightning.pytorch.loggers import WandbLogger
 
 import wandb
 from afa_rl.shim2018.models import (
-    Shim2018MLPClassifier,
-    ReadProcessEncoder,
-    Shim2018Embedder,
-    LitShim2018EmbedderClassifier,
     get_shim2018_model_from_config,
 )
 from common.config_classes import Shim2018PretrainConfig
@@ -65,7 +61,7 @@ def main(cfg: Shim2018PretrainConfig) -> None:
 
     # ModelCheckpoint callback
     checkpoint_callback = ModelCheckpoint(
-        monitor="val_loss_full",  # Replace "val_loss" with the appropriate validation metric
+        monitor="val_loss_many_observations", # val_loss_few_observations could also work but is probably not as robust
         save_top_k=1,
         mode="min",
         # dirpath=pretrained_model_path,

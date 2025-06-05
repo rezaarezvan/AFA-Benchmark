@@ -416,6 +416,7 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
         embedder: Shim2018Embedder | CopiedShim2018Embedder,
         classifier: Shim2018MLPClassifier,
         class_probabilities: Float[Tensor, "n_classes"],
+        min_masking_probability: float = 0.0,
         max_masking_probability: float = 1.0,
         lr: float = 1e-3,
     ):
@@ -426,6 +427,7 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
         self.classifier = classifier
         self.class_weight = 1 / class_probabilities
         self.class_weight = self.class_weight / torch.sum(self.class_weight)
+        self.min_masking_probability = min_masking_probability
         self.max_masking_probability = max_masking_probability
 
     @override
@@ -452,7 +454,7 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
         features: Features = batch[0]
         label: Label = batch[1]
 
-        masking_probability = torch.rand(1).item() * self.max_masking_probability
+        masking_probability = self.min_masking_probability + torch.rand(1).item() * (self.max_masking_probability-self.min_masking_probability)
         self.log("masking_probability", masking_probability, sync_dist=True)
 
         masked_features, feature_mask, _ = mask_data(features, p=masking_probability)
@@ -475,28 +477,31 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
     def validation_step(self, batch: tuple[Tensor, Tensor], batch_idx: int):
         feature_values, y = batch
 
-        feature_mask_half_observed = torch.randint(
-            0, 2, feature_values.shape, device=feature_values.device
+        # Mask features with minimum probability -> see many features (observations)
+        feature_mask_many_observations = torch.rand(
+            feature_values.shape, device=feature_values.device
+        ) > (1-self.min_masking_probability)
+        feature_values_many_observations = feature_values.clone()
+        feature_values_many_observations[feature_mask_many_observations == 0] = 0
+        loss_many_observations, acc_many_observations = self._get_loss_and_acc(
+            feature_values_many_observations, feature_mask_many_observations, y
         )
-        feature_values_half_observed = feature_values.clone()
-        feature_values_half_observed[feature_mask_half_observed == 0] = 0
-        loss, acc = self._get_loss_and_acc(
-            feature_values_half_observed, feature_mask_half_observed, y
-        )
-        self.log("val_loss_half", loss)
-        self.log("val_acc_half", acc)
+        self.log("val_loss_many_observations", loss_many_observations)
+        self.log("val_acc_many_observations", acc_many_observations)
 
-        loss, acc = self._get_loss_and_acc(
-            feature_values,
-            torch.ones_like(
-                feature_values, dtype=torch.bool, device=feature_values.device
-            ),
-            y,
+        # Mask features with maximum probability -> see few features (observations)
+        feature_mask_few_observations = torch.rand(
+            feature_values.shape, device=feature_values.device
+        ) > (1-self.max_masking_probability)
+        feature_values_few_observations = feature_values.clone()
+        feature_values_few_observations[feature_mask_few_observations == 0] = 0
+        loss_few_observations, acc_few_observations = self._get_loss_and_acc(
+            feature_values_few_observations, feature_mask_few_observations, y
         )
-        self.log("val_loss_full", loss)
-        self.log("val_acc_full", acc)
+        self.log("val_loss_few_observations", loss_few_observations)
+        self.log("val_acc_few_observations", acc_few_observations)
 
-        return loss
+
 
     @override
     def configure_optimizers(self):
@@ -589,6 +594,7 @@ def get_shim2018_model_from_config(
         embedder=embedder,
         classifier=classifier,
         class_probabilities=class_probabiities,
+        min_masking_probability=cfg.min_masking_probability,
         max_masking_probability=cfg.max_masking_probability,
         lr=cfg.lr,
     )

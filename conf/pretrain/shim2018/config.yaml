@@ -17,6 +17,7 @@ epochs: 3000
 device: cuda
 seed: 42
 lr: 1e-3
+min_masking_probability: 0.0
 max_masking_probability: 0.9
 encoder:
   output_size: 128
