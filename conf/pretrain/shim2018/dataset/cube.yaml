@@ -1,17 +1,11 @@
 dataset_artifact_name: "cube_split_1:tmp"
-output_artifact_aliases: ["tmp"]
 batch_size: 128
-epochs: 3000
+epochs: 1500
 
-device: cuda
-seed: 42
 lr: 1e-3
-max_masking_probability: 0.9
 encoder:
   output_size: 128
-  # reading_block_cells: [32, 32]
   reading_block_cells: [128, 128]
-  # writing_block_cells: [32, 32]
   writing_block_cells: [128, 128]
   memory_size: 128
   processing_steps: 5

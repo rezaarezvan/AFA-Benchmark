@@ -13,6 +13,7 @@ from afa_rl.utils import (
     mask_data,
     shuffle_feature_set,
 )
+from common.config_classes import Shim2018PretrainConfig
 from common.custom_types import (
     AFAClassifier,
     AFAPredictFn,
@@ -565,23 +566,30 @@ class Shim2018AFAClassifier(AFAClassifier):
     def device(self) -> torch.device:
         return self._device
 
-
-# class Shim2018MaskedClassifier(MaskedClassifier):
-#     """A wrapper for the ShimEmbedderClassifier to make it compatible with the MaskedClassifier interface."""
-#
-#     def __init__(self, embedder_and_classifier: LitShim2018EmbedderClassifier):
-#         self.embedder_and_classifier: LitShim2018EmbedderClassifier = (
-#             embedder_and_classifier
-#         )
-#
-#     def __call__(
-#         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
-#     ) -> Logits:
-#         model_device = next(self.embedder_and_classifier.parameters()).device
-#         masked_features = masked_features.to(model_device)
-#         feature_mask = feature_mask.to(model_device)
-#         with torch.no_grad():
-#             embedding, logits = self.embedder_and_classifier.forward(
-#                 masked_features, feature_mask
-#             )
-#         return logits.cpu()
+def get_shim2018_model_from_config(
+    cfg: Shim2018PretrainConfig,
+    n_features: int,
+    n_classes: int,
+    class_probabiities: Float[Tensor, "n_classes"],
+) -> LitShim2018EmbedderClassifier:
+    encoder = ReadProcessEncoder(
+        set_element_size=n_features + 1,  # state contains one value and one index
+        output_size=cfg.encoder.output_size,
+        reading_block_cells=tuple(cfg.encoder.reading_block_cells),
+        writing_block_cells=tuple(cfg.encoder.writing_block_cells),
+        memory_size=cfg.encoder.memory_size,
+        processing_steps=cfg.encoder.processing_steps,
+        dropout=cfg.encoder.dropout,
+    )
+    embedder = Shim2018Embedder(encoder)
+    classifier = Shim2018MLPClassifier(
+        cfg.encoder.output_size, n_classes, tuple(cfg.classifier.num_cells)
+    )
+    lit_model = LitShim2018EmbedderClassifier(
+        embedder=embedder,
+        classifier=classifier,
+        class_probabilities=class_probabiities,
+        max_masking_probability=cfg.max_masking_probability,
+        lr=cfg.lr,
+    )
+    return lit_model

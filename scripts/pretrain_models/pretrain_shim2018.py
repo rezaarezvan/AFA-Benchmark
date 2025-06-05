@@ -17,39 +17,13 @@ from afa_rl.shim2018.models import (
     ReadProcessEncoder,
     Shim2018Embedder,
     LitShim2018EmbedderClassifier,
+    get_shim2018_model_from_config,
 )
 from common.config_classes import Shim2018PretrainConfig
 from afa_rl.datasets import DataModuleFromDatasets
 from common.utils import get_class_probabilities, load_dataset_artifact, set_seed
 
 
-def get_shim2018_model_from_config(
-    cfg: Shim2018PretrainConfig,
-    n_features: int,
-    n_classes: int,
-    class_probabiities: Float[Tensor, "n_classes"],
-) -> LitShim2018EmbedderClassifier:
-    encoder = ReadProcessEncoder(
-        set_element_size=n_features + 1,  # state contains one value and one index
-        output_size=cfg.encoder.output_size,
-        reading_block_cells=tuple(cfg.encoder.reading_block_cells),
-        writing_block_cells=tuple(cfg.encoder.writing_block_cells),
-        memory_size=cfg.encoder.memory_size,
-        processing_steps=cfg.encoder.processing_steps,
-        dropout=cfg.encoder.dropout,
-    )
-    embedder = Shim2018Embedder(encoder)
-    classifier = Shim2018MLPClassifier(
-        cfg.encoder.output_size, n_classes, tuple(cfg.classifier.num_cells)
-    )
-    lit_model = LitShim2018EmbedderClassifier(
-        embedder=embedder,
-        classifier=classifier,
-        class_probabilities=class_probabiities,
-        max_masking_probability=cfg.max_masking_probability,
-        lr=cfg.lr,
-    )
-    return lit_model
 
 
 log = logging.getLogger(__name__)
@@ -58,7 +32,7 @@ log = logging.getLogger(__name__)
 @hydra.main(
     version_base=None,
     config_path="../../conf/pretrain/shim2018",
-    config_name="tmp",
+    config_name="config",
 )
 def main(cfg: Shim2018PretrainConfig) -> None:
     log.debug(cfg)
@@ -127,8 +101,9 @@ def main(cfg: Shim2018PretrainConfig) -> None:
         run.finish()
 
         gc.collect()  # Force Python GC
-        torch.cuda.empty_cache()  # Release cached memory held by PyTorch CUDA allocator
-        torch.cuda.synchronize()  # Optional, wait for CUDA ops to finish
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()  # Release cached memory held by PyTorch CUDA allocator
+            torch.cuda.synchronize()  # Optional, wait for CUDA ops to finish
 
 
 if __name__ == "__main__":

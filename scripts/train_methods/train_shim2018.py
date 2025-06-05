@@ -27,7 +27,7 @@ from afa_rl.shim2018.models import (
     Shim2018AFAClassifier,
     Shim2018AFAPredictFn,
 )
-from afa_rl.shim2018.scripts.pretrain_shim2018 import (
+from afa_rl.shim2018.models import (
     get_shim2018_model_from_config,
 )
 from afa_rl.utils import (
@@ -53,11 +53,10 @@ def get_eval_metrics(
     eval_metrics["actions"] = []
     n_correct_samples = 0
     for td in eval_tds:
-        td_ = td.cpu()
-        eval_metrics["reward_sum"] += td_["next", "reward"].sum()
-        eval_metrics["actions"].extend(td_["action"].tolist())
+        eval_metrics["reward_sum"] += td["next", "reward"].sum()
+        eval_metrics["actions"].extend(td["action"].tolist())
         # Check whether prediction is correct
-        td_end = td_[-1:]
+        td_end = td[-1:]
         probs = afa_predict_fn(
             td_end["next", "masked_features"], td_end["next", "feature_mask"]
         )
@@ -131,7 +130,7 @@ def load_pretrained_model_artifacts(
         train_class_probabilities,
     )
     pretrained_model_checkpoint = torch.load(
-        pretrained_model_artifact_dir / "model.pt", weights_only=True
+        pretrained_model_artifact_dir / "model.pt", weights_only=True, map_location=torch.device("cpu")
     )
     pretrained_model.load_state_dict(pretrained_model_checkpoint["state_dict"])
 
@@ -149,7 +148,7 @@ log = logging.getLogger(__name__)
 
 
 @hydra.main(
-    version_base=None, config_path="../../../../conf/train/shim2018", config_name="tmp"
+    version_base=None, config_path="../../conf/train/shim2018", config_name="config"
 )
 def main(cfg: Shim2018TrainConfig):
     log.debug(cfg)
@@ -247,7 +246,6 @@ def main(cfg: Shim2018TrainConfig):
         ):
             # Collapse agent and batch dimensions
             td = tds.flatten(start_dim=0, end_dim=1)
-            log.info(td)
             loss_info = agent.process_batch(td)
 
             # Train classifier and embedder jointly if we have reached the correct batch
@@ -295,8 +293,6 @@ def main(cfg: Shim2018TrainConfig):
                     torch.no_grad(),
                     set_exploration_type(ExplorationType.DETERMINISTIC),
                 ):
-                    if batch_idx == 10000:  # TEMP
-                        pass
                     # HACK: Set the action spec of the agent to the eval env action spec
                     agent.egreedy_module._spec = eval_env.action_spec  # pyright: ignore
                     td_evals = [
@@ -353,52 +349,53 @@ def main(cfg: Shim2018TrainConfig):
             Shim2018AFAClassifier(pretrained_model, device=torch.device("cpu")),
         )
         # Save the method to a temporary directory and load it again to ensure it is saved correctly
-        tmp_dir = TemporaryDirectory(delete=False)
-        tmp_path = Path(str(tmp_dir))
-        afa_method.save(tmp_path)
-        del afa_method
-        afa_method = RLAFAMethod.load(
-            tmp_path,
-            device=torch.device("cpu"),
-        )
-        if cfg.evaluate_final_performance:
-            # Check what the final performance of the method is. Costly for large datasets.
-            metrics = eval_afa_method(
-                afa_method.select,
-                val_dataset,
-                cfg.hard_budget,
-                afa_method.predict,
+        with TemporaryDirectory(delete=False) as tmp_path_str:
+            tmp_path = Path(tmp_path_str)
+            afa_method.save(tmp_path)
+            del afa_method
+            afa_method = RLAFAMethod.load(
+                tmp_path,
+                device=torch.device("cpu"),
             )
-            fig = plot_metrics(metrics)
-            run.log(
-                {
-                    "final_performance_plot": fig,
-                }
+            if cfg.evaluate_final_performance:
+                # Check what the final performance of the method is. Costly for large datasets.
+                metrics = eval_afa_method(
+                    afa_method.select,
+                    val_dataset,
+                    cfg.hard_budget,
+                    afa_method.predict,
+                )
+                fig = plot_metrics(metrics)
+                run.log(
+                    {
+                        "final_performance_plot": fig,
+                    }
+                )
+
+            # Save the model as a WandB artifact
+            # Save the name of the afa method class as metadata
+            afa_method_artifact = wandb.Artifact(
+                name=f"train_shim2018-{pretrained_model_config.dataset_artifact_name.split(':')[0]}-budget_{cfg.hard_budget}-seed_{cfg.seed}",
+                type="trained_method",
+                metadata={
+                    "afa_method_class": afa_method.__class__.__name__,
+                    "method_type": "shim2018",
+                    "dataset_artifact_name": pretrained_model_config.dataset_artifact_name,
+                    "dataset_type": dataset_metadata["dataset_type"],
+                    "budget": cfg.hard_budget,
+                    "seed": cfg.seed,
+                },
             )
 
-        # Save the model as a WandB artifact
-        # Save the name of the afa method class as metadata
-        afa_method_artifact = wandb.Artifact(
-            name=f"train_shim2018-{pretrained_model_config.dataset_artifact_name.split(':')[0]}-budget_{cfg.hard_budget}-seed_{cfg.seed}",
-            type="trained_method",
-            metadata={
-                "afa_method_class": afa_method.__class__.__name__,
-                "method_type": "shim2018",
-                "dataset_artifact_name": pretrained_model_config.dataset_artifact_name,
-                "dataset_type": dataset_metadata["dataset_type"],
-                "budget": cfg.hard_budget,
-                "seed": cfg.seed,
-            },
-        )
-
-        afa_method_artifact.add_dir(str(tmp_path))
-        run.log_artifact(afa_method_artifact, aliases=cfg.output_artifact_aliases)
+            afa_method_artifact.add_dir(str(tmp_path))
+            run.log_artifact(afa_method_artifact, aliases=cfg.output_artifact_aliases)
 
         run.finish()
 
         gc.collect()  # Force Python GC
-        torch.cuda.empty_cache()  # Release cached memory held by PyTorch CUDA allocator
-        torch.cuda.synchronize()  # Optional, wait for CUDA ops to finish
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()  # Release cached memory held by PyTorch CUDA allocator
+            torch.cuda.synchronize()  # Optional, wait for CUDA ops to finish
 
 
 if __name__ == "__main__":
