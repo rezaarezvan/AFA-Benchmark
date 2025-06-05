@@ -290,7 +290,8 @@ def main(cfg: Shim2018TrainConfig):
                 },
             )
 
-            if batch_idx != 0 and batch_idx % cfg.eval_every_n_batches == 0:
+            # if batch_idx != 0 and batch_idx % cfg.eval_every_n_batches == 0:
+            if batch_idx % cfg.eval_every_n_batches == 0:
                 with torch.no_grad(), set_exploration_type(ExplorationType.DETERMINISTIC):
                     # HACK: Set the action spec of the agent to the eval env action spec
                     agent.egreedy_module._spec = eval_env.action_spec  # pyright: ignore

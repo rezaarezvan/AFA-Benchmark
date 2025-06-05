@@ -1,6 +1,6 @@
 dataset_artifact_name: "MNIST_split_1:tmp"
 batch_size: 128
-epochs: 3000
+epochs: 250
 
 lr: 1e-3
 min_masking_probability: 0.75

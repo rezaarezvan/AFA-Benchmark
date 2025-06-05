@@ -1,3 +1,12 @@
+hydra:
+  searchpath:
+    - file://conf/hydra
+
+defaults:
+  - colorlog
+  - _self_
+  - dataset: MNIST
+
 data_dir: "data"
 split_idx: 1
 seeds: 
@@ -16,8 +25,4 @@ split_ratio:
   val: 0.15
   test: 0.15
 output_artifact_aliases: []
-
-defaults:
-  - dataset: MNIST
-  - _self_
 
