@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import logging
 import os
 from pathlib import Path
@@ -157,11 +155,10 @@ log = logging.getLogger(__name__)
 
 @hydra.main(
     version_base=None,
-    config_path="../../../conf/dataset_generation",
+    config_path="../conf/dataset_generation",
     config_name="tmp",
 )
 def main(cfg: DatasetGenerationConfig) -> None:
-    log.debug(cfg)
     os.makedirs(cfg.data_dir, exist_ok=True)
 
     # Data will be logged as a wandb artifact

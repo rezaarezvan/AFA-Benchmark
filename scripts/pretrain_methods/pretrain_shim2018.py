@@ -1,4 +1,5 @@
 from datetime import datetime
+import gc
 import logging
 import hydra
 from jaxtyping import Float
@@ -56,7 +57,7 @@ log = logging.getLogger(__name__)
 
 @hydra.main(
     version_base=None,
-    config_path="../../../../conf/pretrain/shim2018",
+    config_path="../../conf/pretrain/shim2018",
     config_name="tmp",
 )
 def main(cfg: Shim2018PretrainConfig) -> None:
