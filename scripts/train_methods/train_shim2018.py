@@ -244,6 +244,8 @@ def main(cfg: Shim2018TrainConfig):
         for batch_idx, tds in tqdm(
             enumerate(collector), total=cfg.n_batches, desc="Training agent..."
         ):
+            collector.update_policy_weights_()
+
             # Collapse agent and batch dimensions
             td = tds.flatten(start_dim=0, end_dim=1)
             loss_info = agent.process_batch(td)
@@ -289,7 +291,7 @@ def main(cfg: Shim2018TrainConfig):
             )
 
             if batch_idx != 0 and batch_idx % cfg.eval_every_n_batches == 0:
-                with torch.no_grad(), set_exploration_type(ExplorationType.DETERMINISTIC), agent.loss_module.value_network_params["module"]["0"]["module"].to_module(agent.action_value_net):
+                with torch.no_grad(), set_exploration_type(ExplorationType.DETERMINISTIC):
                     # HACK: Set the action spec of the agent to the eval env action spec
                     agent.egreedy_module._spec = eval_env.action_spec  # pyright: ignore
                     td_evals = [

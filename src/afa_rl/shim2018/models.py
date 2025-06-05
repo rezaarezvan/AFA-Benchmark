@@ -480,7 +480,7 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
         # Mask features with minimum probability -> see many features (observations)
         feature_mask_many_observations = torch.rand(
             feature_values.shape, device=feature_values.device
-        ) > (1-self.min_masking_probability)
+        ) > self.min_masking_probability
         feature_values_many_observations = feature_values.clone()
         feature_values_many_observations[feature_mask_many_observations == 0] = 0
         loss_many_observations, acc_many_observations = self._get_loss_and_acc(
@@ -492,7 +492,7 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
         # Mask features with maximum probability -> see few features (observations)
         feature_mask_few_observations = torch.rand(
             feature_values.shape, device=feature_values.device
-        ) > (1-self.max_masking_probability)
+        ) > self.max_masking_probability
         feature_values_few_observations = feature_values.clone()
         feature_values_few_observations[feature_mask_few_observations == 0] = 0
         loss_few_observations, acc_few_observations = self._get_loss_and_acc(
