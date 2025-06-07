@@ -29,8 +29,8 @@ log = logging.getLogger(__name__)
 
 @hydra.main(
     version_base=None,
-    config_path="../../../conf/classifiers/masked_mlp_classifier",
-    config_name="tmp",
+    config_path="../../conf/classifiers/masked_mlp_classifier",
+    config_name="config",
 )
 def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
     log.debug(cfg)
@@ -63,13 +63,14 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
         num_cells=tuple(cfg.num_cells),
         dropout=cfg.dropout,
         class_probabilities=train_class_probabilities,
+        min_masking_probability=cfg.min_masking_probability,
         max_masking_probability=cfg.max_masking_probability,
         lr=cfg.lr,
     )
 
     # ModelCheckpoint callback
     checkpoint_callback = ModelCheckpoint(
-        monitor="val_loss_full",
+        monitor="val_loss_many_observations",
         save_top_k=1,
         mode="min",
     )
@@ -79,6 +80,7 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
         max_epochs=cfg.epochs,
         logger=logger,
         accelerator=cfg.device,
+        limit_val_batches=cfg.limit_val_batches,
         devices=1,  # Use only 1 GPU
         callbacks=[checkpoint_callback],
         enable_checkpointing=True,
@@ -115,6 +117,7 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
                 dataset=val_dataset,
                 budget=n_features,
                 afa_predict_fn=afa_method.predict,
+                only_n_samples=cfg.eval_only_n_samples
             )
             fig = plot_metrics(metrics)
             run.log({"metrics_plot": fig})
