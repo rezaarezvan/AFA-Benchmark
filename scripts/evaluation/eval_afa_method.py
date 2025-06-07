@@ -112,7 +112,7 @@ def validate_artifacts(
 log = logging.getLogger(__name__)
 
 
-@hydra.main(version_base=None, config_path="../../../conf/eval", config_name="tmp")
+@hydra.main(version_base=None, config_path="../../conf/eval", config_name="config")
 def main(cfg: EvalConfig) -> None:
     log.debug(cfg)
     set_seed(cfg.seed)
