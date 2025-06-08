@@ -147,7 +147,7 @@ class Agent(ABC):
             serializable_dict = yaml.safe_load(f)
 
         # Load unserializable fields
-        unserializable_dict = torch.load(path / "extra.pt", weights_only=False)
+        unserializable_dict = torch.load(path / "extra.pt", weights_only=False, map_location=torch.device("cpu"))
 
         # Merge all fields
         full_dict = {**serializable_dict, **unserializable_dict}
@@ -156,7 +156,7 @@ class Agent(ABC):
         agent = subclass(**full_dict)
 
         # Load weights
-        weights_dict = torch.load(path / "model.pt")
+        weights_dict = torch.load(path / "model.pt", map_location=torch.device("cpu"))
         for _field in agent.__dataclass_fields__.values():
             if _field.metadata.get("type") == "weights":
                 getattr(agent, _field.name).load_state_dict(weights_dict[_field.name])
