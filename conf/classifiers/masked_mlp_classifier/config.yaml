@@ -1,9 +1,23 @@
+hydra:
+  searchpath:
+    - file://conf/hydra
+
+defaults:
+  - slurm
+  - colorlog
+  - _self_
+  - dataset@_here_: cube
+
 dataset_artifact_name: "cube_split_1:tmp"
 output_artifact_aliases: ["tmp"]
 evaluate_final_performance: true
 batch_size: 128
 epochs: 100
+limit_val_batches: null
+
+min_masking_probability: 0.0
 max_masking_probability: 0.9
+eval_only_n_samples: null
 lr: 1e-3
 seed: 42
 device: "cuda"

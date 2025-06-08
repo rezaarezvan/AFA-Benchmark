@@ -31,6 +31,7 @@ class LitMaskedMLPClassifier(pl.LightningModule):
         num_cells: tuple[int, ...] = (128, 128),
         dropout: float = 0.1,
         class_probabilities: Float[Tensor, "n_classes"] | None = None,
+        min_masking_probability: float = 0.0,
         max_masking_probability: float = 1.0,
         lr: float = 1e-3,
     ):
@@ -57,6 +58,7 @@ class LitMaskedMLPClassifier(pl.LightningModule):
 
         self.lr = lr
 
+        self.min_masking_probability = min_masking_probability
         self.max_masking_probability = max_masking_probability
 
         self.save_hyperparameters()
@@ -82,7 +84,7 @@ class LitMaskedMLPClassifier(pl.LightningModule):
         features: Features = batch[0]
         label: Label = batch[1]
 
-        masking_probability = torch.rand(1).item() * self.max_masking_probability
+        masking_probability = self.min_masking_probability + torch.rand(1).item() * (self.max_masking_probability-self.min_masking_probability)
         self.log("masking_probability", masking_probability, sync_dist=True)
 
         masked_features, feature_mask, _ = mask_data(features, p=masking_probability)
@@ -108,28 +110,29 @@ class LitMaskedMLPClassifier(pl.LightningModule):
     def validation_step(self, batch: tuple[Tensor, Tensor], batch_idx: int):
         feature_values, y = batch
 
-        feature_mask_half_observed = torch.randint(
-            0, 2, feature_values.shape, device=feature_values.device
+        # Mask features with minimum probability -> see many features (observations)
+        feature_mask_many_observations = torch.rand(
+            feature_values.shape, device=feature_values.device
+        ) > self.min_masking_probability
+        feature_values_many_observations = feature_values.clone()
+        feature_values_many_observations[feature_mask_many_observations == 0] = 0
+        loss_many_observations, acc_many_observations = self._get_loss_and_acc(
+            feature_values_many_observations, feature_mask_many_observations, y
         )
-        feature_values_half_observed = feature_values.clone()
-        feature_values_half_observed[feature_mask_half_observed == 0] = 0
-        loss, acc = self._get_loss_and_acc(
-            feature_values_half_observed, feature_mask_half_observed, y
-        )
-        self.log("val_loss_half", loss)
-        self.log("val_acc_half", acc)
+        self.log("val_loss_many_observations", loss_many_observations)
+        self.log("val_acc_many_observations", acc_many_observations)
 
-        loss, acc = self._get_loss_and_acc(
-            feature_values,
-            torch.ones_like(
-                feature_values, dtype=torch.bool, device=feature_values.device
-            ),
-            y,
+        # Mask features with maximum probability -> see few features (observations)
+        feature_mask_few_observations = torch.rand(
+            feature_values.shape, device=feature_values.device
+        ) > self.max_masking_probability
+        feature_values_few_observations = feature_values.clone()
+        feature_values_few_observations[feature_mask_few_observations == 0] = 0
+        loss_few_observations, acc_few_observations = self._get_loss_and_acc(
+            feature_values_few_observations, feature_mask_few_observations, y
         )
-        self.log("val_loss_full", loss)
-        self.log("val_acc_full", acc)
-
-        return loss
+        self.log("val_loss_few_observations", loss_few_observations)
+        self.log("val_acc_few_observations", acc_few_observations)
 
     @override
     def configure_optimizers(self):

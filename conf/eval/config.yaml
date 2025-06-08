@@ -1,3 +1,12 @@
+hydra:
+  searchpath:
+    - file://conf/hydra
+
+defaults:
+  # - slurm
+  - colorlog
+  - _self_
+
 trained_method_artifact_name: "train_shim2018-cube_split_1-budget_5-seed_42:tmp"
 trained_classifier_artifact_name: "masked_mlp_classifier-cube_split_1:tmp"
 output_artifact_aliases: ["tmp"]

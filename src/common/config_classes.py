@@ -83,6 +83,7 @@ class Shim2018PretrainConfig:
     device: str = "cuda"
     seed: int = 42
     lr: float = 1e-3
+    min_masking_probability: float = 0.0
     max_masking_probability: float = 0.9
     encoder: Shim2018EncoderConfig = field(default_factory=Shim2018EncoderConfig)
     classifier: Shim2018ClassifierConfig = field(
@@ -142,7 +143,11 @@ class TrainMaskedMLPClassifierConfig:
     dataset_artifact_name: str
     batch_size: int
     epochs: int
+    min_masking_probability: float = 0.0
     max_masking_probability: float = 0.9
+    eval_only_n_samples: int | None = (
+        None  # if specified, only evaluate on this many samples
+    )
     lr: float = 1e-3
     seed: int = 42
     device: str = "cuda"
