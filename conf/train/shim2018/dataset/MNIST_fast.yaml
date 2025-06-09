@@ -1,11 +1,11 @@
-pretrained_model_artifact_name: "pretrain_shim2018-cube_split_1:tmp"
-evaluate_final_performance: true
-n_agents: 128
-hard_budget: 5 # recommended: 3, 5, 10
+pretrained_model_artifact_name: "pretrain_shim2018-MNIST_split_1:tmp"
+evaluate_final_performance: false
+n_agents: 2
+hard_budget: 10 # recommended: 10, 50, 100
 agent:
   eps_annealing_num_batches: 1000 
-  replay_buffer_size: 1000000
-  replay_buffer_batch_size: 128
+  replay_buffer_size: 100000
+  replay_buffer_batch_size: 32
   replay_buffer_beta_annealing_num_batches: ${n_batches}
   num_optim: 4
   eps_init: 1.0
@@ -13,9 +13,8 @@ agent:
   lr: 1e-3
   update_tau: 0.005
   action_value_num_cells: [128, 128]
-
-n_batches: 1 # up to 30k also works well, but not significant improvement
-batch_size: 512
+n_batches: 1 # fast
+batch_size: 64
 eval_every_n_batches: 500
 eval_max_steps: 9001
 n_eval_episodes: 100

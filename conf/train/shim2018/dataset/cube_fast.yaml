@@ -1,5 +1,5 @@
 pretrained_model_artifact_name: "pretrain_shim2018-cube_split_1:tmp"
-evaluate_final_performance: true
+evaluate_final_performance: false
 n_agents: 128
 hard_budget: 5 # recommended: 3, 5, 10
 agent:
@@ -13,8 +13,7 @@ agent:
   lr: 1e-3
   update_tau: 0.005
   action_value_num_cells: [128, 128]
-
-n_batches: 1 # up to 30k also works well, but not significant improvement
+n_batches: 1 # fast
 batch_size: 512
 eval_every_n_batches: 500
 eval_max_steps: 9001

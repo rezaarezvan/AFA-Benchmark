@@ -168,18 +168,22 @@ This produces 4 pre-training artifacts:
 ### 3. Training the method
 
 ```bash
-uv run scripts/train_methods/train_shim2018.py -m output_artifact_aliases=["example"] n_batches=1 n_eval_episodes=1 evaluate_final_performance=false n_agents=2 batch_size=8 agent.replay_buffer_size=1 agent.replay_buffer_batch_size=1 agent.num_optim=1 pretrained_model_artifact_name=pretrain_shim2018-cube_split_1:example,pretrain_shim2018-cube_split_2:example,pretrain_shim2018-MNIST_split_1:example,pretrain_shim2018-MNIST_split_2:example hard_budget=5,10
+uv run scripts/train_methods/train_shim2018.py -m output_artifact_aliases=["example"] dataset@_global_=cube_fast pretrained_model_artifact_name=pretrain_shim2018-cube_split_1:example,pretrain_shim2018-cube_split_2:example hard_budget=5,10
+```
+
+```bash
+uv run scripts/train_methods/train_shim2018.py -m output_artifact_aliases=["example"] dataset@_global_=MNIST_fast pretrained_model_artifact_name=pretrain_shim2018-MNIST_split_1:example,pretrain_shim2018-MNIST_split_2:example hard_budget=10,50
 ```
 
 This produces 8 trained method artifacts, 4 per budget:
 - `train_shim2018-cube_split_1-budget_5-seed_42:example`
 - `train_shim2018-cube_split_2-budget_5-seed_42:example`
-- `train_shim2018-MNIST_split_1:example-budget_5-seed_42:example`
-- `train_shim2018-MNIST_split_2:example-budget_5-seed_42:example`
-- `train_shim2018-cube_split_1-budget_10-seed_42:example`
-- `train_shim2018-cube_split_2-budget_10-seed_42:example`
 - `train_shim2018-MNIST_split_1:example-budget_10-seed_42:example`
 - `train_shim2018-MNIST_split_2:example-budget_10-seed_42:example`
+- `train_shim2018-cube_split_1-budget_10-seed_42:example`
+- `train_shim2018-cube_split_2-budget_10-seed_42:example`
+- `train_shim2018-MNIST_split_1:example-budget_50-seed_42:example`
+- `train_shim2018-MNIST_split_2:example-budget_50-seed_42:example`
 
 ### 4. Training a classifier (optional)
 
