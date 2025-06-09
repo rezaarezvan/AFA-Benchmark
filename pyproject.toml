@@ -9,6 +9,7 @@ authors = [
 ]
 requires-python = ">=3.10"
 dependencies = [
+    "certifi>=2025.4.26",
     "coolname>=2.2.0",
     "dacite>=1.9.2",
     "hydra-colorlog>=1.2.0",

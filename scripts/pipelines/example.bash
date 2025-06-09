@@ -3,12 +3,12 @@ uv run scripts/generate_dataset.py -m dataset=cube,MNIST split_idx=1,2 output_ar
 
 # --- PRE-TRAINING ---
 # Pretrain on cube data:
-job1 = 'uv run scripts/pretrain_methods/pretrain_shim2018.py -m output_artifact_aliases=["example"] dataset@_global_=cube_fast dataset_artifact_name=cube_split_1:example,cube_split_2:example'
+job1='uv run scripts/pretrain_models/pretrain_shim2018.py -m output_artifact_aliases=["example"] dataset@_global_=cube_fast dataset_artifact_name=cube_split_1:example,cube_split_2:example'
 
 # Pretrain on MNIST data:
-job2 = 'uv run scripts/pretrain_methods/pretrain_shim2018.py -m output_artifact_aliases=["example"] dataset@_global_=MNST_fast dataset_artifact_name=MNIST_split_1:example,MNIST_split_2:example'
+job2='uv run scripts/pretrain_models/pretrain_shim2018.py -m output_artifact_aliases=["example"] dataset@_global_=MNIST_fast dataset_artifact_name=MNIST_split_1:example,MNIST_split_2:example'
 
-mprocs job1 job2
+mprocs "$job1" "$job2"
 
 # --- METHOD TRAINING ---
 # Train on the cube dataset:

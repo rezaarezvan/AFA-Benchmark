@@ -1,11 +1,13 @@
 hydra:
   searchpath:
-    - file://conf/hydra
+    - file://conf/global
 
 defaults:
-  - slurm
-  - colorlog
   - _self_
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+  - override hydra/launcher: custom_slurm
+
 
 trained_method_artifact_name: "train_shim2018-cube_split_1-budget_5-seed_42:tmp"
 trained_classifier_artifact_name: "masked_mlp_classifier-cube_split_1:tmp"

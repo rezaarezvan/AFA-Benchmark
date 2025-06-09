@@ -1,12 +1,14 @@
 hydra:
   searchpath:
-    - file://conf/hydra
+    - file://conf/global
 
-defaults:
+  defaults:
   - _self_
-  - slurm
-  - colorlog
   - dataset@_here_: cube
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+  - override hydra/launcher: custom_slurm
+
 
 # Default settings, tune for each dataset
 pretrained_model_artifact_name: "pretrain_shim2018-cube_split_1:tmp"

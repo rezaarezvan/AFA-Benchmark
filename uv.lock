@@ -15,6 +15,7 @@ name = "afa-benchmark"
 version = "0.3.2"
 source = { editable = "." }
 dependencies = [
+    { name = "certifi" },
     { name = "coolname" },
     { name = "dacite" },
     { name = "hydra-colorlog" },
@@ -44,6 +45,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "certifi", specifier = ">=2025.4.26" },
     { name = "coolname", specifier = ">=2.2.0" },
     { name = "dacite", specifier = ">=1.9.2" },
     { name = "hydra-colorlog", specifier = ">=1.2.0" },

@@ -1,12 +1,13 @@
 hydra:
   searchpath:
-    - file://conf/hydra
+    - file://conf/global
 
 defaults:
-  - slurm
-  - colorlog
   - _self_
-  - dataset@_here_: cube
+  - dataset@_global_: cube
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+  - override hydra/launcher: custom_slurm
 
 dataset_artifact_name: "cube_split_1:tmp"
 output_artifact_aliases: ["tmp"]

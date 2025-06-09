@@ -72,6 +72,8 @@ All training parts of the pipeline can potentially be tuned per dataset. Therefo
 
 Generate data with `uv run scripts/generate_data.py`. This will place the data in the `data` directory but also upload it to wandb. By default, the dataset artifacts are saved with names in the format `<dataset_type>_split_<split_idx>`, e.g `MNIST_SPLIT_1`. You can add custom aliases using the `output_artifact_aliases` option.
 
+If the script complains about missing certificate, prepend the command with `SSL_CERT_FILE=$(uv run -m certifi)`.
+
 ### 2. Pre-training
 
 This phase is only relevant for AFA methods which require pre-training of some model, such as the RL methods. Since this phase can be different for each method, there is no common interface.
@@ -160,12 +162,12 @@ This produces the 4 dataset artifacts
 
 Pretrain on cube data:
 ```bash
-uv run scripts/pretrain_methods/pretrain_shim2018.py -m output_artifact_aliases=["example"] dataset@_global_=cube_fast dataset_artifact_name=cube_split_1:example,cube_split_2:example
+uv run scripts/pretrain_models/pretrain_shim2018.py -m output_artifact_aliases=["example"] dataset@_global_=cube_fast dataset_artifact_name=cube_split_1:example,cube_split_2:example
 ```
 
 Pretrain on MNIST data:
 ```bash
-uv run scripts/pretrain_methods/pretrain_shim2018.py -m output_artifact_aliases=["example"] dataset@_global_=MNST_fast dataset_artifact_name=MNIST_split_1:example,MNIST_split_2:example
+uv run scripts/pretrain_models/pretrain_shim2018.py -m output_artifact_aliases=["example"] dataset@_global_=MNIST_fast dataset_artifact_name=MNIST_split_1:example,MNIST_split_2:example
 ```
 
 This produces 4 pre-training artifacts:
