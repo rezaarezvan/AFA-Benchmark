@@ -1,6 +1,8 @@
 dataset_artifact_name: "MNIST_split_1:tmp"
 batch_size: 128
 epochs: 1 # fast
+limit_train_batches: 1 # fast
+limit_val_batches: 1 # fast
 
 lr: 1e-3
 min_masking_probability: 0.75

@@ -1,7 +1,9 @@
 dataset_artifact_name: "MNIST_split_1:tmp"
-evaluate_final_performance: true
+evaluate_final_performance: false
 batch_size: 128
 epochs: 1
+limit_train_batches: 1
+limit_val_batches: 1
 min_masking_probability: 0.75
 max_masking_probability: 0.99
 eval_only_n_samples: 100

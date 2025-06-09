@@ -14,6 +14,8 @@ dataset_artifact_name: "cube_split_1:tmp"
 output_artifact_aliases: ["tmp"]
 batch_size: 128
 epochs: 3000
+limit_train_batches: null
+limit_val_batches: null
 
 device: cuda
 seed: 42

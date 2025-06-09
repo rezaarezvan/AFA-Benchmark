@@ -40,7 +40,7 @@ def load_eval_results(
     return eval_results
 
 
-@hydra.main(version_base=None, config_path="../../../conf/plot", config_name="tmp")
+@hydra.main(version_base=None, config_path="../../conf/plot", config_name="config")
 def main(cfg: PlotConfig):
     log.debug(cfg)
     torch.set_float32_matmul_precision("medium")

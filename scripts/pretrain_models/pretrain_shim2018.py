@@ -2,13 +2,11 @@ from datetime import datetime
 import gc
 import logging
 import hydra
-from jaxtyping import Float
 from omegaconf import OmegaConf
 
 import lightning as pl
 from lightning.pytorch.callbacks import ModelCheckpoint
 import torch
-from torch import Tensor
 from lightning.pytorch.loggers import WandbLogger
 
 import wandb
@@ -18,8 +16,6 @@ from afa_rl.shim2018.models import (
 from common.config_classes import Shim2018PretrainConfig
 from afa_rl.datasets import DataModuleFromDatasets
 from common.utils import get_class_probabilities, load_dataset_artifact, set_seed
-
-
 
 
 log = logging.getLogger(__name__)
@@ -61,7 +57,7 @@ def main(cfg: Shim2018PretrainConfig) -> None:
 
     # ModelCheckpoint callback
     checkpoint_callback = ModelCheckpoint(
-        monitor="val_loss_many_observations", # val_loss_few_observations could also work but is probably not as robust
+        monitor="val_loss_many_observations",  # val_loss_few_observations could also work but is probably not as robust
         save_top_k=1,
         mode="min",
         # dirpath=pretrained_model_path,
@@ -76,6 +72,8 @@ def main(cfg: Shim2018PretrainConfig) -> None:
         accelerator=cfg.device,
         devices=1,  # Use only 1 GPU
         callbacks=[checkpoint_callback],
+        limit_train_batches=cfg.limit_train_batches,
+        limit_val_batches=cfg.limit_val_batches,
     )
 
     try:

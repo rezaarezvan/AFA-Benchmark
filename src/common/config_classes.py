@@ -79,6 +79,8 @@ class Shim2018PretrainConfig:
     dataset_artifact_name: str
     batch_size: int  # batch size for dataloader
     epochs: int
+    limit_train_batches: int | None = None
+    limit_val_batches: int | None = None
 
     device: str = "cuda"
     seed: int = 42
@@ -143,6 +145,8 @@ class TrainMaskedMLPClassifierConfig:
     dataset_artifact_name: str
     batch_size: int
     epochs: int
+    limit_train_batches: int | None = None
+    limit_val_batches: int | None = None
     min_masking_probability: float = 0.0
     max_masking_probability: float = 0.9
     eval_only_n_samples: int | None = (

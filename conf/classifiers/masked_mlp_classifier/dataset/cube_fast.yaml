@@ -1,6 +1,9 @@
 dataset_artifact_name: "cube_split_1:tmp"
+evaluate_final_performance: false
 batch_size: 128
 epochs: 1
+limit_train_batches: 1
+limit_val_batches: 1
 min_masking_probability: 0.0
 max_masking_probability: 0.9
 eval_only_n_samples: null

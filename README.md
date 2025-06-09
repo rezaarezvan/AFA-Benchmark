@@ -140,6 +140,8 @@ Here is an example pipeline for evaluating the `shim2018` method with two differ
 
 By default, Hydra multiruns (using the `-m` flag) are launched with [Slurm](https://slurm.schedmd.com/) using the [Submitit](https://hydra.cc/docs/plugins/submitit_launcher/) plugin.
 
+If you have [mprocs](https://github.com/pvolok/mprocs) installed, you can run the following `scripts/pipelines/README_example.bash` bash script to automatically run the steps 1-6 below.
+
 ### 0. WandB setup
 
 To log results to your own Weights & Biases project, set the `WANDB_PROJECT` environment variable to your project name. If you want to use a different Weights & Biases entity than the default one, set the `WANDB_ENTITY` environment variable to your entity name.

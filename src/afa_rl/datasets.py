@@ -1,4 +1,5 @@
 import math
+from typing import final
 
 import lightning as pl
 import torch
@@ -36,7 +37,7 @@ def get_afa_dataset_fn(features: Features, labels: Label) -> AFADatasetFn:
         local_features = get_wrapped_batch(features, idx, batch_size.numel())
         local_labels = get_wrapped_batch(labels, idx, batch_size.numel())
         if move_on:
-            idx = (idx + batch_size.numel())
+            idx = idx + batch_size.numel()
             # Reset idx if needed, also shuffling the dataset
             if idx >= len(features):
                 idx = 0
@@ -51,14 +52,23 @@ def get_afa_dataset_fn(features: Features, labels: Label) -> AFADatasetFn:
     return afa_dataset_fn
 
 
+@final
 class DataModuleFromDatasets(pl.LightningDataModule):
-    def __init__(self, train_dataset, val_dataset, batch_size=32, num_workers=1):
+    def __init__(
+        self,
+        train_dataset,
+        val_dataset,
+        batch_size=32,
+        num_workers=0,
+        persistent_workers=False,
+    ):
         # TODO: does not work with num_workers > 1
         super().__init__()
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
         self.batch_size = batch_size
         self.num_workers = num_workers
+        self.persistent_workers = persistent_workers
 
     def prepare_data(self):
         pass
@@ -72,7 +82,7 @@ class DataModuleFromDatasets(pl.LightningDataModule):
             batch_size=self.batch_size,
             shuffle=True,
             num_workers=self.num_workers,
-            persistent_workers=True,
+            persistent_workers=self.persistent_workers,
         )
 
     def val_dataloader(self):
@@ -80,7 +90,7 @@ class DataModuleFromDatasets(pl.LightningDataModule):
             self.val_dataset,
             batch_size=self.batch_size,
             num_workers=self.num_workers,
-            persistent_workers=True,
+            persistent_workers=self.persistent_workers,
         )
 
 
