@@ -3,6 +3,7 @@ hydra:
     - file://conf/hydra
 
 defaults:
+  - slurm
   - colorlog
   - _self_
   - dataset: MNIST
