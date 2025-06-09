@@ -1,49 +1,56 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
-set -u  # Treat unset variables as an error
-set -o pipefail  # Fail if any part of a pipeline fails
-
-LAUNCHER=$1 # 'custom_slurm' or 'basic'
-DEVICE=$2 # 'cuda' or 'cpu'
-SPEED=$3 # 'fast' or 'slow'
-
-# Ensure that $1 and $2 are set
-if [ -z "$LAUNCHER" ] || [ -z "$DEVICE" ] || [ -z "$SPEED" ]; then
-  echo "Usage: $0 <launcher> <device> <speed>"
-  echo "Example: $0 custom_slurm cuda slow"
-  exit 1
+# -----------------------
+# Parse args
+# -----------------------
+if [[ $# -lt 3 ]]; then
+    echo "Usage: $0 <launcher> <device> <speed> [output_alias] [steps...]"
+    echo "Steps: 1=Generation, 2=Pretrain, 3=Method, 4=Classifier, 5=Eval, 6=Plotting"
+    echo "Example: $0 slurm cuda slow myalias 2 4 5"
+    exit 1
 fi
 
-# if speed is "slow", use the normal dataset config variations. If it is "fast" use the `_fast` versions
-if [ "$SPEED" == "slow" ]; then
-  dataset_suffix=""
-elif [ "$SPEED" == "fast" ]; then
-  dataset_suffix="_fast"
+launcher="$1"
+device="$2"
+speed="$3"
+output_alias="${4:-example}"
+shift 4 || true
+step_args=("${@:-1 2 3 4 5 6}")
+
+# Validate speed
+if [[ "$speed" == "slow" ]]; then
+    dataset_suffix=""
+elif [[ "$speed" == "fast" ]]; then
+    dataset_suffix="_fast"
 else
-  echo "Third argument should either be \"slow\" or \"fast\""
+    echo "Third argument should either be 'slow' or 'fast'"
+    exit 1
 fi
 
-# run_parallel() {
-#   local cmds=("$@")
-#   local pids=()
-#
-#   for cmd in "${cmds[@]}"; do
-#     echo "Launching: $cmd"
-#     bash -c "$cmd" &
-#     pids+=($!)
-#   done
-#
-#   local i=0
-#   for pid in "${pids[@]}"; do
-#     wait "$pid" || {
-#       echo "Command failed: ${cmds[$i]}"
-#       exit 1
-#     }
-#     ((i++))
-#   done
-# }
+extra_opts="device=$device hydra/launcher=$launcher"
 
-EXTRA_OPTS="device=$DEVICE hydra/launcher=$LAUNCHER"
+# -----------------------
+# Enable steps
+# -----------------------
+step_enabled() {
+    for step in "${step_args[@]}"; do
+        [[ $step -eq $1 ]] && return 0
+    done
+    return 1
+}
+
+RUN_GENERATION=$(step_enabled 1 && echo true || echo false)
+RUN_PRETRAIN=$(step_enabled 2 && echo true || echo false)
+RUN_METHOD=$(step_enabled 3 && echo true || echo false)
+RUN_CLASSIFIER=$(step_enabled 4 && echo true || echo false)
+RUN_EVAL=$(step_enabled 5 && echo true || echo false)
+RUN_PLOTTING=$(step_enabled 6 && echo true || echo false)
+
+# -----------------------
+# Pipeline
+# -----------------------
+
 
 # --- DATA GENERATION ---
 echo "Starting data generation job..."
@@ -60,7 +67,7 @@ job1="uv run scripts/pretrain_models/pretrain_shim2018.py -m output_artifact_ali
 # Pretrain on MNIST data:
 job2="uv run scripts/pretrain_models/pretrain_shim2018.py -m output_artifact_aliases=[\"example\"] dataset@_global_=MNIST$dataset_suffix dataset_artifact_name=MNIST_split_1:example,MNIST_split_2:example $EXTRA_OPTS"
 
-# mprocs "$job1" "$job2"
+mprocs "$job1" "$job2"
 
 # --- METHOD TRAINING ---
 echo "Starting method training jobs..."
