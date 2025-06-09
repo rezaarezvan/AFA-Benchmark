@@ -3,7 +3,7 @@ hydra:
     - file://conf/hydra
 
 defaults:
-  # - slurm
+  - slurm
   - colorlog
   - _self_
 

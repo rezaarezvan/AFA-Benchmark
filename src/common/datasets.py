@@ -1,20 +1,18 @@
 from pathlib import Path
-from typing import Self
+from typing import Callable, Self, final, override
 import torch
-from jaxtyping import Float
 from torch import Tensor
 from torch.utils.data import Dataset
 from torchvision import datasets, transforms
-import math
 import pandas as pd
 import os
-from sklearn.preprocessing import StandardScaler
 
 
 from common.custom_types import AFADataset, FeatureMask, MaskedFeatures, Features, Label
 
 
-class Shim2018CubeDataset(Dataset, AFADataset):
+@final
+class Shim2018CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     """
     The Cube dataset, as described in the paper "Minimizing data consumption with sequential online feature selection" (https://doi.org/10.1007/s13042-012-0092-x).
     """
@@ -31,12 +29,19 @@ class Shim2018CubeDataset(Dataset, AFADataset):
         self.n_samples = n_samples
         self.sigma = sigma
         self.seed = seed
+        self.rng = torch.Generator()
 
-        rng = torch.Generator()
-        rng.manual_seed(seed)
+    @override
+    def generate_data(self):
+        self.rng.manual_seed(self.seed)
+
         # Each coordinate is drawn from a Bernoulli distribution with p=0.5, which is the same as uniform
         coords = torch.randint(
-            low=0, high=2, size=(n_samples, 3), dtype=torch.int64, generator=rng
+            low=0,
+            high=2,
+            size=(self.n_samples, 3),
+            dtype=torch.int64,
+            generator=self.rng,
         )
         # Each corner in the cube is a different label
         labels = torch.einsum(
@@ -44,31 +49,42 @@ class Shim2018CubeDataset(Dataset, AFADataset):
         )
         # Add Gaussian noise to coords
         coords = coords.float()
-        coords += torch.randn(n_samples, 3, dtype=torch.float32, generator=rng) * sigma
+        coords += (
+            torch.randn(self.n_samples, 3, dtype=torch.float32, generator=self.rng)
+            * self.sigma
+        )
         # The final features are the coordinates offset according to the labels, and uniform noise for all other features
-        self.features = torch.zeros(n_samples, self.n_features, dtype=torch.float32)
-        for i in range(n_samples):
+        self.features = torch.zeros(
+            self.n_samples, self.n_features, dtype=torch.float32
+        )
+        for i in range(self.n_samples):
             offset: int = int(labels[i].item())
             self.features[i, offset : offset + 3] += coords[i]
             # uniform noise on all other features
             self.features[i, :offset] = torch.rand(
-                (1, offset), dtype=torch.float32, generator=rng
+                (1, offset), dtype=torch.float32, generator=self.rng
             )
             self.features[i, offset + 3 :] = torch.rand(
-                (1, self.n_features - offset - 3), dtype=torch.float32, generator=rng
+                (1, self.n_features - offset - 3),
+                dtype=torch.float32,
+                generator=self.rng,
             )
         # Convert labels to one-hot encoding
         self.labels = torch.nn.functional.one_hot(labels, num_classes=8).float()
 
-    def __getitem__(self, idx):
+    @override
+    def __getitem__(self, idx: int):
         return self.features[idx], self.labels[idx]
 
+    @override
     def __len__(self):
         return len(self.features)
 
+    @override
     def get_all_data(self) -> tuple[MaskedFeatures, FeatureMask]:
         return self.features, self.labels
 
+    @override
     def save(self, path: Path) -> None:
         torch.save(
             {
@@ -84,6 +100,7 @@ class Shim2018CubeDataset(Dataset, AFADataset):
         )
 
     @classmethod
+    @override
     def load(cls, path: Path) -> Self:
         data = torch.load(path)
         dataset = cls(**data["config"])
@@ -92,7 +109,8 @@ class Shim2018CubeDataset(Dataset, AFADataset):
         return dataset
 
 
-class CubeDataset(Dataset, AFADataset):
+@final
+class CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     """
     The Cube dataset, as described in the paper "ODIN: Optimal Discovery of High-value INformation Using Model-based Deep Reinforcement Learning"
 
@@ -123,18 +141,15 @@ class CubeDataset(Dataset, AFADataset):
             self.n_features - self.n_cube_features
         )  # Remaining features are dummy features
 
-        self._generate_data()
+        self.rng = torch.Generator()
 
-    def generate_data(self):
-        pass
-
-    def _generate_data(self) -> None:
-        rng = torch.Generator()
-        rng.manual_seed(self.seed)
+    @override
+    def generate_data(self) -> None:
+        self.rng.manual_seed(self.seed)
 
         # Draw labels
         y_int = torch.randint(
-            0, self.n_classes, (self.n_samples,), dtype=torch.int64, generator=rng
+            0, self.n_classes, (self.n_samples,), dtype=torch.int64, generator=self.rng
         )
 
         # Binary codes for labels (8×3)
@@ -151,26 +166,29 @@ class CubeDataset(Dataset, AFADataset):
             mean=self.non_informative_feature_mean,
             std=self.non_informative_feature_std,
             size=(self.n_samples, self.n_cube_features),
-            generator=rng,
+            generator=self.rng,
         )
 
         X_dummy = torch.normal(
             mean=self.non_informative_feature_mean,
             std=self.non_informative_feature_std,
             size=(self.n_samples, self.n_dummy_features),
-            generator=rng,
+            generator=self.rng,
         )
 
         # Insert informative signals
         for i in range(self.n_samples):
-            lbl = y_int[i].item()
+            lbl = int(y_int[i].item())
             mu_bin = binary_codes[lbl]
 
             # Cube features: 3 bumps
             idxs = [(lbl + j) for j in range(3)]
             X_cube[i, idxs] = (
                 torch.normal(
-                    mean=0.0, std=self.informative_feature_std, size=(3,), generator=rng
+                    mean=0.0,
+                    std=self.informative_feature_std,
+                    size=(3,),
+                    generator=self.rng,
                 )
                 + mu_bin
             )
@@ -186,15 +204,19 @@ class CubeDataset(Dataset, AFADataset):
         ).float()
         assert self.labels.shape[1] == self.n_classes
 
+    @override
     def __getitem__(self, idx: int) -> tuple[MaskedFeatures, FeatureMask]:
         return self.features[idx], self.labels[idx]
 
+    @override
     def __len__(self):
         return len(self.features)
 
+    @override
     def get_all_data(self) -> tuple[MaskedFeatures, FeatureMask]:
         return self.features, self.labels
 
+    @override
     def save(self, path: Path) -> None:
         torch.save(
             {
@@ -212,6 +234,7 @@ class CubeDataset(Dataset, AFADataset):
         )
 
     @classmethod
+    @override
     def load(cls, path: Path) -> Self:
         data = torch.load(path)
         dataset = cls(**data["config"])
@@ -220,7 +243,8 @@ class CubeDataset(Dataset, AFADataset):
         return dataset
 
 
-class AFAContextDataset(Dataset, AFADataset):
+@final
+class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     """
     A PyTorch Dataset merging AFA structure with cube-dataset dummy-feature behavior.
 
@@ -248,6 +272,7 @@ class AFAContextDataset(Dataset, AFADataset):
         self.seed = seed
         self.non_informative_feature_mean = non_informative_feature_mean
         self.non_informative_feature_std = non_informative_feature_std
+        self.costs = None  # set when generating data
 
         # Constants
         self.n_context_groups = 3
@@ -258,25 +283,22 @@ class AFAContextDataset(Dataset, AFADataset):
             1 + self.n_bin_features + self.n_cube_features
         )
 
-        self._generate_data()
+        self.rng = torch.Generator()
 
-    def generate_data(self):
-        pass
-
-    def _generate_data(self) -> None:
-        rng = torch.Generator()
-        rng.manual_seed(self.seed)
+    @override
+    def generate_data(self) -> None:
+        self.rng.manual_seed(self.seed)
 
         # Draw labels and context
         y_int = torch.randint(
-            0, self.n_classes, (self.n_samples,), dtype=torch.int64, generator=rng
+            0, self.n_classes, (self.n_samples,), dtype=torch.int64, generator=self.rng
         )
         S = torch.randint(
             0,
             self.n_context_groups,
             (self.n_samples,),
             dtype=torch.int64,
-            generator=rng,
+            generator=self.rng,
         )
 
         # Binary codes for labels (8×3)
@@ -295,26 +317,26 @@ class AFAContextDataset(Dataset, AFADataset):
             mean=self.non_informative_feature_mean,
             std=self.non_informative_feature_std,
             size=(self.n_samples, self.n_bin_features),
-            generator=rng,
+            generator=self.rng,
         )
 
         X_cube = torch.normal(
             mean=self.non_informative_feature_mean,
             std=self.non_informative_feature_std,
             size=(self.n_samples, self.n_cube_features),
-            generator=rng,
+            generator=self.rng,
         )
 
         X_dummy = torch.normal(
             mean=self.non_informative_feature_mean,
             std=self.non_informative_feature_std,
             size=(self.n_samples, self.n_dummy_features),
-            generator=rng,
+            generator=self.rng,
         )
 
         # Insert informative signals
         for i in range(self.n_samples):
-            lbl = y_int[i].item()
+            lbl = int(y_int[i].item())
             ctx = S[i].item()
             mu_bin = binary_codes[lbl]
 
@@ -323,7 +345,10 @@ class AFAContextDataset(Dataset, AFADataset):
             end = start + self.group_size
             X_bin[i, start:end] = (
                 torch.normal(
-                    mean=0.0, std=self.std_bin, size=(self.group_size,), generator=rng
+                    mean=0.0,
+                    std=self.std_bin,
+                    size=(self.group_size,),
+                    generator=self.rng,
                 )
                 + mu_bin
             )
@@ -331,7 +356,7 @@ class AFAContextDataset(Dataset, AFADataset):
             # Cube features: 3 bumps
             idxs = [(lbl + j) for j in range(3)]
             X_cube[i, idxs] = (
-                torch.normal(mean=0.0, std=self.std_cube, size=(3,), generator=rng)
+                torch.normal(mean=0.0, std=self.std_cube, size=(3,), generator=self.rng)
                 + mu_bin
             )
 
@@ -352,15 +377,19 @@ class AFAContextDataset(Dataset, AFADataset):
         ).float()
         assert self.labels.shape[1] == self.n_classes
 
+    @override
     def __getitem__(self, idx: int):
         return self.features[idx], self.labels[idx]
 
+    @override
     def __len__(self):
         return self.features.size(0)
 
+    @override
     def get_all_data(self):
         return self.features, self.labels
 
+    @override
     def save(self, path: Path) -> None:
         torch.save(
             {
@@ -381,6 +410,7 @@ class AFAContextDataset(Dataset, AFADataset):
         )
 
     @classmethod
+    @override
     def load(cls, path: Path) -> Self:
         data = torch.load(path)
         cfg = data["config"]
@@ -391,7 +421,8 @@ class AFAContextDataset(Dataset, AFADataset):
         return ds
 
 
-class MNISTDataset(Dataset, AFADataset):
+@final
+class MNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     """MNIST dataset wrapped to follow the AFADataset protocol."""
 
     n_classes = 10
@@ -400,7 +431,7 @@ class MNISTDataset(Dataset, AFADataset):
     def __init__(
         self,
         train: bool = True,
-        transform=None,
+        transform: Callable[[Tensor], Tensor] | None = None,
         download: bool = True,
         root: str = "data/MNIST",
     ):
@@ -410,12 +441,10 @@ class MNISTDataset(Dataset, AFADataset):
         self.download = download
         self.root = root
 
-        self._generate_data()
+        self.dataset = None  # set when generating data
 
-    def generate_data(self):
-        pass
-
-    def _generate_data(self) -> None:
+    @override
+    def generate_data(self) -> None:
         self.dataset = datasets.MNIST(
             root=self.root,
             train=self.train,
@@ -431,15 +460,19 @@ class MNISTDataset(Dataset, AFADataset):
         ).float()
         assert self.labels.shape[1] == self.n_classes
 
+    @override
     def __getitem__(self, idx: int) -> tuple[Features, Label]:
         return self.features[idx], self.labels[idx]
 
+    @override
     def __len__(self):
         return self.features.size(0)
 
+    @override
     def get_all_data(self) -> tuple[Features, Label]:
         return self.features, self.labels
 
+    @override
     def save(self, path: Path) -> None:
         torch.save(
             {
@@ -454,6 +487,7 @@ class MNISTDataset(Dataset, AFADataset):
         )
 
     @classmethod
+    @override
     def load(cls, path: Path) -> Self:
         data = torch.load(path)
         dataset = cls(**data["config"])
@@ -461,7 +495,9 @@ class MNISTDataset(Dataset, AFADataset):
         dataset.labels = data["labels"]
         return dataset
 
-class FashionMNISTDataset(Dataset, AFADataset):
+
+@final
+class FashionMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     """FashionMNIST dataset wrapped to follow the AFADataset protocol."""
 
     n_classes = 10
@@ -470,7 +506,7 @@ class FashionMNISTDataset(Dataset, AFADataset):
     def __init__(
         self,
         train: bool = True,
-        transform=None,
+        transform: Callable[[Tensor], Tensor] | None = None,
         download: bool = True,
         root: str = "data/FashionMNIST",
     ):
@@ -479,13 +515,10 @@ class FashionMNISTDataset(Dataset, AFADataset):
         self.transform = transform if transform is not None else transforms.ToTensor()
         self.download = download
         self.root = root
+        self.dataset = None  # set when generating data
 
-        self._generate_data()
-
-    def generate_data(self):
-        pass
-
-    def _generate_data(self) -> None:
+    @override
+    def generate_data(self) -> None:
         self.dataset = datasets.FashionMNIST(
             root=self.root,
             train=self.train,
@@ -501,15 +534,19 @@ class FashionMNISTDataset(Dataset, AFADataset):
         ).float()
         assert self.labels.shape[1] == self.n_classes
 
+    @override
     def __getitem__(self, idx: int) -> tuple[Features, Label]:
         return self.features[idx], self.labels[idx]
 
+    @override
     def __len__(self):
         return self.features.size(0)
 
+    @override
     def get_all_data(self) -> tuple[Features, Label]:
         return self.features, self.labels
 
+    @override
     def save(self, path: Path) -> None:
         torch.save(
             {
@@ -524,6 +561,7 @@ class FashionMNISTDataset(Dataset, AFADataset):
         )
 
     @classmethod
+    @override
     def load(cls, path: Path) -> Self:
         data = torch.load(path)
         dataset = cls(**data["config"])
@@ -532,7 +570,8 @@ class FashionMNISTDataset(Dataset, AFADataset):
         return dataset
 
 
-class DiabetesDataset(Dataset, AFADataset):
+@final
+class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     """
     Diabetes dataset wrapped to follow the AFADataset protocol.
 
@@ -551,13 +590,10 @@ class DiabetesDataset(Dataset, AFADataset):
         super().__init__()
         self.data_path = data_path
         self.seed = seed
+        self.feature_names = None  # set when generating data
 
-        self._generate_data()
-
-    def generate_data(self):
-        pass
-
-    def _generate_data(self) -> None:
+    @override
+    def generate_data(self) -> None:
         """Load and preprocess the diabetes dataset."""
         # Set random seed for reproducibility
         torch.manual_seed(self.seed)
@@ -565,7 +601,7 @@ class DiabetesDataset(Dataset, AFADataset):
         # Check if file exists
         if not os.path.exists(self.data_path):
             return
-            #raise FileNotFoundError(f"Diabetes dataset not found at {self.data_path}")
+            # raise FileNotFoundError(f"Diabetes dataset not found at {self.data_path}")
 
         # Load the dataset
         df = pd.read_csv(self.data_path)
@@ -587,18 +623,22 @@ class DiabetesDataset(Dataset, AFADataset):
         # Store feature names
         self.feature_names = features_df.columns.tolist()
 
+    @override
     def __getitem__(self, idx: int) -> tuple[Features, Label]:
         """Return a single sample from the dataset."""
         return self.features[idx], self.labels[idx]
 
+    @override
     def __len__(self) -> int:
         """Return the number of samples in the dataset."""
         return len(self.features)
 
+    @override
     def get_all_data(self) -> tuple[Features, Label]:
         """Return all features and labels."""
         return self.features, self.labels
 
+    @override
     def save(self, path: Path) -> None:
         """Save the dataset to a file."""
         torch.save(
@@ -615,6 +655,7 @@ class DiabetesDataset(Dataset, AFADataset):
         )
 
     @classmethod
+    @override
     def load(cls, path: Path) -> Self:
         """Load a dataset from a file."""
         data = torch.load(path)
@@ -624,7 +665,9 @@ class DiabetesDataset(Dataset, AFADataset):
         dataset.feature_names = data["feature_names"]
         return dataset
 
-class MiniBooNEDataset(Dataset, AFADataset):
+
+@final
+class MiniBooNEDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     """
     MiniBooNE dataset wrapped to follow the AFADataset protocol.
 
@@ -643,19 +686,16 @@ class MiniBooNEDataset(Dataset, AFADataset):
         super().__init__()
         self.data_path = data_path
         self.seed = seed
+        self.feature_names = None  # set when generating data
 
-        self._generate_data()
-
-    def generate_data(self):
-        pass
-
-    def _generate_data(self) -> None:
+    @override
+    def generate_data(self) -> None:
         """Load and preprocess the MiniBooNE dataset."""
         torch.manual_seed(self.seed)
 
         if not os.path.exists(self.data_path):
             return
-            #raise FileNotFoundError(f"MiniBooNE dataset not found at {self.data_path}")
+            # raise FileNotFoundError(f"MiniBooNE dataset not found at {self.data_path}")
 
         df = pd.read_csv(self.data_path)
 
@@ -674,15 +714,19 @@ class MiniBooNEDataset(Dataset, AFADataset):
 
         self.feature_names = features_df.columns.tolist()
 
+    @override
     def __getitem__(self, idx: int) -> tuple[Features, Label]:
         return self.features[idx], self.labels[idx]
 
+    @override
     def __len__(self) -> int:
         return len(self.features)
 
+    @override
     def get_all_data(self) -> tuple[Features, Label]:
         return self.features, self.labels
 
+    @override
     def save(self, path: Path) -> None:
         torch.save(
             {
@@ -698,6 +742,7 @@ class MiniBooNEDataset(Dataset, AFADataset):
         )
 
     @classmethod
+    @override
     def load(cls, path: Path) -> Self:
         data = torch.load(path)
         dataset = cls(**data["config"])
@@ -707,8 +752,8 @@ class MiniBooNEDataset(Dataset, AFADataset):
         return dataset
 
 
-
-class PhysionetDataset(Dataset, AFADataset):
+@final
+class PhysionetDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     """
     Physionet dataset wrapped to follow the AFADataset protocol.
 
@@ -727,19 +772,16 @@ class PhysionetDataset(Dataset, AFADataset):
         super().__init__()
         self.data_path = data_path
         self.seed = seed
+        self.feature_names = None  # set when generating data
 
-        self._generate_data()
-
-    def generate_data(self):
-        pass
-
-    def _generate_data(self) -> None:
+    @override
+    def generate_data(self) -> None:
         """Load and preprocess the Physionet dataset."""
         torch.manual_seed(self.seed)
 
         if not os.path.exists(self.data_path):
             return
-            #raise FileNotFoundError(f"Physionet dataset not found at {self.data_path}")
+            # raise FileNotFoundError(f"Physionet dataset not found at {self.data_path}")
 
         df = pd.read_csv(self.data_path)
 
@@ -766,15 +808,19 @@ class PhysionetDataset(Dataset, AFADataset):
 
         self.feature_names = features_df.columns.tolist()
 
+    @override
     def __getitem__(self, idx: int) -> tuple[Features, Label]:
         return self.features[idx], self.labels[idx]
 
+    @override
     def __len__(self) -> int:
         return len(self.features)
 
+    @override
     def get_all_data(self) -> tuple[Features, Label]:
         return self.features, self.labels
 
+    @override
     def save(self, path: Path) -> None:
         torch.save(
             {
@@ -790,6 +836,7 @@ class PhysionetDataset(Dataset, AFADataset):
         )
 
     @classmethod
+    @override
     def load(cls, path: Path) -> Self:
         data = torch.load(path)
         dataset = cls(**data["config"])

@@ -44,7 +44,7 @@ def generate_and_save_split(
 
     # Create dataset with the specific seed
     dataset = dataset_class(**dataset_kwargs)
-    # dataset.generate_data()
+    dataset.generate_data()
 
     # Calculate split sizes
     total_size = len(dataset)

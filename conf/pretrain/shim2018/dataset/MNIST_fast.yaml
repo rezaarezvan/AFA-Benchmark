@@ -1,0 +1,16 @@
+dataset_artifact_name: "MNIST_split_1:tmp"
+batch_size: 128
+epochs: 1 # fast
+
+lr: 1e-3
+min_masking_probability: 0.75
+max_masking_probability: 0.99
+encoder:
+  output_size: 128
+  reading_block_cells: [128, 128]
+  writing_block_cells: [128, 128]
+  memory_size: 128
+  processing_steps: 5
+  dropout: 0.1
+classifier:
+  num_cells: [128, 128]
