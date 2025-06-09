@@ -167,10 +167,12 @@ This produces 4 pre-training artifacts:
 
 ### 3. Training the method
 
+Train on the cube dataset:
 ```bash
 uv run scripts/train_methods/train_shim2018.py -m output_artifact_aliases=["example"] dataset@_global_=cube_fast pretrained_model_artifact_name=pretrain_shim2018-cube_split_1:example,pretrain_shim2018-cube_split_2:example hard_budget=5,10
 ```
 
+Train on the MNIST dataset:
 ```bash
 uv run scripts/train_methods/train_shim2018.py -m output_artifact_aliases=["example"] dataset@_global_=MNIST_fast pretrained_model_artifact_name=pretrain_shim2018-MNIST_split_1:example,pretrain_shim2018-MNIST_split_2:example hard_budget=10,50
 ```
@@ -189,8 +191,14 @@ This produces 8 trained method artifacts, 4 per budget:
 
 This is similar to the pre-training step.
 
+Train on the cube dataset:
 ```bash
-uv run scripts/train_classifiers/train_masked_mlp_classifier.py -m output_artifact_aliases=["example"] epochs=1 evaluate_final_performance=false dataset_artifact_name=cube_split_1:example,cube_split_2:example,MNIST_split_1:example,MNIST_split_2:example
+uv run scripts/train_classifiers/train_masked_mlp_classifier.py -m output_artifact_aliases=["example"] dataset@_global_=cube_fast dataset_artifact_name=cube_split_1:example,cube_split_2:example
+```
+
+Train on the MNIST dataset:
+```bash
+uv run scripts/train_classifiers/train_masked_mlp_classifier.py -m output_artifact_aliases=["example"] dataset@_global_=MNIST_fast dataset_artifact_name=MNIST_split_1:example,MNIST_split_2:example
 ```
 
 This produces 4 classifier artifacts:
