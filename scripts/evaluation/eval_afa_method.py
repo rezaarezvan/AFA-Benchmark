@@ -25,6 +25,7 @@ from common.utils import load_dataset_artifact, set_seed
 from omegaconf import OmegaConf
 
 from eval.metrics import eval_afa_method
+from eval.utils import plot_metrics
 
 
 def load_trained_method_artifacts(
@@ -163,14 +164,12 @@ def main(cfg: EvalConfig) -> None:
         only_n_samples=cfg.eval_only_n_samples,
     )
 
-    # Log F1 and accuracy to wandb run
-    fig, ax = plt.subplots()
-    budgets = np.arange(1, len(metrics["accuracy_all"]) + 1)
-    ax.plot(budgets, metrics["accuracy_all"], label="Accuracy", marker="o")
-    ax.plot(budgets, metrics["f1_all"], label="F1 Score", marker="o")
-    ax.set_xlabel("Number of Selected Features (Budget)")
-
-    run.log({"metrics_plot": fig})
+    fig = plot_metrics(metrics)
+    run.log(
+        {
+            "metrics_plot": fig,
+        }
+    )
 
     # Save results as wandb artifact
     eval_results_artifact = wandb.Artifact(

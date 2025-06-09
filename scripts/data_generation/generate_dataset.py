@@ -155,7 +155,7 @@ log = logging.getLogger(__name__)
 
 @hydra.main(
     version_base=None,
-    config_path="../conf/dataset_generation",
+    config_path="../../conf/dataset_generation",
     config_name="config",
 )
 def main(cfg: DatasetGenerationConfig) -> None:

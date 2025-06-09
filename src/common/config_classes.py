@@ -175,11 +175,21 @@ class EvalConfig:
     )
 
 
+cs.store(name="eval", node=EvalConfig)
+
+
+@dataclass
+class MetricConfig:
+    key: str
+    description: str
+    ylim: list[int] | None
+
+
 @dataclass
 class PlotConfig:
     eval_artifact_names: list[str]
     metric_keys_and_descriptions: list[
-        list[str]
+        MetricConfig
     ]  # Inner list has two elements: [metric_key, description]
 
 

@@ -16,5 +16,12 @@ eval_artifact_names:
   - "train_shim2018-MNIST_split_1-budget_50-seed_42-builtin:example"
   - "train_shim2018-MNIST_split_2-budget_50-seed_42-builtin:example"
 metric_keys_and_descriptions:
-  - ["accuracy_all", "Accuracy"]
-  - ["f1_all", "F1 score"]
+  - key: accuracy_all
+    description: Accuracy
+    ylim: [0.0, 1.0]
+  - key: f1_all
+    description: "F1 score"
+    ylim: [0.0, 1.0]
+  - key: bce_all
+    description: "Binary Cross-Entropy"
+    ylim: null

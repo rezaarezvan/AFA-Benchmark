@@ -57,21 +57,29 @@ def plot_metrics(metrics: dict[str, Any]) -> Figure:
     """Return a figure containing metrics."""
     assert "accuracy_all" in metrics, "Metrics must contain 'accuracy_all'."
     assert "f1_all" in metrics, "Metrics must contain 'f1_all'."
+    assert "bce_all" in metrics, "Metrics must contain 'bce_all'."
 
     budget = len(metrics["accuracy_all"])
-    fig, ax = plt.subplots()
+    fig, axs = plt.subplots(1, 2)
     budgets = np.arange(1, budget + 1, 1)
-    ax.plot(
+    axs[0].plot(
         budgets,
         metrics["accuracy_all"],
         label="Accuracy",
         marker="o",
     )
-    ax.plot(
+    axs[0].plot(
         budgets,
         metrics["f1_all"],
         label="F1 Score",
         marker="o",
     )
-    ax.set_xlabel("Number of Selected Features (Budget)")
+    axs[0].set_xlabel("Number of Selected Features (Budget)")
+    axs[1].plot(
+        budgets,
+        metrics["bce_all"],
+        label="Binary Cross-Entropy",
+        marker="o",
+    )
+    axs[1].set_xlabel("Number of Selected Features (Budget)")
     return fig

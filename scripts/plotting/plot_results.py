@@ -91,29 +91,33 @@ def main(cfg: PlotConfig):
                 if not grouped_metrics:
                     continue
 
-                for metric_key, metric_description in cfg.metric_keys_and_descriptions:
+                for metric_cfg in cfg.metric_keys_and_descriptions:
                     fig, ax = plt.subplots()
 
                     for method_type, metrics_list in grouped_metrics.items():
                         # Shape: [num_runs, T]
-                        data = torch.stack([m[metric_key] for m in metrics_list])
+                        data = torch.stack([m[metric_cfg.key] for m in metrics_list])
                         mean = data.mean(dim=0)
                         std = data.std(dim=0)
 
                         ax.plot(x, mean, label=method_type)
+                        if metric_cfg.ylim is not None:
+                            ax.set_ylim(*metric_cfg.ylim)
                         ax.fill_between(x, mean - std, mean + std, alpha=0.3)
 
                     ax.set_title(
-                        f"{metric_key} – {dataset_type} | {classifier_type} | Budget: {budget}"
+                        f"{metric_cfg.key} – {dataset_type} | {classifier_type} | Budget: {budget}"
                     )
                     ax.set_xlabel("Number of features selected")
-                    ax.set_ylabel(metric_description)
+                    ax.set_ylabel(metric_cfg.description)
                     ax.legend()
                     ax.grid(True)
 
                     wandb.log(
                         {
-                            f"{dataset_type}_{classifier_type}_budget{budget}_{metric_key}": fig
+                            f"{dataset_type}_{classifier_type}_budget{budget}_{metric_cfg.key}": wandb.Image(
+                                fig
+                            )
                         }
                     )
                     plt.close(fig)

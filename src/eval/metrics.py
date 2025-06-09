@@ -13,11 +13,12 @@ from common.custom_types import (
 )
 from sklearn.metrics import accuracy_score, f1_score
 import numpy as np
+import torch.nn.functional as F
 
 
-def aggregate_metrics(prediction_history_all, y_true) -> tuple[Tensor, Tensor]:
+def aggregate_metrics(prediction_history_all, y_true) -> tuple[Tensor, Tensor, Tensor]:
     """
-    Compute accuracy and F1 across feature-selection budgets.
+    Compute accuracy, F1 and BCE across feature-selection budgets.
 
     If y_true contains exactly two unique classes   → average="binary"
     Otherwise                                       → average="weighted"
@@ -34,6 +35,7 @@ def aggregate_metrics(prediction_history_all, y_true) -> tuple[Tensor, Tensor]:
     -------
     accuracy_all : Tensor[float64]
     f1_all       : Tensor[float64]
+    bce_all      : Tensor[float64]
     """
     if not prediction_history_all:
         return torch.tensor([], dtype=torch.float64), torch.tensor(
@@ -51,14 +53,22 @@ def aggregate_metrics(prediction_history_all, y_true) -> tuple[Tensor, Tensor]:
     else:
         f1_kwargs = {"average": "weighted"}
 
-    accuracy_all, f1_all = [], []
+    accuracy_all, f1_all, bce_all = [], [], []
     for i in range(B):
         preds_i = [torch.argmax(row[i]) for row in prediction_history_all]
         accuracy_all.append(accuracy_score(y_true, preds_i))
         f1_all.append(f1_score(y_true, preds_i, **f1_kwargs))
+        probs_i = torch.stack([row[i] for row in prediction_history_all])
+        bce_all.append(
+            F.binary_cross_entropy(
+                probs_i, F.one_hot(y_true, num_classes=probs_i.shape[-1]).float()
+            )
+        )
 
-    return torch.tensor(accuracy_all, dtype=torch.float64), torch.tensor(
-        f1_all, dtype=torch.float64
+    return (
+        torch.tensor(accuracy_all, dtype=torch.float64),
+        torch.tensor(f1_all, dtype=torch.float64),
+        torch.tensor(bce_all, dtype=torch.float64),
     )
 
 
@@ -74,11 +84,14 @@ def evaluator(
     labels_all: Tensor = torch.stack(labels_all)
     labels_all = torch.argmax(labels_all, dim=1)
 
-    accuracy_all, f1_all = aggregate_metrics(prediction_history_all, labels_all)
+    accuracy_all, f1_all, bce_all = aggregate_metrics(
+        prediction_history_all, labels_all
+    )
 
     return {
         "accuracy_all": accuracy_all.detach().cpu(),
         "f1_all": f1_all.detach().cpu(),
+        "bce_all": bce_all.detach().cpu(),
         "feature_mask_history_all": [
             [t.detach().cpu() for t in sublist] for sublist in feature_mask_history_all
         ],

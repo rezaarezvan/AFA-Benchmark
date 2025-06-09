@@ -5,6 +5,23 @@ set -o pipefail  # Fail if any part of a pipeline fails
 
 LAUNCHER=$1 # 'custom_slurm' or 'basic'
 DEVICE=$2 # 'cuda' or 'cpu'
+SPEED=$3 # 'fast' or 'slow'
+
+# Ensure that $1 and $2 are set
+if [ -z "$LAUNCHER" ] || [ -z "$DEVICE" ] || [ -z "$SPEED" ]; then
+  echo "Usage: $0 <launcher> <device> <speed>"
+  echo "Example: $0 custom_slurm cuda slow"
+  exit 1
+fi
+
+# if speed is "slow", use the normal dataset config variations. If it is "fast" use the `_fast` versions
+if [ "$SPEED" == "slow" ]; then
+  dataset_suffix=""
+elif [ "$SPEED" == "fast" ]; then
+  dataset_suffix="_fast"
+else
+  echo "Third argument should either be \"slow\" or \"fast\""
+fi
 
 # run_parallel() {
 #   local cmds=("$@")
@@ -26,13 +43,6 @@ DEVICE=$2 # 'cuda' or 'cpu'
 #   done
 # }
 
-# Ensure that $1 and $2 are set
-if [ -z "$LAUNCHER" ] || [ -z "$DEVICE" ]; then
-  echo "Usage: $0 <launcher> <device>"
-  echo "Example: $0 custom_slurm cuda"
-  exit 1
-fi
-
 EXTRA_OPTS="device=$DEVICE hydra/launcher=$LAUNCHER"
 
 # --- DATA GENERATION ---
@@ -45,10 +55,10 @@ echo "Starting pretraining jobs..."
 sleep 1
 
 # Pretrain on cube data:
-job1="uv run scripts/pretrain_models/pretrain_shim2018.py -m output_artifact_aliases=[\"example\"] dataset@_global_=cube_fast dataset_artifact_name=cube_split_1:example,cube_split_2:example $EXTRA_OPTS"
+job1="uv run scripts/pretrain_models/pretrain_shim2018.py -m output_artifact_aliases=[\"example\"] dataset@_global_=cube$dataset_suffix dataset_artifact_name=cube_split_1:example,cube_split_2:example $EXTRA_OPTS"
 
 # Pretrain on MNIST data:
-job2="uv run scripts/pretrain_models/pretrain_shim2018.py -m output_artifact_aliases=[\"example\"] dataset@_global_=MNIST_fast dataset_artifact_name=MNIST_split_1:example,MNIST_split_2:example $EXTRA_OPTS"
+job2="uv run scripts/pretrain_models/pretrain_shim2018.py -m output_artifact_aliases=[\"example\"] dataset@_global_=MNIST$dataset_suffix dataset_artifact_name=MNIST_split_1:example,MNIST_split_2:example $EXTRA_OPTS"
 
 # mprocs "$job1" "$job2"
 
@@ -57,10 +67,10 @@ echo "Starting method training jobs..."
 sleep 1
 
 # Train on the cube dataset:
-job1="uv run scripts/train_methods/train_shim2018.py -m output_artifact_aliases=[\"example\"] dataset@_global_=cube_fast pretrained_model_artifact_name=pretrain_shim2018-cube_split_1:example,pretrain_shim2018-cube_split_2:example hard_budget=5,10 $EXTRA_OPTS"
+job1="uv run scripts/train_methods/train_shim2018.py -m output_artifact_aliases=[\"example\"] dataset@_global_=cube$dataset_suffix pretrained_model_artifact_name=pretrain_shim2018-cube_split_1:example,pretrain_shim2018-cube_split_2:example hard_budget=5,10 $EXTRA_OPTS"
 
 # Train on the MNIST dataset:
-job2="uv run scripts/train_methods/train_shim2018.py -m output_artifact_aliases=[\"example\"] dataset@_global_=MNIST_fast pretrained_model_artifact_name=pretrain_shim2018-MNIST_split_1:example,pretrain_shim2018-MNIST_split_2:example hard_budget=10,50 $EXTRA_OPTS"
+job2="uv run scripts/train_methods/train_shim2018.py -m output_artifact_aliases=[\"example\"] dataset@_global_=MNIST$dataset_suffix pretrained_model_artifact_name=pretrain_shim2018-MNIST_split_1:example,pretrain_shim2018-MNIST_split_2:example hard_budget=10,50 $EXTRA_OPTS"
 
 # mprocs "$job1" "$job2"
 
@@ -69,10 +79,10 @@ echo "Starting classifier training jobs..."
 sleep 1
 
 # Train on the cube dataset:
-job1="uv run scripts/train_classifiers/train_masked_mlp_classifier.py -m output_artifact_aliases=[\"example\"] dataset@_global_=cube_fast dataset_artifact_name=cube_split_1:example,cube_split_2:example $EXTRA_OPTS"
+job1="uv run scripts/train_classifiers/train_masked_mlp_classifier.py -m output_artifact_aliases=[\"example\"] dataset@_global_=cube$dataset_suffix dataset_artifact_name=cube_split_1:example,cube_split_2:example $EXTRA_OPTS"
 
 # Train on the MNIST dataset:
-job2="uv run scripts/train_classifiers/train_masked_mlp_classifier.py -m output_artifact_aliases=[\"example\"] dataset@_global_=MNIST_fast dataset_artifact_name=MNIST_split_1:example,MNIST_split_2:example $EXTRA_OPTS"
+job2="uv run scripts/train_classifiers/train_masked_mlp_classifier.py -m output_artifact_aliases=[\"example\"] dataset@_global_=MNIST$dataset_suffix dataset_artifact_name=MNIST_split_1:example,MNIST_split_2:example $EXTRA_OPTS"
 
 # mprocs "$job1" "$job2"
 
@@ -114,20 +124,25 @@ job4="uv run scripts/evaluation/eval_afa_method.py -m \
 echo "Starting plotting job..."
 sleep 1
 uv run scripts/plotting/plot_results.py eval_artifact_names=[\
-train_shim2018-cube_split_1-budget_5-seed_42-masked_mlp_classifier-cube_split_1:example,\
-train_shim2018-cube_split_2-budget_5-seed_42-masked_mlp_classifier-cube_split_2:example,\
-train_shim2018-cube_split_1-budget_10-seed_42-masked_mlp_classifier-cube_split_1:example,\
-train_shim2018-cube_split_2-budget_10-seed_42-masked_mlp_classifier-cube_split_2:example,\
 train_shim2018-cube_split_1-budget_5-seed_42-builtin:example,\
 train_shim2018-cube_split_2-budget_5-seed_42-builtin:example,\
 train_shim2018-cube_split_1-budget_10-seed_42-builtin:example,\
-train_shim2018-cube_split_2-budget_10-seed_42-builtin:example,\
-train_shim2018-MNIST_split_1-budget_10-seed_42-masked_mlp_classifier-MNIST_split_1:example,\
-train_shim2018-MNIST_split_2-budget_10-seed_42-masked_mlp_classifier-MNIST_split_2:example,\
-train_shim2018-MNIST_split_1-budget_50-seed_42-masked_mlp_classifier-MNIST_split_1:example,\
-train_shim2018-MNIST_split_2-budget_50-seed_42-masked_mlp_classifier-MNIST_split_2:example,\
-train_shim2018-MNIST_split_1-budget_10-seed_42-builtin:example,\
-train_shim2018-MNIST_split_2-budget_10-seed_42-builtin:example,\
-train_shim2018-MNIST_split_1-budget_50-seed_42-builtin:example,\
-train_shim2018-MNIST_split_2-budget_50-seed_42-builtin:example]
+train_shim2018-cube_split_2-budget_10-seed_42-builtin:example]
 
+# uv run scripts/plotting/plot_results.py eval_artifact_names=[\
+# train_shim2018-cube_split_1-budget_5-seed_42-masked_mlp_classifier-cube_split_1:example,\
+# train_shim2018-cube_split_2-budget_5-seed_42-masked_mlp_classifier-cube_split_2:example,\
+# train_shim2018-cube_split_1-budget_10-seed_42-masked_mlp_classifier-cube_split_1:example,\
+# train_shim2018-cube_split_2-budget_10-seed_42-masked_mlp_classifier-cube_split_2:example,\
+# train_shim2018-cube_split_1-budget_5-seed_42-builtin:example,\
+# train_shim2018-cube_split_2-budget_5-seed_42-builtin:example,\
+# train_shim2018-cube_split_1-budget_10-seed_42-builtin:example,\
+# train_shim2018-cube_split_2-budget_10-seed_42-builtin:example,\
+# train_shim2018-MNIST_split_1-budget_10-seed_42-masked_mlp_classifier-MNIST_split_1:example,\
+# train_shim2018-MNIST_split_2-budget_10-seed_42-masked_mlp_classifier-MNIST_split_2:example,\
+# train_shim2018-MNIST_split_1-budget_50-seed_42-masked_mlp_classifier-MNIST_split_1:example,\
+# train_shim2018-MNIST_split_2-budget_50-seed_42-masked_mlp_classifier-MNIST_split_2:example,\
+# train_shim2018-MNIST_split_1-budget_10-seed_42-builtin:example,\
+# train_shim2018-MNIST_split_2-budget_10-seed_42-builtin:example,\
+# train_shim2018-MNIST_split_1-budget_50-seed_42-builtin:example,\
+# train_shim2018-MNIST_split_2-budget_50-seed_42-builtin:example]
