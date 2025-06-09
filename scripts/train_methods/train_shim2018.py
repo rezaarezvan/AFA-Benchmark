@@ -130,7 +130,9 @@ def load_pretrained_model_artifacts(
         train_class_probabilities,
     )
     pretrained_model_checkpoint = torch.load(
-        pretrained_model_artifact_dir / "model.pt", weights_only=True, map_location=torch.device("cpu")
+        pretrained_model_artifact_dir / "model.pt",
+        weights_only=True,
+        map_location=torch.device("cpu"),
     )
     pretrained_model.load_state_dict(pretrained_model_checkpoint["state_dict"])
 
@@ -292,7 +294,10 @@ def main(cfg: Shim2018TrainConfig):
 
             # if batch_idx != 0 and batch_idx % cfg.eval_every_n_batches == 0:
             if batch_idx % cfg.eval_every_n_batches == 0:
-                with torch.no_grad(), set_exploration_type(ExplorationType.DETERMINISTIC):
+                with (
+                    torch.no_grad(),
+                    set_exploration_type(ExplorationType.DETERMINISTIC),
+                ):
                     # HACK: Set the action spec of the agent to the eval env action spec
                     agent.egreedy_module._spec = eval_env.action_spec  # pyright: ignore
                     td_evals = [
@@ -345,7 +350,7 @@ def main(cfg: Shim2018TrainConfig):
         agent.device = torch.device("cpu")  # Move agent to CPU for saving
         pretrained_model = pretrained_model.to(torch.device("cpu"))
         afa_method = RLAFAMethod(
-            agent,
+            agent.policy,
             Shim2018AFAClassifier(pretrained_model, device=torch.device("cpu")),
         )
         # Save the method to a temporary directory and load it again to ensure it is saved correctly

@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Self, final, override
+from tensordict.nn import TensorDictModule
 import torch
 from tensordict import TensorDict
 from torchrl.envs import ExplorationType, set_exploration_type
@@ -54,15 +55,15 @@ def get_td_from_masked_features(
 @dataclass
 @final
 class RLAFAMethod(AFAMethod):
-    """Implements the AFAMethod protocol for an Agent together with a classifier."""
+    """Implements the AFAMethod protocol for a TensorDictModule policy together with a classifier."""
 
-    agent: Agent
+    policy_tdmodule: TensorDictModule
     afa_classifier: AFAClassifier
     _device: torch.device = torch.device("cpu")
 
     def __post_init__(self):
-        # Move agent and classifier to the specified device
-        self.agent = self.agent.to(self._device)
+        # Move policy and classifier to the specified device
+        self.policy_tdmodule = self.policy_tdmodule.to(self._device)
         self.afa_classifier = self.afa_classifier.to(self._device)
 
     @override
@@ -78,7 +79,7 @@ class RLAFAMethod(AFAMethod):
 
         # Apply the agent's policy to the tensordict
         with torch.no_grad(), set_exploration_type(ExplorationType.DETERMINISTIC):
-            td = self.agent.policy(td)
+            td = self.policy_tdmodule(td)
 
         # Get the action from the tensordict
         afa_selection = td["action"].unsqueeze(-1)
@@ -100,7 +101,7 @@ class RLAFAMethod(AFAMethod):
 
     @override
     def save(self, path: Path):
-        self.agent.save(path / "agent")
+        torch.save(self.policy_tdmodule, path / "policy_tdmodule.pt")
         self.afa_classifier.save(path / "classifier.pt")
         with open(path / "classifier_class_name.txt", "w") as f:
             f.write(self.afa_classifier.__class__.__name__)
@@ -108,8 +109,9 @@ class RLAFAMethod(AFAMethod):
     @classmethod
     @override
     def load(cls, path: Path, device: torch.device) -> Self:
-        agent = Agent.load(path / "agent")
-        agent = agent.to(device)
+        policy_tdmodule = torch.load(
+            path / "policy_tdmodule.pt", weights_only=False, map_location=device
+        )
 
         with open(path / "classifier_class_name.txt") as f:
             classifier_class_name = f.read()
@@ -117,12 +119,17 @@ class RLAFAMethod(AFAMethod):
             path / "classifier.pt", device=device
         )
 
-        return cls(agent=agent, afa_classifier=afa_classifier, _device=device)
+        return cls(
+            policy_tdmodule=policy_tdmodule,
+            afa_classifier=afa_classifier,
+            _device=device,
+        )
 
     @override
     def to(self, device: torch.device) -> Self:
-        self.agent = self.agent.to(device)
-        self.afa_classifier = self.afa_classifier.to(device)
+        self._device = device
+        self.policy_tdmodule = self.policy_tdmodule.to(self._device)
+        self.afa_classifier = self.afa_classifier.to(self._device)
         return self
 
     @property

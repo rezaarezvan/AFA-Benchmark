@@ -80,7 +80,6 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
         max_epochs=cfg.epochs,
         logger=logger,
         accelerator=cfg.device,
-        limit_val_batches=cfg.limit_val_batches,
         devices=1,  # Use only 1 GPU
         callbacks=[checkpoint_callback],
         enable_checkpointing=True,
@@ -92,7 +91,7 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
         pass
     finally:
         # Convert lightning model to a classifier that implements the AFAClassifier interface
-        best_checkpoint = trainer.checkpoint_callback.best_model_path
+        best_checkpoint = trainer.checkpoint_callback.best_model_path  # pyright: ignore
         best_lit_model = LitMaskedMLPClassifier.load_from_checkpoint(
             best_checkpoint,
             n_features=n_features,
@@ -117,7 +116,7 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
                 dataset=val_dataset,
                 budget=n_features,
                 afa_predict_fn=afa_method.predict,
-                only_n_samples=cfg.eval_only_n_samples
+                only_n_samples=cfg.eval_only_n_samples,
             )
             fig = plot_metrics(metrics)
             run.log({"metrics_plot": fig})
