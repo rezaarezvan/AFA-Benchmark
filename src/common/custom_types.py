@@ -87,12 +87,12 @@ class AFAMethod(Protocol):
         ...
 
     def save(self, path: Path) -> None:
-        """Save the method to a file or folder. The file or folder should be in a format that can be loaded by the method."""
+        """Save the method to . The folder should be in a format that can be loaded by the method."""
         ...
 
     @classmethod
     def load(cls, path: Path, device: torch.device) -> Self:
-        """Load the method from a file or folder, placing it on the given device."""
+        """Load the method from a folder, placing it on the given device."""
         ...
 
     def to(self, device: torch.device) -> Self:

@@ -141,6 +141,17 @@ cs.store(name="train_shim2018", node=Shim2018TrainConfig)
 
 
 @dataclass
+class RandomDummyTrainConfig:
+    dataset_artifact_name: str
+    hard_budget: int  # not used, but pretend that it is
+    seed: int = 42
+    output_artifact_aliases: list[str] = field(default_factory=lambda: [])
+
+
+cs.store(name="train_randomdummy", node=RandomDummyTrainConfig)
+
+
+@dataclass
 class TrainMaskedMLPClassifierConfig:
     dataset_artifact_name: str
     batch_size: int

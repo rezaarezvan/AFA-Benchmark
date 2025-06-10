@@ -74,19 +74,19 @@ class RandomDummyAFAMethod(AFAMethod):
 
     @override
     def save(self, path: Path) -> None:
-        """Save the method to a file."""
+        """Save the method to a folder."""
         torch.save(
             {
                 "n_classes": self.n_classes,
             },
-            path,
+            path / "method.pt",
         )
 
     @classmethod
     @override
     def load(cls, path: Path, device: torch.device) -> Self:
         """Load the method from a file."""
-        data = torch.load(path)
+        data = torch.load(path / "method.pt")
         return cls(device, data["n_classes"])
 
     @override
@@ -153,19 +153,19 @@ class SequentialDummyAFAMethod(AFAMethod):
 
     @override
     def save(self, path: Path) -> None:
-        """Save the method to a file."""
+        """Save the method to a folder."""
         torch.save(
             {
                 "n_classes": self.n_classes,
             },
-            path,
+            path / "method.pt",
         )
 
     @classmethod
     @override
     def load(cls, path: Path, device: torch.device) -> Self:
-        """Load the method from a file."""
-        data = torch.load(path)
+        """Load the method from a folder."""
+        data = torch.load(path / "method.pt")
         return cls(device, data["n_classes"])
 
     @override

@@ -2,17 +2,20 @@
 
 set -g fish_trace 1
 
+set -gx WANDB_ENTITY afa-team
+set -gx WANDB_PROJECT afa-benchmark
+
 # -----------------------
 # Parse args
 # -----------------------
 
 argparse "dataset=+" "budgets=+" "split=+" "help" "launcher=?" "device=?" "speed=?" "alias=?" -- $argv
-or return
+or exit 1
 
 # Print help if specified
 if set -ql _flag_h
     echo "Usage: README_example.fish --datasets=<list of str> --budgets=<list of str> --splits=<list of int> [-h | --help] [-l | --launcher={custom_slurm,basic}] [-d | --device={cuda,cpu}] [-a | --alias=<alias>" >&2
-    return 1
+    exit 1
 end
 
 # Default arguments
@@ -68,7 +71,7 @@ set -l extra_opts "device=$device hydra/launcher=$launcher"
 # --- DATA GENERATION ---
 echo "Starting data generation job..."
 sleep 1
-uv run scripts/data_generation/generate_dataset.py -m dataset=$(string join , $datasets) split_idx=$(string join , $splits) output_artifact_aliases=["$alias"] hydra/launcher=$launcher
+uv run scripts/data_generation/generate_dataset.py -m dataset=(string join , $datasets) split_idx=(string join , $splits) output_artifact_aliases=["$alias"] hydra/launcher=$launcher
 
 # # --- PRE-TRAINING ---
 echo "Starting pretraining jobs..."
@@ -80,7 +83,7 @@ for dataset in $datasets
     for split in $splits
         set -a dataset_artifact_names {$dataset}_split_$split:$alias
     end
-    set -a jobs "uv run scripts/pretrain_models/pretrain_shim2018.py -m output_artifact_aliases=[\"$alias\"] dataset@_global_=$dataset$speed_suffix dataset_artifact_name=$(string join , $dataset_artifact_names) $extra_opts"
+    set -a jobs "uv run scripts/pretrain_models/pretrain_shim2018.py -m output_artifact_aliases=[\"$alias\"] dataset@_global_=$dataset$speed_suffix dataset_artifact_name="(string join , $dataset_artifact_names)" $extra_opts"
 end
 
 mprocs $jobs
@@ -97,7 +100,7 @@ for dataset in $datasets
     for split in $splits
         set -a pretrained_model_artifact_names pretrain_shim2018-{$dataset}_split_$split:$alias
     end
-    set -a jobs "uv run scripts/train_methods/train_shim2018.py -m output_artifact_aliases=[\"$alias\"] dataset@_global_=$dataset$speed_suffix pretrained_model_artifact_name=$(string join , $pretrained_model_artifact_names) hard_budget=$(string join , $dataset_budgets) $extra_opts"
+    set -a jobs "uv run scripts/train_methods/train_shim2018.py -m output_artifact_aliases=[\"$alias\"] dataset@_global_=$dataset$speed_suffix pretrained_model_artifact_name="(string join , $pretrained_model_artifact_names)" hard_budget="(string join , $dataset_budgets)" $extra_opts"
     set i (math "$i+1")
 end
 
@@ -113,7 +116,7 @@ for dataset in $datasets
     for split in $splits
         set -a dataset_artifact_names {$dataset}_split_$split:$alias
     end
-    set -a jobs "uv run scripts/train_classifiers/train_masked_mlp_classifier.py -m output_artifact_aliases=[\"$alias\"] dataset@_global_=$dataset$speed_suffix dataset_artifact_name=$(string join , $dataset_artifact_names) $extra_opts"
+    set -a jobs "uv run scripts/train_classifiers/train_masked_mlp_classifier.py -m output_artifact_aliases=[\"$alias\"] dataset@_global_=$dataset$speed_suffix dataset_artifact_name="(string join , $dataset_artifact_names)" $extra_opts"
 end
 
 mprocs $jobs
@@ -133,8 +136,8 @@ for dataset in $datasets
         end
         set -a jobs "uv run scripts/evaluation/eval_afa_method.py -m \
           output_artifact_aliases=[\"$alias\"] \
-          $(if test $speed = fast; echo eval_only_n_samples=10; end) \
-          trained_method_artifact_name=$(string join , $trained_method_artifact_names) \
+          "(if test $speed = fast; echo eval_only_n_samples=10; end)" \
+          trained_method_artifact_name="(string join , $trained_method_artifact_names)" \
           trained_classifier_artifact_name=masked_mlp_classifier-$dataset""_split_$split:$alias,null hydra/launcher=$launcher"
         set i (math "$i+1")
     end
@@ -152,7 +155,7 @@ for dataset in $datasets
     set -l dataset_budgets $budgets[$i]
     for split in $splits
         for classifier_artifact_name in "builtin" "masked_mlp_classifier-$dataset""_split_$split"
-            for budget in $(string split , $dataset_budgets)
+            for budget in (string split , $dataset_budgets)
                 set -a eval_artifact_names train_shim2018-{$dataset}_split_$split-budget_$budget-seed_42-$classifier_artifact_name:$alias
             end
         end
@@ -160,4 +163,4 @@ for dataset in $datasets
     set i (math "$i+1")
 end
         
-uv run scripts/plotting/plot_results.py eval_artifact_names=[$(string join , $eval_artifact_names)]
+uv run scripts/plotting/plot_results.py eval_artifact_names=[(string join , $eval_artifact_names)]

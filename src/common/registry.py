@@ -42,8 +42,8 @@ def get_afa_method_class(name: str) -> type[AFAMethod]:
         from afa_rl.afa_methods import SequentialDummyAFAMethod
 
         return SequentialDummyAFAMethod
-    elif name == "random_dummy":
-        from afa_rl.afa_methods import RandomDummyAFAMethod
+    elif name == "RandomDummyAFAMethod":
+        from common.afa_methods import RandomDummyAFAMethod
 
         return RandomDummyAFAMethod
     else:
@@ -100,19 +100,19 @@ def get_afa_dataset_class(name: str) -> type[AFADataset]:
 
 
 AFA_CLASSIFIER_TYPES = {
-    "random_dummy",
-    "uniform_dummy",
+    "randomdummy",
+    "uniformdummy",
     "WrappedMaskedMLPClassifier",
     "Shim2018AFAClassifier",
 }
 
 
 def get_afa_classifier_class(name: str) -> type[AFAClassifier]:
-    if name == "random_dummy":
+    if name == "randomdummy":
         from common.classifiers import RandomDummyAFAClassifier
 
         return RandomDummyAFAClassifier
-    elif name == "uniform_dummy":
+    elif name == "uniformdummy":
         from common.classifiers import UniformDummyAFAClassifier
 
         return UniformDummyAFAClassifier
