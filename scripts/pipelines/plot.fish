@@ -1,6 +1,6 @@
 #!/usr/bin/env fish
 
-set -g fish_trace 1
+# set -g fish_trace 1
 
 set -gx WANDB_ENTITY afa-team
 set -gx WANDB_PROJECT afa-benchmark
