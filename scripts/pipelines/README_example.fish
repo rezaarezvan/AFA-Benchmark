@@ -6,12 +6,12 @@ set -g fish_trace 1
 # Parse args
 # -----------------------
 
-argparse "help" "launcher=?" "device=?" "speed=?" "wandb-entity=?" "wandb-project=?" "alias=?" -- $argv
+argparse "help" "launcher=?" "device=?" "speed=?" "wandb-entity=?" "wandb-project=?" "dataset-alias=?" "alias=?" -- $argv
 or exit 1
 
 # Print help if specified
 if set -ql _flag_help
-    echo "Usage: README_example.fish [--help] [--launcher={custom_slurm,basic}] [--device={cuda,cpu}] [--speed=<str>] [--wandb-entity=<str>] [--wandb-project=<str>] [--alias=<str>]" >&2
+    echo "Usage: README_example.fish [--help] [--launcher={custom_slurm,basic}] [--device={cuda,cpu}] [--speed=<str>] [--wandb-entity=<str>] [--wandb-project=<str>] [--dataset-alias=<str>] [--alias=<str>]" >&2
     exit 1
 end
 
@@ -49,6 +49,10 @@ and set wandb_project $_flag_wandb_project
 set -gx WANDB_ENTITY $wandb_entity
 set -gx WANDB_PROJECT $wandb_project
 
+set -l dataset_alias tmp
+set -ql _flag_dataset_alias
+and set dataset_alias $_flag_dataset_alias
+
 set -l alias example
 set -ql _flag_alias
 and set alias $_flag_alias
@@ -57,12 +61,10 @@ and set alias $_flag_alias
 set -l datasets cube MNIST
 set -l budgets 3,5,10 10,50,100
 
-
-# --- DATA GENERATION ---
-./scripts/pipelines/generate_data.fish --dataset=$datasets[1] --dataset=$datasets[2] --split=1 --split=2 --launcher=$launcher --output-alias=$alias --wandb-entity=$wandb_entity --wandb-project=$wandb_project
+# Assume data generation is already done
 
 # # --- PRE-TRAINING ---
-./scripts/pipelines/shim2018/pretrain_shim2018.fish --dataset=$datasets[1] --dataset=$datasets[2] --split=1 --split=2 --launcher=$launcher --device=$device --speed=$speed --dataset-alias=$alias --output-alias=$alias --wandb-entity=$wandb_entity --wandb-project=$wandb_project
+./scripts/pipelines/shim2018/pretrain_shim2018.fish --dataset=$datasets[1] --dataset=$datasets[2] --split=1 --split=2 --launcher=$launcher --device=$device --speed=$speed --dataset-alias=$dataset_alias --output-alias=$alias --wandb-entity=$wandb_entity --wandb-project=$wandb_project
 
 
 # --- METHOD TRAINING ---
