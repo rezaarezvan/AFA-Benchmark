@@ -14,6 +14,7 @@ defaults:
 pretrained_model_artifact_name: "pretrain_shim2018-cube_split_1:tmp"
 output_artifact_aliases: ["tmp"]
 evaluate_final_performance: true
+eval_only_n_samples: null
 n_agents: 128
 hard_budget: 5
 agent:

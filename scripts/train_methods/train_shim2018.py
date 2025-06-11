@@ -368,6 +368,7 @@ def main(cfg: Shim2018TrainConfig):
                     val_dataset,
                     cfg.hard_budget,
                     afa_method.predict,
+                    only_n_samples=cfg.eval_only_n_samples,
                 )
                 fig = plot_metrics(metrics)
                 run.log(

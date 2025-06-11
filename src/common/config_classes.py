@@ -135,6 +135,7 @@ class Shim2018TrainConfig:
     activate_joint_training_after_n_batches: int = 0
     output_artifact_aliases: list[str] = field(default_factory=lambda: [])
     evaluate_final_performance: bool = True
+    eval_only_n_samples: int | None = None
 
 
 cs.store(name="train_shim2018", node=Shim2018TrainConfig)

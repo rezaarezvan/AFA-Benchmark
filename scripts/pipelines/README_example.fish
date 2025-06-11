@@ -64,17 +64,17 @@ set -l budgets 3,5,10 10,50,100
 # Assume data generation is already done
 
 # # --- PRE-TRAINING ---
-./scripts/pipelines/shim2018/pretrain_shim2018.fish --dataset=$datasets[1] --dataset=$datasets[2] --split=1 --split=2 --launcher=$launcher --device=$device --speed=$speed --dataset-alias=$dataset_alias --output-alias=$alias --wandb-entity=$wandb_entity --wandb-project=$wandb_project
+# ./scripts/pipelines/shim2018/pretrain_shim2018.fish --dataset=$datasets[1] --dataset=$datasets[2] --split=1 --split=2 --launcher=$launcher --device=$device --speed=$speed --dataset-alias=$dataset_alias --output-alias=$alias --wandb-entity=$wandb_entity --wandb-project=$wandb_project
 
 
 # --- METHOD TRAINING ---
 # shim2018
-./scripts/pipelines/shim2018/train_shim2018.fish --dataset=$datasets[1] --dataset=$datasets[2] --budgets=$budgets[1] --budgets=$budgets[2] --split=1 --split=2 --launcher=$launcher --device=$device --speed=$speed --pretrain-alias=$alias --output-alias=$alias --wandb-entity=$wandb_entity --wandb-project=$wandb_project
+# ./scripts/pipelines/shim2018/train_shim2018.fish --dataset=$datasets[1] --dataset=$datasets[2] --budgets=$budgets[1] --budgets=$budgets[2] --split=1 --split=2 --launcher=$launcher --device=$device --speed=$speed --pretrain-alias=$alias --output-alias=$alias --wandb-entity=$wandb_entity --wandb-project=$wandb_project
 # randomdummy
-./scripts/pipelines/randomdummy/train_randomdummy.fish --dataset=$datasets[1] --dataset=$datasets[2] --budgets=$budgets[1] --budgets=$budgets[2] --split=1 --split=2 --launcher=$launcher --dataset-alias=$alias --output-alias=$alias --wandb-entity=$wandb_entity --wandb-project=$wandb_project
+# ./scripts/pipelines/randomdummy/train_randomdummy.fish --dataset=$datasets[1] --dataset=$datasets[2] --budgets=$budgets[1] --budgets=$budgets[2] --split=1 --split=2 --launcher=$launcher --dataset-alias=$dataset_alias --output-alias=$alias --wandb-entity=$wandb_entity --wandb-project=$wandb_project
 
 # --- CLASSIFIER TRAINING ---
-./scripts/pipelines/train_classifier.fish --dataset=$datasets[1] --dataset=$datasets[2] --split=1 --split=2 --launcher=$launcher --device=$device --speed=$speed --dataset-alias=$alias --output-alias=$alias --wandb-entity=$wandb_entity --wandb-project=$wandb_project
+./scripts/pipelines/train_classifier.fish --dataset=$datasets[1] --dataset=$datasets[2] --split=1 --split=2 --launcher=$launcher --device=$device --speed=$speed --dataset-alias=$dataset_alias --output-alias=$alias --wandb-entity=$wandb_entity --wandb-project=$wandb_project
 
 # --- EVALUATION ---
 

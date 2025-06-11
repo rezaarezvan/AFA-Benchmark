@@ -1,5 +1,6 @@
 pretrained_model_artifact_name: "pretrain_shim2018-MNIST_split_1:tmp"
 evaluate_final_performance: false
+eval_only_n_samples: null
 n_agents: 2
 hard_budget: 10 # recommended: 10, 50, 100
 agent:
