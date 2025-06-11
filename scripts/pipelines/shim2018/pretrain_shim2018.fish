@@ -10,8 +10,8 @@ argparse "dataset=+" "split=+" "help" "launcher=?" "device=?" "speed=?" "dataset
 or exit 1
 
 # Print help if specified
-if set -ql _flag_h
-    echo "Usage: pretrain_shim2018.fish --dataset=<str> --split=<int> [--help] [--launcher={custom_slurm,basic}] [--device={cuda,cpu}] [--dataset-alias=<str>] [--output-alias=<str>] [--wandb-entity=<str>] [--wandb-project=<str>]" >&2
+if set -ql _flag_help
+    echo "Usage: pretrain_shim2018.fish --dataset=<str> --split=<int> [--help] [--launcher={custom_slurm,basic}] [--device={cuda,cpu}] [--speed=<str>] [--dataset-alias=<str>] [--output-alias=<str>] [--wandb-entity=<str>] [--wandb-project=<str>]" >&2
     exit 1
 end
 
@@ -22,14 +22,6 @@ if set -ql _flag_dataset
     set datasets $_flag_dataset
 else
     echo "datasets must be set"
-    exit 1
-end
-
-# No default argument for budgets
-if set -ql _flag_budgets
-    set budgets $_flag_budgets
-else
-    echo "budgets must be set"
     exit 1
 end
 
@@ -60,11 +52,11 @@ and set output_alias $_flag_output_alias
 set -l speed_suffix
 if test "$speed" = "slow"
     set speed_suffix ""
-else if test "$speed" = "fast"
-    set speed_suffix "_fast"
-else
-    echo "Third argument should either be 'slow' or 'fast'"
+elif test "$speed" = ""
+    echo "Speed argument should either be 'slow', 'medium' or 'fast'"
     exit 1
+else
+    set speed_suffix "_$speed"
 end
 
 set -l wandb_entity afa-team
@@ -81,7 +73,7 @@ set -gx WANDB_PROJECT $wandb_project
 set -l extra_opts "device=$device hydra/launcher=$launcher"
 
 # # --- PRE-TRAINING ---
-echo "Starting pretraining jobs..."
+echo "Starting shim2018 pretraining jobs..."
 sleep 1
 
 set -l jobs

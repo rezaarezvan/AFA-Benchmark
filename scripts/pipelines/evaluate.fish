@@ -10,7 +10,7 @@ argparse "help" "launcher=?" "classifier-alias=?" "output-alias=?" "wandb-entity
 or exit 1
 
 # Print help if specified
-if set -ql _flag_h
+if set -ql _flag_help
     echo "Usage: evaluate.fish [--help] [--launcher={custom_slurm,basic}] [--classifier-alias=<str>] [--output-alias=<str>] [--wandb-entity=<str>] [--wandb-project=<str>]" >&2
     exit 1
 end

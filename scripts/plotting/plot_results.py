@@ -95,6 +95,9 @@ def main(cfg: PlotConfig):
                     fig, ax = plt.subplots()
 
                     for method_type, metrics_list in grouped_metrics.items():
+                        log.info(
+                            f"      Plotting results for method type: {method_type}"
+                        )
                         # Shape: [num_runs, T]
                         data = torch.stack([m[metric_cfg.key] for m in metrics_list])
                         mean = data.mean(dim=0)

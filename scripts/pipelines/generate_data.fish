@@ -11,7 +11,7 @@ argparse "dataset=+" "split=+" "help" "launcher=?" "output-alias=?" "wandb-entit
 or exit 1
 
 # Print help if specified
-if set -ql _flag_h
+if set -ql _flag_help
     echo "Usage: generate_data.fish --dataset=<str> --split=<int> [--help] [--launcher={custom_slurm,basic}] [--output-alias=<str>] [--wandb-entity=<str>] [--wandb-project=<str>]" >&2
     exit 1
 end

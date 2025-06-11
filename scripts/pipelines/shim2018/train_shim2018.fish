@@ -10,7 +10,7 @@ argparse "dataset=+" "budgets=+" "split=+" "help" "launcher=?" "device=?" "speed
 or exit 1
 
 # Print help if specified
-if set -ql _flag_h
+if set -ql _flag_help
     echo "Usage: train_shim2018.fish --dataset=<str> --budgets=<str> --split=<int> [--help] [--launcher={custom_slurm,basic}] [--device={cuda,cpu}] [--pretrain_alias=<str>] [--output_alias=<str>] [--wandb-entity=<str>] [--wandb-project=<str>]" >&2
     exit 1
 end
@@ -60,11 +60,11 @@ and set output_alias $_flag_output_alias
 set -l speed_suffix
 if test "$speed" = "slow"
     set speed_suffix ""
-else if test "$speed" = "fast"
-    set speed_suffix "_fast"
-else
-    echo "Third argument should either be 'slow' or 'fast'"
+elif test "$speed" = ""
+    echo "Speed argument should either be 'slow', 'medium' or 'fast'"
     exit 1
+else
+    set speed_suffix "_$speed"
 end
 
 set -l wandb_entity afa-team
@@ -81,7 +81,7 @@ set -gx WANDB_PROJECT $wandb_project
 set -l extra_opts "device=$device hydra/launcher=$launcher"
 
 # --- METHOD TRAINING ---
-echo "Starting method training jobs..."
+echo "Starting shim2018 method training jobs..."
 sleep 1
 
 set -l jobs
