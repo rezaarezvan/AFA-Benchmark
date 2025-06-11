@@ -73,7 +73,8 @@ class ACOOracle:
         self.n_features = X_train.shape[1]
 
         # Build k-NN index for fast neighbor lookup
-        self.knn_index = NearestNeighbors(n_neighbors=k_neighbors, metric="euclidean")
+        self.knn_index = NearestNeighbors(
+            n_neighbors=k_neighbors, metric="euclidean")
         self.knn_index.fit(X_train)
 
     def find_neighbors(self, x_observed, observed_indices):
@@ -150,10 +151,12 @@ class ACOOracle:
             # Compute prediction and loss
             with torch.no_grad():
                 x_tensor = (
-                    torch.tensor(x_new, dtype=torch.float32).unsqueeze(0).to(DEVICE)
+                    torch.tensor(x_new, dtype=torch.float32).unsqueeze(
+                        0).to(DEVICE)
                 )
                 mask_tensor = (
-                    torch.tensor(mask, dtype=torch.float32).unsqueeze(0).to(DEVICE)
+                    torch.tensor(mask, dtype=torch.float32).unsqueeze(
+                        0).to(DEVICE)
                 )
                 y_tensor = torch.tensor([y_true], dtype=torch.long).to(DEVICE)
 
@@ -224,7 +227,8 @@ class ACOOracle:
 
             # Sample random subset
             subset = set(
-                np.random.choice(candidates_list, size=subset_size, replace=False)
+                np.random.choice(
+                    candidates_list, size=subset_size, replace=False)
             )
 
             # Estimate expected loss for this subset
@@ -273,10 +277,12 @@ class ACOOracle:
             # Compute prediction and loss
             with torch.no_grad():
                 x_tensor = (
-                    torch.tensor(x_new, dtype=torch.float32).unsqueeze(0).to(DEVICE)
+                    torch.tensor(x_new, dtype=torch.float32).unsqueeze(
+                        0).to(DEVICE)
                 )
                 mask_tensor = (
-                    torch.tensor(mask, dtype=torch.float32).unsqueeze(0).to(DEVICE)
+                    torch.tensor(mask, dtype=torch.float32).unsqueeze(
+                        0).to(DEVICE)
                 )
                 y_tensor = torch.tensor([y_true], dtype=torch.long).to(DEVICE)
 
@@ -444,7 +450,8 @@ def run_aco_experiment(X_test, y_test, oracle, max_features=10, method="greedy")
     """
     logger.info(f"Running ACO experiment with {method} method...")
 
-    results = {"accuracies": [], "n_features_acquired": [], "final_accuracy": None}
+    results = {"accuracies": [],
+               "n_features_acquired": [], "final_accuracy": None}
 
     n_features = X_test.shape[1]
     n_correct = 0
@@ -491,7 +498,8 @@ def run_aco_experiment(X_test, y_test, oracle, max_features=10, method="greedy")
                 .to(oracle.device)
             )
             mask_tensor = (
-                torch.tensor(mask, dtype=torch.float32).unsqueeze(0).to(oracle.device)
+                torch.tensor(mask, dtype=torch.float32).unsqueeze(
+                    0).to(oracle.device)
             )
 
             logits = oracle.predictor(x_tensor, mask_tensor)
@@ -507,14 +515,16 @@ def run_aco_experiment(X_test, y_test, oracle, max_features=10, method="greedy")
 
         if i % 100 == 0:
             logger.info(
-                f"Processed {i} instances, current accuracy: {current_accuracy:.3f}"
+                f"Processed {i} instances, current accuracy: {
+                    current_accuracy:.3f}"
             )
 
     results["final_accuracy"] = n_correct / len(X_test)
 
     logger.info(f"Final accuracy: {results['final_accuracy']:.3f}")
     logger.info(
-        f"Average features acquired: {np.mean(results['n_features_acquired']):.1f}"
+        f"Average features acquired: {
+            np.mean(results['n_features_acquired']):.1f}"
     )
 
     return results
@@ -539,7 +549,8 @@ def plot_results(results_greedy, results_full, dataset_name):
     ax2.hist(
         results_greedy["n_features_acquired"], alpha=0.7, label="Greedy ACO", bins=20
     )
-    ax2.hist(results_full["n_features_acquired"], alpha=0.7, label="Full ACO", bins=20)
+    ax2.hist(results_full["n_features_acquired"],
+             alpha=0.7, label="Full ACO", bins=20)
     ax2.set_xlabel("Number of Features Acquired")
     ax2.set_ylabel("Frequency")
     ax2.set_title(f"Features Acquired Distribution - {dataset_name}")
@@ -547,7 +558,8 @@ def plot_results(results_greedy, results_full, dataset_name):
     ax2.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig(f"aco_results_{dataset_name}.png", dpi=300, bbox_inches="tight")
+    plt.savefig(f"aco_results_{dataset_name}.png",
+                dpi=300, bbox_inches="tight")
     plt.show()
 
 
@@ -584,7 +596,8 @@ def main(args):
 
     # Print summary
     print(f"\n=== Results Summary for {args.dataset} ===")
-    print(f"Greedy ACO - Final Accuracy: {results_greedy['final_accuracy']:.3f}")
+    print(
+        f"Greedy ACO - Final Accuracy: {results_greedy['final_accuracy']:.3f}")
     print(
         f"Greedy ACO - Avg Features: {
             np.mean(results_greedy['n_features_acquired']):.1f
@@ -592,7 +605,8 @@ def main(args):
     )
     print(f"Full ACO - Final Accuracy: {results_full['final_accuracy']:.3f}")
     print(
-        f"Full ACO - Avg Features: {np.mean(results_full['n_features_acquired']):.1f}"
+        f"Full ACO - Avg Features: {
+            np.mean(results_full['n_features_acquired']):.1f}"
     )
 
 
