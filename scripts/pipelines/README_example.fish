@@ -1,6 +1,6 @@
 #!/usr/bin/env fish
 
-# set -g fish_trace 1
+set -g fish_trace 1
 
 # -----------------------
 # Parse args
@@ -31,13 +31,19 @@ and set speed $_flag_speed
 
 set -l speed_suffix
 if test "$speed" = "slow"
+    set eval_only_n_samples null
     set speed_suffix ""
-elif test "$speed" = ""
-    echo "Speed argument should either be 'slow', 'medium' or 'fast'"
-    exit 1
-else
+else if test "$speed" = "medium"
+    set eval_only_n_samples 100
     set speed_suffix "_$speed"
+else if test "$speed" = "fast"
+    set eval_only_n_samples 10
+    set speed_suffix "_$speed"
+else
+    echo "Speed argument should either be 'slow', 'medium' or 'fast'. Instead got $speed."
+    exit 1
 end
+
 
 set -ql _flag_wandb_entity
 and set wandb_entity $_flag_wandb_entity
@@ -64,14 +70,14 @@ set -l budgets 3,5,10 10,50,100
 # Assume data generation is already done
 
 # # --- PRE-TRAINING ---
-# ./scripts/pipelines/shim2018/pretrain_shim2018.fish --dataset=$datasets[1] --dataset=$datasets[2] --split=1 --split=2 --launcher=$launcher --device=$device --speed=$speed --dataset-alias=$dataset_alias --output-alias=$alias --wandb-entity=$wandb_entity --wandb-project=$wandb_project
+./scripts/pipelines/shim2018/pretrain_shim2018.fish --dataset=$datasets[1] --dataset=$datasets[2] --split=1 --split=2 --launcher=$launcher --device=$device --speed=$speed --dataset-alias=$dataset_alias --output-alias=$alias --wandb-entity=$wandb_entity --wandb-project=$wandb_project
 
 
 # --- METHOD TRAINING ---
 # shim2018
-# ./scripts/pipelines/shim2018/train_shim2018.fish --dataset=$datasets[1] --dataset=$datasets[2] --budgets=$budgets[1] --budgets=$budgets[2] --split=1 --split=2 --launcher=$launcher --device=$device --speed=$speed --pretrain-alias=$alias --output-alias=$alias --wandb-entity=$wandb_entity --wandb-project=$wandb_project
+./scripts/pipelines/shim2018/train_shim2018.fish --dataset=$datasets[1] --dataset=$datasets[2] --budgets=$budgets[1] --budgets=$budgets[2] --split=1 --split=2 --launcher=$launcher --device=$device --speed=$speed --pretrain-alias=$alias --output-alias=$alias --wandb-entity=$wandb_entity --wandb-project=$wandb_project
 # randomdummy
-# ./scripts/pipelines/randomdummy/train_randomdummy.fish --dataset=$datasets[1] --dataset=$datasets[2] --budgets=$budgets[1] --budgets=$budgets[2] --split=1 --split=2 --launcher=$launcher --dataset-alias=$dataset_alias --output-alias=$alias --wandb-entity=$wandb_entity --wandb-project=$wandb_project
+./scripts/pipelines/randomdummy/train_randomdummy.fish --dataset=$datasets[1] --dataset=$datasets[2] --budgets=$budgets[1] --budgets=$budgets[2] --split=1 --split=2 --launcher=$launcher --dataset-alias=$dataset_alias --output-alias=$alias --wandb-entity=$wandb_entity --wandb-project=$wandb_project
 
 # --- CLASSIFIER TRAINING ---
 ./scripts/pipelines/train_classifier.fish --dataset=$datasets[1] --dataset=$datasets[2] --split=1 --split=2 --launcher=$launcher --device=$device --speed=$speed --dataset-alias=$dataset_alias --output-alias=$alias --wandb-entity=$wandb_entity --wandb-project=$wandb_project
@@ -92,9 +98,14 @@ for dataset in $datasets
                 set -a trained_method_artifact_names train_$method-{$dataset}_split_$split-budget_$budget-seed_42:$alias
             end
         end
+        echo $alias
+        echo $eval_only_n_samples
+        echo $trained_method_artifact_names
+        echo $dataset
+        echo $split
         set -a jobs "uv run scripts/evaluation/eval_afa_method.py -m \
           output_artifact_aliases=[\"$alias\"] \
-          "(if test $speed = slow; echo eval_only_n_samples=10; end)" \
+          eval_only_n_samples=$eval_only_n_samples \
           trained_method_artifact_name="(string join , $trained_method_artifact_names)" \
           trained_classifier_artifact_name=masked_mlp_classifier-$dataset""_split_$split:$alias,null \
           hydra/launcher=$launcher"

@@ -54,9 +54,15 @@ Things to consider for synthetic data generation in the context of AFA (extensio
 - Class balance
 - Synthetic data where non-greedy selection is better than greedy
 
-## Setup
+## Requirements
 
 Dependencies are handled using [uv](https://docs.astral.sh/uv/). Install uv and then run `uv sync` in the root directory.
+
+The pipeline scripts are written in [fish](https://fishshell.com/).
+
+Some pipeline scripts use [mprocs](https://github.com/pvolok/mprocs). This is not necessary if you intend to only run the python scripts manually.
+
+
 
 ## Terminology
 
@@ -70,7 +76,7 @@ All training parts of the pipeline can potentially be tuned per dataset. Therefo
 
 ### 1. Data generation
 
-Generate data with `uv run scripts/generate_data.py`. This will place the data in the `data` directory but also upload it to wandb. By default, the dataset artifacts are saved with names in the format `<dataset_type>_split_<split_idx>`, e.g `MNIST_SPLIT_1`. You can add custom aliases using the `output_artifact_aliases` option.
+Generate data with `uv run scripts/data_generation/generate_data.py`. This will place the data in the `data` directory but also upload it to wandb. By default, the dataset artifacts are saved with names in the format `<dataset_type>_split_<split_idx>`, e.g `MNIST_split_1`. You can add custom aliases using the `output_artifact_aliases` option.
 
 If the script complains about missing certificate, prepend the command with `SSL_CERT_FILE=$(uv run -m certifi)`.
 
@@ -96,7 +102,7 @@ Note that the same evaluation script is used for all AFA methods, you just have 
 
 ### 6. Plotting results
 
-TODO
+Once you have a set of evaluation results that you want to compare, run `uv run scripts/plotting/plot_results.py` and supply your evaluation results as the `eval_artifact_names` option (a list of strings).
 
 ## Artifact structure
 
@@ -134,24 +140,17 @@ The `eval_afa_method.py` script generates artifacts with the following keys in t
 All scripts in this repository use [Hydra](https://hydra.cc/) for configuration management, mainly to simplify batching of experiments. [Structured configs](https://hydra.cc/docs/tutorials/structured_config/intro/) are defined in `src/common/config_classes.py` and the configurations themselves are defined in the `conf` directory.
 
 
-## Full pipeline example using shim2018
+## Full pipeline example using two examples
 
-Here is an example pipeline for evaluating the `shim2018` method with two different budgets and two different splits on two different datasets: `cube` and `MNIST`. We will use the artifact alias `"example"` in each step to ensure that we use the intended artifacts, and use the `fast` variant of each dataset config to speed up the process. For meaningful results, use the normal variant instead.
+Here is an example of how to train two different models (`shim2018` and `randomdummy`) on two different datasets (`cube` and `MNIST`) and two splits.
 
-By default, Hydra multiruns (using the `-m` flag) are launched with [Slurm](https://slurm.schedmd.com/) using the [Submitit](https://hydra.cc/docs/plugins/submitit_launcher/) plugin.
-
-If you have [mprocs](https://github.com/pvolok/mprocs) installed, you can run the following `scripts/pipelines/README_example.bash` bash script to automatically run the steps 1-6 below.
-
-### 0. WandB setup
-
-To log results to your own Weights & Biases project, set the `WANDB_PROJECT` environment variable to your project name. If you want to use a different Weights & Biases entity than the default one, set the `WANDB_ENTITY` environment variable to your entity name.
-
-If you want to run everything locally, use `wandb local`.
+In all examples below, replace `<WANDB_ENTITY>` and `<WANDB_PROJECT>` with desired values. `<LAUNCHER>` should either be `custom_slurm` or `basic`, depending on whether you have access to [slurm](https://slurm.schedmd.com/) or not.
 
 ### 1. Generate data
 
-```bash
-uv run scripts/generate_dataset.py -m dataset=cube,MNIST split_idx=1,2 output_artifact_aliases=["example"]
+Generate data for the two datasets and splits:
+```fish
+fish scripts/pipelines/generate_data.fish --dataset=cube --dataset=MNIST --split=1 --split=2 --output-alias=example --wandb-entity=<WANDB_ENTITY> --wandb-project=<WANDB_PROJECT> --launcher=<LAUNCHER>
 ```
 
 This produces the 4 dataset artifacts
@@ -160,132 +159,15 @@ This produces the 4 dataset artifacts
 - `MNIST_split_1:example`
 - `MNIST_split_2:example`
 
-### 2. Pre-training
+### 2. Training, evaluation and plotting
 
-Pretrain on cube data:
-```bash
-uv run scripts/pretrain_models/pretrain_shim2018.py -m output_artifact_aliases=["example"] dataset@_global_=cube_fast dataset_artifact_name=cube_split_1:example,cube_split_2:example
+The remaining pipeline steps are bundled in a single script for this example:
+```fish
+fish scripts/pipelines/README_example.fish --speed=medium --wandb-entity=<WANDB_ENTITY> --wandb-project=<WANDB_PROJECT> --dataset-alias=example --alias=example
 ```
 
-Pretrain on MNIST data:
-```bash
-uv run scripts/pretrain_models/pretrain_shim2018.py -m output_artifact_aliases=["example"] dataset@_global_=MNIST_fast dataset_artifact_name=MNIST_split_1:example,MNIST_split_2:example
-```
+Methods may require differing amounts of iterations per dataset when training. `speed=medium` uses a small amount of epochs such that the methods are clearly separated, but not enough for convergence. Use `speed=slow` for longer training.
 
-This produces 4 pre-training artifacts:
-- `pretrain_shim2018-cube_split_1:example`
-- `pretrain_shim2018-cube_split_2:example`
-- `pretrain_shim2018-MNIST_split_1:example`
-- `pretrain_shim2018-MNIST_split_2:example`
-
-
-### 3. Training the method
-
-Train on the cube dataset:
-```bash
-uv run scripts/train_methods/train_shim2018.py -m output_artifact_aliases=["example"] dataset@_global_=cube_fast pretrained_model_artifact_name=pretrain_shim2018-cube_split_1:example,pretrain_shim2018-cube_split_2:example hard_budget=5,10
-```
-
-Train on the MNIST dataset:
-```bash
-uv run scripts/train_methods/train_shim2018.py -m output_artifact_aliases=["example"] dataset@_global_=MNIST_fast pretrained_model_artifact_name=pretrain_shim2018-MNIST_split_1:example,pretrain_shim2018-MNIST_split_2:example hard_budget=10,50
-```
-
-This produces 8 trained method artifacts, 4 per budget:
-- `train_shim2018-cube_split_1-budget_5-seed_42:example`
-- `train_shim2018-cube_split_2-budget_5-seed_42:example`
-- `train_shim2018-MNIST_split_1:example-budget_10-seed_42:example`
-- `train_shim2018-MNIST_split_2:example-budget_10-seed_42:example`
-- `train_shim2018-cube_split_1-budget_10-seed_42:example`
-- `train_shim2018-cube_split_2-budget_10-seed_42:example`
-- `train_shim2018-MNIST_split_1:example-budget_50-seed_42:example`
-- `train_shim2018-MNIST_split_2:example-budget_50-seed_42:example`
-
-### 4. Training a classifier (optional)
-
-This is similar to the pre-training step.
-
-Train on the cube dataset:
-```bash
-uv run scripts/train_classifiers/train_masked_mlp_classifier.py -m output_artifact_aliases=["example"] dataset@_global_=cube_fast dataset_artifact_name=cube_split_1:example,cube_split_2:example
-```
-
-Train on the MNIST dataset:
-```bash
-uv run scripts/train_classifiers/train_masked_mlp_classifier.py -m output_artifact_aliases=["example"] dataset@_global_=MNIST_fast dataset_artifact_name=MNIST_split_1:example,MNIST_split_2:example
-```
-
-This produces 4 classifier artifacts:
-- `masked_mlp_classifier-cube_split_1:example`
-- `masked_mlp_classifier-cube_split_2:example`
-- `masked_mlp_classifier-MNIST_split_1:example`
-- `masked_mlp_classifier-MNIST_split_2:example`
-
-### 5. Evaluation
-
-Since we do not want to mix models trained on different dataset splits, we have to use several commands, one per dataset/split combination. We will also only evaluate on 100 samples to speed up things.
-
-CUBE, split 1, budget 5 & 10, external classifier and built-in classifier (null):
-```bash
-uv run scripts/evaluation/eval_afa_method.py -m \
-  output_artifact_aliases=["example"] \
-  eval_only_n_samples=100 \
-  trained_method_artifact_name=train_shim2018-cube_split_1-budget_5-seed_42:example,train_shim2018-cube_split_1-budget_10-seed_42:example \
-  trained_classifier_artifact_name=masked_mlp_classifier-cube_split_1:example,null
-```
-
-CUBE, split 2, budget 5 & 10, external classifier and built-in classifier ():
-```bash
-uv run scripts/evaluation/eval_afa_method.py -m \
-  output_artifact_aliases=["example"] \
-  eval_only_n_samples=100 \
-  trained_method_artifact_name=train_shim2018-cube_split_2-budget_5-seed_42:example,train_shim2018-cube_split_2-budget_10-seed_42:example \
-  trained_classifier_artifact_name=masked_mlp_classifier-cube_split_2:example,null
-```
-
-MNIST, split 1, budget 10 & 50, external classifier and built-in classifier (null):
-```bash
-uv run scripts/evaluation/eval_afa_method.py -m \
-  output_artifact_aliases=["example"] \
-  eval_only_n_samples=100 \
-  trained_method_artifact_name=train_shim2018-MNIST_split_1-budget_10-seed_42:example,train_shim2018-MNIST_split_1-budget_50-seed_42:example \
-  trained_classifier_artifact_name=masked_mlp_classifier-MNIST_split_1:example,null
-```
-
-MNIST, split 2, budget 10 & 50, external classifier and built-in classifier (null):
-```bash
-uv run scripts/evaluation/eval_afa_method.py -m \
-  output_artifact_aliases=["example"] \
-  eval_only_n_samples=100 \
-  trained_method_artifact_name=train_shim2018-MNIST_split_2-budget_10-seed_42:example,train_shim2018-MNIST_split_2-budget_50-seed_42:example \
-  trained_classifier_artifact_name=masked_mlp_classifier-MNIST_split_2:example,null
-```
-
-Or a single command that chains them together:
-```bash
-```
-
-This produces 16 evaluation artifacts in total:
-- `train_shim2018-cube_split_1-budget_5-seed_42-builtin:example`
-- `train_shim2018-cube_split_1-budget_5-seed_42-masked_mlp_classifier-cube_split_1:example`
-- `train_shim2018-cube_split_1-budget_10-seed_42-builtin:example`
-- `train_shim2018-cube_split_1-budget_10-seed_42-masked_mlp_classifier-cube_split_1:example`
-- `train_shim2018-cube_split_2-budget_5-seed_42-builtin:example`
-- `train_shim2018-cube_split_2-budget_5-seed_42-masked_mlp_classifier-cube_split_2:example`
-- `train_shim2018-cube_split_2-budget_10-seed_42-builtin:example`
-- `train_shim2018-cube_split_2-budget_10-seed_42-masked_mlp_classifier-cube_split_2:example`
-- `train_shim2018-MNIST_split_1-budget_10-seed_42-builtin:example`
-- `train_shim2018-MNIST_split_1-budget_10-seed_42-masked_mlp_classifier-MNIST_split_1:example`
-- `train_shim2018-MNIST_split_1-budget_50-seed_42-builtin:example`
-- `train_shim2018-MNIST_split_1-budget_50-seed_42-masked_mlp_classifier-MNIST_split_1:example`
-- `train_shim2018-MNIST_split_2-budget_10-seed_42-builtin:example`
-- `train_shim2018-MNIST_split_2-budget_10-seed_42-masked_mlp_classifier-MNIST_split_2:example`
-- `train_shim2018-MNIST_split_2-budget_50-seed_42-builtin:example`
-- `train_shim2018-MNIST_split_2-budget_50-seed_42-masked_mlp_classifier-MNIST_split_2:example`
-
-### 6. Plotting results
-
-We can now aggregate the results in plots:
 
 ## How to extend
 

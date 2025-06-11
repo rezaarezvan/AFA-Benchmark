@@ -60,7 +60,7 @@ and set output_alias $_flag_output_alias
 set -l speed_suffix
 if test "$speed" = "slow"
     set speed_suffix ""
-elif test "$speed" = ""
+else if test "$speed" = ""
     echo "Speed argument should either be 'slow', 'medium' or 'fast'"
     exit 1
 else
