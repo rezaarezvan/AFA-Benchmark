@@ -181,6 +181,7 @@ class EvalConfig:
     trained_method_artifact_name: str
     trained_classifier_artifact_name: str | None  # if None, use the method's classifier
     seed: int = 42
+    device: str = "cuda"
     output_artifact_aliases: list[str] = field(default_factory=lambda: [])
     eval_only_n_samples: int | None = (
         None  # if specified, only evaluate on this many samples
