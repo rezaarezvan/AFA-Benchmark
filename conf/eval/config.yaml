@@ -15,3 +15,4 @@ output_artifact_aliases: ["tmp"]
 seed: 42
 device: "cuda"
 eval_only_n_samples: null
+batch_size: int

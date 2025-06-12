@@ -162,6 +162,7 @@ def main(cfg: EvalConfig) -> None:
         eval_budget,
         afa_predict_fn,
         only_n_samples=cfg.eval_only_n_samples,
+        batch_size=cfg.batch_size,
     )
 
     fig = plot_metrics(metrics)

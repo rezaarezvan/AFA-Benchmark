@@ -1,10 +1,12 @@
 from pathlib import Path
-from typing import ClassVar, Protocol, Self
+from typing import ClassVar, Protocol, Self, override
 from collections.abc import Callable
 
 from jaxtyping import Bool, Float, Integer
 from torch import Tensor
 import torch
+from torch.utils.data import Dataset
+
 
 # AFA datasets return features and labels
 type Features = Float[Tensor, "*batch n_features"]
@@ -32,6 +34,7 @@ class AFADataset(Protocol):
         """Generate data."""
         ...
 
+    @override
     def __getitem__(self, idx: int) -> tuple[Features, Label]:
         """Return a single (possibly batched) sample from the dataset."""
         ...

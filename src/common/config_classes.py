@@ -186,6 +186,7 @@ class EvalConfig:
     eval_only_n_samples: int | None = (
         None  # if specified, only evaluate on this many samples
     )
+    batch_size: int = 1
 
 
 cs.store(name="eval", node=EvalConfig)
