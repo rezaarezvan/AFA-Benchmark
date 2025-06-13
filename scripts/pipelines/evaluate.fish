@@ -30,15 +30,15 @@ set -q _flag_launcher
 and set launcher $_flag_launcher
 
 set -g output_alias tmp
-set -qg _flag_output_alias
+set -q _flag_output_alias
 and set output_alias $_flag_output_alias
 
 set -l wandb_entity afa-team
-set -ql _flag_wandb_entity
+set -q _flag_wandb_entity
 and set wandb_entity $_flag_wandb_entity
 
 set -l wandb_project afa-benchmark
-set -ql _flag_wandb_project
+set -q _flag_wandb_project
 and set wandb_project $_flag_wandb_project
 
 set -gx WANDB_ENTITY $wandb_entity

@@ -10,7 +10,7 @@ argparse "help" "launcher=?" "device=?" "speed=?" "wandb-entity=?" "wandb-projec
 or exit 1
 
 # Print help if specified
-if set -ql _flag_help
+if set -q _flag_help
     echo "Usage: README_example.fish [--help] [--launcher={custom_slurm,basic}] [--device={cuda,cpu}] [--speed=<str>] [--wandb-entity=<str>] [--wandb-project=<str>] [--dataset-alias=<str>] [--alias=<str>]" >&2
     exit 1
 end
@@ -18,15 +18,15 @@ end
 # Default arguments
 
 set -l launcher custom_slurm
-set -ql _flag_launcher
+set -q _flag_launcher
 and set launcher $_flag_launcher
 
 set -l device cuda
-set -ql _flag_device
+set -q _flag_device
 and set device $_flag_device
 
 set -l speed slow
-set -ql _flag_speed
+set -q _flag_speed
 and set speed $_flag_speed
 
 set -l speed_suffix
@@ -45,22 +45,22 @@ else
 end
 
 
-set -ql _flag_wandb_entity
+set -q _flag_wandb_entity
 and set wandb_entity $_flag_wandb_entity
 
 set -l wandb_project afa-benchmark
-set -ql _flag_wandb_project
+set -q _flag_wandb_project
 and set wandb_project $_flag_wandb_project
 
 set -gx WANDB_ENTITY $wandb_entity
 set -gx WANDB_PROJECT $wandb_project
 
 set -l dataset_alias tmp
-set -ql _flag_dataset_alias
+set -q _flag_dataset_alias
 and set dataset_alias $_flag_dataset_alias
 
 set -l alias example
-set -ql _flag_alias
+set -q _flag_alias
 and set alias $_flag_alias
 
 # Hard-coded variables for this example

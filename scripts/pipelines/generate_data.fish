@@ -11,7 +11,7 @@ argparse "dataset=+" "split=+" "help" "launcher=?" "output-alias=?" "wandb-entit
 or exit 1
 
 # Print help if specified
-if set -ql _flag_help
+if set -q _flag_help
     echo "Usage: generate_data.fish --dataset=<str> --split=<int> [--help] [--launcher={custom_slurm,basic}] [--output-alias=<str>] [--wandb-entity=<str>] [--wandb-project=<str>]" >&2
     exit 1
 end
@@ -19,7 +19,7 @@ end
 # Default arguments
 
 # No default arguments for datasets
-if set -ql _flag_dataset
+if set -q _flag_dataset
     set datasets $_flag_dataset
 else
     echo "datasets must be set"
@@ -27,23 +27,23 @@ else
 end
 
 set -l splits 1 2
-set -ql _flag_split
+set -q _flag_split
 and set splits $_flag_split
 
 set -l launcher custom_slurm
-set -ql _flag_launcher
+set -q _flag_launcher
 and set launcher $_flag_launcher
 
 set -l output_alias tmp
-set -ql _flag_output_alias
+set -q _flag_output_alias
 and set output_alias $_flag_output_alias
 
 set -l wandb_entity afa-team
-set -ql _flag_wandb_entity
+set -q _flag_wandb_entity
 and set wandb_entity $_flag_wandb_entity
 
 set -l wandb_project afa-benchmark
-set -ql _flag_wandb_project
+set -q _flag_wandb_project
 and set wandb_project $_flag_wandb_project
 
 set -gx WANDB_ENTITY $wandb_entity

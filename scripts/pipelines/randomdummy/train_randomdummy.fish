@@ -18,7 +18,7 @@ end
 # Default arguments
 
 # No default arguments for datasets
-if set -ql _flag_dataset
+if set -q _flag_dataset
     set datasets $_flag_dataset
 else
     echo "datasets must be set"
@@ -26,7 +26,7 @@ else
 end
 
 # No default argument for budgets
-if set -ql _flag_budgets
+if set -q _flag_budgets
     set budgets $_flag_budgets
 else
     echo "budgets must be set"
@@ -34,15 +34,15 @@ else
 end
 
 set -l splits 1 2
-set -ql _flag_split
+set -q _flag_split
 and set splits $_flag_split
 
 set -l launcher custom_slurm
-set -ql _flag_launcher
+set -q _flag_launcher
 and set launcher $_flag_launcher
 
 set -l dataset_alias tmp
-set -ql _flag_dataset_alias
+set -q _flag_dataset_alias
 and set dataset_alias $_flag_dataset_alias
 
 set -l output_alias tmp
@@ -54,7 +54,7 @@ set -ql _flag_wandb_entity
 and set wandb_entity $_flag_wandb_entity
 
 set -l wandb_project afa-benchmark
-set -ql _flag_wandb_project
+set -q _flag_wandb_project
 and set wandb_project $_flag_wandb_project
 
 set -gx WANDB_ENTITY $wandb_entity
