@@ -100,6 +100,7 @@ def eval_afa_method(
     afa_predict_fn: AFAPredictFn,
     only_n_samples: int | None = None,
     batch_size: int = 1,
+    device: torch.device | None = None,
 ) -> dict[str, Any]:
     """Evaluate an AFA method.
 
@@ -109,6 +110,7 @@ def eval_afa_method(
         budget (int): The number of features to select.
         afa_predict_fn (AFAPredictFn): The label prediction function to use for evaluation.
         only_n_samples (int|None, optional): If specified, only evaluate on this many samples from the dataset. Defaults to None.
+        device (torch.device|None): Device to place data on. Defaults to "cpu".
         batch_size (int): How many AFA episodes to run concurrently.
 
     Returns:
@@ -116,12 +118,13 @@ def eval_afa_method(
 
     """
     # TODO: make this an argument
-    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if device is None:
+        device = torch.device("cpu")
 
     # Store feature mask history, label prediction history, and true label for each sample in the dataset
     feature_mask_history_all = []  # list[Tensor[budget,batch_size,n_features]] (n_batches)
     prediction_history_all = []  # list[Tensor[budget,batch_size,n_classes]]] (n_batches)
-    labels_all: list[Label] = [] # (n_batches)
+    labels_all: list[Label] = []  # (n_batches)
 
     dataloader = DataLoader(
         dataset, batch_size=batch_size, shuffle=False
@@ -131,25 +134,39 @@ def eval_afa_method(
     n_evaluated_samples = 0
     for batch in tqdm(
         dataloader,
-        total=only_n_samples // batch_size if only_n_samples is not None else len(dataloader),
+        total=only_n_samples // batch_size
+        if only_n_samples is not None
+        else len(dataloader),
         desc="Evaluating",
     ):
         # Each batch has features and labels
         features, labels = batch
-        # features = features.to(device)
-        # labels = labels.to(device)
+        features = features.to(device)
+        labels = labels.to(device)
 
         # Immediately store the true labels for this batch
         labels_all.append(labels)
 
         # We will keep a history of which features have been observed, in case its relevant for evaluation
-        feature_mask_history = torch.zeros(budget, features.shape[0], features.shape[1], dtype=torch.bool) # budget, batch_size, n_features
+        feature_mask_history = torch.zeros(
+            budget,
+            features.shape[0],
+            features.shape[1],
+            dtype=torch.bool,
+            device=device,
+        )  # budget, batch_size, n_features
 
         # And also a history of predictions
-        prediction_history = torch.zeros(budget, features.shape[0], labels.shape[1], dtype=torch.float32)  # budget, batch_size, n_classes
+        prediction_history = torch.zeros(
+            budget,
+            features.shape[0],
+            labels.shape[1],
+            dtype=torch.float32,
+            device=device,
+        )  # budget, batch_size, n_classes
 
         # Start with all features unobserved
-        feature_mask = torch.zeros_like(features, dtype=torch.bool)
+        feature_mask = torch.zeros_like(features, dtype=torch.bool, device=device)
         masked_features = features.clone()
         masked_features[~feature_mask] = 0.0
 
@@ -164,10 +181,12 @@ def eval_afa_method(
             selections = afa_select_fn(masked_features, feature_mask).squeeze(-1)
 
             # Update the feature mask and masked features
-            feature_mask[torch.arange(feature_mask.shape[0]), selections] = True
-            masked_features[torch.arange(feature_mask.shape[0]), selections] = features[
-                torch.arange(feature_mask.shape[0]), selections
-            ]
+            feature_mask[
+                torch.arange(feature_mask.shape[0], device=device), selections
+            ] = True
+            masked_features[
+                torch.arange(feature_mask.shape[0], device=device), selections
+            ] = features[torch.arange(feature_mask.shape[0], device=device), selections]
 
             # Store a copy of the feature mask in history
             feature_mask_history[i] = feature_mask.clone()
@@ -182,27 +201,33 @@ def eval_afa_method(
 
     # Convert everything to tensors instead of lists of tensors
     # list[Tensor[budget,batch_size,n_features]] (n_batches)
-    temp = [t.permute(1, 0, 2) for t in feature_mask_history_all]  # list[Tensor[batch_size,budget,n_features]] (n_batches)
-    feature_mask_history_tensor: Tensor = torch.cat(temp)  # Tensor[n_samples,budget,n_features]
+    # temp = [t.permute(1, 0, 2) for t in feature_mask_history_all]  # list[Tensor[batch_size,budget,n_features]] (n_batches)
+    # feature_mask_history_tensor: Tensor = torch.cat(temp)  # Tensor[n_samples,budget,n_features]
 
     # list[Tensor[budget,batch_size,n_classes]]] (n_batches)
-    temp = [t.permute(1, 0, 2) for t in prediction_history_all]  # list[Tensor[batch_size,budget,n_classes]] (n_batches)
-    prediction_history_tensor: Tensor = torch.cat(temp)  # Tensor[n_samples,budget,n_classes] (n_batches)
+    temp = [
+        t.permute(1, 0, 2) for t in prediction_history_all
+    ]  # list[Tensor[batch_size,budget,n_classes]] (n_batches)
+    prediction_history_tensor: Tensor = torch.cat(
+        temp
+    )  # Tensor[n_samples,budget,n_classes] (n_batches)
 
     # list[Tensor[batch_size,n_classes]] (n_batches)
     labels_tensor: Tensor = torch.cat(labels_all)  # Tensor[n_samples,C]
 
     labels_tensor = torch.argmax(labels_tensor, dim=1)
 
+    print("Aggregating metrics...")
     accuracy_all, f1_all, bce_all = aggregate_metrics(
         prediction_history_tensor.cpu(), labels_tensor.cpu()
     )
+    print("Finished aggregating metrics")
 
     return {
         "accuracy_all": accuracy_all.detach().cpu(),
         "f1_all": f1_all.detach().cpu(),
         "bce_all": bce_all.detach().cpu(),
-        "feature_mask_history_all": feature_mask_history_tensor,
+        # "feature_mask_history_all": feature_mask_history_tensor,
         #     [t.detach().cpu() for t in sublist] for sublist in feature_mask_history_tensor
         # ],
     }

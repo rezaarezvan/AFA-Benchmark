@@ -29,11 +29,14 @@ from eval.utils import plot_metrics
 
 
 def load_trained_method_artifacts(
-    artifact_name: str,
+    artifact_name: str, device: torch.device | None = None
 ) -> tuple[
     AFADataset, AFADataset, AFADataset, AFAMethod, dict[str, Any]  # method metadata
 ]:
     """Load a trained afa method and the dataset it was trained on, from a WandB artifact."""
+
+    if device is None:
+        device = torch.device("cpu")
     trained_method_artifact = wandb.use_artifact(artifact_name, type="trained_method")
     trained_method_artifact_dir = Path(trained_method_artifact.download())
     method_class_name = trained_method_artifact.metadata["afa_method_class"]
@@ -41,7 +44,7 @@ def load_trained_method_artifacts(
     log.debug(
         f"Loading trained AFA method of class {method_class_name} from artifact {artifact_name}"
     )
-    method = method_class.load(trained_method_artifact_dir, device=torch.device("cpu"))
+    method = method_class.load(trained_method_artifact_dir, device=device)
 
     # Load the dataset that the method was trained on
     train_dataset, val_dataset, test_dataset, _ = load_dataset_artifact(
@@ -58,9 +61,13 @@ def load_trained_method_artifacts(
 
 
 def load_trained_classifier_artifact(
-    artifact_name: str,
+    artifact_name: str, device: torch.device | None = None
 ) -> tuple[AFAClassifier, dict[str, Any]]:  # classifier metadata
     """Load a trained masked classifier from a WandB artifact."""
+
+    if device is None:
+        device = torch.device("cpu")
+
     trained_classifier_artifact = wandb.use_artifact(
         artifact_name, type="trained_classifier"
     )
@@ -73,7 +80,7 @@ def load_trained_classifier_artifact(
         f"Loading trained classifier of class {classifier_class_name} from artifact {artifact_name}"
     )
     classifier = classifier_class.load(
-        trained_classifier_artifact_dir / "classifier.pt", device=torch.device("cpu")
+        trained_classifier_artifact_dir / "classifier.pt", device=device
     )
 
     return classifier, trained_classifier_artifact.metadata
@@ -126,7 +133,7 @@ def main(cfg: EvalConfig) -> None:
 
     # Load trained afa method and dataset from artifacts
     _, _, eval_dataset, afa_method, method_metadata = load_trained_method_artifacts(
-        cfg.trained_method_artifact_name,
+        cfg.trained_method_artifact_name, device=torch.device(cfg.device)
     )
     log.info("Loaded trained AFA method and dataset from artifacts")
 
@@ -136,7 +143,7 @@ def main(cfg: EvalConfig) -> None:
             cfg.trained_method_artifact_name, cfg.trained_classifier_artifact_name
         )
         afa_predict_fn, classifier_metadata = load_trained_classifier_artifact(
-            cfg.trained_classifier_artifact_name
+            cfg.trained_classifier_artifact_name, device=torch.device(cfg.device)
         )
         classifier_type = classifier_metadata["classifier_type"]
         log.info("Loaded external classifier")
@@ -163,6 +170,7 @@ def main(cfg: EvalConfig) -> None:
         afa_predict_fn,
         only_n_samples=cfg.eval_only_n_samples,
         batch_size=cfg.batch_size,
+        device=torch.device(cfg.device),
     )
 
     fig = plot_metrics(metrics)

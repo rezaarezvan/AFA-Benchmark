@@ -37,6 +37,7 @@ def get_td_from_masked_features(
         masked_features.shape[0],
         masked_features.shape[1],
         dtype=torch.bool,
+        device=masked_features.device,
     )
     action_mask = ~feature_mask
 
@@ -47,6 +48,7 @@ def get_td_from_masked_features(
             "feature_mask": feature_mask,
         },
         batch_size=masked_features.shape[0],
+        device=masked_features.device,
     )
 
     return td
