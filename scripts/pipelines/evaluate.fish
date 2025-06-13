@@ -6,24 +6,28 @@
 # Parse args
 # -----------------------
 
-argparse "help" "device=?" "launcher=?" "output-alias=?" "wandb-entity=?" "wandb-project=?" -- $argv
+argparse "help" "batch_size=?" "device=?" "launcher=?" "output-alias=?" "wandb-entity=?" "wandb-project=?" -- $argv
 or exit 1
 
 # Print help if specified
 if set -ql _flag_help
-    echo "Usage: evaluate.fish [--device={cpu,cuda}] [--help] [--launcher={custom_slurm,basic}] [--output-alias=<str>] [--wandb-entity=<str>] [--wandb-project=<str>]" >&2
+    echo "Usage: evaluate.fish [batch_size=<int>] [--device={cpu,cuda}] [--help] [--launcher={custom_slurm,basic}] [--output-alias=<str>] [--wandb-entity=<str>] [--wandb-project=<str>]" >&2
     exit 1
 end
 
 # Default arguments
 
-set -g launcher custom_slurm
-set -q _flag_launcher
-and set launcher $_flag_launcher
+set -g batch_size 128
+set -q _flag_batch_size
+and set batch_size $_flag_batch_size
 
 set -g device cuda
 set -q _flag_device
 and set device $_flag_device
+
+set -g launcher custom_slurm
+set -q _flag_launcher
+and set launcher $_flag_launcher
 
 set -g output_alias tmp
 set -qg _flag_output_alias
@@ -50,6 +54,7 @@ function build_eval_job
       output_artifact_aliases=[\"$output_alias\"] \
       trained_method_artifact_name=$argv[1] \
       trained_classifier_artifact_name=$argv[2],null \
+      batch_size=$batch_size \
       device=$device \
       $extra_opts"
 end
