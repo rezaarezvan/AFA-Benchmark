@@ -9,20 +9,16 @@ set -gx WANDB_PROJECT afa-benchmark
 # Parse args
 # -----------------------
 
-argparse "help" "output-alias=?" "wandb-entity=?" "wandb-project=?" -- $argv
+argparse "help" "wandb-entity=?" "wandb-project=?" -- $argv
 or exit 1
 
 # Print help if specified
 if set -q _flag_help
-    echo "Usage: plot.fish [--help] [--output-alias=<str>] [--wandb-entity=<str>] [--wandb-project=<str>]" >&2
+    echo "Usage: plot.fish [--help] [--wandb-entity=<str>] [--wandb-project=<str>]" >&2
     exit 1
 end
 
 # Default arguments
-
-set -l output_alias tmp
-set -q _flag_output_alias
-and set output_alias $_flag_output_alias
 
 set -l wandb_entity afa-team
 set -q _flag_wandb_entity
@@ -58,60 +54,60 @@ sleep 1
 
 # Manual approach
 set -l eval_artifact_names \
-    train_shim2018_cube_split_1-budget_3_seed_42-masked_mlp_classifier-cube_split_1:Jun13 \
-    train_shim2018_cube_split_1-budget_5_seed_42-masked_mlp_classifier-cube_split_1:Jun13 \
-    train_shim2018_cube_split_1-budget_10_seed_42-masked_mlp_classifier-cube_split_1:Jun13 \
-    train_shim2018_cube_split_1-budget_3_seed_42-builtin:Jun13 \
-    train_shim2018_cube_split_1-budget_5_seed_42-builtin:Jun13 \
-    train_shim2018_cube_split_1-budget_10_seed_42-builtin:Jun13 \
+    train_shim2018-cube_split_1-budget_3-seed_42-masked_mlp_classifier-cube_split_1:Jun13-c \
+    train_shim2018-cube_split_1-budget_5-seed_42-masked_mlp_classifier-cube_split_1:Jun13-c \
+    train_shim2018-cube_split_1-budget_10-seed_42-masked_mlp_classifier-cube_split_1:Jun13-c \
+    train_shim2018-cube_split_1-budget_3-seed_42-builtin:Jun13-c \
+    train_shim2018-cube_split_1-budget_5-seed_42-builtin:Jun13-c \
+    train_shim2018-cube_split_1-budget_10-seed_42-builtin:Jun13-c \
     \
-    train_randomdummy_cube_split_1-budget_3_seed_42-masked_mlp_classifier-cube_split_1:Jun13 \
-    train_randomdummy_cube_split_1-budget_5_seed_42-masked_mlp_classifier-cube_split_1:Jun13 \
-    train_randomdummy_cube_split_1-budget_10_seed_42-masked_mlp_classifier-cube_split_1:Jun13 \
-    train_randomdummy_cube_split_1-budget_3_seed_42-builtin:Jun13 \
-    train_randomdummy_cube_split_1-budget_5_seed_42-builtin:Jun13 \
-    train_randomdummy_cube_split_1-budget_10_seed_42-builtin:Jun13 \
+    train_randomdummy-cube_split_1-budget_3-seed_42-masked_mlp_classifier-cube_split_1:Jun13-c \
+    train_randomdummy-cube_split_1-budget_5-seed_42-masked_mlp_classifier-cube_split_1:Jun13-c \
+    train_randomdummy-cube_split_1-budget_10-seed_42-masked_mlp_classifier-cube_split_1:Jun13-c \
+    train_randomdummy-cube_split_1-budget_3-seed_42-builtin:Jun13-c \
+    train_randomdummy-cube_split_1-budget_5-seed_42-builtin:Jun13-c \
+    train_randomdummy-cube_split_1-budget_10-seed_42-builtin:Jun13-c \
     \
-    train_shim2018_cube_split_2-budget_3_seed_42-masked_mlp_classifier-cube_split_2:Jun13 \
-    train_shim2018_cube_split_2-budget_5_seed_42-masked_mlp_classifier-cube_split_2:Jun13 \
-    train_shim2018_cube_split_2-budget_10_seed_42-masked_mlp_classifier-cube_split_2:Jun13 \
-    train_shim2018_cube_split_2-budget_3_seed_42-builtin:Jun13 \
-    train_shim2018_cube_split_2-budget_5_seed_42-builtin:Jun13 \
-    train_shim2018_cube_split_2-budget_10_seed_42-builtin:Jun13 \
+    train_shim2018-cube_split_2-budget_3-seed_42-masked_mlp_classifier-cube_split_2:Jun13-c \
+    train_shim2018-cube_split_2-budget_5-seed_42-masked_mlp_classifier-cube_split_2:Jun13-c \
+    train_shim2018-cube_split_2-budget_10-seed_42-masked_mlp_classifier-cube_split_2:Jun13-c \
+    train_shim2018-cube_split_2-budget_3-seed_42-builtin:Jun13-c \
+    train_shim2018-cube_split_2-budget_5-seed_42-builtin:Jun13-c \
+    train_shim2018-cube_split_2-budget_10-seed_42-builtin:Jun13-c \
     \
-    train_randomdummy_cube_split_2-budget_3_seed_42-masked_mlp_classifier-cube_split_2:Jun13 \
-    train_randomdummy_cube_split_2-budget_5_seed_42-masked_mlp_classifier-cube_split_2:Jun13 \
-    train_randomdummy_cube_split_2-budget_10_seed_42-masked_mlp_classifier-cube_split_2:Jun13 \
-    train_randomdummy_cube_split_2-budget_3_seed_42-builtin:Jun13 \
-    train_randomdummy_cube_split_2-budget_5_seed_42-builtin:Jun13 \
-    train_randomdummy_cube_split_2-budget_10_seed_42-builtin:Jun13 \
+    train_randomdummy-cube_split_2-budget_3-seed_42-masked_mlp_classifier-cube_split_2:Jun13-c \
+    train_randomdummy-cube_split_2-budget_5-seed_42-masked_mlp_classifier-cube_split_2:Jun13-c \
+    train_randomdummy-cube_split_2-budget_10-seed_42-masked_mlp_classifier-cube_split_2:Jun13-c \
+    train_randomdummy-cube_split_2-budget_3-seed_42-builtin:Jun13-c \
+    train_randomdummy-cube_split_2-budget_5-seed_42-builtin:Jun13-c \
+    train_randomdummy-cube_split_2-budget_10-seed_42-builtin:Jun13-c \
     \
-    train_shim2018_MNIST_split_1-budget_10_seed_42-masked_mlp_classifier-MNIST_split_1:Jun13 \
-    train_shim2018_MNIST_split_1-budget_50_seed_42-masked_mlp_classifier-MNIST_split_1:Jun13 \
-    train_shim2018_MNIST_split_1-budget_100_seed_42-masked_mlp_classifier-MNIST_split_1:Jun13 \
-    train_shim2018_MNIST_split_1-budget_10_seed_42-builtin:Jun13 \
-    train_shim2018_MNIST_split_1-budget_50_seed_42-builtin:Jun13 \
-    train_shim2018_MNIST_split_1-budget_100_seed_42-builtin:Jun13 \
+    train_shim2018-MNIST_split_1-budget_10-seed_42-masked_mlp_classifier-MNIST_split_1:Jun13-c \
+    train_shim2018-MNIST_split_1-budget_50-seed_42-masked_mlp_classifier-MNIST_split_1:Jun13-c \
+    train_shim2018-MNIST_split_1-budget_100-seed_42-masked_mlp_classifier-MNIST_split_1:Jun13-c \
+    train_shim2018-MNIST_split_1-budget_10-seed_42-builtin:Jun13-c \
+    train_shim2018-MNIST_split_1-budget_50-seed_42-builtin:Jun13-c \
+    train_shim2018-MNIST_split_1-budget_100-seed_42-builtin:Jun13-c \
     \
-    train_randomdummy_MNIST_split_1-budget_10_seed_42-masked_mlp_classifier-MNIST_split_1:Jun13 \
-    train_randomdummy_MNIST_split_1-budget_50_seed_42-masked_mlp_classifier-MNIST_split_1:Jun13 \
-    train_randomdummy_MNIST_split_1-budget_100_seed_42-masked_mlp_classifier-MNIST_split_1:Jun13 \
-    train_randomdummy_MNIST_split_1-budget_10_seed_42-builtin:Jun13 \
-    train_randomdummy_MNIST_split_1-budget_50_seed_42-builtin:Jun13 \
-    train_randomdummy_MNIST_split_1-budget_100_seed_42-builtin:Jun13 \
+    train_randomdummy-MNIST_split_1-budget_10-seed_42-masked_mlp_classifier-MNIST_split_1:Jun13-c \
+    train_randomdummy-MNIST_split_1-budget_50-seed_42-masked_mlp_classifier-MNIST_split_1:Jun13-c \
+    train_randomdummy-MNIST_split_1-budget_100-seed_42-masked_mlp_classifier-MNIST_split_1:Jun13-c \
+    train_randomdummy-MNIST_split_1-budget_10-seed_42-builtin:Jun13-c \
+    train_randomdummy-MNIST_split_1-budget_50-seed_42-builtin:Jun13-c \
+    train_randomdummy-MNIST_split_1-budget_100-seed_42-builtin:Jun13-c \
     \
-    train_shim2018_MNIST_split_2-budget_10_seed_42-masked_mlp_classifier-MNIST_split_2:Jun13 \
-    train_shim2018_MNIST_split_2-budget_50_seed_42-masked_mlp_classifier-MNIST_split_2:Jun13 \
-    train_shim2018_MNIST_split_2-budget_100_seed_42-masked_mlp_classifier-MNIST_split_2:Jun13 \
-    train_shim2018_MNIST_split_2-budget_10_seed_42-builtin:Jun13 \
-    train_shim2018_MNIST_split_2-budget_50_seed_42-builtin:Jun13 \
-    train_shim2018_MNIST_split_2-budget_100_seed_42-builtin:Jun13 \
+    train_shim2018-MNIST_split_2-budget_10-seed_42-masked_mlp_classifier-MNIST_split_2:Jun13-c \
+    train_shim2018-MNIST_split_2-budget_50-seed_42-masked_mlp_classifier-MNIST_split_2:Jun13-c \
+    train_shim2018-MNIST_split_2-budget_100-seed_42-masked_mlp_classifier-MNIST_split_2:Jun13-c \
+    train_shim2018-MNIST_split_2-budget_10-seed_42-builtin:Jun13-c \
+    train_shim2018-MNIST_split_2-budget_50-seed_42-builtin:Jun13-c \
+    train_shim2018-MNIST_split_2-budget_100-seed_42-builtin:Jun13-c \
     \
-    train_randomdummy_MNIST_split_2-budget_10_seed_42-masked_mlp_classifier-MNIST_split_2:Jun13 \
-    train_randomdummy_MNIST_split_2-budget_50_seed_42-masked_mlp_classifier-MNIST_split_2:Jun13 \
-    train_randomdummy_MNIST_split_2-budget_100_seed_42-masked_mlp_classifier-MNIST_split_2:Jun13 \
-    train_randomdummy_MNIST_split_2-budget_10_seed_42-builtin:Jun13 \
-    train_randomdummy_MNIST_split_2-budget_50_seed_42-builtin:Jun13 \
-    train_randomdummy_MNIST_split_2-budget_100_seed_42-builtin:Jun13
+    train_randomdummy-MNIST_split_2-budget_10-seed_42-masked_mlp_classifier-MNIST_split_2:Jun13-c \
+    train_randomdummy-MNIST_split_2-budget_50-seed_42-masked_mlp_classifier-MNIST_split_2:Jun13-c \
+    train_randomdummy-MNIST_split_2-budget_100-seed_42-masked_mlp_classifier-MNIST_split_2:Jun13-c \
+    train_randomdummy-MNIST_split_2-budget_10-seed_42-builtin:Jun13-c \
+    train_randomdummy-MNIST_split_2-budget_50-seed_42-builtin:Jun13-c \
+    train_randomdummy-MNIST_split_2-budget_100-seed_42-builtin:Jun13-c
         
 uv run scripts/plotting/plot_results.py eval_artifact_names=[(string join , $eval_artifact_names)]
