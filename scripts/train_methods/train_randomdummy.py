@@ -86,7 +86,6 @@ def main(cfg: RandomDummyTrainConfig):
             name=f"train_randomdummy-{cfg.dataset_artifact_name.split(':')[0]}-budget_{cfg.hard_budget}-seed_{cfg.seed}",
             type="trained_method",
             metadata={
-                "afa_method_class": afa_method.__class__.__name__,
                 "method_type": "randomdummy",
                 "dataset_artifact_name": cfg.dataset_artifact_name,
                 "dataset_type": dataset_metadata["dataset_type"],

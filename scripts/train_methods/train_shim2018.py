@@ -383,7 +383,6 @@ def main(cfg: Shim2018TrainConfig):
                 name=f"train_shim2018-{pretrained_model_config.dataset_artifact_name.split(':')[0]}-budget_{cfg.hard_budget}-seed_{cfg.seed}",
                 type="trained_method",
                 metadata={
-                    "afa_method_class": afa_method.__class__.__name__,
                     "method_type": "shim2018",
                     "dataset_artifact_name": pretrained_model_config.dataset_artifact_name,
                     "dataset_type": dataset_metadata["dataset_type"],

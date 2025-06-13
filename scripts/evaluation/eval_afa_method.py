@@ -39,10 +39,9 @@ def load_trained_method_artifacts(
         device = torch.device("cpu")
     trained_method_artifact = wandb.use_artifact(artifact_name, type="trained_method")
     trained_method_artifact_dir = Path(trained_method_artifact.download())
-    method_class_name = trained_method_artifact.metadata["afa_method_class"]
-    method_class = get_afa_method_class(method_class_name)
+    method_class = get_afa_method_class(trained_method_artifact.metadata["method_type"])
     log.debug(
-        f"Loading trained AFA method of class {method_class_name} from artifact {artifact_name}"
+        f"Loading trained AFA method of class {method_class.__name__} from artifact {artifact_name}"
     )
     method = method_class.load(trained_method_artifact_dir, device=device)
 

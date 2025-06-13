@@ -113,14 +113,11 @@ Each dataset artifact is expected to contain a `dataset_type` key in its metadat
 ### Trained method artifacts
 
 Each trained method should have the following keys in its metadata:
-- `afa_method_class` (`str`): A string that can be passed to the `get_afa_method_class` function to return the correct AFA method class. The `load` method of this class is then called with the contents of the artifact. See `load_trained_method_artifact` for more info.
 - `budget`` (`int|None`): Which budget this method was trained with. For some methods, this is not applicable, in which case it should be set to `None`.
 - `dataset_artifact_name` (`str`): Which artifact this method was trained on. This is used to load the same dataset artifact with `load_dataset_artifact` during evaluation.
 - `dataset_type` (`str`): The dataset type of `dataset_artifact_name`. Superfluous but convenient.
-- `method_type` (`str`): The method type of the trained afa method.
+- `method_type` (`str`): The method type of the trained afa method. This string can be passed to `get_afa_method_class` to return the correct AFA method class. The `load` method of this class is then called with the contents of the artifact. See `load_trained_method_artifact` for more info.
 - `seed` (`int`): The random seed used for training this method.
-
-Note that `afa_method_class` can be the same for several different `method_type`s. This is the case for the RL methods which have a common AFA method class `RLAFAMethod` but have different `method_type`s like `"shim2018"` and `"zannone2019"` in order to distinguish them during evaluation.
 
 ### Trained classifier artifacts
 

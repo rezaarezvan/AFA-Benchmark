@@ -5,7 +5,7 @@ from common.custom_types import (
 )
 
 AFA_METHOD_TYPES = {
-    "RLAFAMethod",
+    "shim2018",
     "covert2023",
     "gadgil2023",
     "ma2018",
@@ -16,7 +16,11 @@ AFA_METHOD_TYPES = {
 
 
 def get_afa_method_class(name: str) -> type[AFAMethod]:
-    if name == "RLAFAMethod":
+    """Return the appropriate AFAMethod for a given method type.
+
+    Note that several method types can have the same AFAMethod class, like the RL methods. A dictionary is not used since it could lead to circular imports."""
+
+    if name == "shim2018":
         from afa_rl.afa_methods import RLAFAMethod
 
         return RLAFAMethod
@@ -38,11 +42,11 @@ def get_afa_method_class(name: str) -> type[AFAMethod]:
 
         return ACOOracleMethod
 
-    elif name == "sequential_dummy":
-        from afa_rl.afa_methods import SequentialDummyAFAMethod
+    elif name == "sequentialdummy":
+        from common.afa_methods import SequentialDummyAFAMethod
 
         return SequentialDummyAFAMethod
-    elif name == "RandomDummyAFAMethod":
+    elif name == "randomdummy":
         from common.afa_methods import RandomDummyAFAMethod
 
         return RandomDummyAFAMethod
