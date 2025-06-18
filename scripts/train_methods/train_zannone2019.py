@@ -1,84 +1,75 @@
+import argparse
 from functools import partial
 import gc
 import logging
 from pathlib import Path
-from typing import Any, cast
 from tempfile import TemporaryDirectory
+from typing import Any, cast
 
 import hydra
 from omegaconf import OmegaConf
 import torch
+import yaml
+from jaxtyping import Float
 from tensordict import TensorDictBase
-from torch import optim
+from torch import Tensor, optim
 from torch.nn import functional as F
 from torchrl.collectors import SyncDataCollector
 from torchrl.envs import ExplorationType, check_env_specs, set_exploration_type
-from afa_rl.agents import Agent
+from common.config_classes import Zannone2019PretrainConfig
+from eval.metrics import eval_afa_method
+from eval.utils import plot_metrics
+from torchrl_agents import Agent
 from tqdm import tqdm
-from dacite import from_dict
 
 import wandb
 from afa_rl.afa_env import AFAEnv, get_common_reward_fn
 from afa_rl.afa_methods import RLAFAMethod
 from afa_rl.shim2018.agents import Shim2018Agent
+from afa_rl.custom_types import MaskedClassifier
 from afa_rl.datasets import get_afa_dataset_fn
-from afa_rl.shim2018.models import (
-    LitShim2018EmbedderClassifier,
-    Shim2018AFAClassifier,
-    Shim2018AFAPredictFn,
+from afa_rl.shim2018.models import Shim2018MaskedClassifier, Shim2018NNMaskedClassifier
+from afa_rl.shim2018.scripts.pretrain_shim2018 import get_shim2018_model_from_config
+from afa_rl.utils import check_masked_classifier_performance
+from afa_rl.zannone2019.agents import Zannone2019Agent
+from afa_rl.zannone2019.models import (
+    Zannone2019MaskedClassifier,
+    Zannone2019NNMaskedClassifier,
+    Zannone2019PretrainingModel,
 )
-from afa_rl.shim2018.models import (
-    get_shim2018_model_from_config,
+from afa_rl.zannone2019.scripts.pretrain_zannone2019 import (
+    get_zannone2019_model_from_config,
 )
-from afa_rl.utils import (
-    afacontext_optimal_selection,
-    module_norm,
-)
-from common.config_classes import Shim2018PretrainConfig, Shim2018TrainConfig
 from common.custom_types import (
     AFADataset,
-    AFAPredictFn,
 )
-from common.utils import get_class_probabilities, load_dataset_artifact, set_seed
-
-from eval.metrics import eval_afa_method
-from eval.utils import plot_metrics
+from common.utils import (
+    dict_to_namespace,
+    get_class_probabilities,
+    load_dataset_artifact,
+    set_seed,
+)
 
 
 def get_eval_metrics(
-    eval_tds: list[TensorDictBase], afa_predict_fn: AFAPredictFn
+    eval_tds: list[TensorDictBase], pretrained_model: Zannone2019PretrainingModel
 ) -> dict[str, Any]:
     eval_metrics = {}
     eval_metrics["reward_sum"] = 0.0
-    eval_metrics["actions"] = []
     n_correct_samples = 0
     for td in eval_tds:
         eval_metrics["reward_sum"] += td["next", "reward"].sum()
-        eval_metrics["actions"].extend(td["action"].tolist())
         # Check whether prediction is correct
         td_end = td[-1:]
-        probs = afa_predict_fn(
-            td_end["next", "masked_features"], td_end["next", "feature_mask"]
+        encoding, mu, logvar, z = pretrained_model.partial_vae.encode(
+            td_end["masked_features"], td_end["feature_mask"]
         )
-        if probs.argmax(dim=-1) == td_end["label"].argmax(dim=-1):
+        logits = pretrained_model.classifier(mu)
+        if logits.argmax(dim=-1) == td_end["label"].argmax(dim=-1):
             n_correct_samples += 1
     eval_metrics["reward_sum"] /= len(eval_tds)
-    eval_metrics["actions"] = wandb.Histogram(eval_metrics["actions"], num_bins=20)
     eval_metrics["accuracy"] = n_correct_samples / len(eval_tds)
     return eval_metrics
-
-
-def afacontext_benchmark_policy(
-    tensordict: TensorDictBase,
-) -> TensorDictBase:
-    """Select features optimally in AFAContext."""
-    masked_features = tensordict["masked_features"]
-    feature_mask = tensordict["feature_mask"]
-
-    selection = afacontext_optimal_selection(masked_features, feature_mask)
-
-    tensordict["action"] = selection
-    return tensordict
 
 
 def load_pretrained_model_artifacts(
@@ -88,8 +79,8 @@ def load_pretrained_model_artifacts(
     AFADataset,  # val dataset
     AFADataset,  # test dataset
     dict[str, Any],  # dataset metadata
-    LitShim2018EmbedderClassifier,
-    Shim2018PretrainConfig,
+    Zannone2019PretrainingModel,
+    Zannone2019PretrainConfig,
 ]:
     """Load a pretrained model and the dataset it was trained on, from a WandB artifact."""
     pretrained_model_artifact = wandb.use_artifact(
@@ -108,8 +99,8 @@ def load_pretrained_model_artifacts(
         "Pretrained model artifact must be logged by a run."
     )
     pretrained_model_config_dict = pretraining_run.config
-    pretrained_model_config: Shim2018PretrainConfig = from_dict(
-        data_class=Shim2018PretrainConfig, data=pretrained_model_config_dict
+    pretrained_model_config: Zannone2019PretrainConfig = from_dict(
+        data_class=Zannone2019PretrainConfig, data=pretrained_model_config_dict
     )
 
     # Load the dataset that the pretrained model was trained on
@@ -123,7 +114,7 @@ def load_pretrained_model_artifacts(
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
     log.debug(f"Class probabilities in training set: {train_class_probabilities}")
 
-    pretrained_model = get_shim2018_model_from_config(
+    pretrained_model = get_zannone2019_model_from_config(
         pretrained_model_config,
         n_features,
         n_classes,
@@ -150,9 +141,9 @@ log = logging.getLogger(__name__)
 
 
 @hydra.main(
-    version_base=None, config_path="../../conf/train/shim2018", config_name="config"
+    version_base=None, config_path="../../conf/train/zannone2019", config_name="config"
 )
-def main(cfg: Shim2018TrainConfig):
+def main(cfg: Zannone2019TrainConfig):
     log.debug(cfg)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
@@ -179,19 +170,19 @@ def main(cfg: Shim2018TrainConfig):
     n_classes = train_dataset.labels.shape[-1]
 
     pretrained_model.eval()
+    pretrained_model.requires_grad_(False)  # zannone2019 does not train jointly
     pretrained_model = pretrained_model.to(device)
 
-    pretrained_model_optim = optim.Adam(
-        pretrained_model.parameters(), lr=cfg.pretrained_model_lr
-    )
+    # TODO: use the model to generate more data
 
     # The RL reward function depends on a specific AFAClassifier
     reward_fn = get_common_reward_fn(
-        Shim2018AFAPredictFn(pretrained_model),
+        Zannone2019AFAPredictFn(pretrained_model),
         loss_fn=partial(F.cross_entropy, weight=class_weights),
     )
 
     # MDP expects special dataset functions
+    # TODO: use the additionally generated data
     train_dataset_fn = get_afa_dataset_fn(train_dataset.features, train_dataset.labels)
     val_dataset_fn = get_afa_dataset_fn(val_dataset.features, val_dataset.labels)
 
@@ -216,17 +207,26 @@ def main(cfg: Shim2018TrainConfig):
         hard_budget=cfg.hard_budget,
     )
 
-    agent: Agent = Shim2018Agent(
-        embedder=pretrained_model.embedder,
-        embedding_size=pretrained_model_config.encoder.output_size,
-        n_features=n_features,
-        action_mask_key="action_mask",
+    agent: Agent = Zannone2019Agent(
         action_spec=train_env.action_spec,
         _device=device,
-        gamma=1.0,
-        loss_function="l2",
+        gamma=cfg.agent.gamma,
+        lmbda=cfg.agent.lmbda,
+        clip_epsilon=cfg.agent.clip_epsilon,
+        entropy_bonus=cfg.agent.entropy_bonus,
+        entropy_coef=cfg.agent.entropy_coef,
+        critic_coef=cfg.agent.critic_coef,
+        loss_critic_type=cfg.agent.loss_critic_type,
+        lr=cfg.agent.lr,
+        max_grad_norm=cfg.agent.max_grad_norm,
+        batch_size=cfg.batch_size,
+        sub_batch_size=cfg.agent.sub_batch_size,
+        num_epochs=cfg.agent.num_epochs,
         replay_buffer_device=device,
-        **OmegaConf.to_container(cfg.agent, resolve=True),  # pyright: ignore
+        # subclass kwargs
+        pointnet=pretrained_model.partial_vae.pointnet,
+        encoder=pretrained_model.partial_vae.encoder,
+        latent_size=pretrained_model_config.partial_vae.latent_size,
     )
 
     collector = SyncDataCollector(
@@ -236,6 +236,7 @@ def main(cfg: Shim2018TrainConfig):
         total_frames=cfg.n_batches * cfg.batch_size,
         # device=device,
     )
+
     # Training loop
     try:
         for batch_idx, tds in tqdm(
@@ -247,24 +248,6 @@ def main(cfg: Shim2018TrainConfig):
             td = tds.flatten(start_dim=0, end_dim=1)
             loss_info = agent.process_batch(td)
 
-            # Train classifier and embedder jointly if we have reached the correct batch
-            if batch_idx >= cfg.activate_joint_training_after_n_batches:
-                pretrained_model.train()
-                pretrained_model_optim.zero_grad()
-
-                _, logits_next = pretrained_model(
-                    td["next", "masked_features"], td["next", "feature_mask"]
-                )
-                class_loss_next = F.cross_entropy(
-                    logits_next, td["next", "label"], weight=class_weights
-                )
-                class_loss_next.mean().backward()
-
-                pretrained_model_optim.step()
-                pretrained_model.eval()
-            else:
-                class_loss_next = torch.zeros((1,), device=device, dtype=torch.float32)
-
             # Log training info
             run.log(
                 {
@@ -274,15 +257,7 @@ def main(cfg: Shim2018TrainConfig):
                         | agent.get_train_info()
                         | {
                             "reward": td["next", "reward"].mean().item(),
-                            # "action value": td["action_value"].mean().item(),
-                            "chosen action value": td["chosen_action_value"]
-                            .mean()
-                            .item(),
-                            # "actions": wandb.Histogram(
-                            #     td["action"].tolist(), num_bins=20
-                            # ),
                         }
-                        | {"class_loss": class_loss_next.mean().cpu().item()}
                     ).items()
                 },
             )
@@ -292,33 +267,18 @@ def main(cfg: Shim2018TrainConfig):
                     torch.no_grad(),
                     set_exploration_type(ExplorationType.DETERMINISTIC),
                 ):
-                    # HACK: Set the action spec of the agent to the eval env action spec
-                    agent.egreedy_module._spec = eval_env.action_spec  # pyright: ignore
                     td_evals = [
                         eval_env.rollout(cfg.eval_max_steps, agent.policy).squeeze(0)
                         for _ in tqdm(range(cfg.n_eval_episodes), desc="Evaluating")
                     ]
-                    # Reset the action spec of the agent to the train env action spec
-                    agent.egreedy_module._spec = train_env.action_spec  # pyright: ignore
                 metrics_eval = get_eval_metrics(
-                    td_evals, Shim2018AFAPredictFn(pretrained_model)
+                    td_evals, Zannone2019AFAPredictFn(pretrained_model)
                 )
                 run.log(
                     {
                         **{
                             f"eval/{k}": v
-                            for k, v in (
-                                metrics_eval
-                                | agent.get_eval_info()
-                                | {
-                                    "classifier_norm": module_norm(
-                                        pretrained_model.classifier
-                                    ),
-                                    "embedder_norm": module_norm(
-                                        pretrained_model.embedder
-                                    ),
-                                }
-                            ).items()
+                            for k, v in (metrics_eval | agent.get_eval_info()).items()
                         },
                     }
                 )
@@ -331,7 +291,7 @@ def main(cfg: Shim2018TrainConfig):
         pretrained_model = pretrained_model.to(torch.device("cpu"))
         afa_method = RLAFAMethod(
             agent.policy,
-            Shim2018AFAClassifier(pretrained_model, device=torch.device("cpu")),
+            Zannone2019AFAClassifier(pretrained_model, device=torch.device("cpu")),
         )
         # Save the method to a temporary directory and load it again to ensure it is saved correctly
         with TemporaryDirectory(delete=False) as tmp_path_str:
@@ -361,10 +321,10 @@ def main(cfg: Shim2018TrainConfig):
             # Save the model as a WandB artifact
             # Save the name of the afa method class as metadata
             afa_method_artifact = wandb.Artifact(
-                name=f"train_shim2018-{pretrained_model_config.dataset_artifact_name.split(':')[0]}-budget_{cfg.hard_budget}-seed_{cfg.seed}",
+                name=f"train_zannone2019-{pretrained_model_config.dataset_artifact_name.split(':')[0]}-budget_{cfg.hard_budget}-seed_{cfg.seed}",
                 type="trained_method",
                 metadata={
-                    "method_type": "shim2018",
+                    "method_type": "zannone2019",
                     "dataset_artifact_name": pretrained_model_config.dataset_artifact_name,
                     "dataset_type": dataset_metadata["dataset_type"],
                     "budget": cfg.hard_budget,

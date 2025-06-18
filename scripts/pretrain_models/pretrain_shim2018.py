@@ -60,12 +60,9 @@ def main(cfg: Shim2018PretrainConfig) -> None:
         monitor="val_loss_many_observations",  # val_loss_few_observations could also work but is probably not as robust
         save_top_k=1,
         mode="min",
-        # dirpath=pretrained_model_path,
-        # filename="best-checkpoint",
     )
 
     logger = WandbLogger()
-    # logger = WandbLogger(project=config.wandb.project, save_dir="logs/afa_rl")
     trainer = pl.Trainer(
         max_epochs=cfg.epochs,
         logger=logger,

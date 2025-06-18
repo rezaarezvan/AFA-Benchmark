@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Tuple
+from typing import Tuple, final, override
 
 import lightning as pl
 import torch
@@ -104,6 +104,7 @@ class PointNet(nn.Module):
         return encoding
 
 
+@final
 class PartialVAE(nn.Module):
     """A partial VAE for masked data, as described in "EDDI: Efficient Dynamic Discovery of High-Value Information with Partial VAE".
 
@@ -143,6 +144,7 @@ class PartialVAE(nn.Module):
 
         return encoding, mu, logvar, z
 
+    @override
     def forward(self, masked_features: MaskedFeatures, feature_mask: FeatureMask):
         # Encode the masked features
         encoding, mu, logvar, z = self.encode(masked_features, feature_mask)
@@ -153,166 +155,230 @@ class PartialVAE(nn.Module):
         return encoding, mu, logvar, z, x_hat
 
 
-# class Zannone2019PretrainingModel(pl.LightningModule):
-#     def __init__(
-#         self,
-#         partial_vae: PartialVAE,
-#         classifier: nn.Module,
-#         lr: float,
-#         max_masking_probability: float,
-#         class_probabilities: Float[Tensor, "n_classes"],
-#         validation_masking_probability=0.0,
-#         verbose=False,
-#         kl_scaling_factor=1e-3,
-#         recon_loss_type="squared error",
-#     ):
-#         super().__init__()
-#         self.partial_vae = partial_vae
-#         self.classifier = classifier
-#         self.lr = lr
-#         self.max_masking_probability = max_masking_probability
-#         self.class_weights = 1 / class_probabilities
-#         self.class_weights = self.class_weights / torch.sum(self.class_weights)
-#         self.validation_masking_probability = validation_masking_probability
-#         self.verbose = verbose
-#         self.kl_scaling_factor = kl_scaling_factor
-#
-#         self.recon_loss_type = recon_loss_type
-#         if recon_loss_type not in ["squared error", "cross entropy"]:
-#             raise ValueError(
-#                 f"Unknown reconstruction loss type: {self.recon_loss_type}. Use 'squared error' or 'cross entropy'."
-#             )
-#
-#     def training_step(self, batch, batch_idx):
-#         features: Features = batch[0]
-#         label: Label = batch[1]
-#
-#         masking_probability = torch.rand(1).item() * self.max_masking_probability
-#         self.log("masking_probability", masking_probability, sync_dist=True)
-#
-#         masked_features, feature_mask, _ = mask_data(features, p=masking_probability)
-#
-#         # Pass masked features through VAE, returning estimated features but also encoding which will be passed through classifier
-#         encoding, mu, logvar, z, estimated_features = self.partial_vae(
-#             masked_features, feature_mask
-#         )
-#         partial_vae_loss = self.partial_vae_loss_function(
-#             estimated_features, features, mu, logvar
-#         )
-#         self.log("train_loss_vae", partial_vae_loss, sync_dist=True)
-#
-#         # Pass the encoding through the classifier
-#         logits = self.classifier(z)  # TODO: mu might also work
-#         classifier_loss = F.cross_entropy(logits, label.float(), weight=self.class_weights.to(logits.device))
-#         self.log("train_loss_classifier", classifier_loss, sync_dist=True)
-#
-#         total_loss = partial_vae_loss + classifier_loss
-#         self.log("train_loss", total_loss, sync_dist=True)
-#
-#         return total_loss
-#
-#     def validation_step(self, batch, batch_idx):
-#         features: Features = batch[0]
-#         label: Label = batch[1]
-#
-#         # Constant masking probability for validation
-#         masked_features, feature_mask, _ = mask_data(
-#             features, p=self.validation_masking_probability
-#         )
-#
-#         # Pass masked features through VAE, returning estimated features but also encoding which will be passed through classifier
-#         encoding, mu, logvar, z, estimated_features = self.partial_vae(
-#             masked_features, feature_mask
-#         )
-#         partial_vae_loss = self.partial_vae_loss_function(
-#             estimated_features, features, mu, logvar
-#         )
-#         self.log("val_loss_vae", partial_vae_loss, sync_dist=True)
-#
-#         # Pass the encoding through the classifier
-#         logits = self.classifier(z)
-#         classifier_loss = F.cross_entropy(logits, label.float(), weight=self.class_weights.to(logits.device))
-#         self.log("val_loss_classifier", classifier_loss, sync_dist=True)
-#
-#         # For validation, additionally calculate accuracy
-#         y_pred = torch.argmax(logits, dim=1)
-#         y_cls = torch.argmax(label, dim=1)
-#         acc = (y_pred == y_cls).float().mean()
-#         self.log("val_acc", acc, sync_dist=True)
-#
-#         total_loss = partial_vae_loss + classifier_loss
-#         self.log("val_loss", total_loss, sync_dist=True)
-#
-#         if self.verbose:
-#             # Log the total L2 norm of all parameters in the autoencoder
-#             norm_vae = torch.norm(
-#                 torch.stack(
-#                     [
-#                         torch.norm(p.detach())
-#                         for p in self.partial_vae.parameters()
-#                         if p.requires_grad
-#                     ]
-#                 )
-#             )
-#             self.log("norm_vae", norm_vae, sync_dist=True)
-#
-#             # Log the total L2 norm of all parameters in the classifier
-#             norm_classifier = torch.norm(
-#                 torch.stack(
-#                     [
-#                         torch.norm(p.detach())
-#                         for p in self.classifier.parameters()
-#                         if p.requires_grad
-#                     ]
-#                 )
-#             )
-#             self.log("norm_classifier", norm_classifier, sync_dist=True)
-#
-#             # If self.image_shape is defined, plot 4 images, their reconstructions and the predicted labels
-#             if batch_idx == 0:
-#                 self.log_val_features(
-#                     features=masked_features,
-#                     estimated_features=estimated_features,
-#                     z=z,
-#                     y_cls=y_cls,
-#                     y_pred=y_pred,
-#                 )
-#
-#         return total_loss
-#
-#     @rank_zero_only
-#     def log_val_features(self, features, z, estimated_features, y_cls, y_pred):
-#         # Plot the first 4 samples
-#         fig, axs = plt.subplots(3, 4, figsize=(20, 10))
-#         for i in range(4):
-#             axs[0, i].plot(features[i].cpu().numpy())
-#             axs[1, i].plot(z[i].cpu().numpy())
-#             axs[2, i].plot(estimated_features[i].cpu().numpy())
-#             # Labels as titles
-#             axs[0, i].set_title(f"True: {y_cls[i].item()}")
-#             axs[1, i].set_title("Latent space")
-#             axs[2, i].set_title(f"Pred: {y_pred[i].item()}")
-#
-#         wandb.log({"val_recon": wandb.Image(fig)})
-#         plt.close(fig)
-#
-#     def partial_vae_loss_function(self, estimated_features, features, mu, logvar):
-#         if self.recon_loss_type == "squared error":
-#             recon_loss = ((estimated_features - features) ** 2).sum()
-#         elif self.recon_loss_type == "cross entropy":
-#             recon_loss = F.binary_cross_entropy(
-#                 estimated_features, features, reduction="sum"
-#             )
-#         else:
-#             raise ValueError(
-#                 f"Unknown reconstruction loss type: {self.recon_loss_type}. Use 'squared error' or 'cross entropy'."
-#             )
-#         kl_div = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-#         return recon_loss + self.kl_scaling_factor * kl_div
-#
-#     def configure_optimizers(self):
-#         return torch.optim.Adam(self.parameters(), lr=self.lr)
-#
+class PartialVAELossType(Enum):
+    SQUARED_ERROR = 1
+    BINARY_CROSS_ENTROPY = 2
+
+
+@final
+class Zannone2019PretrainingModel(pl.LightningModule):
+    def __init__(
+        self,
+        partial_vae: PartialVAE,
+        classifier: nn.Module,
+        class_probabilities: Float[Tensor, "n_classes"],
+        min_masking_probability: float,
+        max_masking_probability: float,
+        lr: float,
+        kl_scaling_factor: float = 1e-3,
+        recon_loss_type: PartialVAELossType = PartialVAELossType.SQUARED_ERROR,
+    ):
+        super().__init__()
+        self.partial_vae: PartialVAE = partial_vae
+        self.classifier: nn.Module = classifier
+        self.lr: float = lr
+        self.min_masking_probability: float = min_masking_probability
+        self.max_masking_probability: float = max_masking_probability
+        self.class_weights = 1 / class_probabilities
+        self.class_weights: Tensor = self.class_weights / torch.sum(self.class_weights)
+        self.kl_scaling_factor: float = kl_scaling_factor
+
+        self.recon_loss_type = recon_loss_type
+
+    @override
+    def training_step(self, batch: tuple[Tensor, Tensor], batch_idx: int):
+        features: Features = batch[0]
+        label: Label = batch[1]
+
+        masking_probability = self.min_masking_probability + torch.rand(1).item() * (
+            self.max_masking_probability - self.min_masking_probability
+        )
+        self.log("masking_probability", masking_probability, sync_dist=True)
+
+        masked_features, feature_mask, _ = mask_data(features, p=masking_probability)
+
+        # Pass masked features through VAE, returning estimated features but also encoding which will be passed through classifier
+        encoding, mu, logvar, z, estimated_features = self.partial_vae(
+            masked_features, feature_mask
+        )
+        partial_vae_loss = self.partial_vae_loss_function(
+            estimated_features, features, mu, logvar
+        )
+        self.log("train_loss_vae", partial_vae_loss, sync_dist=True)
+
+        # Pass the encoding through the classifier
+        logits = self.classifier(z)  # TODO: mu might also work
+        classifier_loss = F.cross_entropy(
+            logits, label.float(), weight=self.class_weights.to(logits.device)
+        )
+        self.log("train_loss_classifier", classifier_loss, sync_dist=True)
+
+        total_loss = partial_vae_loss + classifier_loss
+        self.log("train_loss", total_loss, sync_dist=True)
+
+        return total_loss
+
+    def _get_loss_and_acc(
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        features: Features,
+        label: Label,
+    ) -> tuple[Tensor, Tensor, Tensor]:
+        # Pass masked features through VAE, returning estimated features but also encoding which will be passed through classifier
+        _encoder, mu, logvar, z, estimated_features = self.partial_vae(
+            masked_features, feature_mask
+        )
+        partial_vae_loss = self.partial_vae_loss_function(
+            estimated_features, features, mu, logvar
+        )
+
+        # Pass the encoding through the classifier
+        logits = self.classifier(z)
+        classifier_loss = F.cross_entropy(
+            logits, label, weight=self.class_weights.to(logits.device)
+        )
+
+        # For validation, additionally calculate accuracy
+        y_pred = torch.argmax(logits, dim=1)
+        y_cls = torch.argmax(label, dim=1)
+        acc = (y_pred == y_cls).float().mean()
+
+        return partial_vae_loss, classifier_loss, acc
+
+    # def verbose_log(self):
+    #     # Log the total L2 norm of all parameters in the autoencoder
+    #     norm_vae = torch.norm(
+    #         torch.stack(
+    #             [
+    #                 torch.norm(p.detach())
+    #                 for p in self.partial_vae.parameters()
+    #                 if p.requires_grad
+    #             ]
+    #         )
+    #     )
+    #     self.log("norm_vae", norm_vae, sync_dist=True)
+    #
+    #     # Log the total L2 norm of all parameters in the classifier
+    #     norm_classifier = torch.norm(
+    #         torch.stack(
+    #             [
+    #                 torch.norm(p.detach())
+    #                 for p in self.classifier.parameters()
+    #                 if p.requires_grad
+    #             ]
+    #         )
+    #     )
+    #     self.log("norm_classifier", norm_classifier, sync_dist=True)
+    #
+    #     # If self.image_shape is defined, plot 4 images, their reconstructions and the predicted labels
+    #     if batch_idx == 0:
+    #         self.log_val_features(
+    #             features=masked_features,
+    #             estimated_features=estimated_features,
+    #             z=z,
+    #             y_cls=y_cls,
+    #             y_pred=y_pred,
+    #         )
+
+    @override
+    def validation_step(self, batch: tuple[Tensor, Tensor], batch_idx: int):
+        feature_values, y = batch
+
+        # Mask features with minimum probability -> see many features (observations)
+        feature_mask_many_observations = (
+            torch.rand(feature_values.shape, device=feature_values.device)
+            > self.min_masking_probability
+        )
+        feature_values_many_observations = feature_values.clone()
+        feature_values_many_observations[feature_mask_many_observations == 0] = 0
+        (
+            loss_vae_many_observations,
+            loss_classifier_many_observations,
+            acc_many_observations,
+        ) = self._get_loss_and_acc(
+            feature_values_many_observations,
+            feature_mask_many_observations,
+            feature_values,
+            y,
+        )
+        self.log("val_loss_vae_many_observations", loss_vae_many_observations)
+        self.log(
+            "val_loss_classifier_many_observations", loss_classifier_many_observations
+        )
+        self.log(
+            "val_loss_many_observations",
+            loss_vae_many_observations + loss_classifier_many_observations,
+        )
+        self.log("val_acc_many_observations", acc_many_observations)
+
+        # Mask features with maximum probability -> see few features (observations)
+        feature_mask_few_observations = (
+            torch.rand(feature_values.shape, device=feature_values.device)
+            > self.max_masking_probability
+        )
+        feature_values_few_observations = feature_values.clone()
+        feature_values_few_observations[feature_mask_few_observations == 0] = 0
+        (
+            loss_vae_few_observations,
+            loss_classifier_few_observations,
+            acc_few_observations,
+        ) = self._get_loss_and_acc(
+            feature_values_few_observations,
+            feature_mask_few_observations,
+            feature_values,
+            y,
+        )
+        self.log("val_loss_vae_few_observations", loss_vae_few_observations)
+        self.log(
+            "val_loss_classifier_few_observations", loss_classifier_few_observations
+        )
+        self.log(
+            "val_loss_few_observations",
+            loss_vae_few_observations + loss_classifier_few_observations,
+        )
+        self.log("val_acc_few_observations", acc_few_observations)
+
+        # if self.verbose:
+        #     self.verbose_log()
+
+    # @rank_zero_only
+    # def log_val_features(self, features, z, estimated_features, y_cls, y_pred):
+    #     # Plot the first 4 samples
+    #     fig, axs = plt.subplots(3, 4, figsize=(20, 10))
+    #     for i in range(4):
+    #         axs[0, i].plot(features[i].cpu().numpy())
+    #         axs[1, i].plot(z[i].cpu().numpy())
+    #         axs[2, i].plot(estimated_features[i].cpu().numpy())
+    #         # Labels as titles
+    #         axs[0, i].set_title(f"True: {y_cls[i].item()}")
+    #         axs[1, i].set_title("Latent space")
+    #         axs[2, i].set_title(f"Pred: {y_pred[i].item()}")
+    #
+    #     wandb.log({"val_recon": wandb.Image(fig)})
+    #     plt.close(fig)
+
+    def partial_vae_loss_function(
+        self, estimated_features: Tensor, features: Tensor, mu: Tensor, logvar: Tensor
+    ):
+        if self.recon_loss_type == PartialVAELossType.SQUARED_ERROR:
+            recon_loss = ((estimated_features - features) ** 2).sum()
+        elif self.recon_loss_type == PartialVAELossType.BINARY_CROSS_ENTROPY:
+            recon_loss = F.binary_cross_entropy(
+                estimated_features, features, reduction="sum"
+            )
+        else:
+            raise ValueError(
+                f"Unknown reconstruction loss type: {self.recon_loss_type}. Use any of {set(map(str, PartialVAELossType))}"
+            )
+        kl_div = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+        return recon_loss + self.kl_scaling_factor * kl_div
+
+    @override
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.parameters(), lr=self.lr)
+
+
 # class Zannone2019NNMaskedClassifier(NNMaskedClassifier):
 #     """Wraps Zannone2019PretrainingModel to make it compatible with the NNMaskedClassifier interface."""
 #
@@ -323,7 +389,9 @@ class PartialVAE(nn.Module):
 #     def forward(
 #         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
 #     ) -> Logits:
-#         encoding, mu, logvar, z= self.pretrained_model.partial_vae.encode(masked_features, feature_mask)
+#         encoding, mu, logvar, z = self.pretrained_model.partial_vae.encode(
+#             masked_features, feature_mask
+#         )
 #         logits = self.pretrained_model.classifier(mu)
 #         return logits
 #
@@ -332,13 +400,17 @@ class PartialVAE(nn.Module):
 #     """Wrap Zannone2019PretrainingModel to make it compatible with the MaskedClassifier interface."""
 #
 #     def __init__(self, pretrained_model: Zannone2019PretrainingModel):
-#         self.pretrained_model  = pretrained_model
+#         self.pretrained_model = pretrained_model
 #
-#     def __call__(self, masked_features: MaskedFeatures, feature_mask: FeatureMask) -> Logits:
+#     def __call__(
+#         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+#     ) -> Logits:
 #         model_device = next(self.pretrained_model.parameters()).device
 #         masked_features = masked_features.to(model_device)
 #         feature_mask = feature_mask.to(model_device)
 #         with torch.no_grad():
-#             encoding, mu, logvar, z= self.pretrained_model.partial_vae.encode(masked_features, feature_mask)
+#             encoding, mu, logvar, z = self.pretrained_model.partial_vae.encode(
+#                 masked_features, feature_mask
+#             )
 #             logits = self.pretrained_model.classifier(mu)
 #         return logits
