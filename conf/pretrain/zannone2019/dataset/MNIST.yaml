@@ -1,12 +1,12 @@
-dataset_artifact_name: "cube_split_1:tmp"
+dataset_artifact_name: "MNIST_split_1:tmp"
 batch_size: 128
-epochs: 2000
+epochs: 150
 limit_train_batches: null
 limit_val_batches: null
 
 lr: 1e-3
 min_masking_probability: 0.0
-max_masking_probability: 0.9
+max_masking_probability: 0.99
 pointnet:
   type: "pointnetplus" # ODIN paper does not mention which type they use
   identity_network_num_cells: [128,128]

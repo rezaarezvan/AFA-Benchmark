@@ -65,6 +65,8 @@ cs.store(name="dataset_generation", node=DatasetGenerationConfig)
 
 # --- PRETRAINING MODELS ---
 
+# shim2018
+
 
 @dataclass
 class Shim2018EncoderConfig:
@@ -102,6 +104,8 @@ class Shim2018PretrainConfig:
 
 
 cs.store(name="pretrain_shim2018", node=Shim2018PretrainConfig)
+
+# zannone2019
 
 
 @dataclass
@@ -170,12 +174,15 @@ class Zannone2019PretrainConfig:
         "squared_error"  # one of "squared_error" or "binary_cross_entropy"
     )
     kl_scaling_factor: float = 1e-3
+    classifier_loss_scaling_factor: float = 1
     output_artifact_aliases: list[str] = field(default_factory=lambda: [])
 
 
 cs.store(name="pretrain_zannone2019", node=Zannone2019PretrainConfig)
 
 # --- TRAINING METHODS ---
+
+# shim2018
 
 
 @dataclass
@@ -196,6 +203,7 @@ class Shim2018AgentConfig:
     delay_value: bool = True
     double_dqn: bool = True
     action_value_num_cells: list[int] = field(default_factory=lambda: [128, 128])
+    action_value_dropout: float = 0.1
 
 
 @dataclass
@@ -220,6 +228,8 @@ class Shim2018TrainConfig:
 
 
 cs.store(name="train_shim2018", node=Shim2018TrainConfig)
+
+# randomdummy
 
 
 @dataclass
@@ -284,6 +294,51 @@ class RandomDummyTrainConfig:
     hard_budget: int  # not used, but pretend that it is
     seed: int = 42
     output_artifact_aliases: list[str] = field(default_factory=lambda: [])
+
+
+# zannone2019
+
+
+@dataclass
+class Zannone2019AgentConfig:
+    gamma: float = 1.0
+    lmbda: float = 0.95
+    clip_epsilon: float = 0.2
+    entropy_bonus: bool = True
+    entropy_coef: float = 0.0001
+    critic_coef: float = 1.0
+    loss_critic_type: str = "smooth_l1"
+    lr: float = 1e-3
+    max_grad_norm: float = 1.0
+    sub_batch_size: int = 128
+    num_epochs: int = 4
+    value_num_cells: list[int] = field(default_factory=lambda: [128, 128])
+    value_dropout: float = 0.1
+    policy_num_cells: list[int] = field(default_factory=lambda: [128, 128])
+    policy_dropout: float = 0.1
+
+
+@dataclass
+class Zannone2019TrainConfig:
+    pretrained_model_artifact_name: str
+    n_agents: int
+    hard_budget: int
+    agent: Zannone2019AgentConfig
+    n_batches: int  # how many batches to train the agent
+    batch_size: int  # batch size for collector
+    eval_every_n_batches: int  # how often to evaluate the agent
+    eval_max_steps: int  # maximum allowed number of steps in an evaluation episode
+    n_eval_episodes: int  # how many episodes to average over in evaluation
+    n_generated_samples: (
+        int  # how many artificial samples to generate using pretrained model
+    )
+    generation_batch_size: int  # which batch size to use for artificial data generation
+
+    device: str = "cuda"
+    seed: int = 42
+    output_artifact_aliases: list[str] = field(default_factory=lambda: [])
+    evaluate_final_performance: bool = True
+    eval_only_n_samples: int | None = None
 
 
 cs.store(name="train_randomdummy", node=RandomDummyTrainConfig)

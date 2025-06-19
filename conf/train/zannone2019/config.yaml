@@ -9,7 +9,6 @@ defaults:
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
 
-device: "cuda"
+device: cuda
 seed: 42
 output_artifact_aliases: ["tmp"]
-

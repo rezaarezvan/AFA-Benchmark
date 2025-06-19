@@ -1,75 +1,47 @@
-import argparse
 from functools import partial
 import gc
 import logging
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from typing import Any, cast
+from tempfile import TemporaryDirectory
 
 import hydra
 from omegaconf import OmegaConf
 import torch
-import yaml
-from jaxtyping import Float
 from tensordict import TensorDictBase
-from torch import Tensor, optim
 from torch.nn import functional as F
 from torchrl.collectors import SyncDataCollector
 from torchrl.envs import ExplorationType, check_env_specs, set_exploration_type
-from common.config_classes import Zannone2019PretrainConfig
-from eval.metrics import eval_afa_method
-from eval.utils import plot_metrics
-from torchrl_agents import Agent
+from afa_rl.agents import Agent
 from tqdm import tqdm
+from dacite import from_dict
 
 import wandb
 from afa_rl.afa_env import AFAEnv, get_common_reward_fn
 from afa_rl.afa_methods import RLAFAMethod
-from afa_rl.shim2018.agents import Shim2018Agent
-from afa_rl.custom_types import MaskedClassifier
-from afa_rl.datasets import get_afa_dataset_fn
-from afa_rl.shim2018.models import Shim2018MaskedClassifier, Shim2018NNMaskedClassifier
-from afa_rl.shim2018.scripts.pretrain_shim2018 import get_shim2018_model_from_config
-from afa_rl.utils import check_masked_classifier_performance
 from afa_rl.zannone2019.agents import Zannone2019Agent
+from afa_rl.datasets import get_afa_dataset_fn
 from afa_rl.zannone2019.models import (
-    Zannone2019MaskedClassifier,
-    Zannone2019NNMaskedClassifier,
     Zannone2019PretrainingModel,
+    Zannone2019AFAClassifier,
+    Zannone2019AFAPredictFn,
 )
-from afa_rl.zannone2019.scripts.pretrain_zannone2019 import (
+from afa_rl.zannone2019.utils import (
     get_zannone2019_model_from_config,
 )
+from afa_rl.utils import (
+    get_eval_metrics,
+    module_norm,
+)
+from common.config_classes import Zannone2019PretrainConfig, Zannone2019TrainConfig
 from common.custom_types import (
     AFADataset,
+    AFAPredictFn,
 )
-from common.utils import (
-    dict_to_namespace,
-    get_class_probabilities,
-    load_dataset_artifact,
-    set_seed,
-)
+from common.utils import get_class_probabilities, load_dataset_artifact, set_seed
 
-
-def get_eval_metrics(
-    eval_tds: list[TensorDictBase], pretrained_model: Zannone2019PretrainingModel
-) -> dict[str, Any]:
-    eval_metrics = {}
-    eval_metrics["reward_sum"] = 0.0
-    n_correct_samples = 0
-    for td in eval_tds:
-        eval_metrics["reward_sum"] += td["next", "reward"].sum()
-        # Check whether prediction is correct
-        td_end = td[-1:]
-        encoding, mu, logvar, z = pretrained_model.partial_vae.encode(
-            td_end["masked_features"], td_end["feature_mask"]
-        )
-        logits = pretrained_model.classifier(mu)
-        if logits.argmax(dim=-1) == td_end["label"].argmax(dim=-1):
-            n_correct_samples += 1
-    eval_metrics["reward_sum"] /= len(eval_tds)
-    eval_metrics["accuracy"] = n_correct_samples / len(eval_tds)
-    return eval_metrics
+from eval.metrics import eval_afa_method
+from eval.utils import plot_metrics
 
 
 def load_pretrained_model_artifacts(
@@ -163,17 +135,16 @@ def main(cfg: Zannone2019TrainConfig):
         pretrained_model,
         pretrained_model_config,
     ) = load_pretrained_model_artifacts(cfg.pretrained_model_artifact_name)
+    pretrained_model = pretrained_model.to(device)
+    pretrained_model.eval()
+    pretrained_model.requires_grad_(False)  # zannone2019 does not train jointly
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
     log.debug(f"Class probabilities in training set: {train_class_probabilities}")
     class_weights = F.softmax(1 / train_class_probabilities, dim=-1).to(device)
     n_features = train_dataset.features.shape[-1]
     n_classes = train_dataset.labels.shape[-1]
 
-    pretrained_model.eval()
-    pretrained_model.requires_grad_(False)  # zannone2019 does not train jointly
     pretrained_model = pretrained_model.to(device)
-
-    # TODO: use the model to generate more data
 
     # The RL reward function depends on a specific AFAClassifier
     reward_fn = get_common_reward_fn(
@@ -181,9 +152,36 @@ def main(cfg: Zannone2019TrainConfig):
         loss_fn=partial(F.cross_entropy, weight=class_weights),
     )
 
+    # Use the pretrained model to generate new artificial data
+    generated_features = torch.zeros(cfg.n_generated_samples, n_features)
+    generated_labels = torch.zeros(cfg.n_generated_samples, n_classes)
+    n_generation_batches = cfg.n_generated_samples // cfg.generation_batch_size
+    for batch_idx in range(n_generation_batches):
+        generated_features_batch, generated_labels_batch = (
+            pretrained_model.generate_data(
+                latent_size=pretrained_model_config.partial_vae.latent_size,
+                device=device,
+                n_samples=cfg.generation_batch_size,
+            )
+        )
+        generated_features[
+            batch_idx * cfg.generation_batch_size : (batch_idx + 1)
+            * cfg.generation_batch_size,
+            :,
+        ] = generated_features_batch
+        generated_labels[
+            batch_idx * cfg.generation_batch_size : (batch_idx + 1)
+            * cfg.generation_batch_size,
+            :,
+        ] = generated_labels_batch
+
+    # TODO: for MNIST, check that the generated data looks good
+
     # MDP expects special dataset functions
-    # TODO: use the additionally generated data
-    train_dataset_fn = get_afa_dataset_fn(train_dataset.features, train_dataset.labels)
+    train_dataset_fn = get_afa_dataset_fn(
+        torch.cat([train_dataset.features, generated_features]),
+        torch.cat([train_dataset.labels, generated_labels]),
+    )
     val_dataset_fn = get_afa_dataset_fn(val_dataset.features, val_dataset.labels)
 
     train_env = AFAEnv(
@@ -210,23 +208,13 @@ def main(cfg: Zannone2019TrainConfig):
     agent: Agent = Zannone2019Agent(
         action_spec=train_env.action_spec,
         _device=device,
-        gamma=cfg.agent.gamma,
-        lmbda=cfg.agent.lmbda,
-        clip_epsilon=cfg.agent.clip_epsilon,
-        entropy_bonus=cfg.agent.entropy_bonus,
-        entropy_coef=cfg.agent.entropy_coef,
-        critic_coef=cfg.agent.critic_coef,
-        loss_critic_type=cfg.agent.loss_critic_type,
-        lr=cfg.agent.lr,
-        max_grad_norm=cfg.agent.max_grad_norm,
         batch_size=cfg.batch_size,
-        sub_batch_size=cfg.agent.sub_batch_size,
-        num_epochs=cfg.agent.num_epochs,
         replay_buffer_device=device,
         # subclass kwargs
         pointnet=pretrained_model.partial_vae.pointnet,
         encoder=pretrained_model.partial_vae.encoder,
         latent_size=pretrained_model_config.partial_vae.latent_size,
+        **OmegaConf.to_container(cfg.agent, resolve=True),  # pyright: ignore
     )
 
     collector = SyncDataCollector(

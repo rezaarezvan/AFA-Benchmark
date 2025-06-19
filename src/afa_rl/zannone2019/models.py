@@ -1,23 +1,27 @@
 from enum import Enum
-from typing import Tuple, final, override
+from pathlib import Path
+from typing import Self, final, override
 
 import lightning as pl
 import torch
 import torch.nn.functional as F
-from jaxtyping import Float, Shaped
-from lightning.fabric.utilities import rank_zero_only
-from matplotlib import pyplot as plt
-from torch import Tensor, nn, optim
-from torchrl.modules import MLP
+from jaxtyping import Float
+from torch import Tensor, nn
 
-import wandb
 from afa_rl.custom_types import (
     NaiveIdentityFn,
 )
 from afa_rl.utils import (
     mask_data,
 )
-from common.custom_types import FeatureMask, Features, Logits, MaskedFeatures, Label
+from common.custom_types import (
+    AFAClassifier,
+    AFAPredictFn,
+    FeatureMask,
+    Features,
+    MaskedFeatures,
+    Label,
+)
 
 
 class PointNetType(Enum):
@@ -25,6 +29,7 @@ class PointNetType(Enum):
     POINTNETPLUS = 2
 
 
+@final
 class PointNet(nn.Module):
     """
     A PointNet(Plus).
@@ -51,6 +56,7 @@ class PointNet(nn.Module):
         self.feature_map_encoder = feature_map_encoder  # h in the paper
         self.pointnet_type = pointnet_type
 
+    @override
     def forward(
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
     ) -> Float[Tensor, "*batch pointnet_size"]:
@@ -171,6 +177,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         max_masking_probability: float,
         lr: float,
         kl_scaling_factor: float = 1e-3,
+        classifier_loss_scaling_factor: float = 1,
         recon_loss_type: PartialVAELossType = PartialVAELossType.SQUARED_ERROR,
     ):
         super().__init__()
@@ -181,6 +188,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         self.max_masking_probability: float = max_masking_probability
         self.class_weights = 1 / class_probabilities
         self.class_weights: Tensor = self.class_weights / torch.sum(self.class_weights)
+        self.classifier_loss_scaling_factor = classifier_loss_scaling_factor
         self.kl_scaling_factor: float = kl_scaling_factor
 
         self.recon_loss_type = recon_loss_type
@@ -201,19 +209,22 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         encoding, mu, logvar, z, estimated_features = self.partial_vae(
             masked_features, feature_mask
         )
-        partial_vae_loss = self.partial_vae_loss_function(
+        partial_vae_loss, partial_vae_recon_loss = self.partial_vae_loss_function(
             estimated_features, features, mu, logvar
         )
         self.log("train_loss_vae", partial_vae_loss, sync_dist=True)
+        self.log("train_recon_loss_vae", partial_vae_recon_loss, sync_dist=True)
 
         # Pass the encoding through the classifier
-        logits = self.classifier(z)  # TODO: mu might also work
+        logits = self.classifier(z)
         classifier_loss = F.cross_entropy(
             logits, label.float(), weight=self.class_weights.to(logits.device)
         )
         self.log("train_loss_classifier", classifier_loss, sync_dist=True)
 
-        total_loss = partial_vae_loss + classifier_loss
+        total_loss = (
+            partial_vae_loss + self.classifier_loss_scaling_factor * classifier_loss
+        )
         self.log("train_loss", total_loss, sync_dist=True)
 
         return total_loss
@@ -224,12 +235,12 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         feature_mask: FeatureMask,
         features: Features,
         label: Label,
-    ) -> tuple[Tensor, Tensor, Tensor]:
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
         # Pass masked features through VAE, returning estimated features but also encoding which will be passed through classifier
         _encoder, mu, logvar, z, estimated_features = self.partial_vae(
             masked_features, feature_mask
         )
-        partial_vae_loss = self.partial_vae_loss_function(
+        partial_vae_loss, partial_vae_recon_loss = self.partial_vae_loss_function(
             estimated_features, features, mu, logvar
         )
 
@@ -244,7 +255,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         y_cls = torch.argmax(label, dim=1)
         acc = (y_pred == y_cls).float().mean()
 
-        return partial_vae_loss, classifier_loss, acc
+        return partial_vae_loss, partial_vae_recon_loss, classifier_loss, acc
 
     # def verbose_log(self):
     #     # Log the total L2 norm of all parameters in the autoencoder
@@ -294,6 +305,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         feature_values_many_observations[feature_mask_many_observations == 0] = 0
         (
             loss_vae_many_observations,
+            recon_loss_vae_many_observations,
             loss_classifier_many_observations,
             acc_many_observations,
         ) = self._get_loss_and_acc(
@@ -303,6 +315,9 @@ class Zannone2019PretrainingModel(pl.LightningModule):
             y,
         )
         self.log("val_loss_vae_many_observations", loss_vae_many_observations)
+        self.log(
+            "val_recon_loss_vae_many_observations", recon_loss_vae_many_observations
+        )
         self.log(
             "val_loss_classifier_many_observations", loss_classifier_many_observations
         )
@@ -321,6 +336,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         feature_values_few_observations[feature_mask_few_observations == 0] = 0
         (
             loss_vae_few_observations,
+            recon_loss_vae_few_observations,
             loss_classifier_few_observations,
             acc_few_observations,
         ) = self._get_loss_and_acc(
@@ -330,6 +346,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
             y,
         )
         self.log("val_loss_vae_few_observations", loss_vae_few_observations)
+        self.log("val_recon_loss_vae_few_observations", recon_loss_vae_few_observations)
         self.log(
             "val_loss_classifier_few_observations", loss_classifier_few_observations
         )
@@ -362,55 +379,112 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         self, estimated_features: Tensor, features: Tensor, mu: Tensor, logvar: Tensor
     ):
         if self.recon_loss_type == PartialVAELossType.SQUARED_ERROR:
-            recon_loss = ((estimated_features - features) ** 2).sum()
+            recon_loss = ((estimated_features - features) ** 2).sum(dim=1).mean(dim=0)
         elif self.recon_loss_type == PartialVAELossType.BINARY_CROSS_ENTROPY:
             recon_loss = F.binary_cross_entropy(
-                estimated_features, features, reduction="sum"
+                estimated_features, features, reduction="mean"
             )
         else:
             raise ValueError(
                 f"Unknown reconstruction loss type: {self.recon_loss_type}. Use any of {set(map(str, PartialVAELossType))}"
             )
-        kl_div = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-        return recon_loss + self.kl_scaling_factor * kl_div
+        kl_div = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp()).sum(dim=1).mean(dim=0)
+        return recon_loss + self.kl_scaling_factor * kl_div, recon_loss
 
     @override
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.lr)
 
+    def generate_data(
+        self, latent_size: int, device: torch.device, n_samples: int = 1
+    ) -> tuple[Tensor, Tensor]:
+        """Generate `n_samples` of new data.
 
-# class Zannone2019NNMaskedClassifier(NNMaskedClassifier):
-#     """Wraps Zannone2019PretrainingModel to make it compatible with the NNMaskedClassifier interface."""
-#
-#     def __init__(self, pretrained_model: Zannone2019PretrainingModel):
-#         super().__init__()
-#         self.pretrained_model = pretrained_model
-#
-#     def forward(
-#         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
-#     ) -> Logits:
-#         encoding, mu, logvar, z = self.pretrained_model.partial_vae.encode(
-#             masked_features, feature_mask
-#         )
-#         logits = self.pretrained_model.classifier(mu)
-#         return logits
-#
-#
-# class Zannone2019MaskedClassifier(MaskedClassifier):
-#     """Wrap Zannone2019PretrainingModel to make it compatible with the MaskedClassifier interface."""
-#
-#     def __init__(self, pretrained_model: Zannone2019PretrainingModel):
-#         self.pretrained_model = pretrained_model
-#
-#     def __call__(
-#         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
-#     ) -> Logits:
-#         model_device = next(self.pretrained_model.parameters()).device
-#         masked_features = masked_features.to(model_device)
-#         feature_mask = feature_mask.to(model_device)
-#         with torch.no_grad():
-#             encoding, mu, logvar, z = self.pretrained_model.partial_vae.encode(
-#                 masked_features, feature_mask
-#             )
-#             logits = self.pretrained_model.classifier(mu)
-#         return logits
+        Args:
+            - latent_size (int): the size of the latent space, needed for sampling
+            - n_samples (int): how many samples to generate
+            - device (int): where to place the sampled latent vectors before passing them to the model
+        """
+
+        dist = torch.distributions.MultivariateNormal(
+            loc=torch.zeros(latent_size), covariance_matrix=torch.eye(latent_size)
+        )
+        z = dist.sample(torch.Size((n_samples,)))
+        z = z.to(device)
+
+        # Decode for features
+        x_hat = self.partial_vae.decoder(z)
+
+        # Apply classifier for class probabilities
+        logits = self.classifier(z)
+        probs = logits.softmax(dim=-1)
+
+        return x_hat, probs
+
+
+@final
+class Zannone2019AFAPredictFn(AFAPredictFn):
+    """A wrapper for the Zannone2019PretrainingModel to make it compatible with the AFAPredictFn interface."""
+
+    def __init__(self, model: Zannone2019PretrainingModel):
+        super().__init__()
+        self.model = model
+
+    @override
+    def __call__(
+        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+    ) -> Label:
+        _encoding, _mu, _logvar, z = self.model.partial_vae.encode(
+            masked_features, feature_mask
+        )
+        logits = self.model.classifier(z)
+        return logits.softmax(dim=-1)
+
+
+@final
+class Zannone2019AFAClassifier(AFAClassifier):
+    """A wrapper for the Zannone2019PretrainingModel to make it compatible with the AFAClassifier interface."""
+
+    def __init__(
+        self,
+        model: Zannone2019PretrainingModel,
+        device: torch.device,
+    ):
+        super().__init__()
+        self._device = device
+        self.model = model.to(self._device)
+
+    @override
+    def __call__(
+        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+    ) -> Label:
+        original_device = masked_features.device
+
+        masked_features = masked_features.to(self._device)
+        feature_mask = feature_mask.to(self._device)
+
+        _encoding, _mu, _logvar, z = self.model.partial_vae.encode(
+            masked_features, feature_mask
+        )
+        logits = self.model.classifier(z)
+        return logits.softmax(dim=-1).to(original_device)
+
+    @override
+    def save(self, path: Path) -> None:
+        torch.save(self.model.cpu(), path)
+
+    @classmethod
+    @override
+    def load(cls, path: Path, device: torch.device) -> Self:
+        model = torch.load(path, weights_only=False, map_location=device)
+        return cls(model, device)
+
+    @override
+    def to(self, device: torch.device) -> Self:
+        self.model = self.model.to(device)
+        return self
+
+    @property
+    @override
+    def device(self) -> torch.device:
+        return self._device
