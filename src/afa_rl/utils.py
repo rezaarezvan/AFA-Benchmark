@@ -2,9 +2,11 @@ from collections import defaultdict
 from collections.abc import Callable
 from typing import Any
 
+from tensordict import TensorDictBase
 import torch
 from jaxtyping import Integer
 from torch import Tensor, nn
+import wandb
 
 from afa_rl.custom_types import FeatureMask, FeatureSet
 from common.custom_types import AFAPredictFn, AFASelection, Features, MaskedFeatures
@@ -390,17 +392,25 @@ def module_norm(module: nn.Module) -> float:
     ).item()  # L2 norm (Euclidean norm)
 
 
-def resolve_dataset_config(config: dict, dataset_type: str) -> dict:
-    def resolve(value) -> dict:
-        if isinstance(value, dict):
-            # If the value has a dataset-specific override
-            if dataset_type in value and all(isinstance(k, str) for k in value):
-                return resolve(value[dataset_type])
-            else:
-                return {k: resolve(v) for k, v in value.items()}
-        elif isinstance(value, list):
-            return [resolve(v) for v in value]
-        else:
-            return value
-
-    return resolve(config)
+def get_eval_metrics(
+    eval_tds: list[TensorDictBase], afa_predict_fn: AFAPredictFn
+) -> dict[str, Any]:
+    """Return a dictionary of metrics from a list of tensordicts collected from a torchrl environment."""
+    eval_metrics = {}
+    eval_metrics["reward_sum"] = 0.0
+    eval_metrics["actions"] = []
+    n_correct_samples = 0
+    for td in eval_tds:
+        eval_metrics["reward_sum"] += td["next", "reward"].sum()
+        eval_metrics["actions"].extend(td["action"].tolist())
+        # Check whether prediction is correct
+        td_end = td[-1:]
+        probs = afa_predict_fn(
+            td_end["next", "masked_features"], td_end["next", "feature_mask"]
+        )
+        if probs.argmax(dim=-1) == td_end["label"].argmax(dim=-1):
+            n_correct_samples += 1
+    eval_metrics["reward_sum"] /= len(eval_tds)
+    eval_metrics["actions"] = wandb.Histogram(eval_metrics["actions"], num_bins=20)
+    eval_metrics["accuracy"] = n_correct_samples / len(eval_tds)
+    return eval_metrics
