@@ -27,11 +27,11 @@ from afa_rl.shim2018.models import (
     Shim2018AFAClassifier,
     Shim2018AFAPredictFn,
 )
-from afa_rl.shim2018.models import (
+from afa_rl.shim2018.utils import (
     get_shim2018_model_from_config,
 )
 from afa_rl.utils import (
-    afacontext_optimal_selection,
+    get_eval_metrics,
     module_norm,
 )
 from common.config_classes import Shim2018PretrainConfig, Shim2018TrainConfig
@@ -43,42 +43,6 @@ from common.utils import get_class_probabilities, load_dataset_artifact, set_see
 
 from eval.metrics import eval_afa_method
 from eval.utils import plot_metrics
-
-
-def get_eval_metrics(
-    eval_tds: list[TensorDictBase], afa_predict_fn: AFAPredictFn
-) -> dict[str, Any]:
-    eval_metrics = {}
-    eval_metrics["reward_sum"] = 0.0
-    eval_metrics["actions"] = []
-    n_correct_samples = 0
-    for td in eval_tds:
-        eval_metrics["reward_sum"] += td["next", "reward"].sum()
-        eval_metrics["actions"].extend(td["action"].tolist())
-        # Check whether prediction is correct
-        td_end = td[-1:]
-        probs = afa_predict_fn(
-            td_end["next", "masked_features"], td_end["next", "feature_mask"]
-        )
-        if probs.argmax(dim=-1) == td_end["label"].argmax(dim=-1):
-            n_correct_samples += 1
-    eval_metrics["reward_sum"] /= len(eval_tds)
-    eval_metrics["actions"] = wandb.Histogram(eval_metrics["actions"], num_bins=20)
-    eval_metrics["accuracy"] = n_correct_samples / len(eval_tds)
-    return eval_metrics
-
-
-def afacontext_benchmark_policy(
-    tensordict: TensorDictBase,
-) -> TensorDictBase:
-    """Select features optimally in AFAContext."""
-    masked_features = tensordict["masked_features"]
-    feature_mask = tensordict["feature_mask"]
-
-    selection = afacontext_optimal_selection(masked_features, feature_mask)
-
-    tensordict["action"] = selection
-    return tensordict
 
 
 def load_pretrained_model_artifacts(

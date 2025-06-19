@@ -14,6 +14,7 @@ agent:
   lr: 1e-3
   update_tau: 0.005
   action_value_num_cells: [128, 128]
+  action_value_dropout: 0.1
 n_batches: 1 # fast
 batch_size: 512
 eval_every_n_batches: 500

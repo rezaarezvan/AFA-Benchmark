@@ -13,7 +13,6 @@ from afa_rl.utils import (
     mask_data,
     shuffle_feature_set,
 )
-from common.config_classes import Shim2018PretrainConfig
 from common.custom_types import (
     AFAClassifier,
     AFAPredictFn,
@@ -23,10 +22,6 @@ from common.custom_types import (
     Label,
     Logits,
 )
-import numpy as np
-from torch.nn.utils.rnn import pack_padded_sequence as pack
-from torch.nn.utils.rnn import PackedSequence
-from torch.nn.utils.rnn import pad_packed_sequence as pad
 
 
 @final
@@ -142,6 +137,7 @@ class ReadProcessEncoder(nn.Module):
 
         return complete_output
 
+
 @final
 class Shim2018Embedder(Embedder):
     """Wrap a ReadProcessEmbedder to handle inputs consisting of features and their indices, using the representation described in "Joint Active Feature Acquisition and Classification with Variable-Size Set Encoding."""
@@ -228,7 +224,9 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
         features: Features = batch[0]
         label: Label = batch[1]
 
-        masking_probability = self.min_masking_probability + torch.rand(1).item() * (self.max_masking_probability-self.min_masking_probability)
+        masking_probability = self.min_masking_probability + torch.rand(1).item() * (
+            self.max_masking_probability - self.min_masking_probability
+        )
         self.log("masking_probability", masking_probability, sync_dist=True)
 
         masked_features, feature_mask, _ = mask_data(features, p=masking_probability)
@@ -252,9 +250,10 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
         feature_values, y = batch
 
         # Mask features with minimum probability -> see many features (observations)
-        feature_mask_many_observations = torch.rand(
-            feature_values.shape, device=feature_values.device
-        ) > self.min_masking_probability
+        feature_mask_many_observations = (
+            torch.rand(feature_values.shape, device=feature_values.device)
+            > self.min_masking_probability
+        )
         feature_values_many_observations = feature_values.clone()
         feature_values_many_observations[feature_mask_many_observations == 0] = 0
         loss_many_observations, acc_many_observations = self._get_loss_and_acc(
@@ -264,9 +263,10 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
         self.log("val_acc_many_observations", acc_many_observations)
 
         # Mask features with maximum probability -> see few features (observations)
-        feature_mask_few_observations = torch.rand(
-            feature_values.shape, device=feature_values.device
-        ) > self.max_masking_probability
+        feature_mask_few_observations = (
+            torch.rand(feature_values.shape, device=feature_values.device)
+            > self.max_masking_probability
+        )
         feature_values_few_observations = feature_values.clone()
         feature_values_few_observations[feature_mask_few_observations == 0] = 0
         loss_few_observations, acc_few_observations = self._get_loss_and_acc(
@@ -274,8 +274,6 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
         )
         self.log("val_loss_few_observations", loss_few_observations)
         self.log("val_acc_few_observations", acc_few_observations)
-
-
 
     @override
     def configure_optimizers(self):
@@ -344,32 +342,3 @@ class Shim2018AFAClassifier(AFAClassifier):
     @override
     def device(self) -> torch.device:
         return self._device
-
-def get_shim2018_model_from_config(
-    cfg: Shim2018PretrainConfig,
-    n_features: int,
-    n_classes: int,
-    class_probabiities: Float[Tensor, "n_classes"],
-) -> LitShim2018EmbedderClassifier:
-    encoder = ReadProcessEncoder(
-        set_element_size=n_features + 1,  # state contains one value and one index
-        output_size=cfg.encoder.output_size,
-        reading_block_cells=tuple(cfg.encoder.reading_block_cells),
-        writing_block_cells=tuple(cfg.encoder.writing_block_cells),
-        memory_size=cfg.encoder.memory_size,
-        processing_steps=cfg.encoder.processing_steps,
-        dropout=cfg.encoder.dropout,
-    )
-    embedder = Shim2018Embedder(encoder)
-    classifier = Shim2018MLPClassifier(
-        cfg.encoder.output_size, n_classes, tuple(cfg.classifier.num_cells)
-    )
-    lit_model = LitShim2018EmbedderClassifier(
-        embedder=embedder,
-        classifier=classifier,
-        class_probabilities=class_probabiities,
-        min_masking_probability=cfg.min_masking_probability,
-        max_masking_probability=cfg.max_masking_probability,
-        lr=cfg.lr,
-    )
-    return lit_model

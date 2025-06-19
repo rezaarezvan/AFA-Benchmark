@@ -1,4 +1,3 @@
-from datetime import datetime
 import gc
 import logging
 import hydra
@@ -10,7 +9,7 @@ import torch
 from lightning.pytorch.loggers import WandbLogger
 
 import wandb
-from afa_rl.shim2018.models import (
+from afa_rl.shim2018.utils import (
     get_shim2018_model_from_config,
 )
 from common.config_classes import Shim2018PretrainConfig
@@ -85,10 +84,7 @@ def main(cfg: Shim2018PretrainConfig) -> None:
             type="pretrained_model",
         )
         pretrained_model_artifact.add_file(local_path=best_checkpoint, name="model.pt")
-        run.log_artifact(
-            pretrained_model_artifact,
-            aliases=[*cfg.output_artifact_aliases, datetime.now().strftime("%b%d")],
-        )
+        run.log_artifact(pretrained_model_artifact, aliases=cfg.output_artifact_aliases)
         run.finish()
 
         gc.collect()  # Force Python GC
