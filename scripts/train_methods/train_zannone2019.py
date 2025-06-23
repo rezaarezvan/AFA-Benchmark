@@ -115,14 +115,19 @@ def load_pretrained_model_artifacts(
     )
 
 
-def visualize_digits(features: torch.Tensor, labels: torch.Tensor):
+def visualize_digits(
+    features: torch.Tensor, labels: torch.Tensor, shuffle: bool = True
+):
     """Visualize 9 MNIST digits"""
     fig, axs = plt.subplots(3, 3)
-    random_indices = torch.randperm(len(features))[:9]
+    if shuffle:
+        indices = torch.randperm(len(features))[:9]
+    else:
+        indices = torch.arange(9)
     for i in range(9):
         row = i // 3
         col = i % 3
-        idx = random_indices[i]
+        idx = indices[i]
         axs[row, col].imshow(features[idx].numpy().reshape((28, 28)))
         axs[row, col].set_title(labels[idx].argmax().item())
     return fig, axs
@@ -200,11 +205,39 @@ def main(cfg: Zannone2019TrainConfig):
             num_classes=generated_labels_batch.shape[-1],
         ).cpu()
 
-    # Visualize generated MNIST digits
-    # fig_real, axs_real = visualize_digits(train_dataset.features, train_dataset.labels)
-    # if cfg.n_generated_samples >= 9:
-    #     fig_fake, axs_fake = visualize_digits(generated_features, generated_labels)
-    # plt.show()
+    # Also reconstruct some samples
+    _, _, _, z, reconstructed_features = pretrained_model.partial_vae.forward(
+        train_dataset.features[:100].to(device),
+        torch.ones_like(train_dataset.features[:100], dtype=torch.bool, device=device),
+    )
+    z = z.cpu()
+    reconstructed_features = reconstructed_features.cpu()
+
+    # Visualize MNIST digits
+    fig_real, axs_real = visualize_digits(
+        train_dataset.features, train_dataset.labels, shuffle=False
+    )
+    fig_real.suptitle("Real digits")
+    if cfg.n_generated_samples >= 9:
+        fig_fake, axs_fake = visualize_digits(
+            generated_features, generated_labels, shuffle=False
+        )
+        fig_fake.suptitle("Generated digits")
+    fig_recon, axs_recon = visualize_digits(
+        reconstructed_features, train_dataset.labels, shuffle=False
+    )
+    fig_recon.suptitle("Reconstructed digits")
+
+    plt.show()
+
+    # Plot distribution of latent variables
+    plt.figure(figsize=(12, 4))
+    for i in range(min(z.shape[1], 10)):
+        plt.subplot(2, 5, i + 1)
+        plt.hist(z[:, i], bins=30)
+        plt.title(f"Latent dim {i}")
+    plt.tight_layout()
+    plt.show()
 
     combined_features = torch.cat([train_dataset.features, generated_features])
     combined_features = combined_features[torch.randperm(len(combined_features))]

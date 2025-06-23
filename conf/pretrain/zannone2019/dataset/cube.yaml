@@ -26,5 +26,5 @@ classifier:
   num_cells: [128, 128]
   dropout: 0.1
 recon_loss_type: "squared_error"
-kl_scaling_factor: 0.001
-classifier_loss_scaling_factor: 1
+kl_scaling_factor: 0.01
+classifier_loss_scaling_factor: 10
