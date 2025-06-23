@@ -27,6 +27,7 @@ dependencies = [
     "seaborn>=0.13.2",
     "torchrl>=0.8.0",
     "torchvision>=0.22.0",
+    "tornado>=6.5.1",
     "wandb>=0.19.10",
 ]
 

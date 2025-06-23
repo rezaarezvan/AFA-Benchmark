@@ -13,7 +13,7 @@ import wandb
 from afa_rl.datasets import (
     DataModuleFromDatasets,
 )
-from afa_rl.zannone2019.models import get_zannone2019_model_from_config
+from afa_rl.zannone2019.utils import get_zannone2019_model_from_config
 from common.config_classes import Zannone2019PretrainConfig
 from common.utils import (
     get_class_probabilities,

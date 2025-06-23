@@ -1,8 +1,8 @@
 pretrained_model_artifact_name: "pretrain_zannone2019-MNIST_split_1:tmp"
 evaluate_final_performance: true
-eval_only_n_samples: null
-n_agents: 128
-hard_budget: 50 # recommended: 10, 50, 100
+eval_only_n_samples: 100
+n_agents: 2
+hard_budget: 10 # recommended: 10, 50, 100
 agent:
   gamma: 1
   lmbda: 0.95
@@ -20,9 +20,10 @@ agent:
   policy_num_cells: [128, 128]
   policy_dropout: 0.1
 n_batches: 15000 # up to 30k also works well, but not significant improvement
-batch_size: 512
+batch_size: 256
 eval_every_n_batches: 500
 eval_max_steps: 9001
 n_eval_episodes: 100
-n_generated_samples: 1000 # TODO: decide what this should be
-generation_batch_size: 1000 # all cube samples fit easily on GPU
+# n_generated_samples: 42000 # Same as MNIST dataset size
+n_generated_samples: 0
+generation_batch_size: 100

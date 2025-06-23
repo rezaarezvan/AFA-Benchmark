@@ -1,4 +1,7 @@
 from functools import partial
+from time import sleep
+import matplotlib
+from matplotlib import pyplot as plt
 import gc
 import logging
 from pathlib import Path
@@ -6,6 +9,7 @@ from typing import Any, cast
 from tempfile import TemporaryDirectory
 
 import hydra
+from matplotlib.image import AxesImage
 from omegaconf import OmegaConf
 import torch
 from tensordict import TensorDictBase
@@ -42,6 +46,8 @@ from common.utils import get_class_probabilities, load_dataset_artifact, set_see
 
 from eval.metrics import eval_afa_method
 from eval.utils import plot_metrics
+
+matplotlib.use("WebAgg")
 
 
 def load_pretrained_model_artifacts(
@@ -109,6 +115,19 @@ def load_pretrained_model_artifacts(
     )
 
 
+def visualize_digits(features: torch.Tensor, labels: torch.Tensor):
+    """Visualize 9 MNIST digits"""
+    fig, axs = plt.subplots(3, 3)
+    random_indices = torch.randperm(len(features))[:9]
+    for i in range(9):
+        row = i // 3
+        col = i % 3
+        idx = random_indices[i]
+        axs[row, col].imshow(features[idx].numpy().reshape((28, 28)))
+        axs[row, col].set_title(labels[idx].argmax().item())
+    return fig, axs
+
+
 log = logging.getLogger(__name__)
 
 
@@ -156,7 +175,9 @@ def main(cfg: Zannone2019TrainConfig):
     generated_features = torch.zeros(cfg.n_generated_samples, n_features)
     generated_labels = torch.zeros(cfg.n_generated_samples, n_classes)
     n_generation_batches = cfg.n_generated_samples // cfg.generation_batch_size
-    for batch_idx in range(n_generation_batches):
+    for batch_idx in tqdm(
+        range(n_generation_batches), desc="Generating artificial samples"
+    ):
         generated_features_batch, generated_labels_batch = (
             pretrained_model.generate_data(
                 latent_size=pretrained_model_config.partial_vae.latent_size,
@@ -168,20 +189,30 @@ def main(cfg: Zannone2019TrainConfig):
             batch_idx * cfg.generation_batch_size : (batch_idx + 1)
             * cfg.generation_batch_size,
             :,
-        ] = generated_features_batch
+        ] = generated_features_batch.cpu()
+        # Convert labels to one hot instead of continuous probabilities
         generated_labels[
             batch_idx * cfg.generation_batch_size : (batch_idx + 1)
             * cfg.generation_batch_size,
             :,
-        ] = generated_labels_batch
+        ] = F.one_hot(
+            generated_labels_batch.argmax(-1),
+            num_classes=generated_labels_batch.shape[-1],
+        ).cpu()
 
-    # TODO: for MNIST, check that the generated data looks good
+    # Visualize generated MNIST digits
+    # fig_real, axs_real = visualize_digits(train_dataset.features, train_dataset.labels)
+    # if cfg.n_generated_samples >= 9:
+    #     fig_fake, axs_fake = visualize_digits(generated_features, generated_labels)
+    # plt.show()
+
+    combined_features = torch.cat([train_dataset.features, generated_features])
+    combined_features = combined_features[torch.randperm(len(combined_features))]
+    combined_labels = torch.cat([train_dataset.labels, generated_labels])
+    combined_labels = combined_labels[torch.randperm(len(combined_labels))]
 
     # MDP expects special dataset functions
-    train_dataset_fn = get_afa_dataset_fn(
-        torch.cat([train_dataset.features, generated_features]),
-        torch.cat([train_dataset.labels, generated_labels]),
-    )
+    train_dataset_fn = get_afa_dataset_fn(combined_features, combined_labels)
     val_dataset_fn = get_afa_dataset_fn(val_dataset.features, val_dataset.labels)
 
     train_env = AFAEnv(
@@ -299,10 +330,10 @@ def main(cfg: Zannone2019TrainConfig):
                     afa_method.predict,
                     only_n_samples=cfg.eval_only_n_samples,
                 )
-                fig = plot_metrics(metrics)
+                fig_fake = plot_metrics(metrics)
                 run.log(
                     {
-                        "final_performance_plot": fig,
+                        "final_performance_plot": fig_fake,
                     }
                 )
 
