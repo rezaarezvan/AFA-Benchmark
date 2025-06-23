@@ -1,5 +1,6 @@
 from jaxtyping import Float
 from torch import Tensor, nn
+import torch
 from torchrl.modules import MLP
 
 from afa_rl.utils import (
@@ -21,9 +22,6 @@ def get_zannone2019_model_from_config(
     n_classes: int,
     class_probabilities: Float[Tensor, "n_classes"],
 ):
-    naive_identity_fn = get_1D_identity
-    naive_identity_size = n_features  # onehot
-
     # PointNet or PointNetPlus
     if cfg.pointnet.type == "pointnet":
         pointnet_type = PointNetType.POINTNET
@@ -37,14 +35,9 @@ def get_zannone2019_model_from_config(
         )
 
     pointnet = PointNet(
-        naive_identity_fn=naive_identity_fn,
-        identity_network=MLP(
-            in_features=naive_identity_size,
-            out_features=cfg.pointnet.identity_size,
-            num_cells=cfg.pointnet.identity_network_num_cells,
-            dropout=cfg.pointnet.identity_network_dropout,
-            activation_class=nn.ReLU,
-        ),
+        identity_size=cfg.pointnet.identity_size,
+        n_features=n_features,
+        max_embedding_norm=cfg.pointnet.max_embedding_norm,
         feature_map_encoder=MLP(
             in_features=feature_map_encoder_input_size,
             out_features=cfg.pointnet.output_size,

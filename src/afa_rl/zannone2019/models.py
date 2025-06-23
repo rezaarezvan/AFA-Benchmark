@@ -37,24 +37,23 @@ class PointNet(nn.Module):
 
     def __init__(
         self,
-        naive_identity_fn: NaiveIdentityFn,
-        identity_network: nn.Module,
+        identity_size: int,
+        n_features: int,
         feature_map_encoder: nn.Module,
         pointnet_type: PointNetType,
+        max_embedding_norm: float | None = None,
     ):
-        """
-        Args:
-            naive_identity_fn: takes a FeatureMask as input and outputs a suitable location-like representation for each feature. Usually one-hot indices for 1D data and coordinates for 2D data.
-            identity_network: transforms naive identity into a vector to be used with PNP
-            feature_map_encoder: nn.Module
-            pointnet_type: PointNetType, either POINTNET or POINTNETPLUS
-        """
         super().__init__()
 
-        self.naive_identity_fn = naive_identity_fn  # naive e
-        self.identity_network = identity_network  # learns e from naive e
+        self.identity_size = identity_size
+        self.n_features = n_features
         self.feature_map_encoder = feature_map_encoder  # h in the paper
         self.pointnet_type = pointnet_type
+        self.max_embedding_norm = max_embedding_norm
+
+        self.embedding_net = nn.Embedding(
+            self.n_features, self.identity_size, max_norm=self.max_embedding_norm
+        )
 
     @override
     def forward(
@@ -68,14 +67,11 @@ class PointNet(nn.Module):
             the encoding of the input features
         """
 
-        # Get coordinates of each feature (naive e)
-        naive_identity = self.naive_identity_fn(
-            feature_mask
-        )  # Shape: (batch_size, n_features, naive_identity_size)
-
-        # Pass it through the identity network to learn the identity
-        identity = self.identity_network(
-            naive_identity
+        # Identity is a learnable embedding according to EDDI paper
+        identity = self.embedding_net(
+            torch.arange(
+                masked_features.shape[-1], device=masked_features.device
+            ).repeat(masked_features.shape[0], 1)
         )  # Shape: (batch_size, n_features, identity_size)
 
         # Could not think of a better name than s...
@@ -105,7 +101,7 @@ class PointNet(nn.Module):
         # Sum over n_features dimension
         encoding = torch.sum(
             feature_maps, dim=-2
-        )  # Shape: (batch_size, element_encoding_size)
+        )  # Shape: (batch_size, feature_map_size)
 
         return encoding
 

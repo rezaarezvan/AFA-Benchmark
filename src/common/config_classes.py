@@ -112,11 +112,10 @@ cs.store(name="pretrain_shim2018", node=Shim2018PretrainConfig)
 class Zannone2019PointNetConfig:
     type: str = "pointnetplus"
     identity_size: int = 20  # EDDI paper
+    max_embedding_norm: float = 1.0
     output_size: int = (
         40  # always twice as large as latent size according to EDDI paper
     )
-    identity_network_num_cells: list[int] = field(default_factory=lambda: [20, 20])
-    identity_network_dropout: float = 0.1
     feature_map_encoder_num_cells: list[int] = field(
         default_factory=lambda: [500]
     )  # EDDI paper

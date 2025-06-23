@@ -9,18 +9,23 @@ min_masking_probability: 0.0
 max_masking_probability: 0.9
 pointnet:
   type: "pointnetplus" # ODIN paper does not mention which type they use
-  identity_network_num_cells: [128,128]
-  identity_network_dropout: 0.1
-  identity_size: 128
-  feature_map_encoder_num_cells: [128,128]
+  # identity_network_num_cells: [128,128]
+  # identity_network_num_cells: [] # EDDI
+  # identity_network_dropout: 0.1
+  # identity_size: 128
+  identity_size: 20 # EDDI
+  # feature_map_encoder_num_cells: [128,128]
+  feature_map_encoder_num_cells: [500] # EDDI
   feature_map_encoder_dropout: 0.1
   output_size: 128 # always twice as large as latent size according to EDDI paper
 encoder:
-  num_cells: [128, 128]
+  # num_cells: [128, 128]
+  num_cells: [500, 500, 200]
   dropout: 0.1
 partial_vae:
   latent_size: 64
-  decoder_num_cells: [128, 128]
+  # decoder_num_cells: [128, 128]
+  decoder_num_cells: [200, 500, 500] # EDDI
   decoder_dropout: 0.1
 classifier:
   num_cells: [128, 128]
