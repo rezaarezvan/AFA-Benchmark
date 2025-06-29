@@ -4,6 +4,7 @@ import copy
 import collections
 import numpy as np
 from pathlib import Path
+import wandb
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -374,13 +375,14 @@ def calculate_criterion(preds, task):
 
 
 class Ma2018AFAMethod(AFAMethod):
-    def __init__(self, sampler, predictor, task='classification'):
+    def __init__(self, sampler, predictor, task='classification', device=torch.device("cpu")):
         super().__init__()
         assert hasattr(sampler, 'impute')
         self.sampler = sampler
         self.predictor = predictor
         assert task in ('regression', 'classification')
         self.task = task
+        self._device: torch.device = device
 
     def predict(self, masked_features: MaskedFeatures, feature_mask: FeatureMask) -> Label:
         x_masked = torch.cat([masked_features, feature_mask], dim=1)
@@ -438,6 +440,15 @@ class Ma2018AFAMethod(AFAMethod):
             "predictor": self.predictor,
             "task": self.task,
         }, str(path / "model.pt"))
+
+    def to(self, device):
+        self.sampler = self.sampler.to(device)
+        self.predictor = self.predictor.to(device)
+        return self
+    
+    @property
+    def device(self) -> torch.device:
+        return self._device
 
 
 class UniformSampler:
@@ -554,6 +565,7 @@ class IterativeSelector(nn.Module):
           early_stopping_epochs:
           verbose:
         '''
+        wandb.watch(self.model, log="all", log_freq=100)
         # Verify arguments.
         if val_loss_fn is None:
             val_loss_fn = loss_fn
@@ -590,6 +602,7 @@ class IterativeSelector(nn.Module):
             # Switch model to training mode.
             model.train()
 
+            epoch_train_loss = 0.0
             for x, y in train_loader:
                 # Move to device.
                 x = x.to(device)
@@ -607,6 +620,7 @@ class IterativeSelector(nn.Module):
                 loss.backward()
                 opt.step()
                 model.zero_grad()
+                epoch_train_loss += loss.item()
                 
             # Calculate validation loss.
             model.eval()
@@ -633,7 +647,13 @@ class IterativeSelector(nn.Module):
                 y = torch.cat(label_list, 0)
                 pred = torch.cat(pred_list, 0)
                 val_loss = val_loss_fn(pred, y).item()
-                
+            
+            avg_train = epoch_train_loss / len(train_loader)
+            wandb.log({
+                "predictor/epoch": epoch,
+                "predictor/train_loss": avg_train,
+                "predictor/val_loss": val_loss,
+            })
             
             # Print progress.
             if verbose:
@@ -658,6 +678,7 @@ class IterativeSelector(nn.Module):
 
         # Copy parameters from best model.
         restore_parameters(model, best_model)
+        wandb.unwatch(self.model)
     
     def forward(self, x, max_features, num_samples=128, verbose=False):
         '''

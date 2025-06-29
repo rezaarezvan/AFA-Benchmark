@@ -1,6 +1,7 @@
 import collections
 import copy
 import math
+import wandb
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -487,6 +488,7 @@ class PartialVAE(nn.Module):
           verbose:
         '''
         # Set up optimizer and lr scheduler.
+        wandb.watch(self, log="all", log_freq=100)
         device = next(self.parameters()).device
         opt = optim.Adam(self.parameters(), lr=lr)
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(
@@ -504,6 +506,7 @@ class PartialVAE(nn.Module):
             self.train()
             p_e = torch.rand(1).item() * p_max
 
+            epoch_train_loss = 0.0
             for features, _ in train_loader:
                 # Calculate loss.
                 features = features.to(device)
@@ -520,6 +523,7 @@ class PartialVAE(nn.Module):
                 loss.backward()
                 opt.step()
                 self.zero_grad()
+                epoch_train_loss += loss.item()
                 
             # Calculate validation loss.
             self.eval()
@@ -544,6 +548,13 @@ class PartialVAE(nn.Module):
                     val_loss += loss.item()
                     n += features.size(0)
                 val_loss = val_loss / n
+            
+            avg_train = epoch_train_loss / len(train_loader)
+            wandb.log({
+                "pvae/epoch": epoch,
+                "pvae/train_loss": avg_train,
+                "pvae/val_loss": val_loss,
+            })
 
             # Print progress.
             if verbose:
@@ -570,6 +581,7 @@ class PartialVAE(nn.Module):
         # Copy parameters from best model.
         restore_parameters(self.encoder, best_encoder)
         restore_parameters(self.decoder, best_decoder)
+        wandb.unwatch(self)
 
     def impute(self, masked_features, feature_mask):
         '''Impute using a partial input.'''

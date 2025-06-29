@@ -142,6 +142,51 @@ cs.store(name="train_shim2018", node=Shim2018TrainConfig)
 
 
 @dataclass
+class Ma2018PointNetConfig:
+    identity_size: int = 20
+    identity_network_num_cells: list[int] = field(default_factory=lambda: [20, 20])
+    output_size: int = 40
+    feature_map_encoder_num_cells: list[int] = field(default_factory=lambda: [500])
+
+
+@dataclass
+class Ma2018PartialVAEConfig:
+    lr: float = 1e-3
+    epochs: int = 1000
+    patience: int = 5
+    encoder_num_cells: list[int] = field(default_factory=lambda: [500, 500, 200])
+    latent_size: int = 20
+    kl_scaling_factor: float = 0.1
+    max_masking_probability: float = 0.9
+    decoder_num_cells: list[int] = field(default_factory=lambda: [200, 500, 500])
+
+
+@dataclass
+class Ma2018ClassifierConfig:
+    lr: float = 1e-3
+    epochs: int = 100
+    patience: int = 5
+
+
+@dataclass
+class Ma2018PretrainConfig:
+    dataset_artifact_name: str
+    pretrained_model_path: str = "./models/ma2018"
+    output_artifact_aliases: list[str] = field(default_factory=lambda: [])
+
+    batch_size: int = 128
+    seed: int = 42
+    device: str = "cuda"
+
+    pointnet: Ma2018PointNetConfig = field(default_factory=Ma2018PointNetConfig)
+    partial_vae: Ma2018PartialVAEConfig = field(default_factory=Ma2018PartialVAEConfig)
+    classifier: Ma2018ClassifierConfig = field(default_factory=Ma2018ClassifierConfig)
+
+
+cs.store(name="pretrain_ma2018", node=Ma2018PretrainConfig)
+
+
+@dataclass
 class RandomDummyTrainConfig:
     dataset_artifact_name: str
     hard_budget: int  # not used, but pretend that it is

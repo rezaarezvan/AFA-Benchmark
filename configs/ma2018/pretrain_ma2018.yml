@@ -1,23 +1,26 @@
-nepochs: 1000
-lr: 0.001
-max_masking_probability: 0.9
-validation_masking_probability: 0.0
-recon_loss_type: "squared error"
-kl_scaling_factor: 0.001
-patience: 5
-
-dataloader:
-  batch_size: 128
-pointnet:
-  naive_identity_type: "1D"
-  identity_network_num_cells: [20,20] # just a guess
-  identity_size: 20 # EDDI paper
-  feature_map_encoder_num_cells: [500] # EDDI paper
-  output_size: 40 # always twice as large as latent size according to EDDI paper
-encoder:
-  num_cells: [500, 500, 200] # EDDI paper
-partial_vae:
-  latent_size: 20 # EDDI paper
-  decoder_num_cells: [200, 500, 500] # EDDI paper
-
+seed: 42
 device: "cuda"
+pretrained_model_path: "./models/ma2018"
+dataset_artifact_name: "cube"
+batch_size: 128
+
+pointnet:
+  identity_network_num_cells: [20,20]
+  identity_size: 20
+  feature_map_encoder_num_cells: [500]
+  output_size: 40
+
+partial_vae:
+  latent_size: 20
+  encoder_num_cells: [500, 500, 200]
+  decoder_num_cells: [200, 500, 500]
+  patience: 5
+  lr: 0.001
+  nepochs: 1000
+  kl_scaling_factor: 0.001
+  max_masking_probability: 0.9
+
+classifier:
+  lr: 0.001
+  nepochs: 100
+  patience: 5
