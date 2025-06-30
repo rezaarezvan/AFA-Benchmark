@@ -1,12 +1,11 @@
 dataset_artifact_name: "MNIST_split_1:tmp"
 batch_size: 100 # EDDI
-# epochs: 150 # EDDI needed 3k iterations/epochs?
-epochs: 1000
+epochs: 200
 limit_train_batches: null
 limit_val_batches: null
 
 lr: 1e-3
-min_masking_probability: 0.0
+min_masking_probability: 0.75
 max_masking_probability: 0.99
 pointnet:
   type: "pointnetplus" # ODIN paper does not mention which type they use
