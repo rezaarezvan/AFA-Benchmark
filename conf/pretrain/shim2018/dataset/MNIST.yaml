@@ -1,8 +1,8 @@
 dataset_artifact_name: "MNIST_split_1:tmp"
 batch_size: 128 # shim2018 paper
-epochs: 1000
-limit_train_batches: null
-limit_val_batches: null
+epochs: 1000 # slow
+limit_train_batches: null # slow
+limit_val_batches: null # slow
 
 lr: 1e-3
 min_masking_probability: 0.75
