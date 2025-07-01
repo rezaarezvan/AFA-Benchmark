@@ -197,16 +197,19 @@ def get_common_reward_fn(
 
         done_mask = done.squeeze(-1)
 
-        # If AFA stops, reward is negative loss
-        probs = afa_predict_fn(
-            new_masked_features[done_mask], new_feature_mask[done_mask]
-        )
-        # reward[done_mask] = -loss_fn(
-        #     logits,
-        #     label[done_mask],
-        # )
+        if done_mask.any():
+            # If AFA stops, reward is negative loss
+            probs = afa_predict_fn(
+                new_masked_features[done_mask], new_feature_mask[done_mask]
+            )
+            # reward[done_mask] = -loss_fn(
+            #     logits,
+            #     label[done_mask],
+            # )
 
-        reward[done_mask] = (probs.argmax(-1) == label[done_mask].argmax(-1)).float()
+            reward[done_mask] = (
+                probs.argmax(-1) == label[done_mask].argmax(-1)
+            ).float()
 
         # TODO: debugging. Give reward for the last 4 features, punish the rest
         # reward[done_mask] += new_feature_mask[done_mask, -5:].sum(dim=-1).float()

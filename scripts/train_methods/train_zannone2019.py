@@ -37,6 +37,7 @@ from afa_rl.utils import (
     get_eval_metrics,
     module_norm,
 )
+from common.afa_methods import RandomDummyAFAMethod
 from common.config_classes import Zannone2019PretrainConfig, Zannone2019TrainConfig
 from common.custom_types import (
     AFADataset,
@@ -214,30 +215,30 @@ def main(cfg: Zannone2019TrainConfig):
     reconstructed_features = reconstructed_features.cpu()
 
     # Visualize MNIST digits
-    fig_real, axs_real = visualize_digits(
-        train_dataset.features, train_dataset.labels, shuffle=False
-    )
-    fig_real.suptitle("Real digits")
-    if cfg.n_generated_samples >= 9:
-        fig_fake, axs_fake = visualize_digits(
-            generated_features, generated_labels, shuffle=False
-        )
-        fig_fake.suptitle("Generated digits")
-    fig_recon, axs_recon = visualize_digits(
-        reconstructed_features, train_dataset.labels, shuffle=False
-    )
-    fig_recon.suptitle("Reconstructed digits")
-
-    plt.show()
-
-    # Plot distribution of latent variables
-    plt.figure(figsize=(12, 4))
-    for i in range(min(z.shape[1], 10)):
-        plt.subplot(2, 5, i + 1)
-        plt.hist(z[:, i], bins=30)
-        plt.title(f"Latent dim {i}")
-    plt.tight_layout()
-    plt.show()
+    # fig_real, axs_real = visualize_digits(
+    #     train_dataset.features, train_dataset.labels, shuffle=False
+    # )
+    # fig_real.suptitle("Real digits")
+    # if cfg.n_generated_samples >= 9:
+    #     fig_fake, axs_fake = visualize_digits(
+    #         generated_features, generated_labels, shuffle=False
+    #     )
+    #     fig_fake.suptitle("Generated digits")
+    # fig_recon, axs_recon = visualize_digits(
+    #     reconstructed_features, train_dataset.labels, shuffle=False
+    # )
+    # fig_recon.suptitle("Reconstructed digits")
+    #
+    # plt.show()
+    #
+    # # Plot distribution of latent variables
+    # plt.figure(figsize=(12, 4))
+    # for i in range(min(z.shape[1], 10)):
+    #     plt.subplot(2, 5, i + 1)
+    #     plt.hist(z[:, i], bins=30)
+    #     plt.title(f"Latent dim {i}")
+    # plt.tight_layout()
+    # plt.show()
 
     combined_features = torch.cat([train_dataset.features, generated_features])
     combined_features = combined_features[torch.randperm(len(combined_features))]
@@ -257,7 +258,11 @@ def main(cfg: Zannone2019TrainConfig):
         n_classes=n_classes,
         hard_budget=cfg.hard_budget,
     )
-    check_env_specs(train_env)
+    # check_env_specs(train_env)
+
+    # Manual debugging
+    td = train_env.reset()
+    td = train_env.rand_step(td)
 
     eval_env = AFAEnv(
         dataset_fn=val_dataset_fn,
@@ -363,10 +368,23 @@ def main(cfg: Zannone2019TrainConfig):
                     afa_method.predict,
                     only_n_samples=cfg.eval_only_n_samples,
                 )
-                fig_fake = plot_metrics(metrics)
+                fig_metrics = plot_metrics(metrics)
+                # Also check performance of dummy method for comparison
+                dummy_afa_method = RandomDummyAFAMethod(
+                    device=torch.device("cpu"), n_classes=n_classes
+                )
+                dummy_metrics = eval_afa_method(
+                    dummy_afa_method.select,
+                    val_dataset,
+                    cfg.hard_budget,
+                    afa_method.predict,
+                    only_n_samples=cfg.eval_only_n_samples,
+                )
+                fig_dummy_metrics = plot_metrics(dummy_metrics)
                 run.log(
                     {
-                        "final_performance_plot": fig_fake,
+                        "final_performance_plot": fig_metrics,
+                        "final_dummy_performance_plot": fig_dummy_metrics,
                     }
                 )
 
