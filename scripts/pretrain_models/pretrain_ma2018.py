@@ -7,6 +7,7 @@ from pathlib import Path
 import hydra
 from hydra.utils import to_absolute_path
 from omegaconf import DictConfig, OmegaConf
+from tempfile import TemporaryDirectory
 import torch
 import torch.nn as nn
 import wandb
@@ -127,10 +128,13 @@ def main(cfg: Ma2018PretrainConfig):
         name=f"pretrain_ma2018-{cfg.dataset_artifact_name.split(':')[0]}",
         type="pretrained_model",
     )
-    eddi_selector.save(Path(cfg.pretrained_model_path))
+    with TemporaryDirectory(delete=False) as tmp_path_str:
+        tmp_path = Path(tmp_path_str)
+        eddi_selector.save(tmp_path)
+        del eddi_selector
+        eddi_selector = Ma2018AFAMethod.load(tmp_path / "model.pt", device=device)
 
-    model_file = Path(cfg.pretrained_model_path) / "model.pt"
-    pretrained_model_artifact.add_file(str(model_file), name="model.pt")
+    pretrained_model_artifact.add_dir(str(tmp_path), name="model.pt")
     run.log_artifact(
         pretrained_model_artifact,
         aliases=[*cfg.output_artifact_aliases, datetime.now().strftime("%b%d")]

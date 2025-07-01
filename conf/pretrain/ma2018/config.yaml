@@ -1,0 +1,29 @@
+defaults:
+  - _self_
+
+seed: 42
+device: "cuda"
+dataset_artifact_name: "cube"
+batch_size: 128
+output_artifact_aliases: []
+
+pointnet:
+  identity_network_num_cells: [20,20]
+  identity_size: 20
+  feature_map_encoder_num_cells: [500]
+  output_size: 40
+
+partial_vae:
+  latent_size: 20
+  encoder_num_cells: [500, 500, 200]
+  decoder_num_cells: [200, 500, 500]
+  patience: 5
+  lr: 0.001
+  epochs: 1000
+  kl_scaling_factor: 0.001
+  max_masking_probability: 0.9
+
+classifier:
+  lr: 0.001
+  epochs: 100
+  patience: 5
