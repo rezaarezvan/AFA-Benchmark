@@ -1,22 +1,22 @@
 pretrained_model_artifact_name: "pretrain_shim2018-MNIST_split_1:tmp"
 evaluate_final_performance: true
-eval_only_n_samples: 100
-n_agents: 2
+eval_only_n_samples: 100 # MNIST too large to evaluate every sample
+n_agents: 2 # fewer agents than for cube in order to fit on GPU
 hard_budget: 10 # recommended: 10, 50, 100
 agent:
   eps_annealing_num_batches: 1000 
-  replay_buffer_size: 100000
+  replay_buffer_size: 1000000
   replay_buffer_batch_size: 32
   replay_buffer_beta_annealing_num_batches: ${n_batches}
-  num_optim: 4
-  eps_init: 1.0
-  eps_end: 0.1
+  num_optim: 4 # shim2018 paper
+  eps_init: 1.0 # shim2018 paper
+  eps_end: 0.1 # shim2018 paper
   lr: 1e-3
   update_tau: 0.005
-  action_value_num_cells: [32, 32]
+  action_value_num_cells: [32, 32] # shim2018 paper
   action_value_dropout: 0.0
-n_batches: 15000
-batch_size: 64
+n_batches: 15000 # up to 30k also works well, but not significant improvement
+batch_size: 64 # MNIST too large to use standard batch_size 512
 eval_every_n_batches: 500
 eval_max_steps: 9001
 n_eval_episodes: 100
