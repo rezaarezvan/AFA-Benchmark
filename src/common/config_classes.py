@@ -169,9 +169,8 @@ class Ma2018ClassifierConfig:
 
 
 @dataclass
-class Ma2018PretrainConfig:
+class Ma2018PretraingConfig:
     dataset_artifact_name: str
-    pretrained_model_path: str = "./models/ma2018"
     output_artifact_aliases: list[str] = field(default_factory=lambda: [])
 
     batch_size: int = 128
@@ -183,7 +182,19 @@ class Ma2018PretrainConfig:
     classifier: Ma2018ClassifierConfig = field(default_factory=Ma2018ClassifierConfig)
 
 
-cs.store(name="pretrain_ma2018", node=Ma2018PretrainConfig)
+cs.store(name="pretrain_ma2018", node=Ma2018PretraingConfig)
+
+
+@dataclass
+class Ma2018TraingConfig:
+    pretrained_model_artifact_name: str
+    hard_budget: int
+    device: str = "cuda"
+    seed: int = 42
+    output_artifact_aliases: list[str] = field(default_factory=lambda: [])
+
+
+cs.store(name="train_ma2018", node=Ma2018TraingConfig)
 
 
 @dataclass

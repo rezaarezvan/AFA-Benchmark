@@ -7,7 +7,7 @@ import torch.nn as nn
 from pathlib import Path
 from typing import Any, cast
 from afa_generative.afa_methods import Ma2018AFAMethod
-from common.config_classes import Ma2018PretrainConfig, Ma2018TrainConfig
+from common.config_classes import Ma2018PretraingConfig, Ma2018TraingConfig
 from common.custom_types import AFADataset
 from common.utils import dict_to_namespace, set_seed
 import wandb
@@ -24,7 +24,7 @@ log = logging.getLogger(__name__)
     config_path="../../conf/train/ma2018", 
     config_name="config"
 )
-def main(cfg: Ma2018TrainConfig):
+def main(cfg: Ma2018TraingConfig):
     log.debug(cfg)
     print(OmegaConf.to_yaml(cfg))
     run = wandb.init(
@@ -46,8 +46,8 @@ def main(cfg: Ma2018TrainConfig):
         "Pretrained model artifact must be logged by a run."
     )
     pretrained_model_config_dict = pretraining_run.config
-    pretrained_model_config: Ma2018PretrainConfig = from_dict(
-        data_class=Ma2018PretrainConfig, data=pretrained_model_config_dict
+    pretrained_model_config: Ma2018PretraingConfig = from_dict(
+        data_class=Ma2018PretraingConfig, data=pretrained_model_config_dict
     )
     train_dataset, val_dataset, test_dataset, dataset_metadata = load_dataset_artifact(
         pretrained_model_config.dataset_artifact_name
