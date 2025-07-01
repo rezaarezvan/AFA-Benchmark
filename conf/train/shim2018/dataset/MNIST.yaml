@@ -1,6 +1,4 @@
 pretrained_model_artifact_name: "pretrain_shim2018-MNIST_split_1:tmp"
-evaluate_final_performance: true
-eval_only_n_samples: 100 # MNIST too large to evaluate every sample
 n_agents: 2 # fewer agents than for cube in order to fit on GPU
 hard_budget: 10 # recommended: 10, 50, 100
 agent:
@@ -20,5 +18,10 @@ batch_size: 64 # MNIST too large to use standard batch_size 512
 eval_every_n_batches: 500
 eval_max_steps: 9001
 n_eval_episodes: 100
-
+# device set by higher config
+# seed set by higher config
 pretrained_model_lr: 1e-3
+activate_joint_training_after_n_batches: 0
+# output_artifact_aliases set by higher config
+evaluate_final_performance: true
+eval_only_n_samples: 100 # MNIST too large to evaluate every sample

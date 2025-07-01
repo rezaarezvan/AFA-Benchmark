@@ -1,6 +1,4 @@
 pretrained_model_artifact_name: "pretrain_shim2018-cube_split_1:tmp"
-evaluate_final_performance: true
-eval_only_n_samples: null
 n_agents: 128 # shim2018 paper
 hard_budget: 5 # recommended: 3, 5, 10
 agent:
@@ -20,5 +18,10 @@ batch_size: 512 # shim2018 paper
 eval_every_n_batches: 500
 eval_max_steps: 9001
 n_eval_episodes: 100
-
+# device set by higher config
+# seed set by higher config
 pretrained_model_lr: 1e-3
+activate_joint_training_after_n_batches: 0
+# output_artifact_aliases set by higher config
+evaluate_final_performance: true
+eval_only_n_samples: null
