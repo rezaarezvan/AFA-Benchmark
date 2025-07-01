@@ -21,9 +21,10 @@ from tqdm import tqdm
 from dacite import from_dict
 
 import wandb
-from afa_rl.afa_env import AFAEnv, get_common_reward_fn
+from afa_rl.afa_env import AFAEnv
 from afa_rl.afa_methods import RLAFAMethod
 from afa_rl.zannone2019.agents import Zannone2019Agent
+from afa_rl.zannone2019.reward import get_zannone2019_reward_fn
 from afa_rl.datasets import get_afa_dataset_fn
 from afa_rl.zannone2019.models import (
     Zannone2019PretrainingModel,
@@ -171,10 +172,8 @@ def main(cfg: Zannone2019TrainConfig):
 
     pretrained_model = pretrained_model.to(device)
 
-    # The RL reward function depends on a specific AFAClassifier
-    reward_fn = get_common_reward_fn(
-        Zannone2019AFAPredictFn(pretrained_model),
-        loss_fn=partial(F.cross_entropy, weight=class_weights),
+    reward_fn = get_zannone2019_reward_fn(
+        afa_predict_fn=Zannone2019AFAPredictFn(pretrained_model), weights=class_weights
     )
 
     # Use the pretrained model to generate new artificial data

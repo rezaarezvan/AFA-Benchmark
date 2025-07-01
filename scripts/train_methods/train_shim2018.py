@@ -18,7 +18,7 @@ from tqdm import tqdm
 from dacite import from_dict
 
 import wandb
-from afa_rl.afa_env import AFAEnv, get_common_reward_fn
+from afa_rl.afa_env import AFAEnv
 from afa_rl.afa_methods import RLAFAMethod
 from afa_rl.shim2018.agents import Shim2018Agent
 from afa_rl.datasets import get_afa_dataset_fn
@@ -30,6 +30,7 @@ from afa_rl.shim2018.models import (
 from afa_rl.shim2018.utils import (
     get_shim2018_model_from_config,
 )
+from afa_rl.shim2018.reward import get_shim2018_reward_fn
 from afa_rl.utils import (
     get_eval_metrics,
     module_norm,
@@ -149,10 +150,8 @@ def main(cfg: Shim2018TrainConfig):
         pretrained_model.parameters(), lr=cfg.pretrained_model_lr
     )
 
-    # The RL reward function depends on a specific AFAClassifier
-    reward_fn = get_common_reward_fn(
-        Shim2018AFAPredictFn(pretrained_model),
-        loss_fn=partial(F.cross_entropy, weight=class_weights),
+    reward_fn = get_shim2018_reward_fn(
+        afa_predict_fn=Shim2018AFAPredictFn(pretrained_model), weights=class_weights
     )
 
     # MDP expects special dataset functions

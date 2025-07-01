@@ -1,0 +1,53 @@
+from jaxtyping import Bool
+
+import torch
+from torch import Tensor
+
+from afa_rl.custom_types import (
+    AFAReward,
+    AFARewardFn,
+)
+from afa_rl.shim2018.models import Shim2018AFAPredictFn
+from afa_rl.utils import weighted_cross_entropy
+from common.custom_types import (
+    AFASelection,
+    FeatureMask,
+    Features,
+    Label,
+    MaskedFeatures,
+)
+
+
+def get_shim2018_reward_fn(
+    afa_predict_fn: Shim2018AFAPredictFn, weights: Tensor
+) -> AFARewardFn:
+    """The reward function for shim2018.
+
+    The agent only receives a reward at the end of the episode, equal to the negative classification loss.
+    """
+
+    def f(
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        new_masked_features: MaskedFeatures,
+        new_feature_mask: FeatureMask,
+        afa_selection: AFASelection,
+        features: Features,
+        label: Label,
+        done: Bool[Tensor, "*batch 1"],
+    ) -> AFAReward:
+        reward = torch.zeros_like(afa_selection, dtype=torch.float32)
+
+        done_mask = done.squeeze(-1)
+
+        if done_mask.any():
+            probs = afa_predict_fn(
+                new_masked_features[done_mask], new_feature_mask[done_mask]
+            )
+            reward[done_mask] = -weighted_cross_entropy(
+                input_probs=probs, target_probs=label[done_mask], weights=weights
+            )
+
+        return reward
+
+    return f

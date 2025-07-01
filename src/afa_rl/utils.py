@@ -414,3 +414,29 @@ def get_eval_metrics(
     eval_metrics["actions"] = wandb.Histogram(eval_metrics["actions"], num_bins=20)
     eval_metrics["accuracy"] = n_correct_samples / len(eval_tds)
     return eval_metrics
+
+
+def weighted_cross_entropy(
+    input_probs: torch.Tensor,
+    target_probs: torch.Tensor,
+    weights: torch.Tensor,
+    eps: float = 1e-8,
+) -> torch.Tensor:
+    """
+    Cross-entropy between predicted and target probability distributions,
+    with per-class weighting.
+
+    input_probs: shape (batch_size, num_classes), predicted probabilities
+    target_probs: shape (batch_size, num_classes), target probabilities
+    weights: shape (num_classes,), weight per class
+    eps: float, to avoid log(0)
+    """
+
+    assert len(input_probs.shape) == 2
+    assert len(target_probs.shape) == 2
+    assert len(weights.shape) == 1
+    assert weights.shape[0] == input_probs.shape[1] == target_probs.shape[1]
+
+    log_input = torch.log(input_probs + eps)
+    weighted_ce = -target_probs * log_input * weights  # element-wise weight
+    return weighted_ce.sum(dim=1).mean()

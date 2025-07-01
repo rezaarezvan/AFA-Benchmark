@@ -13,6 +13,8 @@ from afa_rl.custom_types import (
     AFADatasetFn,
     Logits,
 )
+from afa_rl.shim2018.models import Shim2018AFAPredictFn
+from afa_rl.utils import weighted_cross_entropy
 from common.custom_types import (
     AFAPredictFn,
     AFASelection,
@@ -178,43 +180,43 @@ class AFAEnv(EnvBase):
         self.rng = rng
 
 
-def get_common_reward_fn(
-    afa_predict_fn: AFAPredictFn, loss_fn: Callable[[Logits, Label], AFAReward]
-) -> AFARewardFn:
-    """Return reward for a standard AFA-RL reward function where the only reward the agent receives is the negative classification loss at the end."""
-
-    def f(
-        masked_features: MaskedFeatures,
-        feature_mask: FeatureMask,
-        new_masked_features: MaskedFeatures,
-        new_feature_mask: FeatureMask,
-        afa_selection: AFASelection,
-        features: Features,
-        label: Label,
-        done: Bool[Tensor, "*batch 1"],
-    ) -> AFAReward:
-        reward = torch.zeros_like(afa_selection, dtype=torch.float32)
-
-        done_mask = done.squeeze(-1)
-
-        if done_mask.any():
-            # If AFA stops, reward is negative loss
-            probs = afa_predict_fn(
-                new_masked_features[done_mask], new_feature_mask[done_mask]
-            )
-            # reward[done_mask] = -loss_fn(
-            #     logits,
-            #     label[done_mask],
-            # )
-
-            reward[done_mask] = (
-                probs.argmax(-1) == label[done_mask].argmax(-1)
-            ).float()
-
-        # TODO: debugging. Give reward for the last 4 features, punish the rest
-        # reward[done_mask] += new_feature_mask[done_mask, -5:].sum(dim=-1).float()
-        # reward[done_mask] -= new_feature_mask[done_mask, :-5].sum(dim=-1).float()
-
-        return reward
-
-    return f
+# def get_common_reward_fn(
+#     afa_predict_fn: AFAPredictFn, loss_fn: Callable[[Logits, Label], AFAReward]
+# ) -> AFARewardFn:
+#     """Return reward for a standard AFA-RL reward function where the only reward the agent receives is the negative classification loss at the end."""
+#
+#     def f(
+#         masked_features: MaskedFeatures,
+#         feature_mask: FeatureMask,
+#         new_masked_features: MaskedFeatures,
+#         new_feature_mask: FeatureMask,
+#         afa_selection: AFASelection,
+#         features: Features,
+#         label: Label,
+#         done: Bool[Tensor, "*batch 1"],
+#     ) -> AFAReward:
+#         reward = torch.zeros_like(afa_selection, dtype=torch.float32)
+#
+#         done_mask = done.squeeze(-1)
+#
+#         if done_mask.any():
+#             # If AFA stops, reward is negative loss
+#             probs = afa_predict_fn(
+#                 new_masked_features[done_mask], new_feature_mask[done_mask]
+#             )
+#             # reward[done_mask] = -loss_fn(
+#             #     logits,
+#             #     label[done_mask],
+#             # )
+#
+#             reward[done_mask] = (
+#                 probs.argmax(-1) == label[done_mask].argmax(-1)
+#             ).float()
+#
+#         # TODO: debugging. Give reward for the last 4 features, punish the rest
+#         # reward[done_mask] += new_feature_mask[done_mask, -5:].sum(dim=-1).float()
+#         # reward[done_mask] -= new_feature_mask[done_mask, :-5].sum(dim=-1).float()
+#
+#         return reward
+#
+#     return f
