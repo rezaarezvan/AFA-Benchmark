@@ -14,9 +14,9 @@ cs = ConfigStore.instance()
 
 @dataclass
 class SplitRatioConfig:
-    train: float = 0.7  # ratio of training data
-    val: float = 0.15  # ratio of validation data
-    test: float = 0.15  # ratio of test data
+    train: float  # ratio of training data
+    val: float  # ratio of validation data
+    test: float  # ratio of test data
 
 
 class DatasetType(str, Enum):
@@ -37,28 +37,15 @@ class DatasetConfig:
 
 @dataclass
 class DatasetGenerationConfig:
-    data_dir: str = (
-        "data"  # where to store the generated dataset (apart from wandb artifacts)
-    )
-    split_idx: int = 1  # which split to use
-    seeds: list[int] = field(
-        default_factory=lambda: [
-            42,
-            123,
-            456,
-            789,
-            101112,
-            131415,
-            161718,
-            192021,
-            222324,
-            252627,
-        ]
-    )  # which seeds to use, only the seed at index `split - 1` will be used
-    split_ratio: SplitRatioConfig = field(default_factory=SplitRatioConfig)
-    output_artifact_aliases: list[str] = field(default_factory=lambda: [])
+    data_dir: str  # where to store the generated dataset (apart from wandb artifacts)
+    split_idx: int  # which split to use
+    seeds: list[
+        int
+    ]  # which seeds to use, only the seed at index `split - 1` will be used
+    split_ratio: SplitRatioConfig
+    output_artifact_aliases: list[str]
 
-    dataset: DatasetConfig = field(default_factory=lambda: DatasetConfig("cube"))
+    dataset: DatasetConfig
 
 
 cs.store(name="dataset_generation", node=DatasetGenerationConfig)
@@ -70,17 +57,17 @@ cs.store(name="dataset_generation", node=DatasetGenerationConfig)
 
 @dataclass
 class Shim2018EncoderConfig:
-    output_size: int = 16
-    reading_block_cells: list[int] = field(default_factory=lambda: [32, 32])
-    writing_block_cells: list[int] = field(default_factory=lambda: [32, 32])
-    memory_size: int = 16
-    processing_steps: int = 5
-    dropout: float = 0.1
+    output_size: int
+    reading_block_cells: list[int]
+    writing_block_cells: list[int]
+    memory_size: int
+    processing_steps: int
+    dropout: float
 
 
 @dataclass
 class Shim2018ClassifierConfig:
-    num_cells: list[int] = field(default_factory=lambda: [32, 32])
+    num_cells: list[int]
 
 
 @dataclass
@@ -88,19 +75,17 @@ class Shim2018PretrainConfig:
     dataset_artifact_name: str
     batch_size: int  # batch size for dataloader
     epochs: int
-    limit_train_batches: int | None = None
-    limit_val_batches: int | None = None
+    limit_train_batches: int | None
+    limit_val_batches: int | None
 
-    device: str = "cuda"
-    seed: int = 42
-    lr: float = 1e-3
-    min_masking_probability: float = 0.0
-    max_masking_probability: float = 0.9
-    encoder: Shim2018EncoderConfig = field(default_factory=Shim2018EncoderConfig)
-    classifier: Shim2018ClassifierConfig = field(
-        default_factory=Shim2018ClassifierConfig
-    )
-    output_artifact_aliases: list[str] = field(default_factory=lambda: [])
+    device: str
+    seed: int
+    lr: float
+    min_masking_probability: float
+    max_masking_probability: float
+    encoder: Shim2018EncoderConfig
+    classifier: Shim2018ClassifierConfig
+    output_artifact_aliases: list[str]
 
 
 cs.store(name="pretrain_shim2018", node=Shim2018PretrainConfig)
@@ -110,39 +95,31 @@ cs.store(name="pretrain_shim2018", node=Shim2018PretrainConfig)
 
 @dataclass
 class Zannone2019PointNetConfig:
-    type: str = "pointnetplus"
-    identity_size: int = 20  # EDDI paper
-    max_embedding_norm: float = 1.0
-    output_size: int = (
-        40  # always twice as large as latent size according to EDDI paper
-    )
-    feature_map_encoder_num_cells: list[int] = field(
-        default_factory=lambda: [500]
-    )  # EDDI paper
-    feature_map_encoder_dropout: float = 0.1
-    # activation_class: nn.Module = field(default_factory=nn.ReLU)
+    type: str  # "pointnet" or "pointnetplus"
+    identity_size: int
+    max_embedding_norm: float
+    output_size: int
+    feature_map_encoder_num_cells: list[int]
+    feature_map_encoder_dropout: float
 
 
 @dataclass
 class Zannone2019EncoderConfig:
-    num_cells: list[int] = field(default_factory=lambda: [500, 200])  # ODIN paper
-    dropout: float = 0.1
-    # num_cells: list[int] = field(default_factory=lambda: [500, 500,200]) # EDDI paper
+    num_cells: list[int]
+    dropout: float
 
 
 @dataclass
 class Zannone2019PartialVAEConfig:
-    latent_size: int = 20  # EDDI paper
-    decoder_num_cells: list[int] = field(
-        default_factory=lambda: [200, 500, 500]
-    )  # EDDI paper
-    decoder_dropout: float = 0.1
+    latent_size: int
+    decoder_num_cells: list[int]
+    decoder_dropout: float
 
 
 @dataclass
 class Zannone2019ClassifierConfig:
-    num_cells: list[int] = field(default_factory=lambda: [64, 64])  # just a guess
-    dropout: float = 0.1
+    num_cells: list[int]
+    dropout: float
 
 
 @dataclass
@@ -150,31 +127,22 @@ class Zannone2019PretrainConfig:
     dataset_artifact_name: str
     batch_size: int  # batch size for dataloader
     epochs: int
-    limit_train_batches: int | None = None
-    limit_val_batches: int | None = None
+    limit_train_batches: int | None
+    limit_val_batches: int | None
 
-    device: str = "cuda"
-    seed: int = 42
-    lr: float = 1e-3
-    min_masking_probability: float = 0.0
-    max_masking_probability: float = 0.9
-    # encoder: Shim2018EncoderConfig = field(default_factory=Shim2018EncoderConfig)
-    pointnet: Zannone2019PointNetConfig = field(
-        default_factory=Zannone2019PointNetConfig
-    )
-    encoder: Zannone2019EncoderConfig = field(default_factory=Zannone2019EncoderConfig)
-    partial_vae: Zannone2019PartialVAEConfig = field(
-        default_factory=Zannone2019PartialVAEConfig
-    )
-    classifier: Zannone2019ClassifierConfig = field(
-        default_factory=Zannone2019ClassifierConfig
-    )
-    recon_loss_type: str = (
-        "squared_error"  # one of "squared_error" or "binary_cross_entropy"
-    )
-    kl_scaling_factor: float = 1e-3
-    classifier_loss_scaling_factor: float = 1
-    output_artifact_aliases: list[str] = field(default_factory=lambda: [])
+    device: str
+    seed: int
+    lr: float
+    min_masking_probability: float
+    max_masking_probability: float
+    pointnet: Zannone2019PointNetConfig
+    encoder: Zannone2019EncoderConfig
+    partial_vae: Zannone2019PartialVAEConfig
+    classifier: Zannone2019ClassifierConfig
+    recon_loss_type: str  # one of "squared_error" or "binary_cross_entropy"
+    kl_scaling_factor: float
+    classifier_loss_scaling_factor: float
+    output_artifact_aliases: list[str]
 
 
 cs.store(name="pretrain_zannone2019", node=Zannone2019PretrainConfig)
@@ -190,19 +158,19 @@ class Shim2018AgentConfig:
     replay_buffer_size: int
     replay_buffer_batch_size: int
     num_optim: int
-    init_random_frames: int = 0  # how many frames to collect before starting training
-    eps_init: float = 1.0
-    eps_end: float = 0.1
-    lr: float = 1e-3
-    update_tau: float = 0.005
-    max_grad_norm: float = 1.0
-    replay_buffer_alpha: float = 0.6
-    replay_buffer_beta_init: float = 0.4
-    replay_buffer_beta_end: float = 1.0
-    delay_value: bool = True
-    double_dqn: bool = True
-    action_value_num_cells: list[int] = field(default_factory=lambda: [128, 128])
-    action_value_dropout: float = 0.1
+    init_random_frames: int  # how many frames to collect before starting training
+    eps_init: float
+    eps_end: float
+    lr: float
+    update_tau: float
+    max_grad_norm: float
+    replay_buffer_alpha: float
+    replay_buffer_beta_init: float
+    replay_buffer_beta_end: float
+    delay_value: bool
+    double_dqn: bool
+    action_value_num_cells: list[int]
+    action_value_dropout: float
 
 
 @dataclass
@@ -217,13 +185,13 @@ class Shim2018TrainConfig:
     eval_max_steps: int  # maximum allowed number of steps in an evaluation episode
     n_eval_episodes: int  # how many episodes to average over in evaluation
 
-    device: str = "cuda"
-    seed: int = 42
-    pretrained_model_lr: float = 1e-3
-    activate_joint_training_after_n_batches: int = 0
-    output_artifact_aliases: list[str] = field(default_factory=lambda: [])
-    evaluate_final_performance: bool = True
-    eval_only_n_samples: int | None = None
+    device: str
+    seed: int
+    pretrained_model_lr: float
+    activate_joint_training_after_n_batches: int
+    output_artifact_aliases: list[str]
+    evaluate_final_performance: bool
+    eval_only_n_samples: int | None
 
 
 cs.store(name="train_shim2018", node=Shim2018TrainConfig)
@@ -291,8 +259,8 @@ cs.store(name="train_ma2018", node=Ma2018TraingConfig)
 class RandomDummyTrainConfig:
     dataset_artifact_name: str
     hard_budget: int  # not used, but pretend that it is
-    seed: int = 42
-    output_artifact_aliases: list[str] = field(default_factory=lambda: [])
+    seed: int
+    output_artifact_aliases: list[str]
 
 
 # zannone2019
@@ -300,21 +268,21 @@ class RandomDummyTrainConfig:
 
 @dataclass
 class Zannone2019AgentConfig:
-    gamma: float = 1.0
-    lmbda: float = 0.95
-    clip_epsilon: float = 0.2
-    entropy_bonus: bool = True
-    entropy_coef: float = 0.0001
-    critic_coef: float = 1.0
-    loss_critic_type: str = "smooth_l1"
-    lr: float = 1e-3
-    max_grad_norm: float = 1.0
-    sub_batch_size: int = 128
-    num_epochs: int = 4
-    value_num_cells: list[int] = field(default_factory=lambda: [128, 128])
-    value_dropout: float = 0.1
-    policy_num_cells: list[int] = field(default_factory=lambda: [128, 128])
-    policy_dropout: float = 0.1
+    gamma: float
+    lmbda: float
+    clip_epsilon: float
+    entropy_bonus: bool
+    entropy_coef: float
+    critic_coef: float
+    loss_critic_type: str
+    lr: float
+    max_grad_norm: float
+    sub_batch_size: int
+    num_epochs: int
+    value_num_cells: list[int]
+    value_dropout: float
+    policy_num_cells: list[int]
+    policy_dropout: float
 
 
 @dataclass
@@ -333,11 +301,11 @@ class Zannone2019TrainConfig:
     )
     generation_batch_size: int  # which batch size to use for artificial data generation
 
-    device: str = "cuda"
-    seed: int = 42
-    output_artifact_aliases: list[str] = field(default_factory=lambda: [])
-    evaluate_final_performance: bool = True
-    eval_only_n_samples: int | None = None
+    device: str
+    seed: int
+    output_artifact_aliases: list[str]
+    evaluate_final_performance: bool
+    eval_only_n_samples: int | None
 
 
 cs.store(name="train_randomdummy", node=RandomDummyTrainConfig)
@@ -350,20 +318,18 @@ class TrainMaskedMLPClassifierConfig:
     dataset_artifact_name: str
     batch_size: int
     epochs: int
-    limit_train_batches: int | None = None
-    limit_val_batches: int | None = None
-    min_masking_probability: float = 0.0
-    max_masking_probability: float = 0.9
-    eval_only_n_samples: int | None = (
-        None  # if specified, only evaluate on this many samples
-    )
-    lr: float = 1e-3
-    seed: int = 42
-    device: str = "cuda"
-    num_cells: list[int] = field(default_factory=lambda: [128, 128])
-    dropout: float = 0.1
-    output_artifact_aliases: list[str] = field(default_factory=lambda: [])
-    evaluate_final_performance: bool = True
+    limit_train_batches: int | None
+    limit_val_batches: int | None
+    min_masking_probability: float
+    max_masking_probability: float
+    eval_only_n_samples: int | None  # if specified, only evaluate on this many samples
+    lr: float
+    seed: int
+    device: str
+    num_cells: list[int]
+    dropout: float
+    output_artifact_aliases: list[str]
+    evaluate_final_performance: bool
 
 
 cs.store(name="train_masked_mlp_classifier", node=TrainMaskedMLPClassifierConfig)
@@ -375,13 +341,11 @@ cs.store(name="train_masked_mlp_classifier", node=TrainMaskedMLPClassifierConfig
 class EvalConfig:
     trained_method_artifact_name: str
     trained_classifier_artifact_name: str | None  # if None, use the method's classifier
-    seed: int = 42
-    device: str = "cuda"
-    output_artifact_aliases: list[str] = field(default_factory=lambda: [])
-    eval_only_n_samples: int | None = (
-        None  # if specified, only evaluate on this many samples
-    )
-    batch_size: int = 1
+    seed: int
+    device: str
+    output_artifact_aliases: list[str]
+    eval_only_n_samples: int | None  # if specified, only evaluate on this many samples
+    batch_size: int
 
 
 cs.store(name="eval", node=EvalConfig)
