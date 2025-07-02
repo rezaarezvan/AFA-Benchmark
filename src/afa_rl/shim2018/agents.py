@@ -1,18 +1,28 @@
-from dataclasses import dataclass, field
-from typing import Any, final, override
-from tensordict.nn import TensorDictModule
-from torch import nn
+from pathlib import Path
+from typing import Any, Self, cast, final, override
+from omegaconf import OmegaConf
+from tensordict import TensorDictBase
+from tensordict.nn import TensorDictModule, TensorDictModuleBase, TensorDictSequential
+from torch import Tensor, nn, optim
 import torch
-from torchrl.modules import MLP
+from torchrl.data import (
+    LazyTensorStorage,
+    SamplerWithoutReplacement,
+    TensorDictReplayBuffer,
+    TensorSpec,
+)
+from torchrl.modules import MLP, EGreedyModule, QValueModule
+from torchrl.objectives import DQNLoss, SoftUpdate, ValueEstimators
 
-from afa_rl.agents import DQNAgent, serializable, unserializable
+from afa_rl.agents import Agent
 from afa_rl.shim2018.models import Shim2018Embedder
-from afa_rl.utils import get_sequential_module_norm, module_norm
+from afa_rl.utils import module_norm
+from common.config_classes import Shim2018AgentConfig
 from common.custom_types import FeatureMask, MaskedFeatures
 
 
 @final
-class Shim2018ActionValueNet(nn.Module):
+class Shim2018ActionValueModule(nn.Module):
     def __init__(
         self,
         embedder: Shim2018Embedder,
@@ -50,34 +60,226 @@ class Shim2018ActionValueNet(nn.Module):
 
 
 @final
-@dataclass(kw_only=True, eq=False, order=False)
-class Shim2018Agent(DQNAgent):
-    embedder: Shim2018Embedder = unserializable()
-    embedding_size: int = serializable(default=int)
-    n_features: int = serializable()
-    action_value_num_cells: tuple[int, ...] = (128, 128)
-    action_value_dropout: float = 0.1
-    action_value_net: Shim2018ActionValueNet = field(init=False)
+class Shim2018Agent(Agent):
+    def __init__(
+        self,
+        cfg: Shim2018AgentConfig,
+        embedder: Shim2018Embedder,
+        embedding_size: int,  # size of the embedding produced by `embedder`
+        action_spec: TensorSpec,
+        action_mask_key: str,
+        batch_size: int,  # expected batch size received in `process_batch`
+    ):
+        self.cfg = cfg
+        self.embedder = embedder
+        self.embedding_size = embedding_size
+        self.action_spec = action_spec
+        self.action_mask_key = action_mask_key
+        self.batch_size = batch_size
 
-    @override
-    def get_action_value_module(self) -> TensorDictModule:
-        self.action_value_net = Shim2018ActionValueNet(
+        self.action_value_module = Shim2018ActionValueModule(
             embedder=self.embedder,
             embedding_size=self.embedding_size,
-            action_size=self.action_spec.n,
-            num_cells=self.action_value_num_cells,
-            dropout=self.action_value_dropout,
-        )
-        action_value_module = TensorDictModule(
-            module=self.action_value_net,
+            action_size=self.action_spec.n,  # pyright: ignore
+            num_cells=tuple(self.cfg.action_value_num_cells),
+            dropout=self.cfg.action_value_dropout,
+        ).to(self.cfg.module_device)
+
+        self.action_value_tdmodule = TensorDictModule(
+            module=self.action_value_module,
             in_keys=["masked_features", "feature_mask", "action_mask"],
             out_keys=["action_value"],
         )
-        return action_value_module
+
+        self.greedy_tdmodule = QValueModule(
+            spec=self.action_spec,
+            action_mask_key=self.action_mask_key,
+            action_value_key="action_value",
+            out_keys=["action", "action_value", "chosen_action_value"],
+        ).to(self.cfg.module_device)
+
+        self.greedy_policy_tdmodule = TensorDictSequential(
+            [self.action_value_tdmodule, self.greedy_tdmodule]
+        )
+
+        self.egreedy_tdmodule = EGreedyModule(
+            spec=self.action_spec,
+            action_key="action",
+            action_mask_key=self.action_mask_key,
+            annealing_num_steps=self.cfg.eps_annealing_num_batches,
+            eps_init=self.cfg.eps_init,
+            eps_end=self.cfg.eps_end,
+        ).to(self.cfg.module_device)
+
+        self.egreedy_policy_tdmodule = TensorDictSequential(
+            [self.greedy_policy_tdmodule, self.egreedy_tdmodule]
+        )
+
+        self.loss_tdmodule = DQNLoss(
+            value_network=self.greedy_policy_tdmodule,
+            loss_function=self.cfg.loss_function,
+            delay_value=self.cfg.delay_value,
+            double_dqn=self.cfg.double_dqn,
+            action_space=self.action_spec,
+        )
+        self.loss_tdmodule.make_value_estimator(
+            ValueEstimators.TD0, gamma=self.cfg.gamma
+        )
+
+        if self.cfg.delay_value:
+            self.target_net_updater = SoftUpdate(
+                self.loss_tdmodule, eps=1 - self.cfg.update_tau
+            )
+        else:
+            self.target_net_updater = None
+
+        self.optimizer = optim.Adam(self.loss_tdmodule.parameters(), lr=self.cfg.lr)
+
+        # The shim2018 method does not use a replay buffer but we create one so we can sample batches smaller than
+        # the data received in `process_batch`
+        self.replay_buffer = TensorDictReplayBuffer(
+            storage=LazyTensorStorage(
+                max_size=self.batch_size,
+                device=torch.device(self.cfg.replay_buffer_device),
+            ),
+            sampler=SamplerWithoutReplacement(),
+            batch_size=self.cfg.replay_buffer_batch_size,
+        )
 
     @override
-    def get_eval_info(self) -> dict[str, Any]:
+    def get_exploratory_policy(self) -> TensorDictModuleBase:
+        return self.egreedy_policy_tdmodule
+
+    @override
+    def get_exploitative_policy(self) -> TensorDictModuleBase:
+        return self.greedy_policy_tdmodule
+
+    @override
+    def get_cheap_info(self) -> dict[str, Any]:
+        return {"eps": self.egreedy_tdmodule.eps.item()}  # pyright: ignore
+
+    @override
+    def get_expensive_info(self) -> dict[str, Any]:
         return {
-            "value net norm": module_norm(self.action_value_net.net),
+            "value net norm": module_norm(self.action_value_module.net),
             # "embedder norm": module_norm(self.embedder),
         }
+
+    @override
+    def process_batch(self, td: TensorDictBase) -> dict[str, Any]:
+        self.replay_buffer.extend(td)
+
+        # Initialize total loss dictionary
+        total_loss_td = {"loss": 0.0}
+        td_errors = []
+
+        for _ in range(self.cfg.num_optim):
+            sampled_td = self.replay_buffer.sample()
+            self.optimizer.zero_grad()
+            loss_td: TensorDictBase = self.loss_tdmodule(sampled_td)
+            loss_tensor: Tensor = loss_td["loss"]
+            loss_tensor.backward()
+            nn.utils.clip_grad_norm_(
+                self.loss_tdmodule.parameters(), max_norm=self.cfg.max_grad_norm
+            )
+            self.optimizer.step()
+            td_errors.append(sampled_td["td_error"])
+
+            # Accumulate losses
+            total_loss_td["loss"] += loss_td["loss"].item()
+
+        # Update target network
+        if self.target_net_updater is not None:
+            self.target_net_updater.step()
+
+        # Anneal epsilon for epsilon greedy exploration
+        self.egreedy_tdmodule.step()
+
+        # Compute average loss
+        process_td = {k: v / self.cfg.num_optim for k, v in total_loss_td.items()}
+        process_td["td_error"] = torch.mean(torch.stack(td_errors)).item()
+
+        return process_td
+
+    @override
+    def get_module_device(self) -> torch.device:
+        return torch.device(self.cfg.module_device)
+
+    @override
+    def set_module_device(self, device: torch.device) -> None:
+        self.cfg.module_device = str(device)
+
+        # Send modules to device
+        self.action_value_module = self.action_value_module.to(self.cfg.module_device)
+        self.greedy_tdmodule = self.greedy_tdmodule.to(self.cfg.module_device)
+        self.egreedy_tdmodule = self.egreedy_tdmodule.to(self.cfg.module_device)
+
+    @override
+    def get_replay_buffer_device(self) -> torch.device:
+        return torch.device(self.cfg.replay_buffer_device)
+
+    @override
+    def set_replay_buffer_device(self, device: torch.device) -> None:
+        raise ValueError("set_replay_buffer_device not yet supported for Shim2018Agent")
+
+    @override
+    def save(self, path: Path) -> None:
+        path.mkdir(exist_ok=True)
+
+        # Store embedder as a raw model, weights will be updated either way
+        torch.save(self.embedder, path / "embedder.pt")
+
+        # Q-value module weights
+        torch.save(
+            self.action_value_tdmodule.state_dict(),
+            path / "action_value_module.pth",
+        )
+
+        # Save agent config
+        OmegaConf.save(OmegaConf.structured(self.cfg), path / "config.yaml")
+
+        # Save the misc args that were passed to the constructor
+        OmegaConf.save(
+            OmegaConf.create(
+                {
+                    "embedding_size": self.embedding_size,
+                    "action_mask_key": self.action_mask_key,
+                    "batch_size": self.batch_size,
+                }
+            ),
+            path / "args.yaml",
+        )
+        torch.save(self.action_spec, path / "action_spec.pt")
+
+    @override
+    @classmethod
+    def load(cls: type[Self], path: Path) -> Self:
+        # Load agent config
+        cfg_dict = OmegaConf.merge(
+            OmegaConf.structured(Shim2018AgentConfig),
+            OmegaConf.load(path / "config.yaml"),
+        )
+        cfg = cast(Shim2018AgentConfig, OmegaConf.to_object(cfg_dict))
+        # Load embedder
+        embedder: Shim2018Embedder = torch.load(path / "embedder.pt")
+
+        # Load args that were originally passed to the constructor
+        args = OmegaConf.load(path / "args.yaml")
+        action_spec = torch.load(path / "action_spec.pt")
+
+        # Construct instance of agent
+        agent = cls(
+            cfg=cfg,
+            embedder=embedder,
+            embedding_size=args.embedding_size,
+            action_spec=action_spec,
+            action_mask_key=args.action_mask_key,
+            batch_size=args.batch_size,
+        )
+
+        # Load Q-value module weights
+        agent.action_value_module.load_state_dict(
+            torch.load(path / "action_value_module.pth")
+        )
+
+        return agent

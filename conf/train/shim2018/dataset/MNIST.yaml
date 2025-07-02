@@ -1,18 +1,29 @@
 pretrained_model_artifact_name: "pretrain_shim2018-MNIST_split_1:tmp"
 n_agents: 2 # fewer agents than for cube in order to fit on GPU
-hard_budget: 10 # recommended: 10, 50, 100
+hard_budget: 10 # recommended: 10, 20, 30
 agent:
-  eps_annealing_num_batches: 1000 
-  replay_buffer_size: 1000000
-  replay_buffer_batch_size: 32
-  replay_buffer_beta_annealing_num_batches: ${n_batches}
-  num_optim: 4 # shim2018 paper
+  module_device: "cuda"
+  replay_buffer_device: "cuda"
+
   eps_init: 1.0 # shim2018 paper
   eps_end: 0.1 # shim2018 paper
+  eps_annealing_num_batches: 5000 # shim2018 paper
+
+  replay_buffer_batch_size: 32 # MNIST too large for 128
+
+  num_optim: 4 # shim2018 paper
+  max_grad_norm: 1
   lr: 1e-3
   update_tau: 0.005
+
   action_value_num_cells: [32, 32] # shim2018 paper
   action_value_dropout: 0.0
+
+  loss_function: "l2" # shim2018 paper
+  delay_value: true # shim2018 paper
+  double_dqn: true # shim2018 paper
+
+  gamma: 1.0
 n_batches: 15000 # up to 30k also works well, but not significant improvement
 batch_size: 64 # MNIST too large to use standard batch_size 512
 eval_every_n_batches: 500

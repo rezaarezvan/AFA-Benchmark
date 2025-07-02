@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Self, final, override
-from tensordict.nn import TensorDictModule
+from tensordict.nn import TensorDictModule, TensorDictModuleBase
 import torch
 from tensordict import TensorDict
 from torchrl.envs import ExplorationType, set_exploration_type
@@ -59,7 +59,7 @@ def get_td_from_masked_features(
 class RLAFAMethod(AFAMethod):
     """Implements the AFAMethod protocol for a TensorDictModule policy together with a classifier."""
 
-    policy_tdmodule: TensorDictModule
+    policy_tdmodule: TensorDictModuleBase
     afa_classifier: AFAClassifier
     _device: torch.device = torch.device("cpu")
 

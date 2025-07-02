@@ -154,23 +154,34 @@ cs.store(name="pretrain_zannone2019", node=Zannone2019PretrainConfig)
 
 @dataclass
 class Shim2018AgentConfig:
-    eps_steps: int
-    replay_buffer_size: int
-    replay_buffer_batch_size: int
-    num_optim: int
-    init_random_frames: int  # how many frames to collect before starting training
+    module_device: str  # device for modules
+    replay_buffer_device: str  # device for replay buffer
+
+    # epsilon-greedy parameters
     eps_init: float
     eps_end: float
+    eps_annealing_num_batches: int
+
+    # How large batches should be sampled from replay buffer
+    replay_buffer_batch_size: int
+
+    # Optimization parameters
+    num_optim: int
+    max_grad_norm: float
     lr: float
     update_tau: float
-    max_grad_norm: float
-    replay_buffer_alpha: float
-    replay_buffer_beta_init: float
-    replay_buffer_beta_end: float
-    delay_value: bool
-    double_dqn: bool
+
+    # Network parameters
     action_value_num_cells: list[int]
     action_value_dropout: float
+
+    # Loss module parameters
+    loss_function: str
+    delay_value: bool
+    double_dqn: bool
+
+    # Value estimator parameters
+    gamma: float
 
 
 @dataclass
@@ -185,7 +196,7 @@ class Shim2018TrainConfig:
     eval_max_steps: int  # maximum allowed number of steps in an evaluation episode
     n_eval_episodes: int  # how many episodes to average over in evaluation
 
-    device: str
+    device: str  # device for everything except agent
     seed: int
     pretrained_model_lr: float
     activate_joint_training_after_n_batches: int

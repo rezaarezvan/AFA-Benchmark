@@ -35,6 +35,7 @@ from afa_rl.utils import (
     get_eval_metrics,
     module_norm,
 )
+from common.afa_methods import RandomDummyAFAMethod
 from common.config_classes import Shim2018PretrainConfig, Shim2018TrainConfig
 from common.custom_types import (
     AFADataset,
@@ -180,21 +181,17 @@ def main(cfg: Shim2018TrainConfig):
     )
 
     agent: Agent = Shim2018Agent(
+        cfg=cfg.agent,
         embedder=pretrained_model.embedder,
         embedding_size=pretrained_model_config.encoder.output_size,
-        n_features=n_features,
-        action_mask_key="action_mask",
         action_spec=train_env.action_spec,
-        _device=device,
-        gamma=1.0,
-        loss_function="l2",
-        replay_buffer_device=device,
-        **OmegaConf.to_container(cfg.agent, resolve=True),  # pyright: ignore
+        action_mask_key="action_mask",
+        batch_size=cfg.batch_size,
     )
 
     collector = SyncDataCollector(
         train_env,
-        agent.policy,
+        agent.get_exploratory_policy(),
         frames_per_batch=cfg.batch_size,
         total_frames=cfg.n_batches * cfg.batch_size,
         # device=device,
@@ -234,7 +231,7 @@ def main(cfg: Shim2018TrainConfig):
                     f"train/{k}": v
                     for k, v in (
                         loss_info
-                        | agent.get_train_info()
+                        | agent.get_cheap_info()
                         | {
                             "reward": td["next", "reward"].mean().item(),
                             # "action value": td["action_value"].mean().item(),
@@ -256,13 +253,13 @@ def main(cfg: Shim2018TrainConfig):
                     set_exploration_type(ExplorationType.DETERMINISTIC),
                 ):
                     # HACK: Set the action spec of the agent to the eval env action spec
-                    agent.egreedy_module._spec = eval_env.action_spec  # pyright: ignore
+                    agent.egreedy_tdmodule._spec = eval_env.action_spec  # pyright: ignore
                     td_evals = [
                         eval_env.rollout(cfg.eval_max_steps, agent.policy).squeeze(0)
                         for _ in tqdm(range(cfg.n_eval_episodes), desc="Evaluating")
                     ]
                     # Reset the action spec of the agent to the train env action spec
-                    agent.egreedy_module._spec = train_env.action_spec  # pyright: ignore
+                    agent.egreedy_tdmodule._spec = train_env.action_spec  # pyright: ignore
                 metrics_eval = get_eval_metrics(
                     td_evals, Shim2018AFAPredictFn(pretrained_model)
                 )
@@ -272,7 +269,7 @@ def main(cfg: Shim2018TrainConfig):
                             f"eval/{k}": v
                             for k, v in (
                                 metrics_eval
-                                | agent.get_eval_info()
+                                | agent.get_expensive_info()
                                 | {
                                     "classifier_norm": module_norm(
                                         pretrained_model.classifier
@@ -290,10 +287,9 @@ def main(cfg: Shim2018TrainConfig):
         pass
     finally:
         # Convert the embedder+agent to an AFAMethod and save it as a temporary file
-        agent.device = torch.device("cpu")  # Move agent to CPU for saving
         pretrained_model = pretrained_model.to(torch.device("cpu"))
         afa_method = RLAFAMethod(
-            agent.policy,
+            agent.get_exploitative_policy().to(torch.device("cpu")),
             Shim2018AFAClassifier(pretrained_model, device=torch.device("cpu")),
         )
         # Save the method to a temporary directory and load it again to ensure it is saved correctly
@@ -314,10 +310,23 @@ def main(cfg: Shim2018TrainConfig):
                     afa_method.predict,
                     only_n_samples=cfg.eval_only_n_samples,
                 )
-                fig = plot_metrics(metrics)
+                fig_metrics = plot_metrics(metrics)
+                # Also check performance of dummy method for comparison
+                dummy_afa_method = RandomDummyAFAMethod(
+                    device=torch.device("cpu"), n_classes=n_classes
+                )
+                dummy_metrics = eval_afa_method(
+                    dummy_afa_method.select,
+                    val_dataset,
+                    cfg.hard_budget,
+                    afa_method.predict,
+                    only_n_samples=cfg.eval_only_n_samples,
+                )
+                fig_dummy_metrics = plot_metrics(dummy_metrics)
                 run.log(
                     {
-                        "final_performance_plot": fig,
+                        "final_performance_plot": fig_metrics,
+                        "final_dummy_performance_plot": fig_dummy_metrics,
                     }
                 )
 
