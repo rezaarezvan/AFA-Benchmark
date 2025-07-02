@@ -9,7 +9,8 @@ AFA_METHOD_TYPES = {
     "covert2023",
     "gadgil2023",
     "ma2018",
-    "aco_oracle",
+    "aco",
+    "aco_bc",
     "sequential_dummy",
     "random_dummy",
 }
@@ -37,10 +38,14 @@ def get_afa_method_class(name: str) -> type[AFAMethod]:
 
         return Ma2018AFAMethod
 
-    elif name == "aco_oracle":
-        from afa_oracle.afa_methods import ACOOracleMethod
+    elif name == "aco":
+        from afa_oracle.afa_methods import ACOAFAMethod
+        return ACOAFAMethod
 
-        return ACOOracleMethod
+    elif name == "aco_bc":
+        from afa_oracle.afa_methods import ACOBCAFAMethod
+
+        return ACOBCAFAMethod
 
     elif name == "sequentialdummy":
         from common.afa_methods import SequentialDummyAFAMethod
