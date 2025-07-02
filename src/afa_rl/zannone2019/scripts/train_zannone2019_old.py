@@ -19,7 +19,9 @@ from afa_rl.datasets import get_afa_dataset_fn
 from afa_rl.zannone2019.models import (
     Zannone2019PretrainingModel,
 )
-from afa_rl.zannone2019.scripts.pretrain_zannone2019 import get_zannone2019_model_from_config
+from afa_rl.zannone2019.scripts.pretrain_zannone2019 import (
+    get_zannone2019_model_from_config,
+)
 from afa_rl.utils import get_sequential_module_norm
 from common.utils import dict_to_namespace
 from common.custom_types import (
@@ -56,7 +58,8 @@ def get_pretrained_model_accuracy(
     # Get the latent representation of the masked features
     with torch.no_grad():
         encoding, mu, logvar, z = pretrained_model.partial_vae.encode(
-            masked_features.to(pretrained_model.device), feature_mask.to(pretrained_model.device)
+            masked_features.to(pretrained_model.device),
+            feature_mask.to(pretrained_model.device),
         )
         # Get logits using classifier
         logits = pretrained_model.classifier(mu.to(pretrained_model.device))
@@ -116,9 +119,7 @@ def get_eval_metrics(train_config, eval_env, agent, pretrained_model):
         range(train_config.eval_episodes), desc="Evaluating agent..."
     ):
         # Evaluate agent
-        td_eval = eval_env.rollout(
-            max_steps=9001, policy=agent.policy
-        )
+        td_eval = eval_env.rollout(max_steps=9001, policy=agent.policy)
         # Squeeze batch dimension
         td_eval = td_eval.squeeze(0)
         # Calculate acquired features
@@ -156,18 +157,37 @@ def eval_log(run, eval_metrics, batch_idx):
         }
     )
 
-def check_pretrained_model_accuracy(pretrained_model, train_dataset, val_dataset, gen_features, gen_labels) -> None:
+
+def check_pretrained_model_accuracy(
+    pretrained_model, train_dataset, val_dataset, gen_features, gen_labels
+) -> None:
     train_acc_50 = get_pretrained_model_accuracy(
-        pretrained_model, train_dataset.features, train_dataset.labels, 0.5, n_samples=len(train_dataset)
+        pretrained_model,
+        train_dataset.features,
+        train_dataset.labels,
+        0.5,
+        n_samples=len(train_dataset),
     )
     train_acc_100 = get_pretrained_model_accuracy(
-        pretrained_model, train_dataset.features, train_dataset.labels, 0.0, n_samples=len(train_dataset)
+        pretrained_model,
+        train_dataset.features,
+        train_dataset.labels,
+        0.0,
+        n_samples=len(train_dataset),
     )
     val_acc_50 = get_pretrained_model_accuracy(
-        pretrained_model, val_dataset.features, val_dataset.labels, 0.5, n_samples=len(val_dataset)
+        pretrained_model,
+        val_dataset.features,
+        val_dataset.labels,
+        0.5,
+        n_samples=len(val_dataset),
     )
     val_acc_100 = get_pretrained_model_accuracy(
-        pretrained_model, val_dataset.features, val_dataset.labels, 0.0, n_samples=len(val_dataset)
+        pretrained_model,
+        val_dataset.features,
+        val_dataset.labels,
+        0.0,
+        n_samples=len(val_dataset),
     )
     gen_acc_50 = get_pretrained_model_accuracy(
         pretrained_model, gen_features, gen_labels, 0.5, n_samples=len(gen_features)
@@ -182,11 +202,14 @@ def check_pretrained_model_accuracy(pretrained_model, train_dataset, val_dataset
     print(f"Gen accuracy (50% mask): {gen_acc_50:.4f}")
     print(f"Gen accuracy (100% mask): {gen_acc_100:.4f}")
 
+
 class Zannone2019AFAClassifier(MaskedClassifier):
     def __init__(self, model: Zannone2019PretrainingModel):
         self.model = model
 
-    def __call__(self, masked_features: MaskedFeatures, feature_mask: FeatureMask) -> Logits:
+    def __call__(
+        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+    ) -> Logits:
         with torch.no_grad():
             encoding, mu, logvar, z = self.model.partial_vae.encode(
                 masked_features, feature_mask
@@ -194,18 +217,35 @@ class Zannone2019AFAClassifier(MaskedClassifier):
             logits = self.model.classifier(mu)
         return logits
 
+
 def assert_deterministic_pretrained_model(pretrained_model, features):
-    z1 = pretrained_model.partial_vae.encoder(features.to(pretrained_model.device), torch.ones_like(features).to(pretrained_model.device))
-    mu1 = z1[:, :z1.shape[1] // 2]
+    z1 = pretrained_model.partial_vae.encoder(
+        features.to(pretrained_model.device),
+        torch.ones_like(features).to(pretrained_model.device),
+    )
+    mu1 = z1[:, : z1.shape[1] // 2]
     logits1 = pretrained_model.classifier(mu1)
-    z2 = pretrained_model.partial_vae.encoder(features.to(pretrained_model.device), torch.ones_like(features).to(pretrained_model.device))
-    mu2 = z2[:, :z2.shape[1] // 2]
+    z2 = pretrained_model.partial_vae.encoder(
+        features.to(pretrained_model.device),
+        torch.ones_like(features).to(pretrained_model.device),
+    )
+    mu2 = z2[:, : z2.shape[1] // 2]
     logits2 = pretrained_model.classifier(mu2)
     assert torch.allclose(z1, z2)
     assert torch.allclose(logits1, logits2)
 
 
-def main(pretrain_config_path: Path, train_config_path: Path, dataset_type: str, train_dataset_path: Path, val_dataset_path: Path, pretrained_model_path: Path, hard_budget: int, seed: int, afa_method_path: Path) -> None:
+def main(
+    pretrain_config_path: Path,
+    train_config_path: Path,
+    dataset_type: str,
+    train_dataset_path: Path,
+    val_dataset_path: Path,
+    pretrained_model_path: Path,
+    hard_budget: int,
+    seed: int,
+    afa_method_path: Path,
+) -> None:
     set_seed(seed)
     torch.set_float32_matmul_precision("medium")
 
@@ -222,7 +262,10 @@ def main(pretrain_config_path: Path, train_config_path: Path, dataset_type: str,
     # Load datasets
     # Import is delayed until now to avoid circular imports
     from common.registry import AFA_DATASET_REGISTRY
-    train_dataset: AFADataset = AFA_DATASET_REGISTRY[dataset_type].load(train_dataset_path)
+
+    train_dataset: AFADataset = AFA_DATASET_REGISTRY[dataset_type].load(
+        train_dataset_path
+    )
     val_dataset: AFADataset = AFA_DATASET_REGISTRY[dataset_type].load(val_dataset_path)
     print(f"Old dataset size: {train_dataset.features.shape[0]}")
 
@@ -232,13 +275,12 @@ def main(pretrain_config_path: Path, train_config_path: Path, dataset_type: str,
 
     class_probabilities = get_class_probabilities(train_dataset.labels)
 
-
     # Init pretrained model
-    pretrained_model = get_zannone2019_model_from_config(pretrain_config, n_features, n_classes, class_probabilities)
-    # Load checkpoint
-    pretrained_model_checkpoint = torch.load(
-        pretrained_model_path, weights_only=True
+    pretrained_model = get_zannone2019_model_from_config(
+        pretrain_config, n_features, n_classes, class_probabilities
     )
+    # Load checkpoint
+    pretrained_model_checkpoint = torch.load(pretrained_model_path, weights_only=True)
     pretrained_model.load_state_dict(pretrained_model_checkpoint["state_dict"])
     pretrained_model = pretrained_model.to(device)
     # Freeze it
@@ -252,18 +294,20 @@ def main(pretrain_config_path: Path, train_config_path: Path, dataset_type: str,
     # Always generate as much data as the original dataset, making it twice as large
     xhats = []
     yhats = []
-    for _ in range(
-        len(train_dataset) // train_config.generative_batch_size
-    ):
+    for _ in range(len(train_dataset) // train_config.generative_batch_size):
         z = torch.randn(
             train_config.generative_batch_size, pretrain_config.partial_vae.latent_size
         )
         with torch.no_grad():
-            xhat = pretrained_model.partial_vae.decoder(z.to(pretrained_model.device)).cpu()
+            xhat = pretrained_model.partial_vae.decoder(
+                z.to(pretrained_model.device)
+            ).cpu()
         xhats.append(xhat)
         # Predicted labels, keeping all probabilities!
         with torch.no_grad():
-            yhat = F.softmax(pretrained_model.classifier(z.to(pretrained_model.device)), -1).cpu()
+            yhat = F.softmax(
+                pretrained_model.classifier(z.to(pretrained_model.device)), -1
+            ).cpu()
         yhats.append(yhat)
     # There might be a remainder, so we need to pad the last batch
     if len(train_dataset) % train_config.generative_batch_size != 0:
@@ -272,19 +316,24 @@ def main(pretrain_config_path: Path, train_config_path: Path, dataset_type: str,
             pretrain_config.partial_vae.latent_size,
         )
         with torch.no_grad():
-            xhat = pretrained_model.partial_vae.decoder(z.to(pretrained_model.device)).cpu()
+            xhat = pretrained_model.partial_vae.decoder(
+                z.to(pretrained_model.device)
+            ).cpu()
         xhats.append(xhat)
         # Predicted labels, keeping all probabilities!
         with torch.no_grad():
-            yhat = F.softmax(pretrained_model.classifier(z.to(pretrained_model.device)), -1).cpu()
+            yhat = F.softmax(
+                pretrained_model.classifier(z.to(pretrained_model.device)), -1
+            ).cpu()
         yhats.append(yhat)
 
     xhats = torch.cat(xhats, dim=0)
     yhats = torch.cat(yhats, dim=0)
 
-
     # Verify that the model has decent performance on the datasets
-    check_pretrained_model_accuracy(pretrained_model, train_dataset, val_dataset, xhats, yhats)
+    check_pretrained_model_accuracy(
+        pretrained_model, train_dataset, val_dataset, xhats, yhats
+    )
 
     # Concatenate the generated data with the original dataset
     combined_train_features = torch.cat((train_dataset.features, xhats), dim=0)
@@ -301,11 +350,13 @@ def main(pretrain_config_path: Path, train_config_path: Path, dataset_type: str,
     class_weights_device = class_weights.to(device)
     reward_fn = get_common_reward_fn(
         classifier=Zannone2019AFAClassifier(pretrained_model),
-        loss_fn=partial(F.cross_entropy, weight=class_weights_device)
+        loss_fn=partial(F.cross_entropy, weight=class_weights_device),
     )
 
     # MDP expects special dataset functions
-    train_dataset_fn = get_afa_dataset_fn(combined_train_features, combined_train_labels)
+    train_dataset_fn = get_afa_dataset_fn(
+        combined_train_features, combined_train_labels
+    )
     val_dataset_fn = get_afa_dataset_fn(val_dataset.features, val_dataset.labels)
 
     # Use original data and generated data for training
@@ -387,9 +438,11 @@ def main(pretrain_config_path: Path, train_config_path: Path, dataset_type: str,
         run.finish()
 
         # Convert the embedder+agent to an AFAMethod and save it
-        afa_method = Zannone2019AFAMethod(device, agent.probabilistic_policy_module, pretrained_model)
+        afa_method = Zannone2019AFAMethod(
+            device, agent.probabilistic_policy_tdmodule, pretrained_model
+        )
         afa_method.save(afa_method_path / "model.pt")
-        print(f"Zannone2019AFAMethod saved to {afa_method_path / "model.pt"}")
+        print(f"Zannone2019AFAMethod saved to {afa_method_path / 'model.pt'}")
 
         # Save params.yml file
         with open(afa_method_path / "params.yml", "w") as file:
@@ -408,7 +461,9 @@ def main(pretrain_config_path: Path, train_config_path: Path, dataset_type: str,
         # Load it just to check that it works
         afa_method = Zannone2019AFAMethod.load(afa_method_path, device)
         print(f"Zannone2019AFAMethod loaded from {afa_method_path}")
-        check_pretrained_model_accuracy(afa_method.pretrained_model, train_dataset, val_dataset, xhats, yhats)
+        check_pretrained_model_accuracy(
+            afa_method.pretrained_model, train_dataset, val_dataset, xhats, yhats
+        )
 
 
 if __name__ == "__main__":
@@ -426,11 +481,18 @@ if __name__ == "__main__":
         required=True,
         help="Path to YAML config file for training",
     )
-    parser.add_argument("--dataset_type", type=str, required=True, choices=AFA_DATASET_REGISTRY.keys())
+    parser.add_argument(
+        "--dataset_type", type=str, required=True, choices=AFA_DATASET_REGISTRY.keys()
+    )
     parser.add_argument("--train_dataset_path", type=Path, required=True)
     parser.add_argument("--val_dataset_path", type=Path, required=True)
     parser.add_argument("--pretrained_model_path", type=Path, required=True)
-    parser.add_argument("--afa_method_path", type=Path, required=True, help="Path to folder to save the trained AFA method")
+    parser.add_argument(
+        "--afa_method_path",
+        type=Path,
+        required=True,
+        help="Path to folder to save the trained AFA method",
+    )
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument("--hard_budget", type=int, required=True)
     args = parser.parse_args()

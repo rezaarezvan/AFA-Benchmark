@@ -187,11 +187,13 @@ def main(cfg: Shim2018TrainConfig):
         action_spec=train_env.action_spec,
         action_mask_key="action_mask",
         batch_size=cfg.batch_size,
+        module_device=torch.device(cfg.device),
+        replay_buffer_device=torch.device(cfg.device),
     )
 
     collector = SyncDataCollector(
         train_env,
-        agent.get_exploratory_policy(),
+        agent.get_policy(),
         frames_per_batch=cfg.batch_size,
         total_frames=cfg.n_batches * cfg.batch_size,
         # device=device,
@@ -255,7 +257,9 @@ def main(cfg: Shim2018TrainConfig):
                     # HACK: Set the action spec of the agent to the eval env action spec
                     agent.egreedy_tdmodule._spec = eval_env.action_spec  # pyright: ignore
                     td_evals = [
-                        eval_env.rollout(cfg.eval_max_steps, agent.policy).squeeze(0)
+                        eval_env.rollout(
+                            cfg.eval_max_steps, agent.get_policy()
+                        ).squeeze(0)
                         for _ in tqdm(range(cfg.n_eval_episodes), desc="Evaluating")
                     ]
                     # Reset the action spec of the agent to the train env action spec
@@ -289,7 +293,7 @@ def main(cfg: Shim2018TrainConfig):
         # Convert the embedder+agent to an AFAMethod and save it as a temporary file
         pretrained_model = pretrained_model.to(torch.device("cpu"))
         afa_method = RLAFAMethod(
-            agent.get_exploitative_policy().to(torch.device("cpu")),
+            agent.get_policy().to("cpu"),
             Shim2018AFAClassifier(pretrained_model, device=torch.device("cpu")),
         )
         # Save the method to a temporary directory and load it again to ensure it is saved correctly

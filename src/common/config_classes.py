@@ -154,9 +154,6 @@ cs.store(name="pretrain_zannone2019", node=Zannone2019PretrainConfig)
 
 @dataclass
 class Shim2018AgentConfig:
-    module_device: str  # device for modules
-    replay_buffer_device: str  # device for replay buffer
-
     # epsilon-greedy parameters
     eps_init: float
     eps_end: float
@@ -166,16 +163,16 @@ class Shim2018AgentConfig:
     replay_buffer_batch_size: int
 
     # Optimization parameters
-    num_optim: int
+    num_epochs: int  # how many times to pass over the batch of data received
     max_grad_norm: float
     lr: float
     update_tau: float
 
-    # Network parameters
+    # Module parameters
     action_value_num_cells: list[int]
     action_value_dropout: float
 
-    # Loss module parameters
+    # Loss parameters
     loss_function: str
     delay_value: bool
     double_dqn: bool
@@ -190,13 +187,15 @@ class Shim2018TrainConfig:
     n_agents: int
     hard_budget: int
     agent: Shim2018AgentConfig
+    agent_module_device: str
+    agent_replay_buffer_device: str
     n_batches: int  # how many batches to train the agent
     batch_size: int  # batch size for collector
     eval_every_n_batches: int  # how often to evaluate the agent
     eval_max_steps: int  # maximum allowed number of steps in an evaluation episode
     n_eval_episodes: int  # how many episodes to average over in evaluation
 
-    device: str  # device for everything except agent
+    device: str
     seed: int
     pretrained_model_lr: float
     activate_joint_training_after_n_batches: int
@@ -279,17 +278,24 @@ class RandomDummyTrainConfig:
 
 @dataclass
 class Zannone2019AgentConfig:
+    # Value estimator parameters
     gamma: float
     lmbda: float
+
+    # Loss parameters
     clip_epsilon: float
     entropy_bonus: bool
     entropy_coef: float
     critic_coef: float
     loss_critic_type: str
+
+    # Optimization parameters
+    num_epochs: int
     lr: float
     max_grad_norm: float
-    sub_batch_size: int
-    num_epochs: int
+    replay_buffer_batch_size: int
+
+    # Module parameters
     value_num_cells: list[int]
     value_dropout: float
     policy_num_cells: list[int]

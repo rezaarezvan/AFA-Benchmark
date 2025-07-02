@@ -69,6 +69,8 @@ class Shim2018Agent(Agent):
         action_spec: TensorSpec,
         action_mask_key: str,
         batch_size: int,  # expected batch size received in `process_batch`
+        module_device: torch.device,  # device to place nn.Modules on
+        replay_buffer_device: torch.device,  # device to place replay buffer on
     ):
         self.cfg = cfg
         self.embedder = embedder
@@ -76,6 +78,8 @@ class Shim2018Agent(Agent):
         self.action_spec = action_spec
         self.action_mask_key = action_mask_key
         self.batch_size = batch_size
+        self.module_device = module_device
+        self.replay_buffer_device = replay_buffer_device
 
         self.action_value_module = Shim2018ActionValueModule(
             embedder=self.embedder,
@@ -83,7 +87,7 @@ class Shim2018Agent(Agent):
             action_size=self.action_spec.n,  # pyright: ignore
             num_cells=tuple(self.cfg.action_value_num_cells),
             dropout=self.cfg.action_value_dropout,
-        ).to(self.cfg.module_device)
+        ).to(self.module_device)
 
         self.action_value_tdmodule = TensorDictModule(
             module=self.action_value_module,
@@ -96,7 +100,7 @@ class Shim2018Agent(Agent):
             action_mask_key=self.action_mask_key,
             action_value_key="action_value",
             out_keys=["action", "action_value", "chosen_action_value"],
-        ).to(self.cfg.module_device)
+        ).to(self.module_device)
 
         self.greedy_policy_tdmodule = TensorDictSequential(
             [self.action_value_tdmodule, self.greedy_tdmodule]
@@ -109,7 +113,7 @@ class Shim2018Agent(Agent):
             annealing_num_steps=self.cfg.eps_annealing_num_batches,
             eps_init=self.cfg.eps_init,
             eps_end=self.cfg.eps_end,
-        ).to(self.cfg.module_device)
+        ).to(self.module_device)
 
         self.egreedy_policy_tdmodule = TensorDictSequential(
             [self.greedy_policy_tdmodule, self.egreedy_tdmodule]
@@ -140,19 +144,15 @@ class Shim2018Agent(Agent):
         self.replay_buffer = TensorDictReplayBuffer(
             storage=LazyTensorStorage(
                 max_size=self.batch_size,
-                device=torch.device(self.cfg.replay_buffer_device),
+                device=self.replay_buffer_device,
             ),
             sampler=SamplerWithoutReplacement(),
             batch_size=self.cfg.replay_buffer_batch_size,
         )
 
     @override
-    def get_exploratory_policy(self) -> TensorDictModuleBase:
+    def get_policy(self) -> TensorDictModuleBase:
         return self.egreedy_policy_tdmodule
-
-    @override
-    def get_exploitative_policy(self) -> TensorDictModuleBase:
-        return self.greedy_policy_tdmodule
 
     @override
     def get_cheap_info(self) -> dict[str, Any]:
@@ -167,56 +167,67 @@ class Shim2018Agent(Agent):
 
     @override
     def process_batch(self, td: TensorDictBase) -> dict[str, Any]:
+        assert td.batch_size == torch.Size((self.batch_size,)), "Batch size mismatch"
+
         self.replay_buffer.extend(td)
 
         # Initialize total loss dictionary
-        total_loss_td = {"loss": 0.0}
+        total_loss_dict = {"loss": 0.0}
         td_errors = []
 
-        for _ in range(self.cfg.num_optim):
-            sampled_td = self.replay_buffer.sample()
-            self.optimizer.zero_grad()
-            loss_td: TensorDictBase = self.loss_tdmodule(sampled_td)
-            loss_tensor: Tensor = loss_td["loss"]
-            loss_tensor.backward()
-            nn.utils.clip_grad_norm_(
-                self.loss_tdmodule.parameters(), max_norm=self.cfg.max_grad_norm
-            )
-            self.optimizer.step()
-            td_errors.append(sampled_td["td_error"])
+        for _ in range(self.cfg.num_epochs):
+            # Reset replay buffer each epoch
+            self.replay_buffer.extend(td)
 
-            # Accumulate losses
-            total_loss_td["loss"] += loss_td["loss"].item()
+            for _ in range(self.batch_size // self.cfg.replay_buffer_batch_size):
+                sampled_td = self.replay_buffer.sample()
+                if self.replay_buffer_device != self.module_device:
+                    sampled_td = sampled_td.to(self.module_device)
+                self.optimizer.zero_grad()
+                loss_td: TensorDictBase = self.loss_tdmodule(sampled_td)
+                loss_tensor: Tensor = loss_td["loss"]
+                loss_tensor.backward()
+                nn.utils.clip_grad_norm_(
+                    self.loss_tdmodule.parameters(), max_norm=self.cfg.max_grad_norm
+                )
+                self.optimizer.step()
+                # Update target network
+                if self.target_net_updater is not None:
+                    self.target_net_updater.step()
 
-        # Update target network
-        if self.target_net_updater is not None:
-            self.target_net_updater.step()
+                td_errors.append(sampled_td["td_error"])
+
+                # Accumulate losses
+                total_loss_dict["loss"] += loss_td["loss"].item()
 
         # Anneal epsilon for epsilon greedy exploration
         self.egreedy_tdmodule.step()
 
         # Compute average loss
-        process_td = {k: v / self.cfg.num_optim for k, v in total_loss_td.items()}
-        process_td["td_error"] = torch.mean(torch.stack(td_errors)).item()
+        num_updates = self.cfg.num_epochs * (
+            self.batch_size // self.cfg.replay_buffer_batch_size
+        )
+        process_dict = {k: v / num_updates for k, v in total_loss_dict.items()}
+        process_dict["td_error"] = torch.mean(torch.stack(td_errors)).item()
 
-        return process_td
+        return process_dict
 
     @override
     def get_module_device(self) -> torch.device:
-        return torch.device(self.cfg.module_device)
+        return self.module_device
 
     @override
     def set_module_device(self, device: torch.device) -> None:
-        self.cfg.module_device = str(device)
+        self.module_device = device
 
         # Send modules to device
-        self.action_value_module = self.action_value_module.to(self.cfg.module_device)
-        self.greedy_tdmodule = self.greedy_tdmodule.to(self.cfg.module_device)
-        self.egreedy_tdmodule = self.egreedy_tdmodule.to(self.cfg.module_device)
+        self.action_value_module = self.action_value_module.to(self.module_device)
+        self.greedy_tdmodule = self.greedy_tdmodule.to(self.module_device)
+        self.egreedy_tdmodule = self.egreedy_tdmodule.to(self.module_device)
 
     @override
     def get_replay_buffer_device(self) -> torch.device:
-        return torch.device(self.cfg.replay_buffer_device)
+        return self.replay_buffer_device
 
     @override
     def set_replay_buffer_device(self, device: torch.device) -> None:
@@ -227,7 +238,7 @@ class Shim2018Agent(Agent):
         path.mkdir(exist_ok=True)
 
         # Store embedder as a raw model, weights will be updated either way
-        torch.save(self.embedder, path / "embedder.pt")
+        torch.save(self.embedder.to("cpu"), path / "embedder.pt")
 
         # Q-value module weights
         torch.save(
@@ -253,7 +264,12 @@ class Shim2018Agent(Agent):
 
     @override
     @classmethod
-    def load(cls: type[Self], path: Path) -> Self:
+    def load(
+        cls: type[Self],
+        path: Path,
+        module_device: torch.device,
+        replay_buffer_device: torch.device,
+    ) -> Self:
         # Load agent config
         cfg_dict = OmegaConf.merge(
             OmegaConf.structured(Shim2018AgentConfig),
@@ -275,6 +291,8 @@ class Shim2018Agent(Agent):
             action_spec=action_spec,
             action_mask_key=args.action_mask_key,
             batch_size=args.batch_size,
+            module_device=module_device,
+            replay_buffer_device=replay_buffer_device,
         )
 
         # Load Q-value module weights

@@ -26,14 +26,14 @@ def get_zannone2019_reward_fn(
     """
 
     def f(
-        masked_features: MaskedFeatures,
-        feature_mask: FeatureMask,
+        _masked_features: MaskedFeatures,
+        _feature_mask: FeatureMask,
         new_masked_features: MaskedFeatures,
         new_feature_mask: FeatureMask,
-        afa_selection: AFASelection,
-        features: Features,
+        _afa_selection: AFASelection,
+        _features: Features,
         label: Label,
-        done: Bool[Tensor, "*batch 1"],
+        _done: Bool[Tensor, "*batch 1"],
     ) -> AFAReward:
         probs = afa_predict_fn(new_masked_features, new_feature_mask)
         reward = -weighted_cross_entropy(

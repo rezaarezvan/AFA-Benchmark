@@ -424,7 +424,7 @@ def weighted_cross_entropy(
 ) -> torch.Tensor:
     """
     Cross-entropy between predicted and target probability distributions,
-    with per-class weighting.
+    with per-class weighting. Batched.
 
     input_probs: shape (batch_size, num_classes), predicted probabilities
     target_probs: shape (batch_size, num_classes), target probabilities
@@ -439,4 +439,4 @@ def weighted_cross_entropy(
 
     log_input = torch.log(input_probs + eps)
     weighted_ce = -target_probs * log_input * weights  # element-wise weight
-    return weighted_ce.sum(dim=1).mean()
+    return weighted_ce.sum(dim=1)

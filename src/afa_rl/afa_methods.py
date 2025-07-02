@@ -1,11 +1,11 @@
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Self, final, override
-from tensordict.nn import TensorDictModule, TensorDictModuleBase
+from tensordict.nn import TensorDictModuleBase
 import torch
 from tensordict import TensorDict
 from torchrl.envs import ExplorationType, set_exploration_type
-from afa_rl.agents import Agent
+from torchrl.modules import ProbabilisticActor
 
 from common.custom_types import (
     AFAClassifier,
@@ -16,9 +16,6 @@ from common.custom_types import (
     MaskedFeatures,
 )
 from common.registry import get_afa_classifier_class
-
-# Agent (and therefore RLAFAMethod) needs all subclasses of Agent to be imported
-from afa_rl.shim2018.agents import Shim2018Agent
 
 
 def get_td_from_masked_features(
@@ -59,7 +56,7 @@ def get_td_from_masked_features(
 class RLAFAMethod(AFAMethod):
     """Implements the AFAMethod protocol for a TensorDictModule policy together with a classifier."""
 
-    policy_tdmodule: TensorDictModuleBase
+    policy_tdmodule: TensorDictModuleBase | ProbabilisticActor
     afa_classifier: AFAClassifier
     _device: torch.device = torch.device("cpu")
 

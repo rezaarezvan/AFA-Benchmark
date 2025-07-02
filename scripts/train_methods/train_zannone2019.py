@@ -206,12 +206,12 @@ def main(cfg: Zannone2019TrainConfig):
         ).cpu()
 
     # Also reconstruct some samples
-    _, _, _, z, reconstructed_features = pretrained_model.partial_vae.forward(
-        train_dataset.features[:100].to(device),
-        torch.ones_like(train_dataset.features[:100], dtype=torch.bool, device=device),
-    )
-    z = z.cpu()
-    reconstructed_features = reconstructed_features.cpu()
+    # _, _, _, z, reconstructed_features = pretrained_model.partial_vae.forward(
+    #     train_dataset.features[:100].to(device),
+    #     torch.ones_like(train_dataset.features[:100], dtype=torch.bool, device=device),
+    # )
+    # z = z.cpu()
+    # reconstructed_features = reconstructed_features.cpu()
 
     # Visualize MNIST digits
     # fig_real, axs_real = visualize_digits(
@@ -257,11 +257,11 @@ def main(cfg: Zannone2019TrainConfig):
         n_classes=n_classes,
         hard_budget=cfg.hard_budget,
     )
-    # check_env_specs(train_env)
+    check_env_specs(train_env)
 
     # Manual debugging
-    td = train_env.reset()
-    td = train_env.rand_step(td)
+    # td = train_env.reset()
+    # td = train_env.rand_step(td)
 
     eval_env = AFAEnv(
         dataset_fn=val_dataset_fn,
@@ -274,20 +274,20 @@ def main(cfg: Zannone2019TrainConfig):
     )
 
     agent: Agent = Zannone2019Agent(
-        action_spec=train_env.action_spec,
-        _device=device,
-        batch_size=cfg.batch_size,
-        replay_buffer_device=device,
-        # subclass kwargs
+        cfg=cfg.agent,
         pointnet=pretrained_model.partial_vae.pointnet,
         encoder=pretrained_model.partial_vae.encoder,
+        action_spec=train_env.action_spec,
         latent_size=pretrained_model_config.partial_vae.latent_size,
-        **OmegaConf.to_container(cfg.agent, resolve=True),  # pyright: ignore
+        action_mask_key="action_mask",
+        batch_size=cfg.batch_size,
+        module_device=device,
+        replay_buffer_device=device,
     )
 
     collector = SyncDataCollector(
         train_env,
-        agent.policy,
+        agent.get_policy(),
         frames_per_batch=cfg.batch_size,
         total_frames=cfg.n_batches * cfg.batch_size,
         # device=device,
@@ -310,7 +310,7 @@ def main(cfg: Zannone2019TrainConfig):
                     f"train/{k}": v
                     for k, v in (
                         loss_info
-                        | agent.get_train_info()
+                        | agent.get_cheap_info()
                         | {
                             "reward": td["next", "reward"].mean().item(),
                         }
@@ -324,7 +324,9 @@ def main(cfg: Zannone2019TrainConfig):
                     set_exploration_type(ExplorationType.DETERMINISTIC),
                 ):
                     td_evals = [
-                        eval_env.rollout(cfg.eval_max_steps, agent.policy).squeeze(0)
+                        eval_env.rollout(
+                            cfg.eval_max_steps, agent.get_policy()
+                        ).squeeze(0)
                         for _ in tqdm(range(cfg.n_eval_episodes), desc="Evaluating")
                     ]
                 metrics_eval = get_eval_metrics(
@@ -334,7 +336,9 @@ def main(cfg: Zannone2019TrainConfig):
                     {
                         **{
                             f"eval/{k}": v
-                            for k, v in (metrics_eval | agent.get_eval_info()).items()
+                            for k, v in (
+                                metrics_eval | agent.get_expensive_info()
+                            ).items()
                         },
                     }
                 )
@@ -343,10 +347,9 @@ def main(cfg: Zannone2019TrainConfig):
         pass
     finally:
         # Convert the embedder+agent to an AFAMethod and save it as a temporary file
-        agent.device = torch.device("cpu")  # Move agent to CPU for saving
         pretrained_model = pretrained_model.to(torch.device("cpu"))
         afa_method = RLAFAMethod(
-            agent.policy,
+            agent.get_policy().to("cpu"),
             Zannone2019AFAClassifier(pretrained_model, device=torch.device("cpu")),
         )
         # Save the method to a temporary directory and load it again to ensure it is saved correctly
