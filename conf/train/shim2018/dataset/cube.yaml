@@ -2,16 +2,13 @@ pretrained_model_artifact_name: "pretrain_shim2018-cube_split_1:tmp"
 n_agents: 128 # shim2018 paper
 hard_budget: 5 # recommended: 3, 5, 10
 agent:
-  module_device: "cuda"
-  replay_buffer_device: "cuda"
-
   eps_init: 1.0 # shim2018 paper
   eps_end: 0.1 # shim2018 paper
   eps_annealing_num_batches: 5000 # shim2018 paper
 
   replay_buffer_batch_size: 128 # shim2018 paper
 
-  num_optim: 4 # shim2018 paper
+  num_epochs: 1 # shim2018 paper
   max_grad_norm: 1
   lr: 1e-3
   update_tau: 0.005
@@ -23,7 +20,7 @@ agent:
   delay_value: true # shim2018 paper
   double_dqn: true # shim2018 paper
 
-  gamma: 1.0
+  # gamma set by higher config
 n_batches: 15000 # up to 30k also works well, but not significant improvement
 batch_size: 512 # shim2018 paper
 eval_every_n_batches: 500

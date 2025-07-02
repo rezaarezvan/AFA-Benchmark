@@ -1,6 +1,6 @@
 pretrained_model_artifact_name: "pretrain_zannone2019-MNIST_split_1:tmp"
-n_agents: 2 # same as shim2018
-hard_budget: 10 # recommended: 10, 20, 30
+n_agents: 128 # same as shim2018
+hard_budget: 5 # recommended: 3, 5, 10
 agent:
   # gamma set by higher config
   lmbda: 0.95
@@ -14,18 +14,18 @@ agent:
   num_epochs: 1 # same as shim2018
   lr: 1e-3
   max_grad_norm: 1
-  replay_buffer_batch_size: 32 # same as shim2018
+  replay_buffer_batch_size: 128 # same as shim2018
 
   value_num_cells: [32, 32] # same complexity as shim2018
   value_dropout: 0.0
   policy_num_cells: [32, 32] # same complexity as shim2018
   policy_dropout: 0.0
 n_batches: 15000 # up to 30k also works well, but not significant improvement
-batch_size: 64 # same as shim2018
+batch_size: 512 # same as shim2018
 eval_every_n_batches: 500
 eval_max_steps: 9001
 n_eval_episodes: 100
 n_generated_samples: 10000 # ODIN paper
 generation_batch_size: 100
 evaluate_final_performance: true
-eval_only_n_samples: 100 # MNIST too large to evaluate every sample
+eval_only_n_samples: null
