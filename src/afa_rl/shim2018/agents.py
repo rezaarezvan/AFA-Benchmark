@@ -128,7 +128,8 @@ class Shim2018Agent(Agent):
             delay_value=self.cfg.delay_value,
             double_dqn=self.cfg.double_dqn,
             action_space=self.action_spec,
-        )
+        ).to(self.module_device)
+
         self.loss_tdmodule.make_value_estimator(
             ValueEstimators.TD0, gamma=self.cfg.gamma
         )
