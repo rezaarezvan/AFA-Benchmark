@@ -66,6 +66,10 @@ def main(cfg: RandomDummyTrainConfig):
         job_type="training",
     )
 
+    # Log W&B run URL
+    log.info(f"W&B run initialized: {run.name} ({run.id})")
+    log.info(f"W&B run URL: {run.url}")
+
     # Load dataset artifact
     train_dataset, val_dataset, _, dataset_metadata = load_dataset_artifact(
         cfg.dataset_artifact_name

@@ -41,6 +41,10 @@ def main(cfg: Zannone2019PretrainConfig) -> None:
         config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore
     )
 
+    # Log W&B run URL
+    log.info(f"W&B run initialized: {run.name} ({run.id})")
+    log.info(f"W&B run URL: {run.url}")
+
     # Load dataset artifact
     train_dataset, val_dataset, _, _ = load_dataset_artifact(cfg.dataset_artifact_name)
     datamodule = DataModuleFromDatasets(

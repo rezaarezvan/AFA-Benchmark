@@ -152,6 +152,10 @@ def main(cfg: Zannone2019TrainConfig):
         job_type="training",
     )
 
+    # Log W&B run URL
+    log.info(f"W&B run initialized: {run.name} ({run.id})")
+    log.info(f"W&B run URL: {run.url}")
+
     # Load pretrained model and dataset from artifacts
     (
         train_dataset,
