@@ -440,3 +440,9 @@ def weighted_cross_entropy(
     log_input = torch.log(input_probs + eps)
     weighted_ce = -target_probs * log_input * weights  # element-wise weight
     return weighted_ce.sum(dim=1)
+
+
+str_to_activation_class_mapping: dict[str, type[nn.Module]] = {
+    "relu": nn.ReLU,
+    "tanh": nn.Tanh,
+}

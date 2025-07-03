@@ -206,7 +206,7 @@ class Shim2018TrainConfig:
 
 cs.store(name="train_shim2018", node=Shim2018TrainConfig)
 
-# randomdummy
+# ma2018
 
 
 @dataclass
@@ -263,6 +263,8 @@ class Ma2018TraingConfig:
 
 
 cs.store(name="train_ma2018", node=Ma2018TraingConfig)
+
+# randomdummy
 
 
 @dataclass
@@ -364,6 +366,9 @@ class RandomDummyTrainConfig:
     output_artifact_aliases: list[str]
 
 
+cs.store(name="train_randomdummy", node=RandomDummyTrainConfig)
+
+
 # zannone2019
 
 
@@ -416,7 +421,69 @@ class Zannone2019TrainConfig:
     eval_only_n_samples: int | None
 
 
-cs.store(name="train_randomdummy", node=RandomDummyTrainConfig)
+cs.store(name="train_zannone2019", node=Zannone2019TrainConfig)
+
+# kachuee2019
+
+
+@dataclass
+class Kachuee2019PQModuleConfig:
+    n_hiddens: list[int]
+    p_dropout: float
+
+
+@dataclass
+class Kachuee2019AgentConfig:
+    # epsilon-greedy parameters
+    eps_init: float
+    eps_end: float
+    eps_annealing_num_batches: int
+
+    # How large batches should be sampled from replay buffer
+    replay_buffer_batch_size: int
+    replay_buffer_size: int  # how many samples fit in the replay buffer
+
+    # Optimization parameters
+    num_optim: int  # how many batches to sample from replay buffer
+    max_grad_norm: float
+    lr: float
+    update_tau: float
+
+    # Loss parameters
+    loss_function: str
+    delay_value: bool
+    double_dqn: bool
+
+    # Value estimator parameters
+    gamma: float
+
+
+@dataclass
+class Kachuee2019TrainConfig:
+    reward_method: str  # one of {"softmax", "Bayesian-L1", "Bayesian-L2"}
+    pq_module: Kachuee2019PQModuleConfig
+    predictor_lr: float  # learning rate to use for supervised classification loss
+
+    dataset_artifact_name: str
+    n_agents: int
+    hard_budget: int
+    agent: Kachuee2019AgentConfig
+    agent_module_device: str
+    agent_replay_buffer_device: str
+    n_batches: int  # how many batches to train the agent
+    batch_size: int  # batch size for collector
+    eval_every_n_batches: int  # how often to evaluate the agent
+    eval_max_steps: int  # maximum allowed number of steps in an evaluation episode
+    n_eval_episodes: int  # how many episodes to average over in evaluation
+
+    device: str
+    seed: int
+    output_artifact_aliases: list[str]
+    evaluate_final_performance: bool
+    eval_only_n_samples: int | None
+
+
+cs.store(name="train_kachuee2019", node=Kachuee2019TrainConfig)
 
 # --- TRAINING CLASSIFIERS ---
 
