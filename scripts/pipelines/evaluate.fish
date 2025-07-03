@@ -87,24 +87,24 @@ set -l job2 (build_eval_job $trained_method_artifact_names $trained_classifier_a
 
 # MNIST, split 1
 set -l trained_method_artifact_names \
-    train_shim2018-MNIST_split_1-budget_10-seed_42:Jul03a \
-    train_shim2018-MNIST_split_1-budget_20-seed_42:Jul03a \
-    train_shim2018-MNIST_split_1-budget_30-seed_42:Jul03a
-    # train_randomdummy-MNIST_split_1-budget_10-seed_42:Jun11Slow-a \
-    # train_randomdummy-MNIST_split_1-budget_50-seed_42:Jun11Slow-a \
-    # train_randomdummy-MNIST_split_1-budget_100-seed_42:Jun11Slow-a
+    # train_shim2018-MNIST_split_1-budget_10-seed_42:Jul03a \
+    # train_shim2018-MNIST_split_1-budget_20-seed_42:Jul03a \
+    # train_shim2018-MNIST_split_1-budget_30-seed_42:Jul03a
+    train_randomdummy-MNIST_split_1-budget_10-seed_42:Jul03a \
+    train_randomdummy-MNIST_split_1-budget_20-seed_42:Jul03a \
+    train_randomdummy-MNIST_split_1-budget_30-seed_42:Jul03a
 set trained_method_artifact_names (string join , $trained_method_artifact_names)
 set -l trained_classifier_artifact_name masked_mlp_classifier-MNIST_split_1:$classifier_alias
 set -l job3 (build_eval_job $trained_method_artifact_names $trained_classifier_artifact_name)
 
 # MNIST, split 2
 set -l trained_method_artifact_names \
-    train_shim2018-MNIST_split_2-budget_10-seed_42:Jul03a \
-    train_shim2018-MNIST_split_2-budget_20-seed_42:Jul03a \
-    train_shim2018-MNIST_split_2-budget_30-seed_42:Jul03a
-    # train_randomdummy-MNIST_split_2-budget_10-seed_42:Jun11Slow-a \
-    # train_randomdummy-MNIST_split_2-budget_50-seed_42:Jun11Slow-a \
-    # train_randomdummy-MNIST_split_2-budget_100-seed_42:Jun11Slow-a
+    # train_shim2018-MNIST_split_2-budget_10-seed_42:Jul03a \
+    # train_shim2018-MNIST_split_2-budget_20-seed_42:Jul03a \
+    # train_shim2018-MNIST_split_2-budget_30-seed_42:Jul03a
+    train_randomdummy-MNIST_split_2-budget_10-seed_42:Jul03a \
+    train_randomdummy-MNIST_split_2-budget_20-seed_42:Jul03a \
+    train_randomdummy-MNIST_split_2-budget_30-seed_42:Jul03a
 set trained_method_artifact_names (string join , $trained_method_artifact_names)
 set -l trained_classifier_artifact_name masked_mlp_classifier-MNIST_split_2:$classifier_alias
 set -l job4 (build_eval_job $trained_method_artifact_names $trained_classifier_artifact_name)

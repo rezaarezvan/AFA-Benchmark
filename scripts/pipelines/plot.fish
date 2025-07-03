@@ -82,18 +82,32 @@ set -l eval_artifact_names \
     train_randomdummy-cube_split_2-budget_5-seed_42-builtin:Jul03b \
     train_randomdummy-cube_split_2-budget_10-seed_42-builtin:Jul03b \
     \
+    train_shim2018-MNIST_split_1-budget_10-seed_42-masked_mlp_classifier-MNIST_split_1:Jul03b \
+    train_shim2018-MNIST_split_1-budget_20-seed_42-masked_mlp_classifier-MNIST_split_1:Jul03b \
+    train_shim2018-MNIST_split_1-budget_30-seed_42-masked_mlp_classifier-MNIST_split_1:Jul03b \
+    train_shim2018-MNIST_split_1-budget_10-seed_42-builtin:Jul03b \
+    train_shim2018-MNIST_split_1-budget_20-seed_42-builtin:Jul03b \
+    train_shim2018-MNIST_split_1-budget_30-seed_42-builtin:Jul03b \
+    \
     train_randomdummy-MNIST_split_1-budget_10-seed_42-masked_mlp_classifier-MNIST_split_1:Jul03b \
-    train_randomdummy-MNIST_split_1-budget_50-seed_42-masked_mlp_classifier-MNIST_split_1:Jul03b \
-    train_randomdummy-MNIST_split_1-budget_100-seed_42-masked_mlp_classifier-MNIST_split_1:Jul03b \
+    train_randomdummy-MNIST_split_1-budget_20-seed_42-masked_mlp_classifier-MNIST_split_1:Jul03b \
+    train_randomdummy-MNIST_split_1-budget_30-seed_42-masked_mlp_classifier-MNIST_split_1:Jul03b \
     train_randomdummy-MNIST_split_1-budget_10-seed_42-builtin:Jul03b \
-    train_randomdummy-MNIST_split_1-budget_50-seed_42-builtin:Jul03b \
-    train_randomdummy-MNIST_split_1-budget_100-seed_42-builtin:Jul03b \
+    train_randomdummy-MNIST_split_1-budget_20-seed_42-builtin:Jul03b \
+    train_randomdummy-MNIST_split_1-budget_30-seed_42-builtin:Jul03b \
+    \
+    train_shim2018-MNIST_split_2-budget_10-seed_42-masked_mlp_classifier-MNIST_split_2:Jul03b \
+    train_shim2018-MNIST_split_2-budget_20-seed_42-masked_mlp_classifier-MNIST_split_2:Jul03b \
+    train_shim2018-MNIST_split_2-budget_30-seed_42-masked_mlp_classifier-MNIST_split_2:Jul03b \
+    train_shim2018-MNIST_split_2-budget_10-seed_42-builtin:Jul03b \
+    train_shim2018-MNIST_split_2-budget_20-seed_42-builtin:Jul03b \
+    train_shim2018-MNIST_split_2-budget_30-seed_42-builtin:Jul03b \
     \
     train_randomdummy-MNIST_split_2-budget_10-seed_42-masked_mlp_classifier-MNIST_split_2:Jul03b \
-    train_randomdummy-MNIST_split_2-budget_50-seed_42-masked_mlp_classifier-MNIST_split_2:Jul03b \
-    train_randomdummy-MNIST_split_2-budget_100-seed_42-masked_mlp_classifier-MNIST_split_2:Jul03b \
+    train_randomdummy-MNIST_split_2-budget_20-seed_42-masked_mlp_classifier-MNIST_split_2:Jul03b \
+    train_randomdummy-MNIST_split_2-budget_30-seed_42-masked_mlp_classifier-MNIST_split_2:Jul03b \
     train_randomdummy-MNIST_split_2-budget_10-seed_42-builtin:Jul03b \
-    train_randomdummy-MNIST_split_2-budget_50-seed_42-builtin:Jul03b \
-    train_randomdummy-MNIST_split_2-budget_100-seed_42-builtin:Jul03b
+    train_randomdummy-MNIST_split_2-budget_20-seed_42-builtin:Jul03b \
+    train_randomdummy-MNIST_split_2-budget_30-seed_42-builtin:Jul03b
         
 uv run scripts/plotting/plot_results.py eval_artifact_names=[(string join , $eval_artifact_names)]
