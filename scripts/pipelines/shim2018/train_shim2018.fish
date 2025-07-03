@@ -11,7 +11,7 @@ or exit 1
 
 # Print help if specified
 if set -ql _flag_help
-    echo "Usage: train_shim2018.fish --dataset=<str> --budgets=<str> --split=<int> [--help] [--launcher={custom_slurm,basic}] [--device={cuda,cpu}] [--pretrain_alias=<str>] [--output_alias=<str>] [--wandb-entity=<str>] [--wandb-project=<str>]" >&2
+    echo "Usage: train_shim2018.fish --dataset=<str> --budgets=<str> --split=<int> [--help] [--launcher={custom_slurm,basic}] [--device={cuda,cpu}] [--pretrain-alias=<str>] [--output-alias=<str>] [--wandb-entity=<str>] [--wandb-project=<str>]" >&2
     exit 1
 end
 
