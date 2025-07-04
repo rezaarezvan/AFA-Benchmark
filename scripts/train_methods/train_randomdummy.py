@@ -29,6 +29,7 @@ def main(cfg: RandomDummyTrainConfig):
     run = wandb.init(
         config=cast(dict[str, Any], OmegaConf.to_container(cfg, resolve=True)),
         job_type="training",
+        tags=["randomdummy"],
     )
 
     # Log W&B run URL

@@ -150,6 +150,7 @@ def main(cfg: Zannone2019TrainConfig):
     run = wandb.init(
         config=cast(dict[str, Any], OmegaConf.to_container(cfg, resolve=True)),
         job_type="training",
+        tags=["zannone2019"],
     )
 
     # Log W&B run URL

@@ -39,6 +39,7 @@ def main(cfg: Zannone2019PretrainConfig) -> None:
         group="pretrain_zannone2019",
         job_type="pretraining",
         config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore
+        tags=["zannone2019"],
     )
 
     # Log W&B run URL

@@ -86,7 +86,7 @@ class Kachuee2019PQModule(nn.Module):
         x_rep = masked_features.unsqueeze(1).expand(
             -1, mcdrop_samples, -1
         )  # (batch_size, mcdrop_samples, n_features)
-        x_rep = x_rep.view(
+        x_rep = x_rep.reshape(
             x_rep.shape[0] * mcdrop_samples, x_rep.shape[-1]
         )  # (batch_size*mcdrop_samples, n_features)
         class_logits, _qvalues = self.forward(

@@ -35,6 +35,7 @@ def main(cfg: Shim2018PretrainConfig) -> None:
         group="pretrain_shim2018",
         job_type="pretraining",
         config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore
+        tags=["shim2018"],
     )
 
     # Log W&B run URL

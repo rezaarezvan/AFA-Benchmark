@@ -54,6 +54,7 @@ def main(cfg: Kachuee2019TrainConfig):
     run = wandb.init(
         config=cast(dict[str, Any], OmegaConf.to_container(cfg, resolve=True)),
         job_type="training",
+        tags=["kachuee2019"],
     )
 
     # Log W&B run URL
