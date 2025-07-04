@@ -14,6 +14,8 @@ parameters:
       # - 3
       - 5
       # - 10
+  output_artifact_aliases:
+    values: "Jul04"
 
 command:
   - ${env}
