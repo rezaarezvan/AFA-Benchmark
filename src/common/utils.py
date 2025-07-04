@@ -131,3 +131,8 @@ def eval_mode(*models: nn.Module):
     finally:
         for model, mode in zip(models, was_training):
             model.train(mode)
+
+
+def dict_with_prefix(d: dict[str, Any], prefix: str) -> dict[str, Any]:
+    """Return a dictionary with all keys prefixed by `prefix`."""
+    return {f"{prefix}.{k}": v for k, v in d.items()}

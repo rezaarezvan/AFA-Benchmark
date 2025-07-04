@@ -33,7 +33,12 @@ from common.afa_methods import RandomDummyAFAMethod
 from common.config_classes import (
     Kachuee2019TrainConfig,
 )
-from common.utils import get_class_probabilities, load_dataset_artifact, set_seed
+from common.utils import (
+    dict_with_prefix,
+    get_class_probabilities,
+    load_dataset_artifact,
+    set_seed,
+)
 
 from eval.metrics import eval_afa_method
 from eval.utils import plot_metrics
@@ -74,7 +79,6 @@ def main(cfg: Kachuee2019TrainConfig):
     pq_module = Kachuee2019PQModule(
         n_features=n_features, n_classes=n_classes, cfg=cfg.pq_module
     ).to(device)
-    pq_module_optim = optim.Adam(pq_module.parameters(), lr=cfg.predictor_lr)
 
     reward_fn = get_kachuee2019_reward_fn(
         pq_module=pq_module, method=cfg.reward_method, mcdrop_samples=cfg.mcdrop_samples
@@ -111,6 +115,7 @@ def main(cfg: Kachuee2019TrainConfig):
         module_device=torch.device(cfg.device),
         replay_buffer_device=torch.device(cfg.device),
         pq_module=pq_module,
+        class_weights=class_weights,
         cfg=cfg.agent,
     )
 
@@ -129,24 +134,15 @@ def main(cfg: Kachuee2019TrainConfig):
 
             # Collapse agent and batch dimensions
             td = tds.flatten(start_dim=0, end_dim=1)
-            loss_info = agent.process_batch(td)
-
-            # Train predictor
-            class_logits_next, _qvalues_next = pq_module(td["next", "masked_features"])
-            class_loss_next = F.cross_entropy(
-                class_logits_next, td["next", "label"], weight=class_weights
-            ).mean()
-            pq_module_optim.zero_grad()
-            class_loss_next.backward()
-            pq_module_optim.step()
+            process_batch_info = agent.process_batch(td)
 
             # Log training info
             run.log(
                 {
                     f"train/{k}": v
                     for k, v in (
-                        loss_info
-                        | agent.get_cheap_info()
+                        dict_with_prefix(process_batch_info, "process_batch")
+                        | dict_with_prefix(agent.get_cheap_info(), "cheap_info")
                         | {
                             "reward": td["next", "reward"].mean().item(),
                             # "action value": td["action_value"].mean().item(),
@@ -157,7 +153,6 @@ def main(cfg: Kachuee2019TrainConfig):
                             #     td["action"].tolist(), num_bins=20
                             # ),
                         }
-                        | {"class_loss": class_loss_next.cpu().item()}
                     ).items()
                 },
             )
@@ -186,11 +181,9 @@ def main(cfg: Kachuee2019TrainConfig):
                             f"eval/{k}": v
                             for k, v in (
                                 metrics_eval
-                                | agent.get_expensive_info()
-                                | {
-                                    "p_net_norm": module_norm(pq_module.layers_p),
-                                    "q_net_norm": module_norm(pq_module.layers_q),
-                                }
+                                | dict_with_prefix(
+                                    agent.get_expensive_info(), "expensive_info"
+                                )
                             ).items()
                         },
                     }

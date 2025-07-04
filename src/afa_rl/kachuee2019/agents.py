@@ -49,6 +49,7 @@ class Kachuee2019Agent(Agent):
         module_device: torch.device,  # device to place nn.Modules on
         replay_buffer_device: torch.device,  # device to place replay buffer on
         pq_module: Kachuee2019PQModule,
+        class_weights: Tensor,
         cfg: Kachuee2019AgentConfig,
     ):
         self.action_spec = action_spec
@@ -57,6 +58,7 @@ class Kachuee2019Agent(Agent):
         self.module_device = module_device
         self.replay_buffer_device = replay_buffer_device
         self.pq_module = pq_module.to(module_device)
+        self.class_weights = class_weights.to(module_device)
         self.cfg = cfg
 
         self.action_value_module = Kachuee2019ActionValueModule(
@@ -112,7 +114,13 @@ class Kachuee2019Agent(Agent):
         else:
             self.target_net_updater = None
 
-        self.optimizer = optim.Adam(self.loss_tdmodule.parameters(), lr=self.cfg.lr)
+        self.action_value_optimizer = optim.Adam(
+            self.loss_tdmodule.parameters(), lr=self.cfg.action_value_lr
+        )
+
+        self.classification_optimizer = optim.Adam(
+            self.pq_module.parameters(), lr=self.cfg.classification_lr
+        )
 
         self.replay_buffer = TensorDictReplayBuffer(
             storage=LazyTensorStorage(
@@ -135,8 +143,8 @@ class Kachuee2019Agent(Agent):
     @override
     def get_expensive_info(self) -> dict[str, Any]:
         return {
-            "value net norm": module_norm(self.action_value_module.pq_module),
-            # "embedder norm": module_norm(self.embedder),
+            "p_net_norm": module_norm(self.pq_module.layers_p),
+            "q_net_norm": module_norm(self.pq_module.layers_q),
         }
 
     @override
@@ -146,29 +154,50 @@ class Kachuee2019Agent(Agent):
         self.replay_buffer.extend(td)
 
         # Initialize total loss dictionary
-        total_loss_dict = {"loss": 0.0}
+        total_loss_dict = {"qvalue_loss": 0.0, "classification_loss": 0.0}
         td_errors = []
 
         for _ in range(self.cfg.num_optim):
             sampled_td = self.replay_buffer.sample()
             if self.replay_buffer_device != self.module_device:
                 sampled_td = sampled_td.to(self.module_device)
-            self.optimizer.zero_grad()
+
+            # Train Q network
             loss_td: TensorDictBase = self.loss_tdmodule(sampled_td)
             loss_tensor: Tensor = loss_td["loss"]
+            self.action_value_optimizer.zero_grad()
             loss_tensor.backward()
             nn.utils.clip_grad_norm_(
-                self.loss_tdmodule.parameters(), max_norm=self.cfg.max_grad_norm
+                self.loss_tdmodule.parameters(),
+                max_norm=self.cfg.max_action_value_grad_norm,
             )
-            self.optimizer.step()
+            self.action_value_optimizer.step()
             # Update target network
             if self.target_net_updater is not None:
                 self.target_net_updater.step()
 
+            # Train classifier
+            class_logits_next, _qvalues_next = self.pq_module(
+                sampled_td["next", "masked_features"]
+            )
+            class_loss_next = F.cross_entropy(
+                class_logits_next,
+                sampled_td["next", "label"],
+                weight=self.class_weights,
+            ).mean()
+            self.classification_optimizer.zero_grad()
+            class_loss_next.backward()
+            nn.utils.clip_grad_norm_(
+                self.pq_module.parameters(),
+                max_norm=self.cfg.max_classification_grad_norm,
+            )
+            self.classification_optimizer.step()
+
             td_errors.append(sampled_td["td_error"])
 
             # Accumulate losses
-            total_loss_dict["loss"] += loss_td["loss"].item()
+            total_loss_dict["qvalue_loss"] += loss_td["loss"].item()
+            total_loss_dict["classification_loss"] += class_loss_next.item()
 
         # Anneal epsilon for epsilon greedy exploration
         self.egreedy_tdmodule.step()

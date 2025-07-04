@@ -445,9 +445,11 @@ class Kachuee2019AgentConfig:
 
     # Optimization parameters
     num_optim: int  # how many batches to sample from replay buffer
-    max_grad_norm: float
-    lr: float
+    max_action_value_grad_norm: float
+    action_value_lr: float
     update_tau: float
+    max_classification_grad_norm: float
+    classification_lr: float  # with cross entropy loss
 
     # Loss parameters
     loss_function: str
@@ -462,7 +464,6 @@ class Kachuee2019AgentConfig:
 class Kachuee2019TrainConfig:
     reward_method: str  # one of {"softmax", "Bayesian-L1", "Bayesian-L2"}
     pq_module: Kachuee2019PQModuleConfig
-    predictor_lr: float  # learning rate to use for supervised classification loss
     mcdrop_samples: int  # how many samples to average over when calculating certainty for the reward
 
     dataset_artifact_name: str
