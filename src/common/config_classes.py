@@ -187,8 +187,6 @@ class Shim2018TrainConfig:
     n_agents: int
     hard_budget: int
     agent: Shim2018AgentConfig
-    agent_module_device: str
-    agent_replay_buffer_device: str
     n_batches: int  # how many batches to train the agent
     batch_size: int  # batch size for collector
     eval_every_n_batches: int  # how often to evaluate the agent
@@ -428,7 +426,9 @@ cs.store(name="train_zannone2019", node=Zannone2019TrainConfig)
 
 @dataclass
 class Kachuee2019PQModuleConfig:
-    n_hiddens: list[int]
+    n_hiddens: list[
+        int
+    ]  # hidden layers in P network. The hidden layers of the Q network are calculated from this.
     p_dropout: float
 
 
@@ -463,13 +463,12 @@ class Kachuee2019TrainConfig:
     reward_method: str  # one of {"softmax", "Bayesian-L1", "Bayesian-L2"}
     pq_module: Kachuee2019PQModuleConfig
     predictor_lr: float  # learning rate to use for supervised classification loss
+    mcdrop_samples: int  # how many samples to average over when calculating certainty for the reward
 
     dataset_artifact_name: str
     n_agents: int
     hard_budget: int
     agent: Kachuee2019AgentConfig
-    agent_module_device: str
-    agent_replay_buffer_device: str
     n_batches: int  # how many batches to train the agent
     batch_size: int  # batch size for collector
     eval_every_n_batches: int  # how often to evaluate the agent

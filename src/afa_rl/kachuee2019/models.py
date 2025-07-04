@@ -38,26 +38,21 @@ class Kachuee2019PQModule(nn.Module):
 
         # initialize the Q-Net
         size_last = self.n_features
-        if self.share_pq:
-            # self.n_hiddens_q = [n_h//4 for n_h in self.n_hiddens]
-            self.n_hiddens_q = []
-            for ind in range(len(self.cfg.n_hiddens)):
-                if ind == 0:
-                    self.n_hiddens_q.append(self.cfg.n_hiddens[ind])
-                else:
-                    n_h = (self.cfg.n_hiddens[ind - 1] * self.cfg.n_hiddens[ind]) // (
-                        self.cfg.n_hiddens[ind - 1] + self.n_hiddens_q[-1]
-                    )
-                    self.n_hiddens_q.append(n_h)
-            for n_h, n_h_q in zip(self.cfg.n_hiddens, self.n_hiddens_q):
-                self.layers_q.append(nn.Linear(size_last, n_h_q))
-                size_last = n_h + n_h_q
-            self.layers_q.append(nn.Linear(size_last, self.n_features + 1))
-        else:
-            self.n_hiddens_q = self.cfg.n_hiddens
-            for n_h in self.n_hiddens_q + [self.n_features + 1]:
-                self.layers_q.append(nn.Linear(size_last, n_h))
-                size_last = n_h
+        # always share_pq
+        self.n_hiddens_q = []
+        for ind in range(len(self.cfg.n_hiddens)):
+            if ind == 0:
+                self.n_hiddens_q.append(self.cfg.n_hiddens[ind])
+            else:
+                n_h = (self.cfg.n_hiddens[ind - 1] * self.cfg.n_hiddens[ind]) // (
+                    self.cfg.n_hiddens[ind - 1] + self.n_hiddens_q[-1]
+                )
+                self.n_hiddens_q.append(n_h)
+        for n_h, n_h_q in zip(self.cfg.n_hiddens, self.n_hiddens_q):
+            self.layers_q.append(nn.Linear(size_last, n_h_q))
+            size_last = n_h + n_h_q
+        # Output of Q-Net does not include the stop action, unlike the original implementation
+        self.layers_q.append(nn.Linear(size_last, self.n_features))
 
     @override
     def forward(
@@ -71,7 +66,7 @@ class Kachuee2019PQModule(nn.Module):
             acts_p.append(act_last)
         class_logits = self.layers_p[-1](act_last)
 
-        # Q-Net forward path
+        # Q-Net forward path, gradients are not backpropagated to P-Net
         act_last = masked_features
         act_last = F.relu(self.layers_q[0](act_last))
         for f_layer, p_act in zip(self.layers_q[1:-1], acts_p[:-1]):
@@ -82,16 +77,28 @@ class Kachuee2019PQModule(nn.Module):
 
         return class_logits, qvalues
 
-    def confidence(self, x: torch.Tensor, mcdrop_samples: int = 1):
+    def confidence(self, masked_features: MaskedFeatures, mcdrop_samples: int = 1):
         """
         calculate the confidence histogrram for each class given a sample.
-        x: input sample
+        masked_features: input sample of shape (batch_size, n_features)
         mcdrop_samples: mc dropout samples to use
         """
-        x_rep = x.expand(mcdrop_samples, -1)
-        class_logits, _qvalues = self.forward(x_rep)
-        class_probabilities = class_logits.softmax(dim=-1)
-        return class_probabilities.mean(dim=0)
+        x_rep = masked_features.unsqueeze(1).expand(
+            -1, mcdrop_samples, -1
+        )  # (batch_size, mcdrop_samples, n_features)
+        x_rep = x_rep.view(
+            x_rep.shape[0] * mcdrop_samples, x_rep.shape[-1]
+        )  # (batch_size*mcdrop_samples, n_features)
+        class_logits, _qvalues = self.forward(
+            x_rep
+        )  # class_logits.shape = (batch_size*mcdrop_samples, n_classes)
+        class_logits = class_logits.view(
+            masked_features.shape[0], mcdrop_samples, -1
+        )  # (batch_size, mcdrop_samples, n_classes)
+        class_probabilities = class_logits.softmax(
+            dim=-1
+        )  # (batch_size, mcdrop_samples, n_classes)
+        return class_probabilities.mean(dim=1)  # (batch_size, n_classes)
 
     def predict(self, x: torch.Tensor, mcdrop_samples: int = 1):
         """

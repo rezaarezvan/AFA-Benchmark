@@ -17,15 +17,11 @@ from torchrl.objectives import DQNLoss, SoftUpdate, ValueEstimators
 
 from afa_rl.agents import Agent
 from afa_rl.kachuee2019.models import Kachuee2019PQModule
-from afa_rl.shim2018.models import Shim2018Embedder
 from afa_rl.utils import module_norm
 from common.config_classes import (
     Kachuee2019AgentConfig,
-    PQModuleConfig,
-    Shim2018AgentConfig,
-    Kachuee2019Backbone,
 )
-from common.custom_types import FeatureMask, MaskedFeatures
+from common.custom_types import MaskedFeatures
 
 
 @final
@@ -37,6 +33,7 @@ class Kachuee2019ActionValueModule(nn.Module):
 
     @override
     def forward(self, masked_features: MaskedFeatures, action_mask: Tensor):
+        # pq_module.forward ensures that gradients are not backpropagated to the P network
         _class_logits, qvalues = self.pq_module.forward(masked_features)
         # By setting the Q-values of invalid actions to -inf, we prevent them from being selected greedily.
         qvalues[~action_mask] = float("-inf")
@@ -47,24 +44,19 @@ class Kachuee2019ActionValueModule(nn.Module):
 class Kachuee2019Agent(Agent):
     def __init__(
         self,
-        # n_features: int,
-        # n_classes: int,
         action_spec: TensorSpec,
         action_mask_key: str,
-        # batch_size: int,  # expected batch size received in `process_batch`
         module_device: torch.device,  # device to place nn.Modules on
         replay_buffer_device: torch.device,  # device to place replay buffer on
         pq_module: Kachuee2019PQModule,
         cfg: Kachuee2019AgentConfig,
     ):
-        # self.n_features = n_features
-        # self.n_classes = n_classes
         self.action_spec = action_spec
         self.action_mask_key = action_mask_key
         # self.batch_size = batch_size
         self.module_device = module_device
         self.replay_buffer_device = replay_buffer_device
-        self.pq_module = pq_module
+        self.pq_module = pq_module.to(module_device)
         self.cfg = cfg
 
         self.action_value_module = Kachuee2019ActionValueModule(

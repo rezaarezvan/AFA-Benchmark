@@ -6,9 +6,7 @@ from tempfile import TemporaryDirectory
 
 import hydra
 from omegaconf import OmegaConf
-from tensordict.nn import TensorDictModule
 import torch
-from tensordict import TensorDictBase
 from torch import optim
 from torch.nn import functional as F
 from torchrl.collectors import SyncDataCollector
@@ -74,12 +72,11 @@ def main(cfg: Kachuee2019TrainConfig):
 
     pq_module = Kachuee2019PQModule(
         n_features=n_features, n_classes=n_classes, cfg=cfg.pq_module
-    )
+    ).to(device)
     pq_module_optim = optim.Adam(pq_module.parameters(), lr=cfg.predictor_lr)
 
     reward_fn = get_kachuee2019_reward_fn(
-        afa_predict_fn=Kachuee2019AFAPredictFn(pq_module=pq_module),
-        method=cfg.reward_method,
+        pq_module=pq_module, method=cfg.reward_method, mcdrop_samples=cfg.mcdrop_samples
     )
 
     # MDP expects special dataset functions
@@ -134,14 +131,12 @@ def main(cfg: Kachuee2019TrainConfig):
             loss_info = agent.process_batch(td)
 
             # Train predictor
-            pq_module_optim.zero_grad()
-
             class_logits_next, _qvalues_next = pq_module(td["next", "masked_features"])
             class_loss_next = F.cross_entropy(
                 class_logits_next, td["next", "label"], weight=class_weights
-            )
-            class_loss_next.mean().backward()
-
+            ).mean()
+            pq_module_optim.zero_grad()
+            class_loss_next.backward()
             pq_module_optim.step()
 
             # Log training info
@@ -161,7 +156,7 @@ def main(cfg: Kachuee2019TrainConfig):
                             #     td["action"].tolist(), num_bins=20
                             # ),
                         }
-                        | {"class_loss": class_loss_next.mean().cpu().item()}
+                        | {"class_loss": class_loss_next.cpu().item()}
                     ).items()
                 },
             )
