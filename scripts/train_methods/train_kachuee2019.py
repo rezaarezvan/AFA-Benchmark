@@ -242,10 +242,10 @@ def main(cfg: Kachuee2019TrainConfig):
             # Save the model as a WandB artifact
             # Save the name of the afa method class as metadata
             afa_method_artifact = wandb.Artifact(
-                name=f"train_shim2018-{cfg.dataset_artifact_name.split(':')[0]}-budget_{cfg.hard_budget}-seed_{cfg.seed}",
+                name=f"train_kachuee2019-{cfg.dataset_artifact_name.split(':')[0]}-budget_{cfg.hard_budget}-seed_{cfg.seed}",
                 type="trained_method",
                 metadata={
-                    "method_type": "shim2018",
+                    "method_type": "kachuee2019",
                     "dataset_artifact_name": cfg.dataset_artifact_name,
                     "dataset_type": dataset_metadata["dataset_type"],
                     "budget": cfg.hard_budget,
