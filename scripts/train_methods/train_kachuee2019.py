@@ -188,7 +188,8 @@ def main(cfg: Kachuee2019TrainConfig):
                                 metrics_eval
                                 | agent.get_expensive_info()
                                 | {
-                                    "pq_module_norm": module_norm(pq_module),
+                                    "p_net_norm": module_norm(pq_module.layers_p),
+                                    "q_net_norm": module_norm(pq_module.layers_q),
                                 }
                             ).items()
                         },
