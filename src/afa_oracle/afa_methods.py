@@ -9,8 +9,13 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from .aco_core import ACOOracle, create_aco_oracle
 from common.custom_types import (
-    AFAMethod, AFAClassifier, AFASelection, FeatureMask,
-    Label, MaskedFeatures, AFADataset
+    AFAMethod,
+    AFAClassifier,
+    AFASelection,
+    FeatureMask,
+    Label,
+    MaskedFeatures,
+    AFADataset,
 )
 
 logger = logging.getLogger(__name__)
@@ -68,8 +73,7 @@ class ACOAFAMethod(AFAMethod):
                 else:
                     selections.append(-1)  # No more features to acquire
 
-        selection_tensor = torch.tensor(
-            selections, dtype=torch.long).unsqueeze(-1)
+        selection_tensor = torch.tensor(selections, dtype=torch.long).unsqueeze(-1)
         return selection_tensor.to(original_device)
 
     @override
@@ -103,24 +107,27 @@ class ACOAFAMethod(AFAMethod):
 
         # Save ACO oracle parameters (we'll need to reconstruct it)
         oracle_params = {
-            'k_neighbors': self.aco_oracle.density_estimator.k,
-            'acquisition_cost': self.aco_oracle.acquisition_cost,
-            'hide_val': self.aco_oracle.hide_val,
-            'metric': self.aco_oracle.density_estimator.metric,
-            'standardize': self.aco_oracle.density_estimator.standardize,
-            'exhaustive_threshold': self.aco_oracle.subset_search.exhaustive_threshold,
-            'max_samples': self.aco_oracle.subset_search.max_samples,
-            'max_subset_size': self.aco_oracle.subset_search.max_subset_size,
+            "k_neighbors": self.aco_oracle.density_estimator.k,
+            "acquisition_cost": self.aco_oracle.acquisition_cost,
+            "hide_val": self.aco_oracle.hide_val,
+            "metric": self.aco_oracle.density_estimator.metric,
+            "standardize": self.aco_oracle.density_estimator.standardize,
+            "exhaustive_threshold": self.aco_oracle.subset_search.exhaustive_threshold,
+            "max_samples": self.aco_oracle.subset_search.max_samples,
+            "max_subset_size": self.aco_oracle.subset_search.max_subset_size,
         }
         torch.save(oracle_params, path / "oracle_params.pt")
 
         # Save training data for k-NN
         if self.aco_oracle.density_estimator.X_train is not None:
-            torch.save({
-                'X_train': self.aco_oracle.density_estimator.X_train,
-                'y_train': self.aco_oracle.density_estimator.y_train,
-                'scaler': self.aco_oracle.density_estimator.scaler,
-            }, path / "training_data.pt")
+            torch.save(
+                {
+                    "X_train": self.aco_oracle.density_estimator.X_train,
+                    "y_train": self.aco_oracle.density_estimator.y_train,
+                    "scaler": self.aco_oracle.density_estimator.scaler,
+                },
+                path / "training_data.pt",
+            )
 
         # Save classifier class name
         with open(path / "classifier_class_name.txt", "w") as f:
@@ -143,29 +150,23 @@ class ACOAFAMethod(AFAMethod):
         )
 
         # Load oracle parameters
-        oracle_params = torch.load(
-            path / "oracle_params.pt", map_location=device)
+        oracle_params = torch.load(path / "oracle_params.pt", map_location=device)
 
         # Reconstruct oracle
         aco_oracle = create_aco_oracle(**oracle_params)
 
         # Load training data and fit oracle
-        training_data = torch.load(
-            path / "training_data.pt", map_location=device)
-        aco_oracle.density_estimator.X_train = training_data['X_train']
-        aco_oracle.density_estimator.y_train = training_data['y_train']
-        aco_oracle.density_estimator.scaler = training_data['scaler']
+        training_data = torch.load(path / "training_data.pt", map_location=device)
+        aco_oracle.density_estimator.X_train = training_data["X_train"]
+        aco_oracle.density_estimator.y_train = training_data["y_train"]
+        aco_oracle.density_estimator.scaler = training_data["scaler"]
 
         # Refit k-NN (we need to reconstruct the sklearn part)
         aco_oracle.density_estimator.fit(
-            training_data['X_train'], training_data['y_train']
+            training_data["X_train"], training_data["y_train"]
         )
 
-        return cls(
-            aco_oracle=aco_oracle,
-            afa_classifier=afa_classifier,
-            _device=device
-        )
+        return cls(aco_oracle=aco_oracle, afa_classifier=afa_classifier, _device=device)
 
     @override
     def to(self, device: torch.device) -> Self:
@@ -178,10 +179,12 @@ class ACOAFAMethod(AFAMethod):
 
         # Move training data if available
         if self.aco_oracle.density_estimator.X_train is not None:
-            self.aco_oracle.density_estimator.X_train = \
+            self.aco_oracle.density_estimator.X_train = (
                 self.aco_oracle.density_estimator.X_train.to(device)
-            self.aco_oracle.density_estimator.y_train = \
+            )
+            self.aco_oracle.density_estimator.y_train = (
                 self.aco_oracle.density_estimator.y_train.to(device)
+            )
 
         return self
 
@@ -201,10 +204,7 @@ class BehavioralCloningPolicy(nn.Module):
     """
 
     def __init__(
-        self,
-        n_features: int,
-        num_cells: List[int] = None,
-        dropout: float = 0.1
+        self, n_features: int, num_cells: List[int] = None, dropout: float = 0.1
     ):
         super().__init__()
         if num_cells is None:
@@ -219,11 +219,9 @@ class BehavioralCloningPolicy(nn.Module):
         prev_size = input_size
 
         for hidden_size in num_cells:
-            layers.extend([
-                nn.Linear(prev_size, hidden_size),
-                nn.ReLU(),
-                nn.Dropout(dropout)
-            ])
+            layers.extend(
+                [nn.Linear(prev_size, hidden_size), nn.ReLU(), nn.Dropout(dropout)]
+            )
             prev_size = hidden_size
 
         # Output: probabilities over n_features + 1 (terminate action)
@@ -231,7 +229,9 @@ class BehavioralCloningPolicy(nn.Module):
 
         self.network = nn.Sequential(*layers)
 
-    def forward(self, masked_features: torch.Tensor, feature_mask: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, masked_features: torch.Tensor, feature_mask: torch.Tensor
+    ) -> torch.Tensor:
         """
         Forward pass.
         """
@@ -274,8 +274,7 @@ class ACOBCAFAMethod(AFAMethod):
 
             # Mask out already observed features and invalid actions
             action_mask = ~feature_mask  # Can only select unobserved features
-            logits[:, :-1] = logits[:, :-
-                                    1].masked_fill(feature_mask, float('-inf'))
+            logits[:, :-1] = logits[:, :-1].masked_fill(feature_mask, float("-inf"))
 
             # Select action with highest probability
             actions = logits.argmax(dim=-1)
@@ -316,9 +315,9 @@ class ACOBCAFAMethod(AFAMethod):
 
         # Save network config
         config = {
-            'n_features': self.policy_network.n_features,
-            'num_cells': None,  # We'll need to extract this
-            'dropout': None,    # We'll need to extract this
+            "n_features": self.policy_network.n_features,
+            "num_cells": None,  # We'll need to extract this
+            "dropout": None,  # We'll need to extract this
         }
         torch.save(config, path / "policy_config.pt")
 
@@ -343,17 +342,14 @@ class ACOBCAFAMethod(AFAMethod):
         )
 
         # Load policy config and network
-        policy_config = torch.load(
-            path / "policy_config.pt", map_location=device)
+        policy_config = torch.load(path / "policy_config.pt", map_location=device)
         policy_network = BehavioralCloningPolicy(**policy_config)
         policy_network.load_state_dict(
             torch.load(path / "policy.pt", map_location=device)
         )
 
         return cls(
-            policy_network=policy_network,
-            afa_classifier=afa_classifier,
-            _device=device
+            policy_network=policy_network, afa_classifier=afa_classifier, _device=device
         )
 
     @override
@@ -381,7 +377,7 @@ def generate_bc_training_data(
     aco_method: ACOAFAMethod,
     dataset: AFADataset,
     n_samples: int = 1000,
-    max_steps: int = 20
+    max_steps: int = 20,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Generate training data for behavioral cloning by rolling out ACO policy.
@@ -417,8 +413,7 @@ def generate_bc_training_data(
 
             # Get action from ACO
             action = aco_method.select(
-                masked_feature.unsqueeze(0),
-                current_mask.unsqueeze(0)
+                masked_feature.unsqueeze(0), current_mask.unsqueeze(0)
             )
             action_val = action.item()
 
@@ -438,7 +433,7 @@ def generate_bc_training_data(
     return (
         torch.stack(features_list),
         torch.stack(masks_list),
-        torch.tensor(actions_list, dtype=torch.long)
+        torch.tensor(actions_list, dtype=torch.long),
     )
 
 
@@ -447,7 +442,7 @@ def train_behavioral_cloning_policy(
     dataset: AFADataset,
     n_features: int,
     bc_config,
-    device: torch.device
+    device: torch.device,
 ) -> BehavioralCloningPolicy:
     """
     Train a behavioral cloning policy to imitate ACO.
@@ -462,16 +457,12 @@ def train_behavioral_cloning_policy(
     policy = BehavioralCloningPolicy(
         n_features=n_features,
         num_cells=bc_config.bc_num_cells,
-        dropout=bc_config.bc_dropout
+        dropout=bc_config.bc_dropout,
     ).to(device)
 
     # Create data loader
     bc_dataset = TensorDataset(X_features, X_masks, y_actions)
-    bc_loader = DataLoader(
-        bc_dataset,
-        batch_size=bc_config.bc_batch_size,
-        shuffle=True
-    )
+    bc_loader = DataLoader(bc_dataset, batch_size=bc_config.bc_batch_size, shuffle=True)
 
     # Train policy
     optimizer = torch.optim.Adam(policy.parameters(), lr=bc_config.bc_lr)
