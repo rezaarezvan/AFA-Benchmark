@@ -19,7 +19,9 @@ from afa_rl.datasets import DataModuleFromDatasets
 from afa_oracle.aco_core import create_aco_oracle
 from common.utils import get_class_probabilities, load_dataset_artifact, set_seed
 from afa_oracle.afa_methods import (
-    ACOAFAMethod, ACOBCAFAMethod, train_behavioral_cloning_policy
+    ACOAFAMethod,
+    ACOBCAFAMethod,
+    train_behavioral_cloning_policy,
 )
 from eval.metrics import eval_afa_method
 from eval.utils import plot_metrics
@@ -34,7 +36,7 @@ def train_or_load_classifier(
     n_features: int,
     n_classes: int,
     train_class_probabilities: torch.Tensor,
-    device: torch.device
+    device: torch.device,
 ) -> WrappedMaskedMLPClassifier:
     """
     Train a new classifier or load existing one.
@@ -49,9 +51,7 @@ def train_or_load_classifier(
         classifier_dir = Path(classifier_artifact.download())
 
         # Load the classifier
-        return WrappedMaskedMLPClassifier.load(
-            classifier_dir / "classifier.pt", device
-        )
+        return WrappedMaskedMLPClassifier.load(classifier_dir / "classifier.pt", device)
     else:
         # Train new classifier
         log.info("Training new masked MLP classifier...")
@@ -113,11 +113,7 @@ def train_or_load_classifier(
         return wrapped_classifier
 
 
-@hydra.main(
-    version_base=None,
-    config_path="../../conf/train/aco",
-    config_name="config"
-)
+@hydra.main(version_base=None, config_path="../../conf/train/aco", config_name="config")
 def main(cfg: ACOTrainConfig) -> None:
     log.debug(cfg)
     set_seed(cfg.seed)
@@ -146,8 +142,13 @@ def main(cfg: ACOTrainConfig) -> None:
 
     # Train or load classifier
     classifier = train_or_load_classifier(
-        cfg, train_dataset, val_dataset, n_features, n_classes,
-        train_class_probabilities, device
+        cfg,
+        train_dataset,
+        val_dataset,
+        n_features,
+        n_classes,
+        train_class_probabilities,
+        device,
     )
 
     log.info("Creating ACO oracle...")
@@ -161,7 +162,7 @@ def main(cfg: ACOTrainConfig) -> None:
         max_subset_size=cfg.aco.max_subset_size,
         hide_val=cfg.aco.hide_val,
         distance_metric=cfg.aco.distance_metric,
-        standardize_features=cfg.aco.standardize_features
+        standardize_features=cfg.aco.standardize_features,
     )
 
     # Fit oracle on training data
@@ -170,9 +171,7 @@ def main(cfg: ACOTrainConfig) -> None:
 
     # Create ACO method
     aco_method = ACOAFAMethod(
-        aco_oracle=aco_oracle,
-        afa_classifier=classifier,
-        _device=device
+        aco_oracle=aco_oracle, afa_classifier=classifier, _device=device
     )
 
     log.info("ACO method created and fitted")
@@ -187,13 +186,11 @@ def main(cfg: ACOTrainConfig) -> None:
             dataset=train_dataset,
             n_features=n_features,
             bc_config=cfg.aco_bc,
-            device=device
+            device=device,
         )
 
         aco_bc_method = ACOBCAFAMethod(
-            policy_network=bc_policy,
-            afa_classifier=classifier,
-            _device=device
+            policy_network=bc_policy, afa_classifier=classifier, _device=device
         )
 
         log.info("Behavioral cloning training completed")
@@ -237,8 +234,7 @@ def main(cfg: ACOTrainConfig) -> None:
             aco_method.save(tmp_path)
 
             aco_artifact = wandb.Artifact(
-                name=f"train_aco-{dataset_metadata['dataset_type']
-                                  }-seed_{cfg.seed}",
+                name=f"train_aco-{dataset_metadata['dataset_type']}-seed_{cfg.seed}",
                 type="trained_method",
                 metadata={
                     "method_type": "aco",
@@ -264,8 +260,9 @@ def main(cfg: ACOTrainConfig) -> None:
                 aco_bc_method.save(tmp_path_bc)
 
                 aco_bc_artifact = wandb.Artifact(
-                    name=f"train_aco_bc-{
-                        dataset_metadata['dataset_type']}-seed_{cfg.seed}",
+                    name=f"train_aco_bc-{dataset_metadata['dataset_type']}-seed_{
+                        cfg.seed
+                    }",
                     type="trained_method",
                     metadata={
                         "method_type": "aco_bc",
@@ -280,8 +277,10 @@ def main(cfg: ACOTrainConfig) -> None:
                 )
 
                 aco_bc_artifact.add_dir(str(tmp_path_bc))
-                run.log_artifact(aco_bc_artifact, aliases=[
-                                 f"{alias}_bc" for alias in cfg.output_artifact_aliases])
+                run.log_artifact(
+                    aco_bc_artifact,
+                    aliases=[f"{alias}_bc" for alias in cfg.output_artifact_aliases],
+                )
 
                 log.info(f"ACO+BC method saved as artifact")
 

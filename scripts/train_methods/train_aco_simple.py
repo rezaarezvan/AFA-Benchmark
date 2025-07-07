@@ -10,7 +10,9 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 
-def load_dataset_from_file(dataset_name: str, split: int = 1, split_type: str = "train"):
+def load_dataset_from_file(
+    dataset_name: str, split: int = 1, split_type: str = "train"
+):
     """
     Load dataset from .pt file in data/ directory.
     """
@@ -36,7 +38,7 @@ def create_simple_classifier(n_features: int, n_classes: int, device: str = "cpu
         n_features=n_features,
         n_classes=n_classes,
         num_cells=(128, 128),  # tuple format required
-        dropout=0.1
+        dropout=0.1,
     ).to(device)
 
     # For now, just return untrained model for structure testing
@@ -75,10 +77,9 @@ def main():
     log.info(f"Dataset: {n_features} features, {n_classes} classes")
 
     # Get feature costs
-    if hasattr(train_dataset, 'costs'):
+    if hasattr(train_dataset, "costs"):
         costs = train_dataset.costs
-        log.info(f"Feature costs: min={
-                 costs.min():.3f}, max={costs.max():.3f}")
+        log.info(f"Feature costs: min={costs.min():.3f}, max={costs.max():.3f}")
     else:
         costs = torch.ones(n_features)
         log.info("Using uniform feature costs")
@@ -97,7 +98,7 @@ def main():
         k=5,
         alpha=0.01,
         method="full",  # Start with greedy for simplicity
-        device=device
+        device=device,
     )
 
     log.info("ACO oracle created successfully!")
@@ -108,7 +109,7 @@ def main():
     # Create a small test batch
     test_batch = {
         "x": train_dataset.features[:2],  # First 2 samples
-        "y": train_dataset.labels[:2]
+        "y": train_dataset.labels[:2],
     }
 
     # Test reset
