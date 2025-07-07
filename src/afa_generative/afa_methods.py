@@ -444,6 +444,7 @@ class Ma2018AFAMethod(AFAMethod):
     def to(self, device):
         self.sampler = self.sampler.to(device)
         self.predictor = self.predictor.to(device)
+        self._device = device
         return self
     
     @property

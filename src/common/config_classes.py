@@ -266,6 +266,97 @@ cs.store(name="train_ma2018", node=Ma2018TraingConfig)
 
 
 @dataclass
+class Covert2023PretrainingConfig:
+    dataset_artifact_name: str
+    output_artifact_aliases: list[str] = field(default_factory=lambda: [])
+
+    batch_size: int = 128
+    seed: int = 42
+    device: str = "cuda"
+    lr: float = 1e-3
+    nepochs: int = 100
+    patience: int = 5
+
+    hidden_units: list[int] = field(default_factory=lambda: [128, 128])
+    dropout: float = 0.3
+    activations: str = "ReLU"
+    flag_drop_out: bool = True
+    flag_only_output_layer: bool = False
+
+cs.store(name="pretrain_covert2023", node=Covert2023PretrainingConfig)
+
+
+@dataclass
+class Covert2023TrainingConfig:
+    pretrained_model_artifact_name: str
+    output_artifact_aliases: list[str] = field(default_factory=lambda: [])
+
+    batch_size: int = 128
+    lr: float = 1e-3
+    hard_budget: int = 20
+    nepochs: int = 100
+    patience: int = 5
+    device: str = "cuda"
+    seed: int = 42
+    
+    hidden_units: list[int] = field(default_factory=lambda: [128, 128])
+    dropout: float = 0.3
+    activations: str = "ReLU"
+    flag_drop_out: bool = True
+    flag_only_output_layer: bool = False
+
+
+cs.store(name="train_covert2023", node=Covert2023TrainingConfig)
+
+
+@dataclass
+class Gadgil2023PretrainingConfig:
+    dataset_artifact_name: str
+    output_artifact_aliases: list[str] = field(default_factory=lambda: [])
+
+    batch_size: int = 128
+    seed: int = 42
+    device: str = "cuda"
+    lr: float = 1e-3
+    nepochs: int = 100
+    patience: int = 5
+
+    hidden_units: list[int] = field(default_factory=lambda: [128, 128])
+    dropout: float = 0.3
+    activations: str = "ReLU"
+    flag_drop_out: bool = True
+    flag_only_output_layer: bool = False
+
+cs.store(name="pretrain_gadgil2023", node=Gadgil2023PretrainingConfig)
+
+
+@dataclass
+class Gadgil2023TrainingConfig:
+    pretrained_model_artifact_name: str
+    output_artifact_aliases: list[str] = field(default_factory=lambda: [])
+
+    batch_size: int = 128
+    lr: float = 1e-3
+    hard_budget: int = 20
+    nepochs: int = 100
+    patience: int = 5
+    eps: float = 0.05
+    eps_decay: float = 0.2
+    eps_steps: int = 10
+    device: str = "cuda"
+    seed: int = 42
+    
+    hidden_units: list[int] = field(default_factory=lambda: [128, 128])
+    dropout: float = 0.3
+    activations: str = "ReLU"
+    flag_drop_out: bool = True
+    flag_only_output_layer: bool = False
+
+
+cs.store(name="train_gadgil2023", node=Gadgil2023TrainingConfig)
+
+
+@dataclass
 class RandomDummyTrainConfig:
     dataset_artifact_name: str
     hard_budget: int  # not used, but pretend that it is

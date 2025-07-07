@@ -1,7 +1,7 @@
 defaults:
   - _self_
 
-pretrained_model_artifact_name: pretrain_ma2018-MNIST_split_1:v1
+pretrained_model_artifact_name: "pretrain_ma2018-MNIST_split_1:v1"
 output_artifact_aliases: []
 device: "cuda"
 seed: 42

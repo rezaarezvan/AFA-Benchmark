@@ -54,17 +54,6 @@ def main(cfg: Ma2018TraingConfig):
     )
     afa_method: Ma2018AFAMethod = Ma2018AFAMethod.load(pretrained_model_artifact_dir / "model.pt", device=device)
 
-    afa_method_artifact = wandb.Artifact(
-        name=f"train_ma2018-{pretrained_model_config.dataset_artifact_name.split(':')[0]}-budget_{cfg.hard_budget}-seed_{cfg.seed}",
-        type="trained_method",
-        metadata={
-            "method_type": "ma2018",
-            "dataset_artifact_name": pretrained_model_config.dataset_artifact_name,
-            "dataset_type": dataset_metadata["dataset_type"],
-            "budget": cfg.hard_budget,
-            "seed": cfg.seed,
-        },
-    )
     with TemporaryDirectory(delete=False) as tmp_path_str:
         tmp_path = Path(tmp_path_str)
         afa_method.save(tmp_path)
@@ -81,7 +70,7 @@ def main(cfg: Ma2018TraingConfig):
                 "seed": cfg.seed,
             },
         )
-        afa_method_artifact.add_dir(str(tmp_path), name="model.pt")
+        afa_method_artifact.add_file(str(tmp_path / "model.pt"))
         run.log_artifact(afa_method_artifact, aliases=cfg.output_artifact_aliases)
     run.finish()
 

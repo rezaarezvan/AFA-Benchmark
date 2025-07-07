@@ -16,7 +16,7 @@ from afa_generative.afa_methods import EDDI, UniformSampler, IterativeSelector, 
 from afa_generative.utils import MaskLayer
 from afa_generative.models import PartialVAE, fc_Net
 from afa_generative.datasets import prepare_datasets
-from common.config_classes import Ma2018PretrainConfig
+from common.config_classes import Ma2018PretraingConfig
 from common.utils import set_seed, dict_to_namespace, load_dataset_artifact
 from afa_rl.zannone2019.models import PointNet, PointNetType
 from afa_rl.utils import get_1D_identity
@@ -27,10 +27,10 @@ log = logging.getLogger(__name__)
 
 @hydra.main(
     version_base=None,
-    config_path="../../configs/ma2018",
-    config_name="pretrain_ma2018",
+    config_path="../../conf/pretrain/ma2018",
+    config_name="config",
 )
-def main(cfg: Ma2018PretrainConfig):
+def main(cfg: Ma2018PretraingConfig):
     log.debug(cfg)
     print(OmegaConf.to_yaml(cfg))
 
@@ -134,7 +134,7 @@ def main(cfg: Ma2018PretrainConfig):
         del eddi_selector
         eddi_selector = Ma2018AFAMethod.load(tmp_path / "model.pt", device=device)
 
-    pretrained_model_artifact.add_dir(str(tmp_path), name="model.pt")
+    pretrained_model_artifact.add_file(str(tmp_path / 'model.pt'))
     run.log_artifact(
         pretrained_model_artifact,
         aliases=[*cfg.output_artifact_aliases, datetime.now().strftime("%b%d")]
