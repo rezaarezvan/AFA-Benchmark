@@ -17,7 +17,7 @@ aco:
   hide_val: 10.0
   distance_metric: "euclidean"
   standardize_features: true
-  exhaustive_search_threshold: 12
+  exhaustive_search_threshold: 20
   max_subset_size: null
   use_random_subsets: true
   evaluate_final_performance: true

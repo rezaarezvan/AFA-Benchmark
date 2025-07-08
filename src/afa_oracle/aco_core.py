@@ -20,7 +20,7 @@ def powerset(iterable, max_size: Optional[int] = None):
     max_r = len(s) + 1 if max_size is None else min(max_size + 1, len(s) + 1)
     return [
         list(x)
-        for x in chain.from_iterable(combinations(s, r) for r in range(1, max_r))
+        for x in chain.from_iterable(combinations(s, r) for r in range(0, max_r))
     ]
 
 
@@ -169,11 +169,14 @@ class SubsetSearchStrategy:
         # Always include empty set
         subsets.append([])
 
-        # Generate random subsets
+        # Generate random subsets (bias towards smaller sizes)
+        # larger weight for smaller i+1
+        size_weights = [max_size - i for i in range(max_size)]
         for _ in range(self.max_samples - 1):
-            # Random subset size (1 to max_size)
-            size = np.random.randint(1, max_size + 1)
-            # Random subset
+            # sample size  in [1, max_size] with bias
+            size = np.random.choice(
+                np.arange(1, max_size + 1), p=np.array(size_weights) / sum(size_weights)
+            )
             subset = list(np.random.choice(available_features, size, replace=False))
             if subset not in subsets:
                 subsets.append(subset)
