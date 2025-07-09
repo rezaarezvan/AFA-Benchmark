@@ -46,7 +46,7 @@ def main(cfg: Ma2018PretraingConfig):
 
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
-    
+
     train_dataset, val_dataset, _, _ = load_dataset_artifact(cfg.dataset_artifact_name)
 
     train_loader, val_loader, d_in, d_out \
@@ -88,14 +88,16 @@ def main(cfg: Ma2018PretraingConfig):
         ),
     )
     pv = pv.to(device)
-    pv.fit(train_loader=train_loader, 
-           val_loader=val_loader, 
-           lr=cfg.partial_vae.lr, 
-           nepochs=cfg.partial_vae.epochs,
-           p_max=cfg.partial_vae.max_masking_probability,
-           patience=cfg.partial_vae.patience,
-           kl_scaling_factor=cfg.partial_vae.kl_scaling_factor)
-    
+    pv.fit(
+        train_loader=train_loader,
+        val_loader=val_loader,
+        lr=cfg.partial_vae.lr,
+        nepochs=cfg.partial_vae.epochs,
+        p_max=cfg.partial_vae.max_masking_probability,
+        patience=cfg.partial_vae.patience,
+        kl_scaling_factor=cfg.partial_vae.kl_scaling_factor,
+    )
+
     # Train masked predictor.
     model = MLP(
         in_features=cfg.partial_vae.latent_size,
@@ -121,7 +123,7 @@ def main(cfg: Ma2018PretraingConfig):
     pretrained_model_artifact.add_file(str(tmp_path / 'model.pt'))
     run.log_artifact(
         pretrained_model_artifact,
-        aliases=[*cfg.output_artifact_aliases, datetime.now().strftime("%b%d")]
+        aliases=[*cfg.output_artifact_aliases, datetime.now().strftime("%b%d")],
     )
     run.finish()
 

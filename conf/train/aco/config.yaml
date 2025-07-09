@@ -1,0 +1,50 @@
+hydra:
+  searchpath:
+    - file://conf/global
+
+defaults:
+  - _self_
+  - dataset@_global_: cube
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+  - override hydra/launcher: custom_slurm
+
+# Core ACO configuration
+aco:
+  k_neighbors: 5
+  acquisition_cost: 0.05
+  subset_search_size: 10000
+  hide_val: 10.0
+  distance_metric: "euclidean"
+  standardize_features: true
+  exhaustive_search_threshold: 20
+  max_subset_size: null
+  use_random_subsets: true
+  evaluate_final_performance: true
+  eval_only_n_samples: null
+
+# Behavioral cloning configuration (optional)
+aco_bc:
+  bc_epochs: 100
+  bc_batch_size: 128
+  bc_lr: 0.001
+  bc_num_cells: [128, 128]
+  bc_dropout: 0.1
+  bc_rollout_samples: 1000
+
+# Dataset and artifacts
+dataset_artifact_name: "cube_split_1:tmp"
+output_artifact_aliases: ["tmp"]
+
+# Classifier training
+classifier_epochs: 100
+classifier_batch_size: 128
+classifier_lr: 0.001
+classifier_num_cells: [128, 128]
+classifier_dropout: 0.1
+train_classifier: true
+classifier_artifact_name: null
+
+# General settings
+seed: 42
+device: "cuda"
