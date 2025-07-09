@@ -213,7 +213,8 @@ class Ma2018PointNetConfig:
     identity_network_num_cells: list[int] = field(
         default_factory=lambda: [20, 20])
     output_size: int = 40
-    feature_map_encoder_num_cells: list[int] = field(default_factory=lambda: [500])
+    feature_map_encoder_num_cells: list[int] = field(
+        default_factory=lambda: [500])
     max_embedding_norm: float = 1.0
 
 
@@ -292,6 +293,7 @@ class Covert2023PretrainingConfig:
     flag_drop_out: bool = True
     flag_only_output_layer: bool = False
 
+
 cs.store(name="pretrain_covert2023", node=Covert2023PretrainingConfig)
 
 
@@ -307,7 +309,7 @@ class Covert2023TrainingConfig:
     patience: int = 5
     device: str = "cuda"
     seed: int = 42
-    
+
     hidden_units: list[int] = field(default_factory=lambda: [128, 128])
     dropout: float = 0.3
     activations: str = "ReLU"
@@ -336,6 +338,7 @@ class Gadgil2023PretrainingConfig:
     flag_drop_out: bool = True
     flag_only_output_layer: bool = False
 
+
 cs.store(name="pretrain_gadgil2023", node=Gadgil2023PretrainingConfig)
 
 
@@ -354,7 +357,7 @@ class Gadgil2023TrainingConfig:
     eps_steps: int = 10
     device: str = "cuda"
     seed: int = 42
-    
+
     hidden_units: list[int] = field(default_factory=lambda: [128, 128])
     dropout: float = 0.3
     activations: str = "ReLU"
@@ -437,7 +440,8 @@ cs.store(name="train_zannone2019", node=Zannone2019TrainConfig)
 class Kachuee2019PQModuleConfig:
     n_hiddens: list[
         int
-    ]  # hidden layers in P network. The hidden layers of the Q network are calculated from this.
+        # hidden layers in P network. The hidden layers of the Q network are calculated from this.
+    ]
     p_dropout: float
 
 
@@ -473,7 +477,8 @@ class Kachuee2019AgentConfig:
 class Kachuee2019TrainConfig:
     reward_method: str  # one of {"softmax", "Bayesian-L1", "Bayesian-L2"}
     pq_module: Kachuee2019PQModuleConfig
-    mcdrop_samples: int  # how many samples to average over when calculating certainty for the reward
+    # how many samples to average over when calculating certainty for the reward
+    mcdrop_samples: int
 
     dataset_artifact_name: str
     n_agents: int
@@ -599,6 +604,34 @@ class TrainMaskedMLPClassifierConfig:
 
 cs.store(name="train_masked_mlp_classifier",
          node=TrainMaskedMLPClassifierConfig)
+
+
+@dataclass
+class TrainXGBoostClassifierConfig:
+    """Configuration for training XGBoost classifier."""
+    dataset_artifact_name: str
+    batch_size: int = 256
+    min_masking_probability: float = 0.0
+    max_masking_probability: float = 1.0
+    # if specified, only evaluate on this many samples
+    eval_only_n_samples: int | None = None
+    seed: int = 42
+    output_artifact_aliases: list[str] | None = None
+    evaluate_final_performance: bool = True
+
+    # XGBoost specific parameters
+    n_estimators: int = 100
+    max_depth: int = 6
+    learning_rate: float = 0.1
+    subsample: float = 0.8
+    colsample_bytree: float = 0.8
+
+    def __post_init__(self):
+        if self.output_artifact_aliases is None:
+            self.output_artifact_aliases = ["tmp"]
+
+
+cs.store(name="train_xgboost_classifier", node=TrainXGBoostClassifierConfig)
 
 # --- EVALUATION ---
 

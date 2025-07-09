@@ -1,0 +1,29 @@
+hydra:
+  searchpath:
+    - file://conf/global
+
+defaults:
+  - _self_
+  - dataset@_global_: cube_noiseless
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+  - override hydra/launcher: custom_slurm
+
+# Dataset configuration
+dataset_artifact_name: "cube_split_1:v9"
+output_artifact_aliases: ["xgboost_test"]
+
+# Training parameters
+batch_size: 256
+min_masking_probability: 0.0
+max_masking_probability: 0.9
+eval_only_n_samples: null
+seed: 42
+evaluate_final_performance: true
+
+# XGBoost parameters (matching ACO paper)
+n_estimators: 100
+max_depth: 6
+learning_rate: 0.1
+subsample: 0.8
+colsample_bytree: 0.8

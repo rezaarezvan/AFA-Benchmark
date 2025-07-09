@@ -15,6 +15,10 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 from common.config_classes import ACOTrainConfig
 from common.models import LitMaskedMLPClassifier
 from common.classifiers import WrappedMaskedMLPClassifier
+from common.xgboost_classifier import (
+    LitXGBoostAFAClassifier,
+    WrappedXGBoostAFAClassifier,
+)
 from afa_rl.datasets import DataModuleFromDatasets
 from afa_oracle.aco_core import create_aco_oracle
 from common.utils import get_class_probabilities, load_dataset_artifact, set_seed
@@ -29,18 +33,132 @@ from eval.utils import plot_metrics
 log = logging.getLogger(__name__)
 
 
-def train_or_load_classifier(
-    config: ACOTrainConfig,
+def train_xgboost_classifier(
     train_dataset,
     val_dataset,
     n_features: int,
     n_classes: int,
-    train_class_probabilities: torch.Tensor,
+    train_class_probabilities,
+    config,
     device: torch.device,
-) -> WrappedMaskedMLPClassifier:
-    """
-    Train a new classifier or load existing one.
-    """
+):
+    """Train XGBoost classifier for ACO."""
+    log.info("Training XGBoost classifier...")
+
+    # Create data module
+    datamodule = DataModuleFromDatasets(
+        train_dataset, val_dataset, batch_size=config.xgboost_params.batch_size
+    )
+
+    # Create XGBoost model
+    xgb_params = {
+        'n_estimators': config.xgboost_params.n_estimators,
+        'max_depth': config.xgboost_params.max_depth,
+        'learning_rate': config.xgboost_params.learning_rate,
+        'subsample': config.xgboost_params.subsample,
+        'colsample_bytree': config.xgboost_params.colsample_bytree,
+        'random_state': config.seed,
+    }
+
+    lit_model = LitXGBoostAFAClassifier(
+        n_features=n_features,
+        n_classes=n_classes,
+        min_masking_probability=config.xgboost_params.min_masking_probability,
+        max_masking_probability=config.xgboost_params.max_masking_probability,
+        **xgb_params
+    )
+
+    # Training setup
+    logger = WandbLogger()
+    trainer = pl.Trainer(
+        max_epochs=1,  # XGBoost trains in setup()
+        logger=logger,
+        accelerator="cpu",
+        devices=1,
+        enable_checkpointing=False,
+    )
+
+    # Train
+    trainer.fit(lit_model, datamodule)
+
+    # Wrap and return
+    return WrappedXGBoostAFAClassifier(lit_model=lit_model, device=device)
+
+
+def train_mlp_classifier(
+    train_dataset,
+    val_dataset,
+    n_features: int,
+    n_classes: int,
+    train_class_probabilities,
+    config,
+    device: torch.device,
+):
+    """Train MLP classifier for ACO."""
+    log.info("Training MLP classifier...")
+
+    # Create data module
+    datamodule = DataModuleFromDatasets(
+        train_dataset, val_dataset, batch_size=config.classifier_batch_size
+    )
+
+    # Create model
+    lit_model = LitMaskedMLPClassifier(
+        n_features=n_features,
+        n_classes=n_classes,
+        num_cells=tuple(config.classifier_num_cells),
+        dropout=config.classifier_dropout,
+        class_probabilities=train_class_probabilities,
+        min_masking_probability=0.0,
+        max_masking_probability=0.9,
+        lr=config.classifier_lr,
+    )
+
+    # Training setup
+    checkpoint_callback = ModelCheckpoint(
+        monitor="val_loss_many_observations",
+        save_top_k=1,
+        mode="min",
+    )
+
+    logger = WandbLogger()
+    trainer = pl.Trainer(
+        max_epochs=config.classifier_epochs,
+        logger=logger,
+        accelerator=device.type,
+        devices=1,
+        callbacks=[checkpoint_callback],
+    )
+
+    # Train
+    trainer.fit(lit_model, datamodule)
+
+    # Load best model and wrap
+    best_checkpoint = trainer.checkpoint_callback.best_model_path
+    best_lit_model = LitMaskedMLPClassifier.load_from_checkpoint(
+        best_checkpoint,
+        n_features=n_features,
+        n_classes=n_classes,
+        num_cells=config.classifier_num_cells,
+        dropout=config.classifier_dropout,
+        class_probabilities=train_class_probabilities,
+        max_masking_probability=0.9,
+        lr=config.classifier_lr,
+    )
+
+    return WrappedMaskedMLPClassifier(best_lit_model.classifier, device)
+
+
+def get_or_train_classifier(
+    config,
+    train_dataset,
+    val_dataset,
+    n_features: int,
+    n_classes: int,
+    train_class_probabilities,
+    device: torch.device,
+):
+    """Get or train classifier based on configuration."""
 
     if not config.train_classifier and config.classifier_artifact_name:
         # Load existing classifier
@@ -50,67 +168,27 @@ def train_or_load_classifier(
         )
         classifier_dir = Path(classifier_artifact.download())
 
-        # Load the classifier
-        return WrappedMaskedMLPClassifier.load(classifier_dir / "classifier.pt", device)
+        # Determine classifier type and load appropriately
+        classifier_type = config.get('classifier_type', 'mlp')
+        if classifier_type == 'xgboost':
+            return WrappedXGBoostAFAClassifier.load(classifier_dir / "classifier.pt", device)
+        else:
+            return WrappedMaskedMLPClassifier.load(classifier_dir / "classifier.pt", device)
+
     else:
         # Train new classifier
-        log.info("Training new masked MLP classifier...")
+        classifier_type = config.get('classifier_type', 'mlp')
 
-        # Create data module
-        datamodule = DataModuleFromDatasets(
-            train_dataset, val_dataset, batch_size=config.classifier_batch_size
-        )
-
-        # Create model
-        lit_model = LitMaskedMLPClassifier(
-            n_features=n_features,
-            n_classes=n_classes,
-            num_cells=tuple(config.classifier_num_cells),
-            dropout=config.classifier_dropout,
-            class_probabilities=train_class_probabilities,
-            min_masking_probability=0.0,
-            max_masking_probability=0.9,
-            lr=config.classifier_lr,
-        )
-
-        # Training setup
-        checkpoint_callback = ModelCheckpoint(
-            monitor="val_loss_many_observations",
-            save_top_k=1,
-            mode="min",
-        )
-
-        logger = WandbLogger()
-        trainer = pl.Trainer(
-            max_epochs=config.classifier_epochs,
-            logger=logger,
-            accelerator=device.type,
-            devices=1,
-            callbacks=[checkpoint_callback],
-        )
-
-        # Train
-        trainer.fit(lit_model, datamodule)
-
-        # Load best model and wrap
-        best_checkpoint = trainer.checkpoint_callback.best_model_path
-        best_lit_model = LitMaskedMLPClassifier.load_from_checkpoint(
-            best_checkpoint,
-            n_features=n_features,
-            n_classes=n_classes,
-            num_cells=config.classifier_num_cells,
-            dropout=config.classifier_dropout,
-            class_probabilities=train_class_probabilities,
-            max_masking_probability=0.9,
-            lr=config.classifier_lr,
-        )
-
-        wrapped_classifier = WrappedMaskedMLPClassifier(
-            module=best_lit_model.classifier, device=device
-        )
-
-        log.info("Classifier training completed")
-        return wrapped_classifier
+        if classifier_type == 'xgboost':
+            return train_xgboost_classifier(
+                train_dataset, val_dataset, n_features, n_classes,
+                train_class_probabilities, config, device
+            )
+        else:
+            return train_mlp_classifier(
+                train_dataset, val_dataset, n_features, n_classes,
+                train_class_probabilities, config, device
+            )
 
 
 @hydra.main(version_base=None, config_path="../../conf/train/aco", config_name="config")
@@ -141,7 +219,7 @@ def main(cfg: ACOTrainConfig) -> None:
     log.info(f"Training samples: {len(train_dataset)}")
 
     # Train or load classifier
-    classifier = train_or_load_classifier(
+    classifier = get_or_train_classifier(
         cfg,
         train_dataset,
         val_dataset,
@@ -234,7 +312,8 @@ def main(cfg: ACOTrainConfig) -> None:
             aco_method.save(tmp_path)
 
             aco_artifact = wandb.Artifact(
-                name=f"train_aco-{dataset_metadata['dataset_type']}-seed_{cfg.seed}",
+                name=f"train_aco-{dataset_metadata['dataset_type']
+                                  }-seed_{cfg.seed}",
                 type="trained_method",
                 metadata={
                     "method_type": "aco",
@@ -279,7 +358,8 @@ def main(cfg: ACOTrainConfig) -> None:
                 aco_bc_artifact.add_dir(str(tmp_path_bc))
                 run.log_artifact(
                     aco_bc_artifact,
-                    aliases=[f"{alias}_bc" for alias in cfg.output_artifact_aliases],
+                    aliases=[
+                        f"{alias}_bc" for alias in cfg.output_artifact_aliases],
                 )
 
                 log.info(f"ACO+BC method saved as artifact")
