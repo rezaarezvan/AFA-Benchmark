@@ -12,6 +12,7 @@ pointnet:
   identity_size: 20
   feature_map_encoder_num_cells: [500]
   output_size: 40
+  max_embedding_norm: 1.0
 
 partial_vae:
   latent_size: 20
@@ -27,3 +28,5 @@ classifier:
   lr: 0.001
   epochs: 100
   patience: 5
+  num_cells: [128, 128]
+  dropout: 0.3

@@ -211,6 +211,7 @@ class Ma2018PointNetConfig:
     identity_network_num_cells: list[int] = field(default_factory=lambda: [20, 20])
     output_size: int = 40
     feature_map_encoder_num_cells: list[int] = field(default_factory=lambda: [500])
+    max_embedding_norm: float = 1.0
 
 
 @dataclass
@@ -229,6 +230,8 @@ class Ma2018PartialVAEConfig:
 class Ma2018ClassifierConfig:
     lr: float = 1e-3
     epochs: int = 100
+    num_cells: list[int] = field(default_factory=lambda: [128, 128])
+    dropout: float = 0.3
     patience: int = 5
 
 
