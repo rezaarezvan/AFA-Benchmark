@@ -1,4 +1,3 @@
-from functools import partial
 import gc
 import logging
 from pathlib import Path
@@ -8,7 +7,6 @@ from tempfile import TemporaryDirectory
 import hydra
 from omegaconf import OmegaConf
 import torch
-from tensordict import TensorDictBase
 from torch import optim
 from torch.nn import functional as F
 from torchrl.collectors import SyncDataCollector
@@ -39,7 +37,6 @@ from common.afa_methods import RandomDummyAFAMethod
 from common.config_classes import Shim2018PretrainConfig, Shim2018TrainConfig
 from common.custom_types import (
     AFADataset,
-    AFAPredictFn,
 )
 from common.utils import get_class_probabilities, load_dataset_artifact, set_seed
 
@@ -193,7 +190,6 @@ def main(cfg: Shim2018TrainConfig):
         action_mask_key="action_mask",
         batch_size=cfg.batch_size,
         module_device=torch.device(cfg.device),
-        replay_buffer_device=torch.device(cfg.device),
     )
 
     collector = SyncDataCollector(

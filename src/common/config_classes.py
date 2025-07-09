@@ -1,11 +1,8 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 from hydra.core.config_store import ConfigStore
-from torch import nn
 
-from afa_rl.zannone2019.models import PartialVAELossType, PointNetType
 
 cs = ConfigStore.instance()
 
@@ -179,6 +176,7 @@ class Shim2018AgentConfig:
 
     # Value estimator parameters
     gamma: float
+    lmbda: float
 
 
 @dataclass

@@ -6,9 +6,6 @@ from tensordict.nn import TensorDictModule, TensorDictModuleBase, TensorDictSequ
 from torch import Tensor, nn, optim
 import torch
 from torchrl.data import (
-    LazyTensorStorage,
-    SamplerWithoutReplacement,
-    TensorDictReplayBuffer,
     TensorSpec,
 )
 from torchrl.modules import MLP, EGreedyModule, QValueModule
@@ -73,7 +70,6 @@ class Shim2018Agent(Agent):
         action_mask_key: str,
         batch_size: int,  # expected batch size received in `process_batch`
         module_device: torch.device,  # device to place nn.Modules on
-        replay_buffer_device: torch.device,  # device to place replay buffer on
     ):
         self.cfg = cfg
         self.embedder = embedder
@@ -82,7 +78,6 @@ class Shim2018Agent(Agent):
         self.action_mask_key = action_mask_key
         self.batch_size = batch_size
         self.module_device = module_device
-        self.replay_buffer_device = replay_buffer_device
 
         self.action_value_module = Shim2018ActionValueModule(
             embedder=self.embedder,
@@ -131,7 +126,7 @@ class Shim2018Agent(Agent):
         ).to(self.module_device)
 
         self.loss_tdmodule.make_value_estimator(
-            ValueEstimators.TD0, gamma=self.cfg.gamma
+            ValueEstimators.TDLambda, gamma=self.cfg.gamma, lmbda=self.cfg.lmbda
         )
 
         if self.cfg.delay_value:
@@ -143,16 +138,7 @@ class Shim2018Agent(Agent):
 
         self.optimizer = optim.Adam(self.loss_tdmodule.parameters(), lr=self.cfg.lr)
 
-        # The shim2018 method does not use a replay buffer but we create one so we can sample batches smaller than
-        # the data received in `process_batch`
-        self.replay_buffer = TensorDictReplayBuffer(
-            storage=LazyTensorStorage(
-                max_size=self.batch_size,
-                device=self.replay_buffer_device,
-            ),
-            sampler=SamplerWithoutReplacement(),
-            batch_size=self.cfg.replay_buffer_batch_size,
-        )
+        # The shim2018 method does not use a replay buffer
 
     @override
     def get_policy(self) -> TensorDictModuleBase:
@@ -173,36 +159,28 @@ class Shim2018Agent(Agent):
     def process_batch(self, td: TensorDictBase) -> dict[str, Any]:
         assert td.batch_size == torch.Size((self.batch_size,)), "Batch size mismatch"
 
-        self.replay_buffer.extend(td)
-
         # Initialize total loss dictionary
         total_loss_dict = {"loss": 0.0}
         td_errors = []
 
         for _ in range(self.cfg.num_epochs):
-            # Reset replay buffer each epoch
-            self.replay_buffer.extend(td)
+            td_copy = td.clone()
+            self.optimizer.zero_grad()
+            loss_td: TensorDictBase = self.loss_tdmodule(td_copy)
+            loss_tensor: Tensor = loss_td["loss"]
+            loss_tensor.backward()
+            nn.utils.clip_grad_norm_(
+                self.loss_tdmodule.parameters(), max_norm=self.cfg.max_grad_norm
+            )
+            self.optimizer.step()
+            # Update target network
+            if self.target_net_updater is not None:
+                self.target_net_updater.step()
 
-            for _ in range(self.batch_size // self.cfg.replay_buffer_batch_size):
-                sampled_td = self.replay_buffer.sample()
-                if self.replay_buffer_device != self.module_device:
-                    sampled_td = sampled_td.to(self.module_device)
-                self.optimizer.zero_grad()
-                loss_td: TensorDictBase = self.loss_tdmodule(sampled_td)
-                loss_tensor: Tensor = loss_td["loss"]
-                loss_tensor.backward()
-                nn.utils.clip_grad_norm_(
-                    self.loss_tdmodule.parameters(), max_norm=self.cfg.max_grad_norm
-                )
-                self.optimizer.step()
-                # Update target network
-                if self.target_net_updater is not None:
-                    self.target_net_updater.step()
+            td_errors.append(td_copy["td_error"])
 
-                td_errors.append(sampled_td["td_error"])
-
-                # Accumulate losses
-                total_loss_dict["loss"] += loss_td["loss"].item()
+            # Accumulate losses
+            total_loss_dict["loss"] += loss_td["loss"].item()
 
         # Anneal epsilon for epsilon greedy exploration
         self.egreedy_tdmodule.step()
@@ -230,8 +208,8 @@ class Shim2018Agent(Agent):
         self.egreedy_tdmodule = self.egreedy_tdmodule.to(self.module_device)
 
     @override
-    def get_replay_buffer_device(self) -> torch.device:
-        return self.replay_buffer_device
+    def get_replay_buffer_device(self) -> None:
+        return None
 
     @override
     def set_replay_buffer_device(self, device: torch.device) -> None:
@@ -296,7 +274,6 @@ class Shim2018Agent(Agent):
             action_mask_key=args.action_mask_key,
             batch_size=args.batch_size,
             module_device=module_device,
-            replay_buffer_device=replay_buffer_device,
         )
 
         # Load Q-value module weights

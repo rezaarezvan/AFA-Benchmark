@@ -11,6 +11,7 @@ defaults:
 
 agent:
   gamma: 1.0
+  lmbda: 0.75 # gives largest weight to 4-step return
 device: cuda
 seed: 42
 output_artifact_aliases: ["tmp"]
