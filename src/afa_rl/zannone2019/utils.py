@@ -5,6 +5,7 @@ from torchrl.modules import MLP
 
 from afa_rl.utils import (
     get_1D_identity,
+    str_to_activation_class_mapping,
 )
 from afa_rl.zannone2019.models import (
     PartialVAE,
@@ -36,14 +37,17 @@ def get_zannone2019_model_from_config(
 
     pointnet = PointNet(
         identity_size=cfg.pointnet.identity_size,
-        n_features=n_features,
+        n_features=n_features
+        + n_classes,  # since we append the one-hot label to the features
         max_embedding_norm=cfg.pointnet.max_embedding_norm,
         feature_map_encoder=MLP(
             in_features=feature_map_encoder_input_size,
             out_features=cfg.pointnet.output_size,
             num_cells=cfg.pointnet.feature_map_encoder_num_cells,
             dropout=cfg.pointnet.feature_map_encoder_dropout,
-            activation_class=nn.ReLU,
+            activation_class=str_to_activation_class_mapping[
+                cfg.pointnet.feature_map_encoder_activation_class
+            ],
         ),
         pointnet_type=pointnet_type,
     )
@@ -52,20 +56,20 @@ def get_zannone2019_model_from_config(
         out_features=2 * cfg.partial_vae.latent_size,
         num_cells=cfg.encoder.num_cells,
         dropout=cfg.encoder.dropout,
-        activation_class=nn.ReLU,
+        activation_class=str_to_activation_class_mapping[cfg.encoder.activation_class],
     )
     partial_vae = PartialVAE(
         pointnet=pointnet,
         encoder=encoder,
-        decoder=nn.Sequential(
-            MLP(
-                in_features=cfg.partial_vae.latent_size,
-                out_features=n_features,
-                num_cells=cfg.partial_vae.decoder_num_cells,
-                dropout=cfg.partial_vae.decoder_dropout,
-                activation_class=nn.ReLU,
-            ),
-            nn.Identity(),
+        decoder=MLP(
+            in_features=cfg.partial_vae.latent_size,
+            out_features=n_features
+            + n_classes,  # since we append the one-hot label to the features
+            num_cells=cfg.partial_vae.decoder_num_cells,
+            dropout=cfg.partial_vae.decoder_dropout,
+            activation_class=str_to_activation_class_mapping[
+                cfg.partial_vae.decoder_activation_class
+            ],
         ),
     )
     if cfg.recon_loss_type == "squared_error":
@@ -84,7 +88,9 @@ def get_zannone2019_model_from_config(
             out_features=n_classes,
             num_cells=cfg.classifier.num_cells,
             dropout=cfg.classifier.dropout,
-            activation_class=nn.ReLU,
+            activation_class=str_to_activation_class_mapping[
+                cfg.classifier.activation_class
+            ],
         ),
         lr=cfg.lr,
         min_masking_probability=cfg.min_masking_probability,

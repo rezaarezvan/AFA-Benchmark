@@ -99,12 +99,14 @@ class Zannone2019PointNetConfig:
     max_embedding_norm: float
     output_size: int
     feature_map_encoder_num_cells: list[int]
+    feature_map_encoder_activation_class: str
     feature_map_encoder_dropout: float
 
 
 @dataclass
 class Zannone2019EncoderConfig:
     num_cells: list[int]
+    activation_class: str
     dropout: float
 
 
@@ -112,12 +114,14 @@ class Zannone2019EncoderConfig:
 class Zannone2019PartialVAEConfig:
     latent_size: int
     decoder_num_cells: list[int]
+    decoder_activation_class: str
     decoder_dropout: float
 
 
 @dataclass
 class Zannone2019ClassifierConfig:
     num_cells: list[int]
+    activation_class: str
     dropout: float
 
 

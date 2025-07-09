@@ -8,21 +8,28 @@ lr: 1e-3
 min_masking_probability: 0.75
 max_masking_probability: 0.99
 pointnet:
-  type: "pointnetplus" # ODIN paper does not mention which type they use
+  type: "pointnetplus" # zannone2019 paper does not mention which type they use
   identity_size: 20 # EDDI
   max_embedding_norm: 1.0
   feature_map_encoder_num_cells: [500] # EDDI
+  feature_map_encoder_activation_class: "ReLU"
   feature_map_encoder_dropout: 0.0
-  output_size: 40 # always twice as large as latent size according to EDDI paper
+  # output_size: 40 # always twice as large as latent size according to EDDI paper
+  output_size: 20 # zannone2019
 encoder:
-  num_cells: [500, 500, 200] # EDDI
-  dropout: 0.1
+  # num_cells: [500, 500, 200] # EDDI
+  num_cells: [20, 500, 200] # zannone2019
+  activation_class: "ReLU"
+  dropout: 0.0
 partial_vae:
   latent_size: 20 # EDDI
-  decoder_num_cells: [200, 500, 500] # EDDI
+  # decoder_num_cells: [200, 500, 500] # EDDI
+  decoder_num_cells: [500, 200] # zannone2019 (cube)
+  decoder_activation_class: "ReLU"
   decoder_dropout: 0.0
 classifier:
-  num_cells: [128, 128] # same for all methods!
+  num_cells: [128, 128] # zannone2019 paper does not say what this should be, so we use the same num_cells as the "common" classifier
+  activation_class: "ReLU"
   dropout: 0.0
 recon_loss_type: "squared_error"
 kl_scaling_factor: 0.01

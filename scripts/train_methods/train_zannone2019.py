@@ -1,5 +1,3 @@
-from functools import partial
-from time import sleep
 import matplotlib
 from matplotlib import pyplot as plt
 import gc
@@ -9,10 +7,8 @@ from typing import Any, cast
 from tempfile import TemporaryDirectory
 
 import hydra
-from matplotlib.image import AxesImage
 from omegaconf import OmegaConf
 import torch
-from tensordict import TensorDictBase
 from torch.nn import functional as F
 from torchrl.collectors import SyncDataCollector
 from torchrl.envs import ExplorationType, check_env_specs, set_exploration_type
@@ -36,13 +32,11 @@ from afa_rl.zannone2019.utils import (
 )
 from afa_rl.utils import (
     get_eval_metrics,
-    module_norm,
 )
 from common.afa_methods import RandomDummyAFAMethod
 from common.config_classes import Zannone2019PretrainConfig, Zannone2019TrainConfig
 from common.custom_types import (
     AFADataset,
-    AFAPredictFn,
 )
 from common.utils import get_class_probabilities, load_dataset_artifact, set_seed
 
@@ -191,6 +185,7 @@ def main(cfg: Zannone2019TrainConfig):
         generated_features_batch, generated_labels_batch = (
             pretrained_model.generate_data(
                 latent_size=pretrained_model_config.partial_vae.latent_size,
+                n_features=n_features,
                 device=device,
                 n_samples=cfg.generation_batch_size,
             )
@@ -210,32 +205,43 @@ def main(cfg: Zannone2019TrainConfig):
             num_classes=generated_labels_batch.shape[-1],
         ).cpu()
 
-    # Also reconstruct some samples
-    # _, _, _, z, reconstructed_features = pretrained_model.partial_vae.forward(
-    #     train_dataset.features[:100].to(device),
-    #     torch.ones_like(train_dataset.features[:100], dtype=torch.bool, device=device),
-    # )
+    # Also reconstruct some samples, both when providing a label and not
+    _, label_reconstructed_features = pretrained_model.fully_observed_reconstruction(
+        features=train_dataset.features[:100].to(device),
+        n_classes=n_classes,
+        label=train_dataset.labels[:100],
+    )
+    _, reconstructed_features = pretrained_model.fully_observed_reconstruction(
+        features=train_dataset.features[:100].to(device),
+        n_classes=n_classes,
+        label=None,
+    )
     # z = z.cpu()
-    # reconstructed_features = reconstructed_features.cpu()
+    label_reconstructed_features = label_reconstructed_features.cpu()
+    reconstructed_features = reconstructed_features.cpu()
 
     # Visualize MNIST digits
-    # fig_real, axs_real = visualize_digits(
-    #     train_dataset.features, train_dataset.labels, shuffle=False
-    # )
-    # fig_real.suptitle("Real digits")
-    # if cfg.n_generated_samples >= 9:
-    #     fig_fake, axs_fake = visualize_digits(
-    #         generated_features, generated_labels, shuffle=False
-    #     )
-    #     fig_fake.suptitle("Generated digits")
-    # fig_recon, axs_recon = visualize_digits(
-    #     reconstructed_features, train_dataset.labels, shuffle=False
-    # )
-    # fig_recon.suptitle("Reconstructed digits")
-    #
-    # plt.show()
-    #
-    # # Plot distribution of latent variables
+    fig_real, _axs_real = visualize_digits(
+        train_dataset.features, train_dataset.labels, shuffle=False
+    )
+    fig_real.suptitle("Real digits")
+    if cfg.n_generated_samples >= 9:
+        fig_fake, _axs_fake = visualize_digits(
+            generated_features, generated_labels, shuffle=False
+        )
+        fig_fake.suptitle("Generated digits")
+    fig_label_recon, _axs_label_recon = visualize_digits(
+        label_reconstructed_features, train_dataset.labels, shuffle=False
+    )
+    fig_label_recon.suptitle("Reconstructed digits using label")
+    fig_recon, _axs_recon = visualize_digits(
+        reconstructed_features, train_dataset.labels, shuffle=False
+    )
+    fig_recon.suptitle("Reconstructed digits without using label")
+
+    plt.show()
+
+    # Plot distribution of latent variables
     # plt.figure(figsize=(12, 4))
     # for i in range(min(z.shape[1], 10)):
     #     plt.subplot(2, 5, i + 1)
@@ -243,7 +249,7 @@ def main(cfg: Zannone2019TrainConfig):
     #     plt.title(f"Latent dim {i}")
     # plt.tight_layout()
     # plt.show()
-
+    #
     combined_features = torch.cat([train_dataset.features, generated_features])
     combined_features = combined_features[torch.randperm(len(combined_features))]
     combined_labels = torch.cat([train_dataset.labels, generated_labels])
