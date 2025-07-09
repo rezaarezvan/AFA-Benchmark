@@ -13,46 +13,44 @@ from common.registry import AFA_DATASET_REGISTRY, AFA_METHOD_REGISTRY
 from coolname import generate_slug
 
 
-def save_smart_method(
-    hard_budget: int,
-    dataset_train_path: Path,
-    dataset_val_path: Path,
-    seed: int,
-    method_folder: Path,
-):
+def save_smart_method(hard_budget: int, dataset_train_path: Path, dataset_val_path: Path, seed: int, method_folder: Path):
     # Generate a unique datetime string and create folders
     timestr = generate_slug(2)
-    (method_folder / timestr).mkdir(parents=True, exist_ok=True)
+    (method_folder / timestr).mkdir(
+        parents=True, exist_ok=True
+    )
 
     method = AFAContextSmartMethod()
 
-    method.save(method_folder / timestr / "model.pt")
+    method.save(
+        method_folder / timestr / "model.pt"
+    )
     # Also save a yaml file with params
-    with open((method_folder / timestr / "params.yml"), "w") as f:
-        yaml.dump(
-            {
-                "hard_budget": hard_budget,
-                "seed": seed,
-                "dataset_type": "AFAContext",
-                "train_dataset_path": str(dataset_train_path),
-                "val_dataset_path": str(dataset_val_path),
-            },
-            f,
-            default_flow_style=False,
-        )
+    with open(
+        (method_folder / timestr / "params.yml"), "w"
+    ) as f:
+        yaml.dump({
+            "hard_budget": hard_budget,
+            "seed": seed,
+            "dataset_type": "AFAContext",
+            "train_dataset_path": str(dataset_train_path),
+            "val_dataset_path": str(dataset_val_path),
+        }, f, default_flow_style=False)
+
 
 
 def main(args: argparse.Namespace):
+
     print("Generating smart AFAContext method...")
     # Create a method for each (train_path, val_path) and seed combination
-    for split in range(1, args.n_splits + 1):
+    for split in range(1, args.n_splits+1):
         train_path = args.dataset_folder / f"train_split_{split}.pt"
         val_path = args.dataset_folder / f"val_split_{split}.pt"
 
         # The data should exist
         assert train_path.exists() and val_path.exists()
 
-        for seed in range(1, args.n_seeds + 1):
+        for seed in range(1, args.n_seeds+1):
             save_smart_method(
                 args.hard_budget,
                 train_path,
@@ -60,7 +58,6 @@ def main(args: argparse.Namespace):
                 seed,
                 method_folder=args.method_folder,
             )
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

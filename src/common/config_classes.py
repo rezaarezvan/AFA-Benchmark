@@ -213,9 +213,11 @@ cs.store(name="train_shim2018", node=Shim2018TrainConfig)
 @dataclass
 class Ma2018PointNetConfig:
     identity_size: int = 20
-    identity_network_num_cells: list[int] = field(default_factory=lambda: [20, 20])
+    identity_network_num_cells: list[int] = field(
+        default_factory=lambda: [20, 20])
     output_size: int = 40
-    feature_map_encoder_num_cells: list[int] = field(default_factory=lambda: [500])
+    feature_map_encoder_num_cells: list[int] = field(
+        default_factory=lambda: [500])
 
 
 @dataclass
@@ -223,11 +225,13 @@ class Ma2018PartialVAEConfig:
     lr: float = 1e-3
     epochs: int = 1000
     patience: int = 5
-    encoder_num_cells: list[int] = field(default_factory=lambda: [500, 500, 200])
+    encoder_num_cells: list[int] = field(
+        default_factory=lambda: [500, 500, 200])
     latent_size: int = 20
     kl_scaling_factor: float = 0.1
     max_masking_probability: float = 0.9
-    decoder_num_cells: list[int] = field(default_factory=lambda: [200, 500, 500])
+    decoder_num_cells: list[int] = field(
+        default_factory=lambda: [200, 500, 500])
 
 
 @dataclass
@@ -246,9 +250,12 @@ class Ma2018PretraingConfig:
     seed: int = 42
     device: str = "cuda"
 
-    pointnet: Ma2018PointNetConfig = field(default_factory=Ma2018PointNetConfig)
-    partial_vae: Ma2018PartialVAEConfig = field(default_factory=Ma2018PartialVAEConfig)
-    classifier: Ma2018ClassifierConfig = field(default_factory=Ma2018ClassifierConfig)
+    pointnet: Ma2018PointNetConfig = field(
+        default_factory=Ma2018PointNetConfig)
+    partial_vae: Ma2018PartialVAEConfig = field(
+        default_factory=Ma2018PartialVAEConfig)
+    classifier: Ma2018ClassifierConfig = field(
+        default_factory=Ma2018ClassifierConfig)
 
 
 cs.store(name="pretrain_ma2018", node=Ma2018PretraingConfig)
@@ -334,7 +341,6 @@ cs.store(name="train_randomdummy", node=RandomDummyTrainConfig)
 @dataclass
 class ACOConfig:
     """Configuration for ACO method"""
-
     # Core ACO parameters
     k_neighbors: int = 5
     acquisition_cost: float = 0.05
@@ -360,7 +366,6 @@ class ACOConfig:
 @dataclass
 class ACOBCConfig:
     """Configuration for ACO + Behavioral Cloning"""
-
     # Behavioral cloning parameters
     bc_epochs: int = 100
     bc_batch_size: int = 128
@@ -379,7 +384,6 @@ class ACOBCConfig:
 @dataclass
 class ACOTrainConfig:
     """Main training configuration for ACO"""
-
     # Method configuration
     aco: ACOConfig = None
     aco_bc: Optional[ACOBCConfig] = None  # If None, don't train BC version
@@ -412,7 +416,6 @@ class ACOTrainConfig:
         if self.classifier_num_cells is None:
             self.classifier_num_cells = [128, 128]
 
-
 # --- TRAINING CLASSIFIERS ---
 
 
@@ -435,7 +438,8 @@ class TrainMaskedMLPClassifierConfig:
     evaluate_final_performance: bool
 
 
-cs.store(name="train_masked_mlp_classifier", node=TrainMaskedMLPClassifierConfig)
+cs.store(name="train_masked_mlp_classifier",
+         node=TrainMaskedMLPClassifierConfig)
 
 # --- EVALUATION ---
 

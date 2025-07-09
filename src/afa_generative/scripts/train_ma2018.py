@@ -25,9 +25,7 @@ def main(
         train_config_dict: dict = yaml.safe_load(file)
     train_config = dict_to_namespace(train_config_dict)
     device = torch.device(train_config.device)
-    afa_method: Ma2018AFAMethod = Ma2018AFAMethod.load(
-        pretrained_model_path / "model.pt", device=device
-    )
+    afa_method: Ma2018AFAMethod = Ma2018AFAMethod.load(pretrained_model_path / "model.pt", device=device)
     # afa_method_path.mkdir(parents=True, exist_ok=True)
     afa_method.save(afa_method_path)
     with open(afa_method_path / "params.yml", "w") as file:
@@ -47,6 +45,7 @@ def main(
 
 
 if __name__ == "__main__":
+
     # Use argparse to choose config file
     parser = argparse.ArgumentParser()
     parser.add_argument(

@@ -37,39 +37,35 @@ def main(
     train_dataset: AFADataset = AFA_DATASET_REGISTRY[dataset_type].load(
         train_dataset_path
     )
-    val_dataset: AFADataset = AFA_DATASET_REGISTRY[dataset_type].load(val_dataset_path)
-    train_loader, val_loader, d_in, d_out = prepare_datasets(
-        train_dataset, val_dataset, pretrain_config.batch_size
+    val_dataset: AFADataset = AFA_DATASET_REGISTRY[dataset_type].load(
+        val_dataset_path
     )
+    train_loader, val_loader, d_in, d_out = prepare_datasets(train_dataset, val_dataset, pretrain_config.batch_size)
 
     predictor = fc_Net(
-        input_dim=d_in * 2,
-        output_dim=d_out,
-        hidden_layer_num=len(pretrain_config.architecture.hidden_units),
-        hidden_unit=pretrain_config.architecture.hidden_units,
-        activations=pretrain_config.architecture.activations,
-        drop_out_rate=pretrain_config.architecture.dropout,
-        flag_drop_out=pretrain_config.architecture.flag_drop_out,
-        flag_only_output_layer=pretrain_config.architecture.flag_only_output_layer,
-    )
-
-    predictor.load_state_dict(
-        torch.load(pretrained_model_path / "model.pt", map_location=device)[
-            "predictor_state_dict"
-        ]
-    )
-
+            input_dim=d_in * 2,
+            output_dim=d_out,
+            hidden_layer_num=len(pretrain_config.architecture.hidden_units),
+            hidden_unit=pretrain_config.architecture.hidden_units,
+            activations=pretrain_config.architecture.activations,
+            drop_out_rate=pretrain_config.architecture.dropout,
+            flag_drop_out=pretrain_config.architecture.flag_drop_out,
+            flag_only_output_layer=pretrain_config.architecture.flag_only_output_layer
+        )
+    
+    predictor.load_state_dict(torch.load(pretrained_model_path  / "model.pt", map_location=device)["predictor_state_dict"])
+    
     selector = fc_Net(
-        input_dim=d_in * 2,
-        output_dim=d_in,
-        hidden_layer_num=len(train_config.architecture.hidden_units),
-        hidden_unit=train_config.architecture.hidden_units,
-        activations=train_config.architecture.activations,
-        drop_out_rate=train_config.architecture.dropout,
-        flag_drop_out=train_config.architecture.flag_drop_out,
-        flag_only_output_layer=train_config.architecture.flag_only_output_layer,
-    )
-
+            input_dim=d_in * 2,
+            output_dim=d_in,
+            hidden_layer_num=len(train_config.architecture.hidden_units),
+            hidden_unit=train_config.architecture.hidden_units,
+            activations=train_config.architecture.activations,
+            drop_out_rate=train_config.architecture.dropout,
+            flag_drop_out=train_config.architecture.flag_drop_out,
+            flag_only_output_layer=train_config.architecture.flag_only_output_layer
+        )
+    
     mask_layer = MaskLayer(append=True)
     gdfs = GreedyDynamicSelection(selector, predictor, mask_layer).to(device)
     gdfs.fit(
@@ -80,8 +76,7 @@ def main(
         max_features=hard_budget,
         loss_fn=nn.CrossEntropyLoss(),
         patience=train_config.patience,
-        verbose=True,
-    )
+        verbose=True)
 
     afa_method = Covert2023AFAMethod(gdfs.selector.cpu(), gdfs.predictor.cpu())
     # afa_method_path.mkdir(parents=True, exist_ok=True)
@@ -103,6 +98,7 @@ def main(
 
 
 if __name__ == "__main__":
+
     # Use argparse to choose config file
     parser = argparse.ArgumentParser()
     parser.add_argument(

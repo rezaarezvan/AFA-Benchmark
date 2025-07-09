@@ -29,7 +29,7 @@ class KNNDensityEstimator:
     k-Nearest Neighbors density estimator for ACO.
     """
 
-    def __init__(self, k: int = 5, metric: str = "euclidean", standardize: bool = True):
+    def __init__(self, k: int = 5, metric: str = 'euclidean', standardize: bool = True):
         self.k = k
         self.metric = metric
         self.standardize = standardize
@@ -60,7 +60,7 @@ class KNNDensityEstimator:
         observed_mask: torch.Tensor,
         target_mask: torch.Tensor,
         loss_fn: Callable,
-        predictor: AFAClassifier,
+        predictor: AFAClassifier
     ) -> float:
         """
         Estimate E[loss(predictor(x_observed, x_target), y) | x_observed]
@@ -69,8 +69,7 @@ class KNNDensityEstimator:
 
         if self.X_train is None:
             raise ValueError(
-                "Must call fit() before estimate_conditional_expectation()"
-            )
+                "Must call fit() before estimate_conditional_expectation()")
 
         # Get observed features only
         observed_indices = observed_mask.nonzero(as_tuple=True)[0]
@@ -78,7 +77,7 @@ class KNNDensityEstimator:
         # Check if no features are observed yet (handled by select_next_feature now)
         if len(observed_indices) == 0:
             # This shouldn't happen now with the deterministic initial selection
-            return float("inf")
+            return float('inf')
 
         x_obs_values = x_observed[observed_indices]
 
@@ -86,7 +85,8 @@ class KNNDensityEstimator:
         x_obs_np = x_obs_values.unsqueeze(0).cpu().numpy()
         if self.standardize and self.scaler is not None:
             # Only transform the observed features
-            full_x = torch.zeros(self.X_train.shape[1], device=x_obs_values.device)
+            full_x = torch.zeros(
+                self.X_train.shape[1], device=x_obs_values.device)
             full_x[observed_indices] = x_obs_values
             full_x_np = full_x.unsqueeze(0).cpu().numpy()
             full_x_scaled = self.scaler.transform(full_x_np)[0]
@@ -94,12 +94,13 @@ class KNNDensityEstimator:
             x_obs_np = x_obs_scaled.reshape(1, -1)
 
         # Find k nearest neighbors based on observed features only
-        X_train_observed = self.X_train[:, observed_indices.to(self.X_train.device)]
+        X_train_observed = self.X_train[:,
+                                        observed_indices.to(self.X_train.device)]
         if self.standardize and self.scaler is not None:
-            X_train_full_scaled = self.scaler.transform(self.X_train.cpu().numpy())
+            X_train_full_scaled = self.scaler.transform(
+                self.X_train.cpu().numpy())
             X_train_observed = torch.tensor(X_train_full_scaled)[
-                :, observed_indices.to(self.X_train.device)
-            ]
+                :, observed_indices.to(self.X_train.device)]
 
         # Fit temporary k-NN on observed features only
         temp_knn = NearestNeighbors(n_neighbors=self.k, metric=self.metric)
@@ -124,7 +125,7 @@ class KNNDensityEstimator:
             # Get prediction
             pred = predictor(
                 masked_neighbor_x.unsqueeze(0),
-                target_mask.to(neighbor_x.device).unsqueeze(0),
+                target_mask.to(neighbor_x.device).unsqueeze(0)
             )
 
             # Compute loss
@@ -143,7 +144,7 @@ class SubsetSearchStrategy:
         self,
         exhaustive_threshold: int = 12,
         max_samples: int = 10000,
-        max_subset_size: Optional[int] = None,
+        max_subset_size: Optional[int] = None
     ):
         self.exhaustive_threshold = exhaustive_threshold
         self.max_samples = max_samples
@@ -173,11 +174,22 @@ class SubsetSearchStrategy:
         # larger weight for smaller i+1
         size_weights = [max_size - i for i in range(max_size)]
         for _ in range(self.max_samples - 1):
+
+
+<< << << < HEAD
             # sample size  in [1, max_size] with bias
             size = np.random.choice(
                 np.arange(1, max_size + 1), p=np.array(size_weights) / sum(size_weights)
             )
-            subset = list(np.random.choice(available_features, size, replace=False))
+            subset = list(np.random.choice(
+                available_features, size, replace=False))
+== == == =
+            # Random subset size (1 to max_size)
+            size = np.random.randint(1, max_size + 1)
+            # Random subset
+            subset = list(np.random.choice(
+                available_features, size, replace=False))
+>>>>>> > parent of b9f1a52(ruff format(?))
             if subset not in subsets:
                 subsets.append(subset)
 
@@ -194,13 +206,13 @@ class ACOOracle:
         density_estimator: KNNDensityEstimator,
         subset_search: SubsetSearchStrategy,
         acquisition_cost: float = 0.05,
-        hide_val: float = 10.0,
+        hide_val: float = 10.0
     ):
         self.density_estimator = density_estimator
         self.subset_search = subset_search
         self.acquisition_cost = acquisition_cost
         self.hide_val = hide_val
-        self.loss_fn = nn.CrossEntropyLoss(reduction="none")
+        self.loss_fn = nn.CrossEntropyLoss(reduction='none')
 
     def fit(self, X_train: torch.Tensor, y_train: torch.Tensor):
         """
@@ -213,7 +225,7 @@ class ACOOracle:
         self,
         x_observed: torch.Tensor,
         observed_mask: torch.Tensor,
-        predictor: AFAClassifier,
+        predictor: AFAClassifier
     ) -> Tuple[List[int], float]:
         """
         Find optimal subset of features to acquire according to ACO objective.
@@ -221,19 +233,21 @@ class ACOOracle:
 
         # Get available features (not yet observed)
         all_features = set(range(len(x_observed)))
-        observed_features = set(observed_mask.nonzero(as_tuple=True)[0].tolist())
+        observed_features = set(
+            observed_mask.nonzero(as_tuple=True)[0].tolist())
         available_features = list(all_features - observed_features)
 
         if not available_features:
-            return [], float("inf")
+            return [], float('inf')
 
         # Generate candidate subsets
-        candidate_subsets = self.subset_search.generate_subsets(available_features)
+        candidate_subsets = self.subset_search.generate_subsets(
+            available_features)
 
         logger.info(f"Evaluating {len(candidate_subsets)} candidate subsets")
 
         best_subset = []
-        best_loss = float("inf")
+        best_loss = float('inf')
 
         for i, subset in enumerate(candidate_subsets):
             if i % 100 == 0:  # Log every 100 subsets
@@ -264,7 +278,7 @@ class ACOOracle:
         self,
         x_observed: torch.Tensor,
         observed_mask: torch.Tensor,
-        predictor: AFAClassifier,
+        predictor: AFAClassifier
     ) -> Optional[int]:
         """
         Select next feature to acquire using ACO policy.
@@ -298,20 +312,14 @@ class ACOOracle:
         else:
             # Evaluate each feature individually and pick the best
             best_feature = None
-            best_individual_loss = float("inf")
+            best_individual_loss = float('inf')
 
             for feature in optimal_subset:
                 individual_mask = observed_mask.clone()
                 individual_mask[feature] = True
 
-                individual_loss = (
-                    self.density_estimator.estimate_conditional_expectation(
-                        x_observed,
-                        observed_mask,
-                        individual_mask,
-                        self.loss_fn,
-                        predictor,
-                    )
+                individual_loss = self.density_estimator.estimate_conditional_expectation(
+                    x_observed, observed_mask, individual_mask, self.loss_fn, predictor
                 )
 
                 if individual_loss < best_individual_loss:
@@ -328,26 +336,28 @@ def create_aco_oracle(
     subset_search_size: int = 10000,
     max_subset_size: Optional[int] = None,
     hide_val: float = 10.0,
-    distance_metric: str = "euclidean",
-    standardize_features: bool = True,
+    distance_metric: str = 'euclidean',
+    standardize_features: bool = True
 ) -> ACOOracle:
     """
     Factory function to create ACO oracle with specified parameters.
     """
 
     density_estimator = KNNDensityEstimator(
-        k=k_neighbors, metric=distance_metric, standardize=standardize_features
+        k=k_neighbors,
+        metric=distance_metric,
+        standardize=standardize_features
     )
 
     subset_search = SubsetSearchStrategy(
         exhaustive_threshold=exhaustive_threshold,
         max_samples=subset_search_size,
-        max_subset_size=max_subset_size,
+        max_subset_size=max_subset_size
     )
 
     return ACOOracle(
         density_estimator=density_estimator,
         subset_search=subset_search,
         acquisition_cost=acquisition_cost,
-        hide_val=hide_val,
+        hide_val=hide_val
     )

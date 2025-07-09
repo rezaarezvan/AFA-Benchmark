@@ -38,43 +38,39 @@ def main(
     train_dataset: AFADataset = AFA_DATASET_REGISTRY[dataset_type].load(
         train_dataset_path
     )
-    val_dataset: AFADataset = AFA_DATASET_REGISTRY[dataset_type].load(val_dataset_path)
-    train_loader, val_loader, d_in, d_out = prepare_datasets(
-        train_dataset, val_dataset, pretrain_config.batch_size
+    val_dataset: AFADataset = AFA_DATASET_REGISTRY[dataset_type].load(
+        val_dataset_path
     )
+    train_loader, val_loader, d_in, d_out = prepare_datasets(train_dataset, val_dataset, pretrain_config.batch_size)
 
     predictor = fc_Net(
-        input_dim=d_in * 2,
-        output_dim=d_out,
-        hidden_layer_num=len(pretrain_config.architecture.hidden_units),
-        hidden_unit=pretrain_config.architecture.hidden_units,
-        activations=pretrain_config.architecture.activations,
-        drop_out_rate=pretrain_config.architecture.dropout,
-        flag_drop_out=pretrain_config.architecture.flag_drop_out,
-        flag_only_output_layer=pretrain_config.architecture.flag_only_output_layer,
-    )
-
-    predictor.load_state_dict(
-        torch.load(pretrained_model_path / "model.pt", map_location=device)[
-            "predictor_state_dict"
-        ]
-    )
-
+            input_dim=d_in * 2,
+            output_dim=d_out,
+            hidden_layer_num=len(pretrain_config.architecture.hidden_units),
+            hidden_unit=pretrain_config.architecture.hidden_units,
+            activations=pretrain_config.architecture.activations,
+            drop_out_rate=pretrain_config.architecture.dropout,
+            flag_drop_out=pretrain_config.architecture.flag_drop_out,
+            flag_only_output_layer=pretrain_config.architecture.flag_only_output_layer
+        )
+    
+    predictor.load_state_dict(torch.load(pretrained_model_path  / "model.pt", map_location=device)["predictor_state_dict"])
+    
     value_network = fc_Net(
-        input_dim=d_in * 2,
-        output_dim=d_in,
-        hidden_layer_num=len(train_config.architecture.hidden_units),
-        hidden_unit=train_config.architecture.hidden_units,
-        activations=train_config.architecture.activations,
-        drop_out_rate=train_config.architecture.dropout,
-        flag_drop_out=train_config.architecture.flag_drop_out,
-        flag_only_output_layer=train_config.architecture.flag_only_output_layer,
-    )
-
+            input_dim=d_in * 2,
+            output_dim=d_in,
+            hidden_layer_num=len(train_config.architecture.hidden_units),
+            hidden_unit=train_config.architecture.hidden_units,
+            activations=train_config.architecture.activations,
+            drop_out_rate=train_config.architecture.dropout,
+            flag_drop_out=train_config.architecture.flag_drop_out,
+            flag_only_output_layer=train_config.architecture.flag_only_output_layer
+        )
+    
     value_network.hidden[0] = predictor.hidden[0]
     value_network.hidden[1] = predictor.hidden[1]
     mask_layer = MaskLayer(append=True)
-
+    
     greedy_cmi_estimator = CMIEstimator(value_network, predictor, mask_layer).to(device)
     greedy_cmi_estimator.fit(
         train_loader,
@@ -83,18 +79,15 @@ def main(
         nepochs=train_config.nepochs,
         max_features=hard_budget,
         eps=train_config.eps,
-        loss_fn=nn.CrossEntropyLoss(reduction="none"),
-        val_loss_fn=Accuracy(task="multiclass", num_classes=d_out),
-        val_loss_mode="max",
+        loss_fn=nn.CrossEntropyLoss(reduction='none'),
+        val_loss_fn=Accuracy(task='multiclass', num_classes=d_out),
+        val_loss_mode='max',
         eps_decay=train_config.eps_decay,
         eps_steps=train_config.eps_steps,
         patience=train_config.patience,
-        feature_costs=None,
-    )
+        feature_costs=None)
 
-    afa_method = Gadgil2023AFAMethod(
-        greedy_cmi_estimator.value_network.cpu(), greedy_cmi_estimator.predictor.cpu()
-    )
+    afa_method = Gadgil2023AFAMethod(greedy_cmi_estimator.value_network.cpu(), greedy_cmi_estimator.predictor.cpu())
     # afa_method_path.mkdir(parents=True, exist_ok=True)
     afa_method.save(afa_method_path)
     with open(afa_method_path / "params.yml", "w") as file:
@@ -114,6 +107,7 @@ def main(
 
 
 if __name__ == "__main__":
+
     # Use argparse to choose config file
     parser = argparse.ArgumentParser()
     parser.add_argument(

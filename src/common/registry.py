@@ -40,7 +40,6 @@ def get_afa_method_class(name: str) -> type[AFAMethod]:
 
     elif name == "aco":
         from afa_oracle.afa_methods import ACOAFAMethod
-
         return ACOAFAMethod
 
     elif name == "aco_bc":
