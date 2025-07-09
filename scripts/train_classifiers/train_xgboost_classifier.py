@@ -5,7 +5,7 @@ import logging
 import lightning as pl
 
 from pathlib import Path
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from tempfile import TemporaryDirectory
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import WandbLogger
@@ -40,7 +40,7 @@ def main(cfg: DictConfig) -> None:
     run = wandb.init(
         group="train_xgboost_classifier",
         job_type="train_classifier",
-        config=cfg,
+        config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore
     )
 
     log.info(f"W&B run initialized: {run.name} ({run.id})")
@@ -91,7 +91,7 @@ def main(cfg: DictConfig) -> None:
     )
 
     checkpoint_callback = ModelCheckpoint(
-        monitor="val_loss",
+        monitor="val_loss_many_observations",
         mode="min",
         save_top_k=1,
         filename="best-checkpoint",
@@ -115,11 +115,6 @@ def main(cfg: DictConfig) -> None:
     try:
         # Fit the model (training happens in setup)
         trainer.fit(lit_model, datamodule)
-
-        # Evaluate final performance if requested
-        if config.evaluate_final_performance:
-            log.info("Evaluating final performance...")
-            trainer.test(lit_model, datamodule)
 
     except KeyboardInterrupt:
         log.info("Training interrupted by user")
