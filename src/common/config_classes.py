@@ -646,6 +646,7 @@ class EvalConfig:
     output_artifact_aliases: list[str]
     eval_only_n_samples: int | None  # if specified, only evaluate on this many samples
     batch_size: int
+    dataset_split: str  # use "validation" or "testing"
 
 
 cs.store(name="eval", node=EvalConfig)

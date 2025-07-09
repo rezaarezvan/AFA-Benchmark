@@ -133,9 +133,19 @@ def main(cfg: EvalConfig) -> None:
     log.info(f"W&B run URL: {run.url}")
 
     # Load trained afa method and dataset from artifacts
-    _, _, eval_dataset, afa_method, method_metadata = load_trained_method_artifacts(
-        cfg.trained_method_artifact_name, device=torch.device(cfg.device)
+    _train_dataset_, val_dataset, test_dataset, afa_method, method_metadata = (
+        load_trained_method_artifacts(
+            cfg.trained_method_artifact_name, device=torch.device(cfg.device)
+        )
     )
+    if cfg.dataset_split == "validation":
+        dataset = val_dataset
+    elif cfg.dataset_split == "testing":
+        dataset = test_dataset
+    else:
+        raise ValueError(
+            f"cfg.dataset_split should either be 'validation' or 'testing', not {cfg.dataset_split}"
+        )
     log.info("Loaded trained AFA method and dataset from artifacts")
 
     # Load a classifier if it was specified
@@ -158,7 +168,7 @@ def main(cfg: EvalConfig) -> None:
     # during evaluation
     if method_metadata["budget"] is None:
         log.info("Using maximum number of features in the dataset as budget")
-        eval_budget = eval_dataset.n_features
+        eval_budget = val_dataset.n_features
     else:
         log.info("Using same budget as during training")
         eval_budget = method_metadata["budget"]
@@ -166,7 +176,7 @@ def main(cfg: EvalConfig) -> None:
     # Do the evaluation
     metrics = eval_afa_method(
         afa_method.select,
-        eval_dataset,
+        dataset,
         eval_budget,
         afa_predict_fn,
         only_n_samples=cfg.eval_only_n_samples,
