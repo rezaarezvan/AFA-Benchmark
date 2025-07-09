@@ -16,330 +16,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.utils import shuffle
 from afa_generative.utils import *
 from afa_generative.datasets import base_UCI_Dataset
+from afa_rl.utils import mask_data
 from common.custom_types import AFAMethod, AFASelection, FeatureMask, Label, MaskedFeatures
-
-
-class EDDI(nn.Module):
-    '''
-    Efficient dynamic discovery of high-value information (EDDI): dynamic
-    feature selection with missing features sampled from a conditional
-    generative model.
-    
-    Args:
-      sampler:
-      predictor:
-      task:
-    '''
-    def __init__(self, sampler, predictor, mask_layer, task='classification'):
-        super().__init__()
-        assert hasattr(sampler, 'impute')
-        self.sampler = sampler
-        self.model = predictor
-        self.mask_layer = mask_layer
-        assert task in ('regression', 'classification')
-        self.task = task
-        
-        if isinstance(mask_layer, MaskLayerGrouped):
-            self.data_imputer = Imputer(self.mask_layer.group_matrix.cpu().data.numpy())
-        else:
-            self.data_imputer = Imputer()
-    
-    def fit(self):
-        raise NotImplementedError('models should be fit beforehand')
-    
-    def forward(self, x, max_features, verbose=False):
-        '''
-        Select features and make prediction.
-        
-        Args:
-          x:
-          max_features:
-          num_samples:
-          verbose:
-        '''
-        x_masked, _ = self.select_features(x, max_features, verbose)
-        return self.model(x_masked)
-    
-    def forward_multiple(self, x, num_features_list, verbose=False):
-        '''
-        Select features and make prediction for multiple feature budgets.
-        
-        Args:
-          x:
-          max_features:
-          num_samples:
-          verbose:
-        '''
-        for num, x_masked, _ in self.select_features_multiple(x, num_features_list, verbose):
-            yield num, self.model(x_masked)
-
-    def select_features(self, x, max_features, verbose=False):
-        '''
-        Select features.
-
-        Args:
-          x:
-          max_features:
-          num_samples:
-          verbose:
-        '''
-        # Set up model.
-        model = self.model
-        mask_layer = self.mask_layer
-        sampler = self.sampler
-        data_imputer = self.data_imputer
-        device = next(model.parameters()).device
-        
-        # Set up mask.
-        if hasattr(mask_layer, 'mask_size') and (mask_layer.mask_size is not None):
-            mask_size = mask_layer.mask_size
-        else:
-            # Must be tabular (1d data).
-            assert len(x.shape) == 2
-            mask_size = x.shape[1]
-        num_features = mask_size
-        assert 0 < max_features < num_features
-        m = torch.zeros((x.shape[0], mask_size), device=device)
-
-        for i in tqdm(range(len(x))):
-            # Get row.
-            x_row = x[i:i+1]
-            m_row = m[i:i+1]
-
-            for k in range(max_features):
-                # Setup.
-                best_ind = None
-                best_criterion = - np.inf
-                
-                # Sample values for all remaining features.
-                x_sampled = sampler.impute(x_row, m_row)[0]
-                num_samples = x_sampled.shape[0]
-                m_expand = m_row.repeat(num_samples, 1)
-                for j in range(num_features):
-                    if m[i][j] == 1:
-                        # TODO support for groups is not elegant
-                        if isinstance(mask_layer, MaskLayerGrouped):
-                            inds = torch.where(mask_layer.group_matrix[j])[0].cpu().data.numpy()
-                            original = x_row[:, inds]
-                        else:
-                            original = x_row[:, j]
-                        x_sampled = data_imputer.impute(x_sampled, original, j)
-
-                for j in range(num_features):
-                    # Check if already included.
-                    if m[i][j] == 1:
-                        continue
-                    
-                    # Adjust mask.
-                    m_expand[:, j] = 1
-                    x_expand_masked = mask_layer(x_sampled, m_expand)
-                
-                    # Make predictions.
-                    with torch.no_grad():
-                        preds = model(x_expand_masked)
-                    
-                    # Measure criterion.
-                    criterion = calculate_criterion(preds, self.task)
-                    if verbose:
-                        print(f'Feature {j} criterion = {criterion:.4f}')
-                    
-                    # Check if best.
-                    if criterion > best_criterion:
-                        best_criterion = criterion
-                        best_ind = j
-                        
-                    # Turn off entry.
-                    m_expand[:, j] = 0
-                    
-                # Select new feature.
-                if verbose:
-                    print(f'Selecting feature {best_ind}')
-                m[i][best_ind] = 1
-
-        # Apply mask.
-        x_masked = mask_layer(x, m)
-        return x_masked, m
-    
-    def select_features_multiple(self, x, num_features_list, verbose=False):
-        '''
-        Select features for multiple budgets.
-
-        Args:
-          x:
-          num_features_list:
-          num_samples:
-          verbose:
-        '''
-
-        # Set up model.
-        model = self.model
-        mask_layer = self.mask_layer
-        sampler = self.sampler
-        data_imputer = self.data_imputer
-        device = next(model.parameters()).device
-        
-        # Set up mask.
-        if hasattr(mask_layer, 'mask_size') and (mask_layer.mask_size is not None):
-            mask_size = mask_layer.mask_size
-        else:
-            # Must be tabular (1d data).
-            assert len(x.shape) == 2
-            mask_size = x.shape[1]
-        num_features = mask_size
-        assert isinstance(num_features_list, (list, tuple, np.ndarray))
-        # print(max(num_features_list), num_features)
-        assert 0 < max(num_features_list) < num_features
-        assert min(num_features_list) > 0
-        max_features = max(num_features_list)
-        m = torch.zeros((x.shape[0], mask_size), device=device)
-
-        for k in range(max_features):
-            for i in range(len(x)):
-                # Get row.
-                x_row = x[i:i+1]
-                m_row = m[i:i+1]
-                
-                # Setup.
-                best_ind = None
-                best_criterion = - np.inf
-                
-                # Sample values for all remaining features.
-                x_sampled = sampler.impute(x_row, m_row)[0]
-                if x_sampled.dim() == 1:
-                    x_sampled = x_sampled.unsqueeze(0)
-                num_samples = x_sampled.shape[0]
-                m_expand = m_row.repeat(num_samples, 1)
-                for j in range(num_features):
-                    if m[i][j] == 1:
-                        # TODO support for groups is not elegant
-                        if isinstance(mask_layer, MaskLayerGrouped):
-                            inds = torch.where(mask_layer.group_matrix[j])[0].cpu().data.numpy()
-                            original = x_row[:, inds]
-                        else:
-                            original = x_row[:, j]
-                        x_sampled = data_imputer.impute(x_sampled, original, j)
-
-                for j in range(num_features):
-                    # Check if already included.
-                    if m[i][j] == 1:
-                        continue
-                    
-                    # Adjust mask.
-                    m_expand[:, j] = 1
-                    x_expand_masked = mask_layer(x_sampled, m_expand)
-                
-                    # Make predictions.
-                    with torch.no_grad():
-                        preds = model(x_expand_masked)
-                    
-                    # Measure criterion.
-                    criterion = calculate_criterion(preds, self.task)
-                    if verbose:
-                        print(f'Feature {j} criterion = {criterion:.4f}')
-                    
-                    # Check if best.
-                    if criterion > best_criterion:
-                        best_criterion = criterion
-                        best_ind = j
-                        
-                    # Turn off entry.
-                    m_expand[:, j] = 0
-                    
-                # Select new feature.
-                if verbose:
-                    print(f'Selecting feature {best_ind}')
-                m[i][best_ind] = 1
-
-            # Yield current results if necessary.
-            if (k + 1) in num_features_list:
-                yield k + 1, mask_layer(x, m), m
-    
-    def evaluate(self,
-                 loader,
-                 max_features,
-                 metric):
-        '''
-        Evaluate mean performance across a dataset.
-        
-        Args:
-          loader:
-          max_features:
-          metric:
-        '''
-        self.model.eval()
-        device = next(self.model.parameters()).device
-        
-        # For calculating mean loss.
-        pred_list = []
-        label_list = []
-
-        with torch.no_grad():
-            for x, y in loader:
-                # Move to GPU.
-                x = x.to(device)
-
-                # Calculate loss.
-                pred = self.forward(x, max_features)
-                pred_list.append(pred.cpu())
-                label_list.append(y.cpu())
-        
-            # Calculate metric(s).
-            y = torch.cat(label_list, 0)
-            pred = torch.cat(pred_list, 0)
-            if isinstance(metric, (tuple, list)):
-                score = [m(pred, y).item() for m in metric]
-            elif isinstance(metric, dict):
-                score = {name: m(pred, y).item() for name, m in metric.items()}
-            else:
-                score = metric(pred, y).item()
-                
-        return score
-    
-    def evaluate_multiple(self,
-                          loader,
-                          num_features_list,
-                          metric):
-        '''
-        Evaluate mean performance across a dataset for multiple feature budgets.
-        
-        Args:
-          loader:
-          num_features_list:
-          metric:
-        '''
-        self.model.eval()
-        device = next(self.model.parameters()).device
-        
-        # For calculating mean loss.
-        pred_dict = {num: [] for num in num_features_list}
-        score_dict = {num: None for num in num_features_list}
-        label_list = []
-
-        with torch.no_grad():
-            for x, y in loader:
-                # Move to GPU.
-                x = x.to(device)
-
-                # Calculate loss.
-                for num, pred in self.forward_multiple(x, num_features_list):
-                    pred_dict[num].append(pred.cpu())
-                label_list.append(y.cpu())
-        
-            # Calculate metric(s).
-            y = torch.cat(label_list, 0)
-            for num in num_features_list:
-                pred = torch.cat(pred_dict[num], 0)
-                if self.task == "regression":
-                    pred = pred.squeeze(-1)
-                if isinstance(metric, (tuple, list)):
-                    score = [m(pred, y).item() for m in metric]
-                elif isinstance(metric, dict):
-                    score = {name: m(pred, y).item() for name, m in metric.items()}
-                else:
-                    score = metric(pred, y).item()
-                score_dict[num] = score
-                
-        return score_dict
 
 
 def valid_probs(preds):
@@ -385,9 +63,15 @@ class Ma2018AFAMethod(AFAMethod):
         self._device: torch.device = device
 
     def predict(self, masked_features: MaskedFeatures, feature_mask: FeatureMask) -> Label:
-        x_masked = torch.cat([masked_features, feature_mask], dim=1)
-        pred = self.predictor(x_masked)
-        return pred
+        # x_masked = torch.cat([masked_features, feature_mask], dim=1)
+        # pred = self.predictor(x_masked)
+        # return pred
+        masked_features = masked_features.to(self._device)
+        feature_mask = feature_mask.to(self._device)
+        with torch.no_grad():
+            _, _, _, z, _ = self.sampler(masked_features, feature_mask)
+        
+        return self.predictor(z)
     
     def select(self, masked_features: MaskedFeatures, feature_mask: FeatureMask) -> AFASelection:
         device = next(self.predictor.parameters()).device
@@ -409,8 +93,11 @@ class Ma2018AFAMethod(AFAMethod):
                 m_test = m_test.unsqueeze(0).repeat(x_i.size(0), 1)
 
                 x_masked = x_i * m_test
-                x_masked = torch.cat([x_masked, m_test], dim=1)
-                preds = self.predictor(x_masked)
+                # x_masked = torch.cat([x_masked, m_test], dim=1)
+                # preds = self.predictor(x_masked)
+                with torch.no_grad():
+                    _, _, _, z, _ = self.sampler(x_masked, m_test)
+                preds = self.predictor(z)
 
                 score = calculate_criterion(preds, self.task)
                 if score > best_score:
@@ -444,6 +131,7 @@ class Ma2018AFAMethod(AFAMethod):
     def to(self, device):
         self.sampler = self.sampler.to(device)
         self.predictor = self.predictor.to(device)
+        self._device = device
         return self
     
     @property
@@ -953,7 +641,120 @@ class IterativeSelector(nn.Module):
                 score_dict[num] = score
                 
         return score_dict
+    
 
+class EDDI_Training(nn.Module):
+    def __init__(self, 
+                 classifier, 
+                 partial_vae,
+                 kl_scaling_factor: float = 1e-3,
+                 recon_loss_type: str = "squared_error"):
+        super().__init__()
+        self.classifier = classifier
+        self.partial_vae = partial_vae
+        self.kl_scaling_factor = kl_scaling_factor
+        self.recon_loss_type = recon_loss_type
+    
+    def fit(self,
+            train_loader,
+            val_loader,
+            lr: float = 1e-3,
+            classifier_loss_scaling_factor: float = 1,
+            min_mask: float = 0.1,
+            max_mask: float = 0.9,
+            epochs: int = 100,
+            device="cuda"):
+        wandb.watch([self.classifier, self.partial_vae], log="all", log_freq=100)
+        self.to(device)
+        optimizer = torch.optim.Adam(self.parameters(), lr=lr)
+        for epoch in range(epochs):
+            print(f'{"-"*8}Epoch {epoch+1}{"-"*8}')
+            self.train()
+            train_results = {
+                "loss_vae": 0.0, "loss_clf": 0.0, "loss_total": 0.0
+            }
+            for features, labels in train_loader:
+                features = features.to(device)
+                labels = labels.to(device)
+                optimizer.zero_grad()
+                p = min_mask + torch.rand(1).item() * (max_mask - min_mask)
+                masked_features, feature_mask, _ = mask_data(features, p)
+                encoding, mu, logvar, z, estimated_features = self.partial_vae(
+                    masked_features, feature_mask
+                )
+                total_vae_loss, recon_loss, kl_loss = self.partial_vae_loss(estimated_features, features, mu, logvar)
+                logits = self.classifier(z)
+                classifier_loss = F.cross_entropy(logits, labels)
+                total = total_vae_loss + classifier_loss_scaling_factor * classifier_loss
+                total.backward()
+                optimizer.step()
+                train_results['loss_vae'] += total_vae_loss.item()
+                train_results['loss_clf'] += classifier_loss.item()
+                train_results['loss_total'] += total.item()
+
+            for k, v in train_results.items():
+                train_results[k] = v / len(train_loader)
+            
+            print(f"Train loss total: {train_results['loss_total']}")
+            
+            self.eval()
+            eval_results = {
+                "loss_vae_many": 0.0, "loss_clf_many": 0.0, "loss_total_many": 0.0, "acc_many": 0.0,
+                "loss_vae_few": 0.0,  "loss_clf_few":  0.0,  "loss_total_few":  0.0,  "acc_few":  0.0,
+            }
+            with torch.no_grad():
+                for features, labels in val_loader:
+                    features = features.to(device)
+                    labels = labels.to(device)
+                    for suffix, p in [("many", min_mask), ("few", max_mask)]:
+                        mask = torch.rand_like(features) > p
+                        x_masked = features.clone()
+                        x_masked[~mask] = 0
+
+                        _, mu, logvar, z, estimated_features = self.partial_vae(x_masked, mask)
+                        total_vae_loss, _, _ = self.partial_vae_loss(estimated_features, features, mu, logvar)
+                        logits = self.classifier(z)
+                        classifier_loss = F.cross_entropy(logits, labels)
+
+                        preds = logits.argmax(dim=1)
+                        acc = (preds == labels).float().mean()
+                        eval_results[f"loss_vae_{suffix}"] += total_vae_loss.item()
+                        eval_results[f"loss_clf_{suffix}"] += classifier_loss.item()
+                        eval_results[f"loss_total_{suffix}"] += (total_vae_loss + classifier_loss).item()
+                        eval_results[f"acc_{suffix}"] += acc.item()
+                    
+                for k, v in eval_results.items():
+                    eval_results[k] = v / len(val_loader)
+                
+                print(f"Val loss total (min mask): {eval_results[f"loss_total_many"]}, acc: {eval_results[f"acc_many"]}")
+                print(f"Val loss total (max mask): {eval_results[f"loss_total_few"]}, acc: {eval_results[f"acc_few"]}")
+            
+            wandb.log({
+                "joint_training/epoch": epoch,
+                "joint_training/train_loss": train_results['loss_total'],
+                "joint_training/val_loss_many": eval_results[f"loss_total_many"],
+                "joint_training/val_loss_few": eval_results[f"loss_total_few"],
+                "joint_training/val_acc_many": eval_results[f"acc_many"],
+                "joint_training/val_acc_few": eval_results[f"acc_few"]
+            })
+
+        wandb.unwatch([self.classifier, self.partial_vae])
+
+    def partial_vae_loss(self, x_hat, x_true, mu, logvar):
+        if self.recon_loss_type == "squared_error":
+            recon_loss = ((x_hat - x_true) ** 2).sum(dim=1).mean()
+        elif self.recon_loss_type == "binary_cross_entropy":
+            recon_loss = F.binary_cross_entropy(x_hat, x_true, reduction="mean")
+        else:
+            raise ValueError(
+                f"Unknown reconstruction loss type: {self.recon_loss_type}."
+            )
+        
+        kl_div = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp()).sum(dim=1).mean(dim=0)
+        kl_div_loss = self.kl_scaling_factor * kl_div
+        return recon_loss + kl_div_loss, recon_loss, kl_div_loss
+        
+        
 
 class base_Infer(object):
     def __init__(self,model):

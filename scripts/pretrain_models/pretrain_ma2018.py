@@ -12,16 +12,11 @@ import torch
 import torch.nn as nn
 import wandb
 from torchrl.modules import MLP
-from afa_generative.afa_methods import (
-    EDDI,
-    UniformSampler,
-    IterativeSelector,
-    Ma2018AFAMethod,
-)
+from afa_generative.afa_methods import UniformSampler, IterativeSelector, EDDI_Training, Ma2018AFAMethod
 from afa_generative.utils import MaskLayer
 from afa_generative.models import PartialVAE, fc_Net
 from afa_generative.datasets import prepare_datasets
-from common.config_classes import Ma2018PretrainConfig
+from common.config_classes import Ma2018PretraingConfig
 from common.utils import set_seed, dict_to_namespace, load_dataset_artifact
 from afa_rl.zannone2019.models import PointNet, PointNetType
 from afa_rl.utils import get_1D_identity
@@ -32,10 +27,10 @@ log = logging.getLogger(__name__)
 
 @hydra.main(
     version_base=None,
-    config_path="../../configs/ma2018",
-    config_name="pretrain_ma2018",
+    config_path="../../conf/pretrain/ma2018",
+    config_name="config",
 )
-def main(cfg: Ma2018PretrainConfig):
+def main(cfg: Ma2018PretraingConfig):
     log.debug(cfg)
     print(OmegaConf.to_yaml(cfg))
 
@@ -44,32 +39,26 @@ def main(cfg: Ma2018PretrainConfig):
         job_type="pretraining",
         config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore
     )
-    wandb.define_metric("pvae/train_loss", step_metric="pvae/epoch")
-    wandb.define_metric("pvae/val_loss", step_metric="pvae/epoch")
-    wandb.define_metric("predictor/train_loss", step_metric="predictor/epoch")
-    wandb.define_metric("predictor/val_loss", step_metric="predictor/epoch")
+    wandb.define_metric("pvae_pretrain/train_loss", step_metric="pvae_pretrain/epoch")
+    wandb.define_metric("pvae_pretrain/val_loss",   step_metric="pvae_pretrain/epoch")
+    wandb.define_metric("joint_training/train_loss", step_metric="joint_training/epoch")
+    wandb.define_metric("joint_training/val_loss",   step_metric="joint_training/epoch")
 
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
 
     train_dataset, val_dataset, _, _ = load_dataset_artifact(cfg.dataset_artifact_name)
 
-    train_loader, val_loader, d_in, d_out = prepare_datasets(
-        train_dataset, val_dataset, cfg.batch_size
-    )
-
-    naive_identity_fn = get_1D_identity
-    naive_identity_size = d_in
+    train_loader, val_loader, d_in, d_out \
+        = prepare_datasets(train_dataset, val_dataset, cfg.batch_size)
+    
+    # naive_identity_fn=get_1D_identity
+    # naive_identity_size = d_in
 
     # Train PVAE.
     pointnet = PointNet(
-        naive_identity_fn=naive_identity_fn,
-        identity_network=MLP(
-            in_features=naive_identity_size,
-            out_features=cfg.pointnet.identity_size,
-            num_cells=cfg.pointnet.identity_network_num_cells,
-            activation_class=nn.ReLU,
-        ),
+        identity_size=cfg.pointnet.identity_size,
+        n_features=d_in,
         feature_map_encoder=MLP(
             in_features=cfg.pointnet.identity_size,
             out_features=cfg.pointnet.output_size,
@@ -77,6 +66,7 @@ def main(cfg: Ma2018PretrainConfig):
             activation_class=nn.ReLU,
         ),
         pointnet_type=PointNetType.POINTNETPLUS,
+        max_embedding_norm=cfg.pointnet.max_embedding_norm,
     )
     encoder = MLP(
         in_features=cfg.pointnet.output_size,
@@ -109,28 +99,15 @@ def main(cfg: Ma2018PretrainConfig):
     )
 
     # Train masked predictor.
-    mask_layer = MaskLayer(append=True)
-    model = fc_Net(
-        input_dim=d_in * 2,
-        output_dim=d_out,
-        hidden_layer_num=2,
-        hidden_unit=[128, 128],
-        activations="ReLU",
-        drop_out_rate=0.3,
-        flag_drop_out=True,
-        flag_only_output_layer=False,
+    model = MLP(
+        in_features=cfg.partial_vae.latent_size,
+        out_features=d_out,
+        num_cells=cfg.classifier.num_cells,
+        dropout=cfg.classifier.dropout,
+        activation_class=nn.ReLU,
     )
-    sampler = UniformSampler(train_dataset.features)
-    iterative = IterativeSelector(model, mask_layer, sampler).to(device)
-    iterative.fit(
-        train_loader,
-        val_loader,
-        lr=cfg.classifier.lr,
-        nepochs=cfg.classifier.epochs,
-        loss_fn=nn.CrossEntropyLoss(),
-        patience=cfg.classifier.patience,
-        verbose=True,
-    )
+    eddi = EDDI_Training(model, pv)
+    eddi.fit(train_loader, val_loader)
 
     eddi_selector = Ma2018AFAMethod(pv, model)
     pretrained_model_artifact = wandb.Artifact(
@@ -143,7 +120,7 @@ def main(cfg: Ma2018PretrainConfig):
         del eddi_selector
         eddi_selector = Ma2018AFAMethod.load(tmp_path / "model.pt", device=device)
 
-    pretrained_model_artifact.add_dir(str(tmp_path), name="model.pt")
+    pretrained_model_artifact.add_file(str(tmp_path / 'model.pt'))
     run.log_artifact(
         pretrained_model_artifact,
         aliases=[*cfg.output_artifact_aliases, datetime.now().strftime("%b%d")],

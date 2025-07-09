@@ -9,9 +9,9 @@ defaults:
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
 
+reward_method: "Bayesian-L1" # used in the original implementation
 agent:
   gamma: 1.0
-  lmbda: 0.75 # gives largest weight to 4-step return
 device: cuda
 seed: 42
 output_artifact_aliases: ["tmp"]

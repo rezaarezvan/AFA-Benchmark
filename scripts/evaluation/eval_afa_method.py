@@ -1,6 +1,5 @@
 """Evaluate a single AFA method on a dataset, using a trained classifier if specified."""
 
-from matplotlib import pyplot as plt
 import logging
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -17,7 +16,6 @@ from common.custom_types import (
     AFADataset,
     AFAMethod,
 )
-import numpy as np
 
 from common.registry import get_afa_classifier_class, get_afa_method_class
 from common.utils import load_dataset_artifact, set_seed
@@ -129,6 +127,10 @@ def main(cfg: EvalConfig) -> None:
         job_type="evaluation",
         config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore
     )
+
+    # Log W&B run URL
+    log.info(f"W&B run initialized: {run.name} ({run.id})")
+    log.info(f"W&B run URL: {run.url}")
 
     # Load trained afa method and dataset from artifacts
     _, _, eval_dataset, afa_method, method_metadata = load_trained_method_artifacts(

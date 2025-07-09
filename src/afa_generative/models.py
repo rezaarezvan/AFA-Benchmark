@@ -551,9 +551,9 @@ class PartialVAE(nn.Module):
             
             avg_train = epoch_train_loss / len(train_loader)
             wandb.log({
-                "pvae/epoch": epoch,
-                "pvae/train_loss": avg_train,
-                "pvae/val_loss": val_loss,
+                "pvae_pretrain/epoch": epoch,
+                "pvae_pretrain/train_loss": avg_train,
+                "pvae_pretrain/val_loss": val_loss,
             })
 
             # Print progress.

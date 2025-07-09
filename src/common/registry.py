@@ -6,6 +6,8 @@ from common.custom_types import (
 
 AFA_METHOD_TYPES = {
     "shim2018",
+    "zannone2019",
+    "kachuee2019",
     "covert2023",
     "gadgil2023",
     "ma2018",
@@ -21,7 +23,7 @@ def get_afa_method_class(name: str) -> type[AFAMethod]:
 
     Note that several method types can have the same AFAMethod class, like the RL methods. A dictionary is not used since it could lead to circular imports."""
 
-    if name == "shim2018" or name == "zannone2019":
+    if name in {"shim2018", "zannone2019", "kachuee2019"}:
         from afa_rl.afa_methods import RLAFAMethod
 
         return RLAFAMethod
@@ -137,5 +139,9 @@ def get_afa_classifier_class(name: str) -> type[AFAClassifier]:
         from afa_rl.zannone2019.models import Zannone2019AFAClassifier
 
         return Zannone2019AFAClassifier
+    elif name == "Kachuee2019AFAClassifier":
+        from afa_rl.kachuee2019.models import Kachuee2019AFAClassifier
+
+        return Kachuee2019AFAClassifier
     else:
         raise ValueError(f"Unknown AFA classifier: {name}")

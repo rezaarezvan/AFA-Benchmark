@@ -4,7 +4,7 @@ hard_budget: 10 # recommended: 10, 20, 30
 agent:
   eps_init: 1.0 # shim2018 paper
   eps_end: 0.1 # shim2018 paper
-  eps_annealing_num_batches: 5000 # shim2018 paper
+  eps_annealing_num_batches: 50
 
   replay_buffer_batch_size: 32 # MNIST too large for 128
 

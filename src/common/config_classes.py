@@ -3,9 +3,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Literal, Optional, List
 from hydra.core.config_store import ConfigStore
-from torch import nn
 
-from afa_rl.zannone2019.models import PartialVAELossType, PointNetType
 
 cs = ConfigStore.instance()
 
@@ -180,6 +178,7 @@ class Shim2018AgentConfig:
 
     # Value estimator parameters
     gamma: float
+    lmbda: float
 
 
 @dataclass
@@ -188,8 +187,6 @@ class Shim2018TrainConfig:
     n_agents: int
     hard_budget: int
     agent: Shim2018AgentConfig
-    agent_module_device: str
-    agent_replay_buffer_device: str
     n_batches: int  # how many batches to train the agent
     batch_size: int  # batch size for collector
     eval_every_n_batches: int  # how often to evaluate the agent
@@ -207,7 +204,7 @@ class Shim2018TrainConfig:
 
 cs.store(name="train_shim2018", node=Shim2018TrainConfig)
 
-# randomdummy
+# ma2018
 
 
 @dataclass
@@ -216,8 +213,8 @@ class Ma2018PointNetConfig:
     identity_network_num_cells: list[int] = field(
         default_factory=lambda: [20, 20])
     output_size: int = 40
-    feature_map_encoder_num_cells: list[int] = field(
-        default_factory=lambda: [500])
+    feature_map_encoder_num_cells: list[int] = field(default_factory=lambda: [500])
+    max_embedding_norm: float = 1.0
 
 
 @dataclass
@@ -238,6 +235,8 @@ class Ma2018PartialVAEConfig:
 class Ma2018ClassifierConfig:
     lr: float = 1e-3
     epochs: int = 100
+    num_cells: list[int] = field(default_factory=lambda: [128, 128])
+    dropout: float = 0.3
     patience: int = 5
 
 
@@ -272,6 +271,99 @@ class Ma2018TraingConfig:
 
 cs.store(name="train_ma2018", node=Ma2018TraingConfig)
 
+# randomdummy
+
+
+@dataclass
+class Covert2023PretrainingConfig:
+    dataset_artifact_name: str
+    output_artifact_aliases: list[str] = field(default_factory=lambda: [])
+
+    batch_size: int = 128
+    seed: int = 42
+    device: str = "cuda"
+    lr: float = 1e-3
+    nepochs: int = 100
+    patience: int = 5
+
+    hidden_units: list[int] = field(default_factory=lambda: [128, 128])
+    dropout: float = 0.3
+    activations: str = "ReLU"
+    flag_drop_out: bool = True
+    flag_only_output_layer: bool = False
+
+cs.store(name="pretrain_covert2023", node=Covert2023PretrainingConfig)
+
+
+@dataclass
+class Covert2023TrainingConfig:
+    pretrained_model_artifact_name: str
+    output_artifact_aliases: list[str] = field(default_factory=lambda: [])
+
+    batch_size: int = 128
+    lr: float = 1e-3
+    hard_budget: int = 20
+    nepochs: int = 100
+    patience: int = 5
+    device: str = "cuda"
+    seed: int = 42
+    
+    hidden_units: list[int] = field(default_factory=lambda: [128, 128])
+    dropout: float = 0.3
+    activations: str = "ReLU"
+    flag_drop_out: bool = True
+    flag_only_output_layer: bool = False
+
+
+cs.store(name="train_covert2023", node=Covert2023TrainingConfig)
+
+
+@dataclass
+class Gadgil2023PretrainingConfig:
+    dataset_artifact_name: str
+    output_artifact_aliases: list[str] = field(default_factory=lambda: [])
+
+    batch_size: int = 128
+    seed: int = 42
+    device: str = "cuda"
+    lr: float = 1e-3
+    nepochs: int = 100
+    patience: int = 5
+
+    hidden_units: list[int] = field(default_factory=lambda: [128, 128])
+    dropout: float = 0.3
+    activations: str = "ReLU"
+    flag_drop_out: bool = True
+    flag_only_output_layer: bool = False
+
+cs.store(name="pretrain_gadgil2023", node=Gadgil2023PretrainingConfig)
+
+
+@dataclass
+class Gadgil2023TrainingConfig:
+    pretrained_model_artifact_name: str
+    output_artifact_aliases: list[str] = field(default_factory=lambda: [])
+
+    batch_size: int = 128
+    lr: float = 1e-3
+    hard_budget: int = 20
+    nepochs: int = 100
+    patience: int = 5
+    eps: float = 0.05
+    eps_decay: float = 0.2
+    eps_steps: int = 10
+    device: str = "cuda"
+    seed: int = 42
+    
+    hidden_units: list[int] = field(default_factory=lambda: [128, 128])
+    dropout: float = 0.3
+    activations: str = "ReLU"
+    flag_drop_out: bool = True
+    flag_only_output_layer: bool = False
+
+
+cs.store(name="train_gadgil2023", node=Gadgil2023TrainingConfig)
+
 
 @dataclass
 class RandomDummyTrainConfig:
@@ -279,6 +371,9 @@ class RandomDummyTrainConfig:
     hard_budget: int  # not used, but pretend that it is
     seed: int
     output_artifact_aliases: list[str]
+
+
+cs.store(name="train_randomdummy", node=RandomDummyTrainConfig)
 
 
 # zannone2019
@@ -333,7 +428,71 @@ class Zannone2019TrainConfig:
     eval_only_n_samples: int | None
 
 
-cs.store(name="train_randomdummy", node=RandomDummyTrainConfig)
+cs.store(name="train_zannone2019", node=Zannone2019TrainConfig)
+
+# kachuee2019
+
+
+@dataclass
+class Kachuee2019PQModuleConfig:
+    n_hiddens: list[
+        int
+    ]  # hidden layers in P network. The hidden layers of the Q network are calculated from this.
+    p_dropout: float
+
+
+@dataclass
+class Kachuee2019AgentConfig:
+    # epsilon-greedy parameters
+    eps_init: float
+    eps_end: float
+    eps_annealing_num_batches: int
+
+    # How large batches should be sampled from replay buffer
+    replay_buffer_batch_size: int
+    replay_buffer_size: int  # how many samples fit in the replay buffer
+
+    # Optimization parameters
+    num_optim: int  # how many batches to sample from replay buffer
+    max_action_value_grad_norm: float
+    action_value_lr: float
+    update_tau: float
+    max_classification_grad_norm: float
+    classification_lr: float  # with cross entropy loss
+
+    # Loss parameters
+    loss_function: str
+    delay_value: bool
+    double_dqn: bool
+
+    # Value estimator parameters
+    gamma: float
+
+
+@dataclass
+class Kachuee2019TrainConfig:
+    reward_method: str  # one of {"softmax", "Bayesian-L1", "Bayesian-L2"}
+    pq_module: Kachuee2019PQModuleConfig
+    mcdrop_samples: int  # how many samples to average over when calculating certainty for the reward
+
+    dataset_artifact_name: str
+    n_agents: int
+    hard_budget: int
+    agent: Kachuee2019AgentConfig
+    n_batches: int  # how many batches to train the agent
+    batch_size: int  # batch size for collector
+    eval_every_n_batches: int  # how often to evaluate the agent
+    eval_max_steps: int  # maximum allowed number of steps in an evaluation episode
+    n_eval_episodes: int  # how many episodes to average over in evaluation
+
+    device: str
+    seed: int
+    output_artifact_aliases: list[str]
+    evaluate_final_performance: bool
+    eval_only_n_samples: int | None
+
+
+cs.store(name="train_kachuee2019", node=Kachuee2019TrainConfig)
 
 # ACO
 

@@ -13,109 +13,44 @@ from torchrl.collectors import SyncDataCollector
 from torchrl.envs import ExplorationType, check_env_specs, set_exploration_type
 from afa_rl.agents import Agent
 from tqdm import tqdm
-from dacite import from_dict
 
 import wandb
 from afa_rl.afa_env import AFAEnv
 from afa_rl.afa_methods import RLAFAMethod
-from afa_rl.shim2018.agents import Shim2018Agent
+from afa_rl.kachuee2019.agents import Kachuee2019Agent
+from afa_rl.kachuee2019.models import (
+    Kachuee2019AFAClassifier,
+    Kachuee2019AFAPredictFn,
+    Kachuee2019PQModule,
+)
+from afa_rl.kachuee2019.reward import get_kachuee2019_reward_fn
 from afa_rl.datasets import get_afa_dataset_fn
-from afa_rl.shim2018.models import (
-    LitShim2018EmbedderClassifier,
-    Shim2018AFAClassifier,
-    Shim2018AFAPredictFn,
-)
-from afa_rl.shim2018.utils import (
-    get_shim2018_model_from_config,
-)
-from afa_rl.shim2018.reward import get_shim2018_reward_fn
 from afa_rl.utils import (
     get_eval_metrics,
     module_norm,
 )
 from common.afa_methods import RandomDummyAFAMethod
-from common.config_classes import Shim2018PretrainConfig, Shim2018TrainConfig
-from common.custom_types import (
-    AFADataset,
+from common.config_classes import (
+    Kachuee2019TrainConfig,
 )
-from common.utils import get_class_probabilities, load_dataset_artifact, set_seed
+from common.utils import (
+    dict_with_prefix,
+    get_class_probabilities,
+    load_dataset_artifact,
+    set_seed,
+)
 
 from eval.metrics import eval_afa_method
 from eval.utils import plot_metrics
-
-
-def load_pretrained_model_artifacts(
-    artifact_name: str,
-) -> tuple[
-    AFADataset,  # train dataset
-    AFADataset,  # val dataset
-    AFADataset,  # test dataset
-    dict[str, Any],  # dataset metadata
-    LitShim2018EmbedderClassifier,
-    Shim2018PretrainConfig,
-]:
-    """Load a pretrained model and the dataset it was trained on, from a WandB artifact."""
-    pretrained_model_artifact = wandb.use_artifact(
-        artifact_name, type="pretrained_model"
-    )
-    pretrained_model_artifact_dir = Path(pretrained_model_artifact.download())
-    # The dataset dir should contain a file called model.pt
-    artifact_filenames = [f.name for f in pretrained_model_artifact_dir.iterdir()]
-    assert {"model.pt"}.issubset(artifact_filenames), (
-        f"Dataset artifact must contain a model.pt file. Instead found: {artifact_filenames}"
-    )
-
-    # Access config of the run that produced this pretrained model
-    pretraining_run = pretrained_model_artifact.logged_by()
-    assert pretraining_run is not None, (
-        "Pretrained model artifact must be logged by a run."
-    )
-    pretrained_model_config_dict = pretraining_run.config
-    pretrained_model_config: Shim2018PretrainConfig = from_dict(
-        data_class=Shim2018PretrainConfig, data=pretrained_model_config_dict
-    )
-
-    # Load the dataset that the pretrained model was trained on
-    train_dataset, val_dataset, test_dataset, dataset_metadata = load_dataset_artifact(
-        pretrained_model_config.dataset_artifact_name
-    )
-
-    # Get the number of features and classes from the dataset
-    n_features = train_dataset.features.shape[-1]
-    n_classes = train_dataset.labels.shape[-1]
-    train_class_probabilities = get_class_probabilities(train_dataset.labels)
-    log.debug(f"Class probabilities in training set: {train_class_probabilities}")
-
-    pretrained_model = get_shim2018_model_from_config(
-        pretrained_model_config,
-        n_features,
-        n_classes,
-        train_class_probabilities,
-    )
-    pretrained_model_checkpoint = torch.load(
-        pretrained_model_artifact_dir / "model.pt",
-        weights_only=True,
-        map_location=torch.device("cpu"),
-    )
-    pretrained_model.load_state_dict(pretrained_model_checkpoint["state_dict"])
-
-    return (
-        train_dataset,
-        val_dataset,
-        test_dataset,
-        dataset_metadata,
-        pretrained_model,
-        pretrained_model_config,
-    )
 
 
 log = logging.getLogger(__name__)
 
 
 @hydra.main(
-    version_base=None, config_path="../../conf/train/shim2018", config_name="config"
+    version_base=None, config_path="../../conf/train/kachuee2019", config_name="config"
 )
-def main(cfg: Shim2018TrainConfig):
+def main(cfg: Kachuee2019TrainConfig):
     log.debug(cfg)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
@@ -124,37 +59,29 @@ def main(cfg: Shim2018TrainConfig):
     run = wandb.init(
         config=cast(dict[str, Any], OmegaConf.to_container(cfg, resolve=True)),
         job_type="training",
-        tags=["shim2018"],
+        tags=["kachuee2019"],
     )
 
     # Log W&B run URL
     log.info(f"W&B run initialized: {run.name} ({run.id})")
     log.info(f"W&B run URL: {run.url}")
 
-    # Load pretrained model and dataset from artifacts
-    (
-        train_dataset,
-        val_dataset,
-        _,
-        dataset_metadata,
-        pretrained_model,
-        pretrained_model_config,
-    ) = load_pretrained_model_artifacts(cfg.pretrained_model_artifact_name)
+    # Load dataset artifact
+    train_dataset, val_dataset, _, dataset_metadata = load_dataset_artifact(
+        cfg.dataset_artifact_name
+    )
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
     log.debug(f"Class probabilities in training set: {train_class_probabilities}")
     class_weights = F.softmax(1 / train_class_probabilities, dim=-1).to(device)
     n_features = train_dataset.features.shape[-1]
     n_classes = train_dataset.labels.shape[-1]
 
-    pretrained_model.eval()
-    pretrained_model = pretrained_model.to(device)
+    pq_module = Kachuee2019PQModule(
+        n_features=n_features, n_classes=n_classes, cfg=cfg.pq_module
+    ).to(device)
 
-    pretrained_model_optim = optim.Adam(
-        pretrained_model.parameters(), lr=cfg.pretrained_model_lr
-    )
-
-    reward_fn = get_shim2018_reward_fn(
-        afa_predict_fn=Shim2018AFAPredictFn(pretrained_model), weights=class_weights
+    reward_fn = get_kachuee2019_reward_fn(
+        pq_module=pq_module, method=cfg.reward_method, mcdrop_samples=cfg.mcdrop_samples
     )
 
     # MDP expects special dataset functions
@@ -182,14 +109,14 @@ def main(cfg: Shim2018TrainConfig):
         hard_budget=cfg.hard_budget,
     )
 
-    agent: Agent = Shim2018Agent(
-        cfg=cfg.agent,
-        embedder=pretrained_model.embedder,
-        embedding_size=pretrained_model_config.encoder.output_size,
+    agent: Agent = Kachuee2019Agent(
         action_spec=train_env.action_spec,
         action_mask_key="action_mask",
-        batch_size=cfg.batch_size,
         module_device=torch.device(cfg.device),
+        replay_buffer_device=torch.device(cfg.device),
+        pq_module=pq_module,
+        class_weights=class_weights,
+        cfg=cfg.agent,
     )
 
     collector = SyncDataCollector(
@@ -197,7 +124,6 @@ def main(cfg: Shim2018TrainConfig):
         agent.get_policy(),
         frames_per_batch=cfg.batch_size,
         total_frames=cfg.n_batches * cfg.batch_size,
-        # device=device,
     )
     # Training loop
     try:
@@ -208,33 +134,15 @@ def main(cfg: Shim2018TrainConfig):
 
             # Collapse agent and batch dimensions
             td = tds.flatten(start_dim=0, end_dim=1)
-            loss_info = agent.process_batch(td)
-
-            # Train classifier and embedder jointly if we have reached the correct batch
-            if batch_idx >= cfg.activate_joint_training_after_n_batches:
-                pretrained_model.train()
-                pretrained_model_optim.zero_grad()
-
-                _, logits_next = pretrained_model(
-                    td["next", "masked_features"], td["next", "feature_mask"]
-                )
-                class_loss_next = F.cross_entropy(
-                    logits_next, td["next", "label"], weight=class_weights
-                )
-                class_loss_next.mean().backward()
-
-                pretrained_model_optim.step()
-                pretrained_model.eval()
-            else:
-                class_loss_next = torch.zeros((1,), device=device, dtype=torch.float32)
+            process_batch_info = agent.process_batch(td)
 
             # Log training info
             run.log(
                 {
                     f"train/{k}": v
                     for k, v in (
-                        loss_info
-                        | agent.get_cheap_info()
+                        dict_with_prefix(process_batch_info, "process_batch")
+                        | dict_with_prefix(agent.get_cheap_info(), "cheap_info")
                         | {
                             "reward": td["next", "reward"].mean().item(),
                             # "action value": td["action_value"].mean().item(),
@@ -245,7 +153,6 @@ def main(cfg: Shim2018TrainConfig):
                             #     td["action"].tolist(), num_bins=20
                             # ),
                         }
-                        | {"class_loss": class_loss_next.mean().cpu().item()}
                     ).items()
                 },
             )
@@ -266,7 +173,7 @@ def main(cfg: Shim2018TrainConfig):
                     # Reset the action spec of the agent to the train env action spec
                     agent.egreedy_tdmodule._spec = train_env.action_spec  # pyright: ignore
                 metrics_eval = get_eval_metrics(
-                    td_evals, Shim2018AFAPredictFn(pretrained_model)
+                    td_evals, Kachuee2019AFAPredictFn(pq_module)
                 )
                 run.log(
                     {
@@ -274,15 +181,9 @@ def main(cfg: Shim2018TrainConfig):
                             f"eval/{k}": v
                             for k, v in (
                                 metrics_eval
-                                | agent.get_expensive_info()
-                                | {
-                                    "classifier_norm": module_norm(
-                                        pretrained_model.classifier
-                                    ),
-                                    "embedder_norm": module_norm(
-                                        pretrained_model.embedder
-                                    ),
-                                }
+                                | dict_with_prefix(
+                                    agent.get_expensive_info(), "expensive_info"
+                                )
                             ).items()
                         },
                     }
@@ -291,11 +192,9 @@ def main(cfg: Shim2018TrainConfig):
     except KeyboardInterrupt:
         pass
     finally:
-        # Convert the embedder+agent to an AFAMethod and save it as a temporary file
-        pretrained_model = pretrained_model.to(torch.device("cpu"))
         afa_method = RLAFAMethod(
             agent.get_policy().to("cpu"),
-            Shim2018AFAClassifier(pretrained_model, device=torch.device("cpu")),
+            Kachuee2019AFAClassifier(pq_module, device=torch.device("cpu")),
         )
         # Save the method to a temporary directory and load it again to ensure it is saved correctly
         with TemporaryDirectory(delete=False) as tmp_path_str:
@@ -338,11 +237,11 @@ def main(cfg: Shim2018TrainConfig):
             # Save the model as a WandB artifact
             # Save the name of the afa method class as metadata
             afa_method_artifact = wandb.Artifact(
-                name=f"train_shim2018-{pretrained_model_config.dataset_artifact_name.split(':')[0]}-budget_{cfg.hard_budget}-seed_{cfg.seed}",
+                name=f"train_kachuee2019-{cfg.dataset_artifact_name.split(':')[0]}-budget_{cfg.hard_budget}-seed_{cfg.seed}",
                 type="trained_method",
                 metadata={
-                    "method_type": "shim2018",
-                    "dataset_artifact_name": pretrained_model_config.dataset_artifact_name,
+                    "method_type": "kachuee2019",
+                    "dataset_artifact_name": cfg.dataset_artifact_name,
                     "dataset_type": dataset_metadata["dataset_type"],
                     "budget": cfg.hard_budget,
                     "seed": cfg.seed,

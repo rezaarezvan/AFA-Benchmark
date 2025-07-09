@@ -1,7 +1,6 @@
 from pathlib import Path
 from torch.utils.data import DataLoader
 from common.custom_types import AFADataset
-from common.registry import AFA_DATASET_REGISTRY
 
 
 def prepare_datasets(train_dataset, val_dataset, batch_size: int):

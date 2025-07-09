@@ -6,7 +6,7 @@ agent:
   eps_end: 0.1 # shim2018 paper
   eps_annealing_num_batches: 5000 # shim2018 paper
 
-  replay_buffer_batch_size: 32 # MNIST too large for 128
+  replay_buffer_batch_size: 16 # 1/4 of batch size, like in shim2018 paper
 
   num_epochs: 1 # shim2018 paper
   max_grad_norm: 1
@@ -21,7 +21,7 @@ agent:
   double_dqn: true # shim2018 paper
 
   # gamma set by higher config
-n_batches: 15000 # up to 30k also works well, but not significant improvement
+n_batches: 30000
 batch_size: 64 # MNIST too large to use standard batch_size 512
 eval_every_n_batches: 500
 eval_max_steps: 9001

@@ -4,6 +4,7 @@ import numpy as np
 import torch.optim as optim
 from tqdm.auto import tqdm
 from copy import deepcopy
+import wandb
 import os
 from pathlib import Path
 from afa_discriminative.utils import restore_parameters, make_onehot, get_entropy, ind_to_onehot, ConcreteSelector, MaskLayer
@@ -73,6 +74,7 @@ class GreedyDynamicSelection(nn.Module):
           argmax:
           verbose:
         '''
+        wandb.watch(self, log="all", log_freq=100)
         # Verify arguments.
         if val_loss_fn is None:
             val_loss_fn = loss_fn
@@ -126,7 +128,7 @@ class GreedyDynamicSelection(nn.Module):
                 # Switch models to training mode.
                 selector.train()
                 predictor.train()
-
+                epoch_train_loss = 0.0
                 for x, y in train_loader:
                     # Move to device.
                     x = x.to(device)
@@ -153,12 +155,15 @@ class GreedyDynamicSelection(nn.Module):
                         # Calculate loss.
                         loss = loss_fn(pred, y)
                         (loss / max_features).backward()
+                        epoch_train_loss += loss.item()
                         
                         # Update mask, ensure no repeats.
                         m = torch.max(m, make_onehot(selector_layer(logits - 1e6 * m, 1e-6)))
 
                     # Take gradient step.
                     opt.step()
+
+                avg_train = epoch_train_loss / len(train_loader)
                     
                 # Calculate validation loss.
                 selector.eval()
@@ -213,6 +218,11 @@ class GreedyDynamicSelection(nn.Module):
                     val_loss = val_loss_fn(pred, y)
                     val_hard_loss = val_loss_fn(hard_pred, y)
 
+                wandb.log({
+                    "temp": temp,
+                    "gdfs/train_loss": avg_train,
+                    "gdfs/val_loss": val_loss,
+                })
                 # Print progress.
                 if verbose:
                     print(f'{"-"*8}Epoch {epoch+1} ({epoch + 1 + total_epochs} total){"-"*8}')
@@ -253,6 +263,7 @@ class GreedyDynamicSelection(nn.Module):
         # Copy parameters from best model with zero temperature.
         restore_parameters(selector, best_zerotemp_selector)
         restore_parameters(predictor, best_zerotemp_predictor)
+        wandb.unwatch(self)
 
     def forward(self, x, max_features, argmax=True):
         '''
@@ -343,12 +354,13 @@ class GreedyDynamicSelection(nn.Module):
     
 
 class Covert2023AFAMethod(AFAMethod):
-    def __init__(self, selector, predictor):
+    def __init__(self, selector, predictor, device=torch.device("cpu")):
         super().__init__()
         
         # Set up models and mask layer.
         self.selector = selector
         self.predictor = predictor
+        self._device: torch.device = device
 
     def predict(self, masked_features: MaskedFeatures, feature_mask: FeatureMask) -> Label:
         x_masked = torch.cat([masked_features, feature_mask], dim=1)
@@ -416,6 +428,16 @@ class Covert2023AFAMethod(AFAMethod):
                 'predictor_hidden_layers': [128, 128],
                 'dropout': 0.3,
             }}, os.path.join(path,f'model.pt'))
+    
+    def to(self, device):
+        self.selector = self.selector.to(device)
+        self.predictor = self.predictor.to(device)
+        self._device = device
+        return self
+    
+    @property
+    def device(self) -> torch.device:
+        return self._device
 
 
 class CMIEstimator(nn.Module):
@@ -468,6 +490,7 @@ class CMIEstimator(nn.Module):
             cmi_scaling='bounded',
             verbose=True):
         
+        wandb.watch(self, log="all", log_freq=100)
         if val_loss_fn is None:
             val_loss_fn = loss_fn
             val_loss_mode = 'min'
@@ -515,6 +538,7 @@ class CMIEstimator(nn.Module):
             predictor.train()
             value_losses = []
             pred_losses = []
+            total_loss = 0
 
             for x, y in train_loader:
                 # Move to device.
@@ -633,6 +657,12 @@ class CMIEstimator(nn.Module):
                 val_loss_final = pred_losses[-1]
                 val_perf_final = val_scores[-1]
 
+            wandb.log({
+                    "cmi_estimator/train_loss": total_loss / (max_features + 1),
+                    "cmi_estimator/val_loss": val_loss_mean,
+                    "cmi_estimator/val_accuracy": val_perf_mean,
+                })
+            
             # Print progress.
             if verbose:
                 print(f'{"-"*8}Epoch {epoch+1}{"-"*8}')
@@ -671,17 +701,17 @@ class CMIEstimator(nn.Module):
         # Copy parameters from best model.
         restore_parameters(value_network, best_value_network)
         restore_parameters(predictor, best_predictor)
+        wandb.unwatch(self)
 
 
 class Gadgil2023AFAMethod(AFAMethod):
-    def __init__(self,
-                 value_network,
-                 predictor):
+    def __init__(self, value_network, predictor, device=torch.device("cpu")):
         super().__init__()
 
         # Save network modules.
         self.value_network = value_network
         self.predictor = predictor
+        self._device: torch.device = device
 
     def predict(self, masked_features: MaskedFeatures, feature_mask: FeatureMask) -> Label:
         x_masked = torch.cat([masked_features, feature_mask], dim=1)
@@ -757,3 +787,14 @@ class Gadgil2023AFAMethod(AFAMethod):
                 'predictor_hidden_layers': [128, 128],
                 'dropout': 0.3,
             }}, os.path.join(path,f'model.pt'))
+        
+    def to(self, device):
+        self.value_network = self.value_network.to(device)
+        self.predictor = self.predictor.to(device)
+        self._device = device
+        return self
+    
+    @property
+    def device(self) -> torch.device:
+        return self._device
+

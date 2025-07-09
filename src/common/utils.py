@@ -1,3 +1,17 @@
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
+from jaxtyping import Float, Bool
+from torch import Tensor, nn
+import torch
+import wandb
+import yaml
+from contextlib import contextmanager
+
+from common.custom_types import AFADataset
+from common.registry import get_afa_dataset_class
+
+
 def set_seed(seed: int):
     import os
     import random
@@ -12,19 +26,6 @@ def set_seed(seed: int):
     torch.cuda.manual_seed_all(seed)  # For multi-GPU setups
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
-
-
-from pathlib import Path
-from types import SimpleNamespace
-from typing import Any
-from jaxtyping import Float, Bool
-from torch import Tensor
-import torch
-import wandb
-import yaml
-
-from common.custom_types import AFADataset
-from common.registry import get_afa_dataset_class
 
 
 def get_class_probabilities(
@@ -118,3 +119,20 @@ def load_dataset_artifact(
     test_dataset: AFADataset = dataset_class.load(dataset_artifact_dir / "test.pt")
 
     return train_dataset, val_dataset, test_dataset, dataset_artifact.metadata
+
+
+@contextmanager
+def eval_mode(*models: nn.Module):
+    was_training = [model.training for model in models]
+    try:
+        for model in models:
+            model.eval()
+        yield
+    finally:
+        for model, mode in zip(models, was_training):
+            model.train(mode)
+
+
+def dict_with_prefix(d: dict[str, Any], prefix: str) -> dict[str, Any]:
+    """Return a dictionary with all keys prefixed by `prefix`."""
+    return {f"{prefix}.{k}": v for k, v in d.items()}

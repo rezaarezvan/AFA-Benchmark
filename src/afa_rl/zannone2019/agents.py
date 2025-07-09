@@ -190,7 +190,7 @@ class Zannone2019Agent(Agent):
             entropy_coef=self.cfg.entropy_coef,
             critic_coef=self.cfg.critic_coef,
             loss_critic_type=self.cfg.loss_critic_type,
-        )
+        ).to(self.module_device)
         self.loss_keys = ["loss_objective", "loss_critic"] + (
             ["loss_entropy"] if self.cfg.entropy_bonus else []
         )

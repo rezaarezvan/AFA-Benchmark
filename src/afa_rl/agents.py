@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Callable, Protocol, Self
+from typing import Any, Protocol, Self
 
 import torch
 from tensordict import TensorDictBase

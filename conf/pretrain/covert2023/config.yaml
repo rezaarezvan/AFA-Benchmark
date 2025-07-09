@@ -1,0 +1,18 @@
+defaults:
+  - _self_
+
+batch_size: 128
+lr: 0.001
+nepochs: 100
+patience: 5
+device: "cuda"
+seed: 42
+
+hidden_units: [128,128]
+dropout: 0.3
+activations: 'ReLU'
+flag_drop_out: True
+flag_only_output_layer: False
+
+dataset_artifact_name: "cube_split_1:latest"
+output_artifact_aliases: []

@@ -35,7 +35,12 @@ def main(cfg: Shim2018PretrainConfig) -> None:
         group="pretrain_shim2018",
         job_type="pretraining",
         config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore
+        tags=["shim2018"],
     )
+
+    # Log W&B run URL
+    log.info(f"W&B run initialized: {run.name} ({run.id})")
+    log.info(f"W&B run URL: {run.url}")
 
     # Load dataset artifact
     train_dataset, val_dataset, _, _ = load_dataset_artifact(cfg.dataset_artifact_name)

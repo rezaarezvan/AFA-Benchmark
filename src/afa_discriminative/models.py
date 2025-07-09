@@ -5,6 +5,7 @@ import torch.optim as optim
 from afa_discriminative.utils import generate_uniform_mask, restore_parameters
 from copy import deepcopy
 import collections
+import wandb
 
 
 class MaskingPretrainer(nn.Module):
@@ -27,7 +28,8 @@ class MaskingPretrainer(nn.Module):
             patience=2,
             min_lr=1e-6,
             early_stopping_epochs=None,
-            verbose=True):
+            verbose=True,
+            tag="eval_loss"):
         '''
         Train model.
         
@@ -45,6 +47,7 @@ class MaskingPretrainer(nn.Module):
           early_stopping_epochs:
           verbose:
         '''
+        wandb.watch(self, log="all", log_freq=100)
         # Verify arguments.
         if val_loss_fn is None:
             val_loss_fn = loss_fn
@@ -80,7 +83,7 @@ class MaskingPretrainer(nn.Module):
         for epoch in range(nepochs):
             # Switch model to training mode.
             model.train()
-
+            epoch_train_loss = 0.0
             for x, y in train_loader:
                 # Move to device.
                 x = x.to(device)
@@ -98,6 +101,9 @@ class MaskingPretrainer(nn.Module):
                 loss.backward()
                 opt.step()
                 model.zero_grad()
+                epoch_train_loss += loss.item()
+            
+            avg_train = epoch_train_loss / len(train_loader)
                 
             # Calculate validation loss.
             model.eval()
@@ -125,7 +131,19 @@ class MaskingPretrainer(nn.Module):
                 pred = torch.cat(pred_list, 0)
                 val_loss = val_loss_fn(pred, y).item()
                 
-            
+            if tag == "eval_loss":
+                wandb.log({
+                    "masked_predictor/train_loss": avg_train,
+                    "masked_predictor/val_loss": val_loss,
+                }, step=epoch)
+            elif tag == "eval_accuracy":
+                wandb.log({
+                    "masked_predictor/train_loss": avg_train,
+                    "masked_predictor/val_accuracy": val_loss,
+                }, step=epoch)
+            else:
+                raise KeyError("Invalid tag")
+
             # Print progress.
             if verbose:
                 print(f'{"-"*8}Epoch {epoch+1}{"-"*8}')
@@ -149,6 +167,7 @@ class MaskingPretrainer(nn.Module):
 
         # Copy parameters from best model.
         restore_parameters(model, best_model)
+        wandb.unwatch(self)
 
     def evaluate(self, loader, metric):
         '''
