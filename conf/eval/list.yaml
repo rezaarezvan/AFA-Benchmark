@@ -1,16 +1,19 @@
 cube:
   split1:
-    - train_shim2018-cube_split_1-budget_3-seed_42:Jul08-without-noise
-    - train_shim2018-cube_split_1-budget_5-seed_42:Jul08-without-noise
-    - train_shim2018-cube_split_1-budget_10-seed_42:Jul08-without-noise
-    - train_randomdummy-cube_split_1-budget_3-seed_42:Jul08-without-noise
-    - train_randomdummy-cube_split_1-budget_5-seed_42:Jul08-without-noise
-    - train_randomdummy-cube_split_1-budget_10-seed_42:Jul08-without-noise
+    trained_method_artifact_names:
+      - train_shim2018-cube_split_1-budget_3-seed_42:Jul08-without-noise
+      - train_shim2018-cube_split_1-budget_5-seed_42:Jul08-without-noise
+      - train_shim2018-cube_split_1-budget_10-seed_42:Jul08-without-noise
+      - train_randomdummy-cube_split_1-budget_3-seed_42:Jul08-without-noise
+      - train_randomdummy-cube_split_1-budget_5-seed_42:Jul08-without-noise
+      - train_randomdummy-cube_split_1-budget_10-seed_42:Jul08-without-noise
+    trained_classifier_artifact_name: "masked_mlp_classifier-cube_split_1:Jul08-without-noise"
   split2:
-    - train_shim2018-cube_split_2-budget_3-seed_42:Jul08-without-noise
-    - train_shim2018-cube_split_2-budget_5-seed_42:Jul08-without-noise
-    - train_shim2018-cube_split_2-budget_10-seed_42:Jul08-without-noise
-    - train_randomdummy-cube_split_2-budget_3-seed_42:Jul08-without-noise
-    - train_randomdummy-cube_split_2-budget_5-seed_42:Jul08-without-noise
-    - train_randomdummy-cube_split_2-budget_10-seed_42:Jul08-without-noise
-
+    trained_method_artifact_names:
+      - train_shim2018-cube_split_2-budget_3-seed_42:Jul08-without-noise
+      - train_shim2018-cube_split_2-budget_5-seed_42:Jul08-without-noise
+      - train_shim2018-cube_split_2-budget_10-seed_42:Jul08-without-noise
+      - train_randomdummy-cube_split_2-budget_3-seed_42:Jul08-without-noise
+      - train_randomdummy-cube_split_2-budget_5-seed_42:Jul08-without-noise
+      - train_randomdummy-cube_split_2-budget_10-seed_42:Jul08-without-noise
+    trained_classifier_artifact_name: "masked_mlp_classifier-cube_split_1:Jul08-without-noise"
