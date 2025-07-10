@@ -15,4 +15,4 @@ encoder:
   processing_steps: 5 # original set encoding paper
   dropout: 0.0
 classifier:
-  num_cells: [128, 128] # same for all methods
+  num_cells: [32, 32] # shim2018 paper (cube dataset)
