@@ -4,7 +4,8 @@ hydra:
 
 defaults:
   - _self_
-  - dataset@_global_: cube
+  # - dataset@_global_: cube
+  - dataset@_global_: MNIST
   - override hydra/job_logging: colorlog
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
@@ -34,7 +35,8 @@ aco_bc:
 
 # Dataset and artifacts
 # dataset_artifact_name: "cube_split_1:v9" # Noiseless
-dataset_artifact_name: "cube_split_1:v8" # Noisy
+# dataset_artifact_name: "cube_split_1:v8" # Noisy
+dataset_artifact_name: "mnist_split_1:latest" # MNIST dataset
 output_artifact_aliases: ["aco_method"]
 
 # MLP Classifier training
