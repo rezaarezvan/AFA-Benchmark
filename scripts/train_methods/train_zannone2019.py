@@ -43,7 +43,7 @@ from common.utils import get_class_probabilities, load_dataset_artifact, set_see
 from eval.metrics import eval_afa_method
 from eval.utils import plot_metrics
 
-matplotlib.use("WebAgg")
+# matplotlib.use("WebAgg")
 
 
 def load_pretrained_model_artifacts(
@@ -209,7 +209,7 @@ def main(cfg: Zannone2019TrainConfig):
     _, label_reconstructed_features = pretrained_model.fully_observed_reconstruction(
         features=train_dataset.features[:100].to(device),
         n_classes=n_classes,
-        label=train_dataset.labels[:100],
+        label=train_dataset.labels[:100].to(device),
     )
     _, reconstructed_features = pretrained_model.fully_observed_reconstruction(
         features=train_dataset.features[:100].to(device),
@@ -221,26 +221,26 @@ def main(cfg: Zannone2019TrainConfig):
     reconstructed_features = reconstructed_features.cpu()
 
     # Visualize MNIST digits
-    fig_real, _axs_real = visualize_digits(
-        train_dataset.features, train_dataset.labels, shuffle=False
-    )
-    fig_real.suptitle("Real digits")
-    if cfg.n_generated_samples >= 9:
-        fig_fake, _axs_fake = visualize_digits(
-            generated_features, generated_labels, shuffle=False
-        )
-        fig_fake.suptitle("Generated digits")
-    fig_label_recon, _axs_label_recon = visualize_digits(
-        label_reconstructed_features, train_dataset.labels, shuffle=False
-    )
-    fig_label_recon.suptitle("Reconstructed digits using label")
-    fig_recon, _axs_recon = visualize_digits(
-        reconstructed_features, train_dataset.labels, shuffle=False
-    )
-    fig_recon.suptitle("Reconstructed digits without using label")
-
-    plt.show()
-
+    # fig_real, _axs_real = visualize_digits(
+    #     train_dataset.features, train_dataset.labels, shuffle=False
+    # )
+    # fig_real.suptitle("Real digits")
+    # if cfg.n_generated_samples >= 9:
+    #     fig_fake, _axs_fake = visualize_digits(
+    #         generated_features, generated_labels, shuffle=False
+    #     )
+    #     fig_fake.suptitle("Generated digits")
+    # fig_label_recon, _axs_label_recon = visualize_digits(
+    #     label_reconstructed_features, train_dataset.labels, shuffle=False
+    # )
+    # fig_label_recon.suptitle("Reconstructed digits using label")
+    # fig_recon, _axs_recon = visualize_digits(
+    #     reconstructed_features, train_dataset.labels, shuffle=False
+    # )
+    # fig_recon.suptitle("Reconstructed digits without using label")
+    #
+    # plt.show()
+    #
     # Plot distribution of latent variables
     # plt.figure(figsize=(12, 4))
     # for i in range(min(z.shape[1], 10)):
