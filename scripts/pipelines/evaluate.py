@@ -13,9 +13,7 @@ def parse_args():
     parser.add_argument("--output-alias", default="tmp")
     parser.add_argument("--wandb-entity", default="afa-team")
     parser.add_argument("--wandb-project", default="afa-benchmark")
-    parser.add_argument(
-        "--yaml", default="conf/eval/list.yaml", help="YAML file with artifact names"
-    )
+    parser.add_argument("--yaml", required=True, help="YAML file with artifact names")
     return parser.parse_args()
 
 
