@@ -443,6 +443,8 @@ def weighted_cross_entropy(
 
 
 str_to_activation_class_mapping: dict[str, type[nn.Module]] = {
+    "ReLU": nn.ReLU,
     "relu": nn.ReLU,
+    "Tanh": nn.Tanh,
     "tanh": nn.Tanh,
 }
