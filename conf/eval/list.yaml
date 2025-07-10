@@ -16,4 +16,4 @@ cube:
       - train_randomdummy-cube_split_2-budget_3-seed_42:Jul08-without-noise
       - train_randomdummy-cube_split_2-budget_5-seed_42:Jul08-without-noise
       - train_randomdummy-cube_split_2-budget_10-seed_42:Jul08-without-noise
-    trained_classifier_artifact_name: "masked_mlp_classifier-cube_split_1:Jul08-without-noise"
+    trained_classifier_artifact_name: "masked_mlp_classifier-cube_split_2:Jul08-without-noise"
