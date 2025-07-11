@@ -4,8 +4,8 @@ hydra:
 
 defaults:
   - _self_
-  # - dataset@_global_: cube
-  - dataset@_global_: MNIST
+  - dataset@_global_: cube
+  # - dataset@_global_: MNIST
   - override hydra/job_logging: colorlog
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
