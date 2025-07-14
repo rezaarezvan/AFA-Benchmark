@@ -38,7 +38,12 @@ from common.config_classes import Zannone2019PretrainConfig, Zannone2019TrainCon
 from common.custom_types import (
     AFADataset,
 )
-from common.utils import get_class_probabilities, load_dataset_artifact, set_seed
+from common.utils import (
+    dict_with_prefix,
+    get_class_probabilities,
+    load_dataset_artifact,
+    set_seed,
+)
 
 from eval.metrics import eval_afa_method
 from eval.utils import plot_metrics
@@ -317,16 +322,14 @@ def main(cfg: Zannone2019TrainConfig):
 
             # Log training info
             run.log(
-                {
-                    f"train/{k}": v
-                    for k, v in (
-                        loss_info
-                        | agent.get_cheap_info()
-                        | {
-                            "reward": td["next", "reward"].mean().item(),
-                        }
-                    ).items()
-                },
+                dict_with_prefix(
+                    "train/",
+                    loss_info
+                    | dict_with_prefix("cheap_info.", agent.get_cheap_info())
+                    | {
+                        "reward": td["next", "reward"].mean().item(),
+                    },
+                )
             )
 
             if batch_idx != 0 and batch_idx % cfg.eval_every_n_batches == 0:
@@ -344,14 +347,13 @@ def main(cfg: Zannone2019TrainConfig):
                     td_evals, Zannone2019AFAPredictFn(pretrained_model)
                 )
                 run.log(
-                    {
-                        **{
-                            f"eval/{k}": v
-                            for k, v in (
-                                metrics_eval | agent.get_expensive_info()
-                            ).items()
-                        },
-                    }
+                    dict_with_prefix(
+                        "eval/",
+                        metrics_eval
+                        | dict_with_prefix(
+                            "expensive_info.", agent.get_expensive_info()
+                        ),
+                    )
                 )
 
     except KeyboardInterrupt:

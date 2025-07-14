@@ -138,23 +138,16 @@ def main(cfg: Kachuee2019TrainConfig):
 
             # Log training info
             run.log(
-                {
-                    f"train/{k}": v
-                    for k, v in (
-                        dict_with_prefix(process_batch_info, "process_batch")
-                        | dict_with_prefix(agent.get_cheap_info(), "cheap_info")
-                        | {
-                            "reward": td["next", "reward"].mean().item(),
-                            # "action value": td["action_value"].mean().item(),
-                            "chosen action value": td["chosen_action_value"]
-                            .mean()
-                            .item(),
-                            # "actions": wandb.Histogram(
-                            #     td["action"].tolist(), num_bins=20
-                            # ),
-                        }
-                    ).items()
-                },
+                dict_with_prefix(
+                    "train/",
+                    dict_with_prefix("process_batch.", process_batch_info)
+                    | dict_with_prefix("cheap_info.", agent.get_cheap_info())
+                    | {
+                        "reward": td["next", "reward"].mean().item(),
+                        # "action value": td["action_value"].mean().item(),
+                        "chosen action value": td["chosen_action_value"].mean().item(),
+                    },
+                )
             )
 
             if batch_idx != 0 and batch_idx % cfg.eval_every_n_batches == 0:
@@ -176,17 +169,13 @@ def main(cfg: Kachuee2019TrainConfig):
                     td_evals, Kachuee2019AFAPredictFn(pq_module)
                 )
                 run.log(
-                    {
-                        **{
-                            f"eval/{k}": v
-                            for k, v in (
-                                metrics_eval
-                                | dict_with_prefix(
-                                    agent.get_expensive_info(), "expensive_info"
-                                )
-                            ).items()
-                        },
-                    }
+                    dict_with_prefix(
+                        "eval/",
+                        metrics_eval
+                        | dict_with_prefix(
+                            "expensive_info.", agent.get_expensive_info()
+                        ),
+                    )
                 )
 
     except KeyboardInterrupt:
