@@ -11,14 +11,16 @@ from torchrl.modules import ProbabilisticActor
 
 class Agent(Protocol):
     def process_batch(self, td: TensorDictBase) -> dict[str, Any]:
-        """Process one batch of data, updating network weights and replay buffer (if applicable)."""
+        """Process one batch of data, updating network weights and replay buffer (if applicable). Return a wandb loggable dictionary containing info like losses and td errors (algorithm-dependent)."""
         ...
 
     def get_cheap_info(self) -> dict[str, Any]:
-        return {}
+        """Return a wandb loggable dictionary containing info about the agent's state, without using too much compute."""
+        ...
 
     def get_expensive_info(self) -> dict[str, Any]:
-        return {}
+        """Return a wandb loggable dictionary containing info about the agent's state, possibly using very much compute."""
+        ...
 
     def get_policy(
         self,
@@ -49,7 +51,7 @@ class Agent(Protocol):
         ...
 
     def set_module_device(self, device: torch.device) -> None:
-        """Move agent networks to a specific device."""
+        """Move agent modules to a specific device."""
         ...
 
     def get_replay_buffer_device(self) -> torch.device | None:
@@ -65,16 +67,18 @@ class Agent(Protocol):
         """
         ...
 
-    def save(self, path: Path) -> None:
-        """Save the agent at the specified folder."""
-        ...
+    # NOTE: save and load are not used currently. Instead, TensorDictModules are used directly
 
-    @classmethod
-    def load(
-        cls: type[Self],
-        path: Path,
-        module_device: torch.device,
-        replay_buffer_device: torch.device,
-    ) -> Self:
-        """Loads the agent from the specified folder, placing its modules and replay buffer (if any) on the specified devices."""
-        ...
+    # def save(self, path: Path) -> None:
+    #     """Save the agent at the specified folder."""
+    #     ...
+
+    # @classmethod
+    # def load(
+    #     cls: type[Self],
+    #     path: Path,
+    #     module_device: torch.device,
+    #     replay_buffer_device: torch.device,
+    # ) -> Self:
+    #     """Loads the agent from the specified folder, placing its modules and replay buffer (if any) on the specified devices."""
+    #     ...

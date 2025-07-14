@@ -26,6 +26,7 @@ from torchrl.objectives import ClipPPOLoss
 from torchrl.objectives.value import GAE
 from afa_rl.agents import Agent
 
+from afa_rl.utils import module_norm
 from afa_rl.zannone2019.models import PointNet
 from common.config_classes import Zannone2019AgentConfig
 from common.custom_types import FeatureMask, MaskedFeatures
@@ -284,6 +285,18 @@ class Zannone2019Agent(Agent):
         raise ValueError(
             "set_replay_buffer_device not yet supported for Zannone2019Agent"
         )
+
+    @override
+    def get_cheap_info(self) -> dict[str, Any]:
+        return {"replay_buffer_count": len(self.replay_buffer)}
+
+    @override
+    def get_expensive_info(self) -> dict[str, Any]:
+        return {
+            "common_module_norm": module_norm(self.common_module),
+            "value_head_norm": module_norm(self.value_head),
+            "policy_head_norm": module_norm(self.policy_head),
+        }
 
     # @override
     # def save(self, path: Path) -> None:
