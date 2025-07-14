@@ -336,7 +336,7 @@ def main(cfg: Zannone2019TrainConfig):
                 ):
                     td_evals = [
                         eval_env.rollout(
-                            cfg.eval_max_steps, agent.get_policy()
+                            cfg.eval_max_steps, agent.get_exploitative_policy()
                         ).squeeze(0)
                         for _ in tqdm(range(cfg.n_eval_episodes), desc="Evaluating")
                     ]

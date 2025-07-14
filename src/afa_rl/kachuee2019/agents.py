@@ -132,9 +132,16 @@ class Kachuee2019Agent(Agent):
         )
 
     @override
-    def get_policy(self) -> TensorDictModuleBase:
-        # TODO: will this have updated weighs?
+    def get_exploitative_policy(self) -> TensorDictModuleBase:
+        return self.greedy_policy_tdmodule
+
+    @override
+    def get_exploratory_policy(self) -> TensorDictModuleBase:
         return self.egreedy_policy_tdmodule
+
+    @override
+    def get_policy(self) -> TensorDictModuleBase:
+        return self.get_exploratory_policy()
 
     @override
     def get_cheap_info(self) -> dict[str, Any]:

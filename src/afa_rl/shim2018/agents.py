@@ -141,8 +141,16 @@ class Shim2018Agent(Agent):
         # The shim2018 method does not use a replay buffer
 
     @override
-    def get_policy(self) -> TensorDictModuleBase:
+    def get_exploitative_policy(self) -> TensorDictModuleBase:
+        return self.greedy_policy_tdmodule
+
+    @override
+    def get_exploratory_policy(self) -> TensorDictModuleBase:
         return self.egreedy_policy_tdmodule
+
+    @override
+    def get_policy(self) -> TensorDictModuleBase:
+        return self.get_exploratory_policy()
 
     @override
     def get_cheap_info(self) -> dict[str, Any]:

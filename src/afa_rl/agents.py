@@ -23,9 +23,24 @@ class Agent(Protocol):
     def get_policy(
         self,
     ) -> TensorDictModuleBase | ProbabilisticActor:
-        """Return the agent's policy.
+        """Alias for `get_exploratory_policy`."""
+        ...
 
-        The caller is responsible for setting the ExplorationType (exploratory vs exploitative).
+    def get_exploitative_policy(
+        self,
+    ) -> TensorDictModuleBase | ProbabilisticActor:
+        """Return the agent's exploitative policy (if applicable).
+
+        The caller is responsible for setting the ExplorationType.
+        """
+        ...
+
+    def get_exploratory_policy(
+        self,
+    ) -> TensorDictModuleBase | ProbabilisticActor:
+        """Return the agent's exploratory policy (if applicable).
+
+        The caller is responsible for setting the ExplorationType.
         """
         ...
 

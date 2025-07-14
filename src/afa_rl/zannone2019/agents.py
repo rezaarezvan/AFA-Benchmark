@@ -205,6 +205,18 @@ class Zannone2019Agent(Agent):
         )
 
     @override
+    def get_exploitative_policy(self) -> ProbabilisticActor:
+        # No distinction between "exploitative" and "exploratory" modules
+        # User has to set ExplorationType
+        return self.probabilistic_policy_tdmodule
+
+    @override
+    def get_exploratory_policy(self) -> ProbabilisticActor:
+        # No distinction between "exploitative" and "exploratory" modules
+        # User has to set ExplorationType
+        return self.probabilistic_policy_tdmodule
+
+    @override
     def get_policy(self) -> ProbabilisticActor:
         return self.probabilistic_policy_tdmodule
 
