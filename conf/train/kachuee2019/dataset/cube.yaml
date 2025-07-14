@@ -30,7 +30,7 @@ agent:
 
   # gamma set by higher config
 # n_batches: 10000 # kachuee2019 implementation, 1000 episodes
-n_batches: 30000 # needed for convergence
+n_batches: 60000 # is this enough?
 # batch_size: 1 # kachuee2019 implementation
 batch_size: 512 # same as shim2018
 # eval_every_n_batches: 1000 # kachuee2019 implementation, every 100 episodes
