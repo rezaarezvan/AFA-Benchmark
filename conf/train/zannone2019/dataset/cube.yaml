@@ -20,7 +20,8 @@ agent:
   value_dropout: 0.0
   policy_num_cells: [32, 32] # same complexity as shim2018
   policy_dropout: 0.0
-n_batches: 15000 # up to 30k also works well, but not significant improvement
+# n_batches: 15000 # up to 30k also works well, but not significant improvement
+n_batches: 200000 # please give convergence
 batch_size: 512 # same as shim2018
 eval_every_n_batches: 500
 eval_max_steps: 9001
