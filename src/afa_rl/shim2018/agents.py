@@ -223,70 +223,70 @@ class Shim2018Agent(Agent):
     def set_replay_buffer_device(self, device: torch.device) -> None:
         raise ValueError("set_replay_buffer_device not yet supported for Shim2018Agent")
 
-    @override
-    def save(self, path: Path) -> None:
-        path.mkdir(exist_ok=True)
+    # @override
+    # def save(self, path: Path) -> None:
+    #     path.mkdir(exist_ok=True)
+    #
+    #     # Store embedder as a raw model, weights will be updated either way
+    #     torch.save(self.embedder.to("cpu"), path / "embedder.pt")
+    #
+    #     # Q-value module weights
+    #     torch.save(
+    #         self.action_value_tdmodule.state_dict(),
+    #         path / "action_value_module.pth",
+    #     )
+    #
+    #     # Save agent config
+    #     OmegaConf.save(OmegaConf.structured(self.cfg), path / "config.yaml")
+    #
+    #     # Save the misc args that were passed to the constructor
+    #     OmegaConf.save(
+    #         OmegaConf.create(
+    #             {
+    #                 "embedding_size": self.embedding_size,
+    #                 "action_mask_key": self.action_mask_key,
+    #                 "batch_size": self.batch_size,
+    #             }
+    #         ),
+    #         path / "args.yaml",
+    #     )
+    #     torch.save(self.action_spec, path / "action_spec.pt")
 
-        # Store embedder as a raw model, weights will be updated either way
-        torch.save(self.embedder.to("cpu"), path / "embedder.pt")
-
-        # Q-value module weights
-        torch.save(
-            self.action_value_tdmodule.state_dict(),
-            path / "action_value_module.pth",
-        )
-
-        # Save agent config
-        OmegaConf.save(OmegaConf.structured(self.cfg), path / "config.yaml")
-
-        # Save the misc args that were passed to the constructor
-        OmegaConf.save(
-            OmegaConf.create(
-                {
-                    "embedding_size": self.embedding_size,
-                    "action_mask_key": self.action_mask_key,
-                    "batch_size": self.batch_size,
-                }
-            ),
-            path / "args.yaml",
-        )
-        torch.save(self.action_spec, path / "action_spec.pt")
-
-    @override
-    @classmethod
-    def load(
-        cls: type[Self],
-        path: Path,
-        module_device: torch.device,
-        replay_buffer_device: torch.device,
-    ) -> Self:
-        # Load agent config
-        cfg_dict = OmegaConf.merge(
-            OmegaConf.structured(Shim2018AgentConfig),
-            OmegaConf.load(path / "config.yaml"),
-        )
-        cfg = cast(Shim2018AgentConfig, OmegaConf.to_object(cfg_dict))
-        # Load embedder
-        embedder: Shim2018Embedder = torch.load(path / "embedder.pt")
-
-        # Load args that were originally passed to the constructor
-        args = OmegaConf.load(path / "args.yaml")
-        action_spec = torch.load(path / "action_spec.pt")
-
-        # Construct instance of agent
-        agent = cls(
-            cfg=cfg,
-            embedder=embedder,
-            embedding_size=args.embedding_size,
-            action_spec=action_spec,
-            action_mask_key=args.action_mask_key,
-            batch_size=args.batch_size,
-            module_device=module_device,
-        )
-
-        # Load Q-value module weights
-        agent.action_value_module.load_state_dict(
-            torch.load(path / "action_value_module.pth")
-        )
-
-        return agent
+    # @override
+    # @classmethod
+    # def load(
+    #     cls: type[Self],
+    #     path: Path,
+    #     module_device: torch.device,
+    #     replay_buffer_device: torch.device,
+    # ) -> Self:
+    #     # Load agent config
+    #     cfg_dict = OmegaConf.merge(
+    #         OmegaConf.structured(Shim2018AgentConfig),
+    #         OmegaConf.load(path / "config.yaml"),
+    #     )
+    #     cfg = cast(Shim2018AgentConfig, OmegaConf.to_object(cfg_dict))
+    #     # Load embedder
+    #     embedder: Shim2018Embedder = torch.load(path / "embedder.pt")
+    #
+    #     # Load args that were originally passed to the constructor
+    #     args = OmegaConf.load(path / "args.yaml")
+    #     action_spec = torch.load(path / "action_spec.pt")
+    #
+    #     # Construct instance of agent
+    #     agent = cls(
+    #         cfg=cfg,
+    #         embedder=embedder,
+    #         embedding_size=args.embedding_size,
+    #         action_spec=action_spec,
+    #         action_mask_key=args.action_mask_key,
+    #         batch_size=args.batch_size,
+    #         module_device=module_device,
+    #     )
+    #
+    #     # Load Q-value module weights
+    #     agent.action_value_module.load_state_dict(
+    #         torch.load(path / "action_value_module.pth")
+    #     )
+    #
+    #     return agent

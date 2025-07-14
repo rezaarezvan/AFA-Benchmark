@@ -239,59 +239,61 @@ class Kachuee2019Agent(Agent):
     def set_replay_buffer_device(self, device: torch.device) -> None:
         raise ValueError("set_replay_buffer_device not yet supported for Shim2018Agent")
 
-    @override
-    def save(self, path: Path) -> None:
-        path.mkdir(exist_ok=True)
+    # TODO: implement properly if needed
+    # @override
+    # def save(self, path: Path) -> None:
+    #     path.mkdir(exist_ok=True)
+    #
+    #     # Store PQ module as a raw model
+    #     torch.save(self.pq_module.to("cpu"), path / "pq_module.pt")
+    #
+    #     # Save agent config
+    #     OmegaConf.save(OmegaConf.structured(self.cfg), path / "config.yaml")
+    #
+    #     # Save the misc args that were passed to the constructor
+    #     OmegaConf.save(
+    #         OmegaConf.create(
+    #             {
+    #                 "action_mask_key": self.action_mask_key,
+    #                 # "batch_size": self.batch_size,
+    #             }
+    #         ),
+    #         path / "args.yaml",
+    #     )
+    #     torch.save(self.action_spec, path / "action_spec.pt")
 
-        # Store PQ module as a raw model
-        torch.save(self.pq_module.to("cpu"), path / "pq_module.pt")
-
-        # Save agent config
-        OmegaConf.save(OmegaConf.structured(self.cfg), path / "config.yaml")
-
-        # Save the misc args that were passed to the constructor
-        OmegaConf.save(
-            OmegaConf.create(
-                {
-                    "action_mask_key": self.action_mask_key,
-                    # "batch_size": self.batch_size,
-                }
-            ),
-            path / "args.yaml",
-        )
-        torch.save(self.action_spec, path / "action_spec.pt")
-
-    @override
-    @classmethod
-    def load(
-        cls: type[Self],
-        path: Path,
-        module_device: torch.device,
-        replay_buffer_device: torch.device,
-    ) -> Self:
-        # Load agent config
-        cfg_dict = OmegaConf.merge(
-            OmegaConf.structured(Kachuee2019AgentConfig),
-            OmegaConf.load(path / "config.yaml"),
-        )
-        cfg = cast(Kachuee2019AgentConfig, OmegaConf.to_object(cfg_dict))
-
-        # Load PQ module
-        pq_module: Kachuee2019PQModule = torch.load(path / "pq_module.pt")
-
-        # Load args that were originally passed to the constructor
-        args = OmegaConf.load(path / "args.yaml")
-        action_spec = torch.load(path / "action_spec.pt")
-
-        # Construct instance of agent
-        agent = cls(
-            action_spec=action_spec,
-            action_mask_key=args.action_mask_key,
-            # batch_size=args.batch_size,
-            module_device=module_device,
-            replay_buffer_device=replay_buffer_device,
-            pq_module=pq_module,
-            cfg=cfg,
-        )
-
-        return agent
+    # TODO: implement properly if needed
+    # @override
+    # @classmethod
+    # def load(
+    #     cls: type[Self],
+    #     path: Path,
+    #     module_device: torch.device,
+    #     replay_buffer_device: torch.device,
+    # ) -> Self:
+    #     # Load agent config
+    #     cfg_dict = OmegaConf.merge(
+    #         OmegaConf.structured(Kachuee2019AgentConfig),
+    #         OmegaConf.load(path / "config.yaml"),
+    #     )
+    #     cfg = cast(Kachuee2019AgentConfig, OmegaConf.to_object(cfg_dict))
+    #
+    #     # Load PQ module
+    #     pq_module: Kachuee2019PQModule = torch.load(path / "pq_module.pt")
+    #
+    #     # Load args that were originally passed to the constructor
+    #     args = OmegaConf.load(path / "args.yaml")
+    #     action_spec = torch.load(path / "action_spec.pt")
+    #
+    #     # Construct instance of agent
+    #     agent = cls(
+    #         action_spec=action_spec,
+    #         action_mask_key=args.action_mask_key,
+    #         # batch_size=args.batch_size,
+    #         module_device=module_device,
+    #         replay_buffer_device=replay_buffer_device,
+    #         pq_module=pq_module,
+    #         cfg=cfg,
+    #     )
+    #
+    #     return agent

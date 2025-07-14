@@ -285,89 +285,89 @@ class Zannone2019Agent(Agent):
             "set_replay_buffer_device not yet supported for Zannone2019Agent"
         )
 
-    @override
-    def save(self, path: Path) -> None:
-        path.mkdir(exist_ok=True)
+    # @override
+    # def save(self, path: Path) -> None:
+    #     path.mkdir(exist_ok=True)
+    #
+    #     # Store pointnet and encoder as a raw models, weights will be updated either way
+    #     torch.save(self.pointnet.to("cpu"), path / "pointnet.pt")
+    #     torch.save(self.encoder.to("cpu"), path / "encoder.pt")
+    #
+    #     # Common module weights
+    #     torch.save(
+    #         self.common_module.state_dict(),
+    #         path / "common_module.pth",
+    #     )
+    #
+    #     # Policy head weights
+    #     torch.save(
+    #         self.policy_head.state_dict(),
+    #         path / "policy_head.pth",
+    #     )
+    #
+    #     # Value head weights
+    #     torch.save(
+    #         self.value_head.state_dict(),
+    #         path / "value_head.pth",
+    #     )
+    #
+    #     # Save agent config
+    #     OmegaConf.save(OmegaConf.structured(self.cfg), path / "config.yaml")
+    #
+    #     # Save the misc args that were passed to the constructor
+    #     OmegaConf.save(
+    #         OmegaConf.create(
+    #             {
+    #                 "latent_size": self.latent_size,
+    #                 "action_mask_key": self.action_mask_key,
+    #                 "batch_size": self.batch_size,
+    #             }
+    #         ),
+    #         path / "args.yaml",
+    #     )
+    #     torch.save(self.action_spec, path / "action_spec.pt")
 
-        # Store pointnet and encoder as a raw models, weights will be updated either way
-        torch.save(self.pointnet.to("cpu"), path / "pointnet.pt")
-        torch.save(self.encoder.to("cpu"), path / "encoder.pt")
-
-        # Common module weights
-        torch.save(
-            self.common_module.state_dict(),
-            path / "common_module.pth",
-        )
-
-        # Policy head weights
-        torch.save(
-            self.policy_head.state_dict(),
-            path / "policy_head.pth",
-        )
-
-        # Value head weights
-        torch.save(
-            self.value_head.state_dict(),
-            path / "value_head.pth",
-        )
-
-        # Save agent config
-        OmegaConf.save(OmegaConf.structured(self.cfg), path / "config.yaml")
-
-        # Save the misc args that were passed to the constructor
-        OmegaConf.save(
-            OmegaConf.create(
-                {
-                    "latent_size": self.latent_size,
-                    "action_mask_key": self.action_mask_key,
-                    "batch_size": self.batch_size,
-                }
-            ),
-            path / "args.yaml",
-        )
-        torch.save(self.action_spec, path / "action_spec.pt")
-
-    @override
-    @classmethod
-    def load(
-        cls: type[Self],
-        path: Path,
-        module_device: torch.device,
-        replay_buffer_device: torch.device,
-    ) -> Self:
-        # Load agent config
-        cfg_dict = OmegaConf.merge(
-            OmegaConf.structured(Zannone2019AgentConfig),
-            OmegaConf.load(path / "config.yaml"),
-        )
-        cfg = cast(Zannone2019AgentConfig, OmegaConf.to_object(cfg_dict))
-
-        # Load pointnet and encoder
-        pointnet: PointNet = torch.load(path / "pointnet.pt")
-        encoder: nn.Module = torch.load(path / "encoder.pt")
-
-        # Load args that were originally passed to the constructor
-        args = OmegaConf.load(path / "args.yaml")
-        action_spec = torch.load(path / "action_spec.pt")
-
-        # Construct instance of agent
-        agent = cls(
-            cfg=cfg,
-            pointnet=pointnet,
-            encoder=encoder,
-            action_spec=action_spec,
-            latent_size=args.latent_size,
-            action_mask_key=args.action_mask_key,
-            batch_size=args.batch_size,
-            module_device=module_device,
-            replay_buffer_device=replay_buffer_device,
-        )
-
-        # Load common module weights
-        agent.common_module.load_state_dict(torch.load(path / "common_module.pth"))
-        # Load policy head weights
-        agent.policy_head.load_state_dict(torch.load(path / "policy_head.pth"))
-        # Load value head weights
-        agent.value_head.load_state_dict(torch.load(path / "value_head.pth"))
-
-        return agent
+    # @override
+    # @classmethod
+    # def load(
+    #     cls: type[Self],
+    #     path: Path,
+    #     module_device: torch.device,
+    #     replay_buffer_device: torch.device,
+    # ) -> Self:
+    #     # Load agent config
+    #     cfg_dict = OmegaConf.merge(
+    #         OmegaConf.structured(Zannone2019AgentConfig),
+    #         OmegaConf.load(path / "config.yaml"),
+    #     )
+    #     cfg = cast(Zannone2019AgentConfig, OmegaConf.to_object(cfg_dict))
+    #
+    #     # Load pointnet and encoder
+    #     pointnet: PointNet = torch.load(path / "pointnet.pt")
+    #     encoder: nn.Module = torch.load(path / "encoder.pt")
+    #
+    #     # Load args that were originally passed to the constructor
+    #     args = OmegaConf.load(path / "args.yaml")
+    #     action_spec = torch.load(path / "action_spec.pt")
+    #
+    #     # Construct instance of agent
+    #     agent = cls(
+    #         cfg=cfg,
+    #         pointnet=pointnet,
+    #         encoder=encoder,
+    #         action_spec=action_spec,
+    #         latent_size=args.latent_size,
+    #         action_mask_key=args.action_mask_key,
+    #         batch_size=args.batch_size,
+    #         module_device=module_device,
+    #         replay_buffer_device=replay_buffer_device,
+    #     )
+    #
+    #     # Load common module weights
+    #     agent.common_module.load_state_dict(torch.load(path / "common_module.pth"))
+    #     # Load policy head weights
+    #     agent.policy_head.load_state_dict(torch.load(path / "policy_head.pth"))
+    #     # Load value head weights
+    #     agent.value_head.load_state_dict(torch.load(path / "value_head.pth"))
+    #
+    #     return agent
