@@ -12,7 +12,7 @@ agent:
   eps_init: 1.0 # kachuee2019 implementation
   eps_end: 0.1 # kachuee2019 implementation
   # eps_annealing_num_batches: 30000 # kachuee2019 implementation, same as `n_batches`
-  eps_annealing_num_batches: 60000
+  eps_annealing_num_batches: 60000 # same as `n_batches`
 
   replay_buffer_batch_size: 128 # kachuee2019 implementation
   # replay_buffer_batch_size: 16
@@ -20,11 +20,9 @@ agent:
 
   num_optim: 1 # kachuee2019 implementation
   max_action_value_grad_norm: 9001 # not specified by kachuee2019 implementation
-  # max_action_value_grad_norm: 1
   action_value_lr: 1e-3 # kachuee2019 implementation
   update_tau: 0.001 # kachuee2019 implementation
   max_classification_grad_norm: 9001 # not specified by kachuee2019 implementation
-  # max_classification_grad_norm: 1
   classification_lr: 1e-3 # kachuee2019 implementation
 
   loss_function: "l2" # kachuee2019 implementation
@@ -33,7 +31,7 @@ agent:
 
   # gamma set by higher config
 # n_batches: 30000 # kachuee2019 implementation, 1000 episodes
-n_batches: 60000
+n_batches: 60000 # needed for convergence
 # batch_size: 1 # kachuee2019 implementation
 batch_size: 64 # same as shim2018
 # eval_every_n_batches: 3000 # kachuee2019 implementation, every 100 episodes
