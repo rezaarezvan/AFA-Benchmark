@@ -145,7 +145,10 @@ class Kachuee2019Agent(Agent):
 
     @override
     def get_cheap_info(self) -> dict[str, Any]:
-        return {"eps": self.egreedy_tdmodule.eps.item()}  # pyright: ignore
+        return {
+            "eps": self.egreedy_tdmodule.eps.item(),  # pyright: ignore
+            "replay_buffer_count": len(self.replay_buffer),
+        }
 
     @override
     def get_expensive_info(self) -> dict[str, Any]:
