@@ -16,16 +16,17 @@ agent:
   max_grad_norm: 1
   replay_buffer_batch_size: 32 # same as shim2018
 
-  value_num_cells: [32, 32] # same complexity as shim2018
+  value_num_cells: [32, 32] # not specified by ODIN paper, same complexity as shim2018
   value_dropout: 0.0
-  policy_num_cells: [32, 32] # same complexity as shim2018
+  policy_num_cells: [32, 32] # not specified by ODIN paper, same complexity as shim2018
   policy_dropout: 0.0
 n_batches: 15000 # up to 30k also works well, but not significant improvement
 batch_size: 64 # same as shim2018
 eval_every_n_batches: 500
 eval_max_steps: 9001
 n_eval_episodes: 100
-n_generated_samples: 10000 # ODIN paper
+# n_generated_samples: 10000 # ODIN paper
+n_generated_samples: 0
 generation_batch_size: 100
 evaluate_final_performance: true
 eval_only_n_samples: 100 # MNIST too large to evaluate every sample
