@@ -39,10 +39,10 @@ def main(cfg: Ma2018PretraingConfig):
         job_type="pretraining",
         config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore
     )
-    wandb.define_metric("pvae_pretrain/train_loss", step_metric="pvae_pretrain/epoch")
-    wandb.define_metric("pvae_pretrain/val_loss",   step_metric="pvae_pretrain/epoch")
-    wandb.define_metric("joint_training/train_loss", step_metric="joint_training/epoch")
-    wandb.define_metric("joint_training/val_loss",   step_metric="joint_training/epoch")
+    # wandb.define_metric("pvae_pretrain/train_loss", step_metric="pvae_pretrain/epoch")
+    # wandb.define_metric("pvae_pretrain/val_loss",   step_metric="pvae_pretrain/epoch")
+    # wandb.define_metric("joint_training/train_loss", step_metric="joint_training/epoch")
+    # wandb.define_metric("joint_training/val_loss",   step_metric="joint_training/epoch")
 
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
@@ -58,7 +58,7 @@ def main(cfg: Ma2018PretraingConfig):
     # Train PVAE.
     pointnet = PointNet(
         identity_size=cfg.pointnet.identity_size,
-        n_features=d_in,
+        n_features=d_in + d_out,
         feature_map_encoder=MLP(
             in_features=cfg.pointnet.identity_size,
             out_features=cfg.pointnet.output_size,
@@ -77,7 +77,7 @@ def main(cfg: Ma2018PretraingConfig):
     pv = PartialVAE(
         pointnet=pointnet,
         encoder=encoder,
-        decoder=nn.Sequential(
+        decoder_feature_head=nn.Sequential(
             MLP(
                 in_features=cfg.partial_vae.latent_size,
                 out_features=d_in,
@@ -86,6 +86,14 @@ def main(cfg: Ma2018PretraingConfig):
             ),
             nn.Identity(),
         ),
+        decoder_class_head=MLP(
+            in_features=cfg.partial_vae.latent_size,
+            out_features=d_out,
+            num_cells=cfg.classifier.num_cells,
+            dropout=cfg.classifier.dropout,
+            activation_class=nn.ReLU,
+        ),
+        num_classes=d_out
     )
     pv = pv.to(device)
     pv.fit(
@@ -99,17 +107,17 @@ def main(cfg: Ma2018PretraingConfig):
     )
 
     # Train masked predictor.
-    model = MLP(
-        in_features=cfg.partial_vae.latent_size,
-        out_features=d_out,
-        num_cells=cfg.classifier.num_cells,
-        dropout=cfg.classifier.dropout,
-        activation_class=nn.ReLU,
-    )
-    eddi = EDDI_Training(model, pv)
-    eddi.fit(train_loader, val_loader)
+    # model = MLP(
+    #     in_features=cfg.partial_vae.latent_size,
+    #     out_features=d_out,
+    #     num_cells=cfg.classifier.num_cells,
+    #     dropout=cfg.classifier.dropout,
+    #     activation_class=nn.ReLU,
+    # )
+    # eddi = EDDI_Training(model, pv)
+    # eddi.fit(train_loader, val_loader)
 
-    eddi_selector = Ma2018AFAMethod(pv, model)
+    eddi_selector = Ma2018AFAMethod(pv, d_out)
     pretrained_model_artifact = wandb.Artifact(
         name=f"pretrain_ma2018-{cfg.dataset_artifact_name.split(':')[0]}",
         type="pretrained_model",
@@ -118,7 +126,7 @@ def main(cfg: Ma2018PretraingConfig):
         tmp_path = Path(tmp_path_str)
         eddi_selector.save(tmp_path)
         del eddi_selector
-        eddi_selector = Ma2018AFAMethod.load(tmp_path / "model.pt", device=device)
+        eddi_selector = Ma2018AFAMethod.load(tmp_path, device=device)
 
     pretrained_model_artifact.add_file(str(tmp_path / 'model.pt'))
     run.log_artifact(

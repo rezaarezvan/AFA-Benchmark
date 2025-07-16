@@ -402,8 +402,9 @@ class PartialVAE(nn.Module):
         self,
         pointnet: PointNet,
         encoder: nn.Module,
-        decoder: nn.Module,
-        recon_loss_type="squared error",
+        decoder_feature_head: nn.Module,
+        decoder_class_head: nn.Module,
+        num_classes: int,
     ):
         """
         Args:
@@ -415,12 +416,9 @@ class PartialVAE(nn.Module):
 
         self.pointnet = pointnet
         self.encoder = encoder
-        self.decoder = decoder  # Maps from latent space to the original feature space
-        self.recon_loss_type = recon_loss_type
-        if recon_loss_type not in ["squared error", "cross entropy"]:
-            raise ValueError(
-                f"Unknown reconstruction loss type: {self.recon_loss_type}. Use 'squared error' or 'cross entropy'."
-            )
+        self.decoder_feature_head = decoder_feature_head  # Maps from latent space to the original feature space
+        self.decoder_class_head = decoder_class_head
+        self.num_classes = num_classes
 
     def encode(
         self,
@@ -443,23 +441,20 @@ class PartialVAE(nn.Module):
         encoding, mu, logvar, z = self.encode(masked_features, feature_mask)
 
         # Decode
-        x_hat = self.decoder(z)
+        # x_hat = self.decoder(z)
+        est_x = self.decoder_feature_head(z)
+        est_logits = self.decoder_class_head(z)
+        x_hat = torch.cat([est_x, est_logits], dim=-1)
 
         return encoding, mu, logvar, z, x_hat
     
-    def loss(self, estimated_features, features, mu, logvar, kl_scaling_factor):
-        if self.recon_loss_type == "squared error":
-            recon_loss = ((estimated_features - features) ** 2).sum()
-        elif self.recon_loss_type == "cross entropy":
-            recon_loss = F.binary_cross_entropy(
-                estimated_features, features, reduction="sum"
-            )
-        else:
-            raise ValueError(
-                f"Unknown reconstruction loss type: {self.recon_loss_type}. Use 'squared error' or 'cross entropy'."
-            )
+    def loss(self, estimated_features, features, labels, mu, logvar, kl_scaling_factor):
+        est_x = estimated_features[:, :features.size(1)]
+        est_y = estimated_features[:, features.size(1):]
+        recon_feat = 0.5 * ((est_x - features) ** 2).sum()
+        recon_label = F.cross_entropy(est_y, labels, reduction="sum")
         kl_div = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-        return recon_loss + kl_scaling_factor * kl_div
+        return recon_feat, recon_label, recon_feat + recon_label + kl_scaling_factor * kl_div
     
     def fit(self,
             train_loader,
@@ -467,6 +462,7 @@ class PartialVAE(nn.Module):
             lr,
             nepochs,
             factor=0.2,
+            p_min=0.1,
             p_max=0.9,
             patience=2,
             min_lr=1e-6,
@@ -503,27 +499,51 @@ class PartialVAE(nn.Module):
             early_stopping_epochs = patience + 1
             
         for epoch in range(nepochs):
+            # if verbose:
+            #     print(f'{"-"*8}Epoch {epoch+1}{"-"*8}')
             self.train()
-            p_e = torch.rand(1).item() * p_max
+            # p_e = torch.rand(1).item() * p_max
+            p_e = p_min + torch.rand(1).item() * (p_max - p_min)
 
-            epoch_train_loss = 0.0
-            for features, _ in train_loader:
+            epoch_train_total_loss = 0.0
+            epoch_train_feat_loss = 0.0
+            epoch_train_label_loss = 0.0
+            for features, labels in train_loader:
                 # Calculate loss.
-                features = features.to(device)
-                masked_features, feature_mask, _ = mask_data(features, p_e)
-                # loss = self.loss(x, m)
-                _, mu, logvar, z, estimated_features = self.forward(
-                    masked_features, feature_mask
+                labels_onehot = F.one_hot(labels, num_classes=self.num_classes).float()
+                augmented_features = torch.cat(
+                    [features, labels_onehot], dim=-1
                 )
-                loss = self.loss(
-                    estimated_features, features, mu, logvar, kl_scaling_factor
+                features = features.to(device)
+                labels = labels.to(device)
+                labels_onehot = labels_onehot.to(device)
+                augmented_features = augmented_features.to(device)
+                # randomly mask out the features
+                masked_features, feature_mask, _ = mask_data(features, p_e)
+                # randomly zero out the one-hot label
+                keep_label = (torch.rand(labels_onehot.size(0), device=device) > p_e)
+                label_mask = keep_label.unsqueeze(1).expand(-1, self.num_classes)
+                masked_labels = labels_onehot * label_mask.float()
+                augmented_masked_features = torch.cat([masked_features, masked_labels], dim=-1)
+                augmented_feature_mask = torch.cat([feature_mask, label_mask], dim=-1)
+                _, mu, logvar, z, estimated_features = self.forward(
+                    augmented_masked_features, augmented_feature_mask
+                )
+                feat_loss, label_loss, total_loss = self.loss(
+                    estimated_features, features, labels, mu, logvar, kl_scaling_factor
                 )
 
                 # Take gradient step.
-                loss.backward()
+                total_loss.backward()
                 opt.step()
                 self.zero_grad()
-                epoch_train_loss += loss.item()
+                epoch_train_feat_loss += feat_loss.item()
+                epoch_train_label_loss += label_loss.item()
+                epoch_train_total_loss += total_loss.item()
+            
+            avg_train_feat = epoch_train_feat_loss / len(train_loader)
+            avg_train_label = epoch_train_label_loss / len(train_loader)
+            avg_train = epoch_train_total_loss / len(train_loader)
                 
             # Calculate validation loss.
             self.eval()
@@ -532,55 +552,69 @@ class PartialVAE(nn.Module):
                 val_loss = 0
                 n = 0
 
-                for features, _ in val_loader:
+                for features, labels in val_loader:
                     # Calculate loss.
+                    labels_onehot = F.one_hot(labels, num_classes=self.num_classes).float()
+                    augmented_features = torch.cat(
+                        [features, labels_onehot], dim=-1
+                    )
                     features = features.to(device)
+                    labels = labels.to(device)
+                    labels_onehot = labels_onehot.to(device)
+                    augmented_features = augmented_features.to(device)
+                    # randomly mask out the features
                     masked_features, feature_mask, _ = mask_data(features, p_e)
+                    # randomly zero out the one-hot label
+                    keep_label = (torch.rand(labels_onehot.size(0), device=device) > p_e)
+                    label_mask = keep_label.unsqueeze(1).expand(-1, self.num_classes)
+                    masked_labels = labels_onehot * label_mask.float()
+                    augmented_masked_features = torch.cat([masked_features, masked_labels], dim=-1)
+                    augmented_feature_mask = torch.cat([feature_mask, label_mask], dim=-1)
 
                     _, mu, logvar, z, estimated_features = self.forward(
-                        masked_features, feature_mask
+                        augmented_masked_features, augmented_feature_mask
                     )
-                    loss = self.loss(
-                        estimated_features, features, mu, logvar, kl_scaling_factor
+                    feat_loss, label_loss, total_loss = self.loss(
+                        estimated_features, features, labels, mu, logvar, kl_scaling_factor
                     )
                     
                     # Update mean.
-                    val_loss += loss.item()
+                    val_loss += total_loss.item()
                     n += features.size(0)
                 val_loss = val_loss / n
             
-            avg_train = epoch_train_loss / len(train_loader)
             wandb.log({
-                "pvae_pretrain/epoch": epoch,
+                # "pvae_pretrain/epoch": epoch,
+                "pvae_pretrain/train_feature_loss": avg_train_feat,
+                "pvae_pretrain/train_label_loss": avg_train_label,
                 "pvae_pretrain/train_loss": avg_train,
                 "pvae_pretrain/val_loss": val_loss,
             })
 
             # Print progress.
-            if verbose:
-                print(f'{"-"*8}Epoch {epoch+1}{"-"*8}')
-                print(f'Val loss = {val_loss:.4f}\n')
+            # if verbose:
+            #     print(f'Val loss = {val_loss:.4f}\n')
                 
             # Update scheduler.
             scheduler.step(val_loss)
 
             # Check if best model.
-            if val_loss == scheduler.best:
-                best_encoder = deepcopy(self.encoder)
-                best_decoder = deepcopy(self.decoder)
-                num_bad_epochs = 0
-            else:
-                num_bad_epochs += 1
+        #     if val_loss == scheduler.best:
+        #         best_encoder = deepcopy(self.encoder)
+        #         best_decoder = deepcopy(self.decoder)
+        #         num_bad_epochs = 0
+        #     else:
+        #         num_bad_epochs += 1
                 
-            # Early stopping.
-            if num_bad_epochs > early_stopping_epochs:
-                if verbose:
-                    print(f'Stopping early at epoch {epoch+1}')
-                break
+        #     # Early stopping.
+        #     # if num_bad_epochs > early_stopping_epochs:
+        #     #     if verbose:
+        #     #         print(f'Stopping early at epoch {epoch+1}')
+        #     #     break
 
-        # Copy parameters from best model.
-        restore_parameters(self.encoder, best_encoder)
-        restore_parameters(self.decoder, best_decoder)
+        # # Copy parameters from best model.
+        # restore_parameters(self.encoder, best_encoder)
+        # restore_parameters(self.decoder, best_decoder)
         wandb.unwatch(self)
 
     def impute(self, masked_features, feature_mask):

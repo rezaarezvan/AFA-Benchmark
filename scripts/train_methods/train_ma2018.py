@@ -51,14 +51,14 @@ def main(cfg: Ma2018TraingConfig):
         pretrained_model_config.dataset_artifact_name
     )
     afa_method: Ma2018AFAMethod = Ma2018AFAMethod.load(
-        pretrained_model_artifact_dir / "model.pt", device=device
+        pretrained_model_artifact_dir, device=device
     )
 
     with TemporaryDirectory(delete=False) as tmp_path_str:
         tmp_path = Path(tmp_path_str)
         afa_method.save(tmp_path)
         del afa_method
-        afa_method = Ma2018AFAMethod.load(tmp_path / "model.pt", device=device)
+        afa_method = Ma2018AFAMethod.load(tmp_path, device=device)
         afa_method_artifact = wandb.Artifact(
             name=f"train_ma2018-{pretrained_model_config.dataset_artifact_name.split(':')[0]}-budget_{cfg.hard_budget}-seed_{cfg.seed}",
             type="trained_method",
