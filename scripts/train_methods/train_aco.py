@@ -16,6 +16,7 @@ from common.config_classes import ACOTrainConfig
 from common.models import LitMaskedMLPClassifier
 from common.classifiers import WrappedMaskedMLPClassifier
 from common.xgboost_classifier import (
+    XGBoostAFAClassifier,
     LitXGBoostAFAClassifier,
     WrappedXGBoostAFAClassifier,
 )
@@ -60,12 +61,40 @@ def train_xgboost_classifier(
         'random_state': config.seed,
     }
 
-    lit_model = LitXGBoostAFAClassifier(
+    # Create XGBoost classifier first
+    classifier = XGBoostAFAClassifier(
         n_features=n_features,
         n_classes=n_classes,
+        device=device,
+        dictionary_threshold=25,  # Include cube dataset (20 features)
+        **xgb_params
+    )
+
+    # Fit the classifier with training data
+    all_features = []
+    all_labels = []
+    all_masks = []
+
+    for features, labels in datamodule.train_dataloader():
+        # Generate random masks for training
+        mask_probs = torch.rand_like(features)
+        feature_mask = mask_probs > torch.rand(features.shape[0], 1)
+
+        all_features.append(features)
+        all_labels.append(labels)
+        all_masks.append(feature_mask)
+
+    # Concatenate and fit
+    X_train = torch.cat(all_features, dim=0)
+    y_train = torch.cat(all_labels, dim=0)
+    masks_train = torch.cat(all_masks, dim=0)
+
+    classifier.fit(X_train, y_train, masks_train)
+
+    lit_model = LitXGBoostAFAClassifier(
+        classifier=classifier,
         min_masking_probability=config.xgboost_params.min_masking_probability,
         max_masking_probability=config.xgboost_params.max_masking_probability,
-        **xgb_params
     )
 
     # Training setup
