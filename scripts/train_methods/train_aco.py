@@ -66,7 +66,7 @@ def train_xgboost_classifier(
         n_features=n_features,
         n_classes=n_classes,
         device=device,
-        dictionary_threshold=12,
+        dictionary_threshold=25,
         **xgb_params
     )
 
@@ -102,7 +102,7 @@ def train_xgboost_classifier(
     trainer = pl.Trainer(
         max_epochs=1,  # XGBoost trains in setup()
         logger=logger,
-        accelerator="cpu",
+        accelerator="gpu" if device.type == "cuda" else "cpu",
         devices=1,
         enable_checkpointing=False,
     )

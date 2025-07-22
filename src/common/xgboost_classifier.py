@@ -26,7 +26,8 @@ class XGBoostAFAClassifier(AFAClassifier):
         n_features: int,
         n_classes: int,
         model: xgb.XGBClassifier | None = None,
-        device: torch.device = torch.device("cpu"),
+        device: torch.device = torch.device(
+            "cuda" if torch.cuda.is_available() else "cpu"),
         use_dictionary_approach: bool = True,
         dictionary_threshold: int = 12,
         subsample_ratio: float = 0.8,
@@ -50,7 +51,7 @@ class XGBoostAFAClassifier(AFAClassifier):
             'max_depth': 5,       # Original AACO value
             'random_state': 42,
             'n_jobs': -1,
-            'tree_method': 'hist',
+            'tree_method': 'gpu_hist' if torch.cuda.is_available() else 'hist',
             'enable_categorical': False,
         }
 
