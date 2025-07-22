@@ -25,13 +25,15 @@ aco:
   eval_only_n_samples: null
 
 # Behavioral cloning configuration (optional)
-aco_bc:
-  bc_epochs: 100
-  bc_batch_size: 128
-  bc_lr: 0.001
-  bc_num_cells: [128, 128]
-  bc_dropout: 0.1
-  bc_rollout_samples: 1000
+# aco_bc:
+#   bc_epochs: 100
+#   bc_batch_size: 128
+#   bc_lr: 0.001
+#   bc_num_cells: [128, 128]
+#   bc_dropout: 0.1
+#   bc_rollout_samples: 1000
+
+aco_bc: null  # Disable behavioral cloning
 
 # Dataset and artifacts
 # dataset_artifact_name: "cube_split_1:v9" # Noiseless
