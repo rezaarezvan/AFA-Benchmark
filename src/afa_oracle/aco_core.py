@@ -29,10 +29,11 @@ class KNNDensityEstimator:
     k-Nearest Neighbors density estimator for ACO.
     """
 
-    def __init__(self, k: int = 5, metric: str = 'euclidean', standardize: bool = True):
+    def __init__(self, k: int = 5, metric: str = 'euclidean', standardize: bool = True, hide_val: float = 10.0):
         self.k = k
         self.metric = metric
         self.standardize = standardize
+        self.hide_val = hide_val
         self.scaler = StandardScaler() if standardize else None
         self.knn = NearestNeighbors(n_neighbors=k, metric=metric)
         self.X_train = None
@@ -120,13 +121,18 @@ class KNNDensityEstimator:
             # Create masked features using target mask
             masked_neighbor_x = neighbor_x.clone()
             # Hide unobserved features
-            masked_neighbor_x[~target_mask.to(neighbor_x.device)] = 0
+            masked_neighbor_x[~target_mask.to(
+                neighbor_x.device)] = -self.hide_val
 
             # Get prediction
-            pred = predictor(
+            # Concatenate features and mask like original AACO
+            X_concat = torch.cat([
                 masked_neighbor_x.unsqueeze(0),
-                target_mask.to(neighbor_x.device).unsqueeze(0)
-            )
+                target_mask.to(neighbor_x.device).unsqueeze(0).float()
+            ], dim=1)
+
+            pred = predictor(X_concat, target_mask.to(
+                neighbor_x.device).unsqueeze(0))
 
             # Compute loss
             loss = loss_fn(pred, neighbor_y.unsqueeze(0))
@@ -196,12 +202,10 @@ class ACOOracle:
         density_estimator: KNNDensityEstimator,
         subset_search: SubsetSearchStrategy,
         acquisition_cost: float = 0.05,
-        hide_val: float = 10.0
     ):
         self.density_estimator = density_estimator
         self.subset_search = subset_search
         self.acquisition_cost = acquisition_cost
-        self.hide_val = hide_val
         self.loss_fn = nn.CrossEntropyLoss(reduction='none')
 
     def fit(self, X_train: torch.Tensor, y_train: torch.Tensor):
@@ -336,7 +340,8 @@ def create_aco_oracle(
     density_estimator = KNNDensityEstimator(
         k=k_neighbors,
         metric=distance_metric,
-        standardize=standardize_features
+        standardize=standardize_features,
+        hide_val=hide_val
     )
 
     subset_search = SubsetSearchStrategy(
@@ -349,5 +354,4 @@ def create_aco_oracle(
         density_estimator=density_estimator,
         subset_search=subset_search,
         acquisition_cost=acquisition_cost,
-        hide_val=hide_val
     )

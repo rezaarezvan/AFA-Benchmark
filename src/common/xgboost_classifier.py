@@ -5,9 +5,9 @@ import xgboost as xgb
 import lightning as pl
 
 from pathlib import Path
-from typing import Self, final, override
 from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import LabelEncoder
+from typing import Self, final, override, Optional
 
 from common.custom_types import (
     AFAClassifier,
@@ -19,7 +19,7 @@ from common.custom_types import (
 
 @final
 class XGBoostAFAClassifier(AFAClassifier):
-    """XGBoost classifier that implements the AFAClassifier interface."""
+    """XGBoost classifier that implements the AFAClassifier interface with dictionary approach for low-dim."""
 
     def __init__(
         self,
@@ -27,20 +27,27 @@ class XGBoostAFAClassifier(AFAClassifier):
         n_classes: int,
         model: xgb.XGBClassifier | None = None,
         device: torch.device = torch.device("cpu"),
+        use_dictionary_approach: bool = True,
+        dictionary_threshold: int = 12,
+        subsample_ratio: float = 0.8,
         **xgb_params
     ):
         self.n_features = n_features
         self.n_classes = n_classes
         self._device = device
         self.label_encoder = LabelEncoder()
+        self.use_dictionary_approach = use_dictionary_approach and n_features <= dictionary_threshold
+        self.subsample_ratio = subsample_ratio
 
-        # Default XGBoost parameters matching the ACO paper
+        # Dictionary for storing models per mask pattern (original AACO approach)
+        self.xgb_model_dict = {}
+        self.X_train_numpy = None
+        self.y_train_numpy = None
+
+        # Original AACO parameters
         default_params = {
-            'n_estimators': 100,
-            'max_depth': 6,
-            'learning_rate': 0.1,
-            'subsample': 0.8,
-            'colsample_bytree': 0.8,
+            'n_estimators': 250,  # Original AACO value
+            'max_depth': 5,       # Original AACO value
             'random_state': 42,
             'n_jobs': -1,
             'tree_method': 'hist',
@@ -50,6 +57,7 @@ class XGBoostAFAClassifier(AFAClassifier):
         # Override defaults with provided parameters
         default_params.update(xgb_params)
 
+        # Single model for high-dimensional masking approach
         if model is None:
             if n_classes == 2:
                 self.model = xgb.XGBClassifier(
@@ -71,6 +79,18 @@ class XGBoostAFAClassifier(AFAClassifier):
         y_np = y.cpu().numpy()
         feature_mask_np = feature_mask.cpu().numpy()
 
+        # Store training data for dictionary approach
+        if self.use_dictionary_approach:
+            self.X_train_numpy = X_np
+            # Convert from one-hot to class indices
+            if y_np.ndim > 1 and y_np.shape[1] > 1:
+                self.y_train_numpy = np.argmax(y_np, axis=1)
+            else:
+                self.y_train_numpy = y_np.squeeze()
+            self.is_fitted = True
+            return
+
+        # Original masking approach for high dimensions
         # Prepare training data with feature mask information
         # Concatenate features and feature mask like MaskedMLP
         X_train = np.concatenate(
@@ -79,8 +99,6 @@ class XGBoostAFAClassifier(AFAClassifier):
         # Multi-class: convert from one-hot to class indices
         if y_np.ndim > 1 and y_np.shape[1] > 1:
             y_train = np.argmax(y_np, axis=1)
-
-        # Binary or already class indices
         else:
             y_train = y_np.squeeze()
 
@@ -95,65 +113,161 @@ class XGBoostAFAClassifier(AFAClassifier):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
+        neighbor_indices: Optional[torch.Tensor] = None
     ) -> Label:
+        """Predict class probabilities."""
         if not self.is_fitted:
             raise ValueError("Model must be fitted before making predictions")
 
+        # Convert to numpy
         masked_features_np = masked_features.cpu().numpy()
-        feature_mask_np = feature_mask.cpu().numpy().astype(np.float32)
+        feature_mask_np = feature_mask.cpu().numpy()
 
-        # Prepare input data (concatenate features and mask)
-        X_input = np.concatenate([masked_features_np, feature_mask_np], axis=1)
+        if self.use_dictionary_approach:
+            # Original AACO dictionary approach
+            # Input format: [features, mask] concatenated
+            # Extract features and mask
+            if masked_features.shape[1] == self.n_features * 2:
+                # Already concatenated format
+                X_concat = masked_features_np
+            else:
+                # Need to concatenate
+                X_concat = np.concatenate(
+                    [masked_features_np, feature_mask_np], axis=1)
 
-        # Binary classification
-        if self.n_classes == 2:
-            probs = self.model.predict_proba(X_input)
-            if probs.shape[1] == 2:
-                probs = probs[:, 1:2]  # Take positive class probability
-            probs = np.column_stack([1 - probs.squeeze(), probs.squeeze()])
-
-        # Multi-class classification
+            return self._predict_dictionary(X_concat)
         else:
-            probs = self.model.predict_proba(X_input)
+            # High-dimensional masking approach
+            X_concat = np.concatenate(
+                [masked_features_np, feature_mask_np], axis=1)
+            predictions = self.model.predict_proba(X_concat)
+            return torch.tensor(predictions, dtype=torch.float32, device=self._device)
 
-        # Convert back to torch tensor
-        probs_tensor = torch.from_numpy(probs).float().to(self._device)
+    def _predict_dictionary(self, X_concat: np.ndarray) -> torch.Tensor:
+        """Dictionary-based prediction matching original AACO implementation."""
+        n = X_concat.shape[0]
+        probs = torch.zeros((n, self.n_classes), device=self._device)
 
-        return probs_tensor
+        for i in range(n):
+            # Extract mask and convert to string key (original AACO approach)
+            mask_i = X_concat[i][self.n_features:]
+            nonzero_i = np.nonzero(mask_i)[0]
+            mask_i_string = ''.join(map(str, mask_i.astype(int).tolist()))
+
+            # Train new model if mask pattern not seen before
+            if mask_i_string not in self.xgb_model_dict:
+                # Original AACO parameters
+                self.xgb_model_dict[mask_i_string] = xgb.XGBClassifier(
+                    n_estimators=250,
+                    max_depth=5,
+                    random_state=42,
+                    n_jobs=-1
+                )
+
+                # Train on subset of features for this mask
+                if len(nonzero_i) > 0:
+                    X_train_subset = self.X_train_numpy[:, nonzero_i]
+                    # Subsample training data (original AACO approach)
+                    n_samples = int(
+                        self.X_train_numpy.shape[0] * self.subsample_ratio)
+                    idx = np.random.choice(
+                        self.X_train_numpy.shape[0], n_samples, replace=False)
+                    self.xgb_model_dict[mask_i_string].fit(
+                        X_train_subset[idx], self.y_train_numpy[idx]
+                    )
+                else:
+                    # No features selected - create dummy prediction
+                    dummy_probs = np.ones(self.n_classes) / self.n_classes
+                    probs[i] = torch.tensor(
+                        dummy_probs, dtype=torch.float32, device=self._device)
+                    continue
+
+            # Predict using only the relevant features (no imputation!)
+            if len(nonzero_i) > 0:
+                X_relevant = X_concat[i, nonzero_i].reshape(1, -1)
+                pred_probs = self.xgb_model_dict[mask_i_string].predict_proba(
+                    X_relevant)
+                probs[i] = torch.tensor(
+                    pred_probs[0], dtype=torch.float32, device=self._device)
+            else:
+                # No features - uniform prediction
+                dummy_probs = np.ones(self.n_classes) / self.n_classes
+                probs[i] = torch.tensor(
+                    dummy_probs, dtype=torch.float32, device=self._device)
+
+        return probs
 
     @override
     def save(self, path: Path) -> None:
-        """Save the XGBoost classifier."""
-        path.parent.mkdir(parents=True, exist_ok=True)
+        """Save the classifier."""
+        path.mkdir(exist_ok=True)
 
-        save_dict = {
-            'model': self.model,
+        if self.use_dictionary_approach:
+            # Save dictionary of models
+            with open(path / "xgb_model_dict.pkl", "wb") as f:
+                pickle.dump(self.xgb_model_dict, f)
+
+            # Save training data
+            if self.X_train_numpy is not None:
+                np.save(path / "X_train.npy", self.X_train_numpy)
+                np.save(path / "y_train.npy", self.y_train_numpy)
+        else:
+            # Save single model
+            with open(path / "xgb_model.pkl", "wb") as f:
+                pickle.dump(self.model, f)
+
+            # Save label encoder
+            with open(path / "label_encoder.pkl", "wb") as f:
+                pickle.dump(self.label_encoder, f)
+
+        # Save metadata
+        metadata = {
             'n_features': self.n_features,
             'n_classes': self.n_classes,
-            'label_encoder': self.label_encoder,
-            'is_fitted': self.is_fitted,
+            'use_dictionary_approach': self.use_dictionary_approach,
+            'subsample_ratio': self.subsample_ratio,
+            'is_fitted': self.is_fitted
         }
+        with open(path / "metadata.pkl", "wb") as f:
+            pickle.dump(metadata, f)
 
-        with open(path, 'wb') as f:
-            pickle.dump(save_dict, f)
-
-    @override
     @classmethod
+    @override
     def load(cls, path: Path, device: torch.device) -> Self:
-        """Load the XGBoost classifier."""
-        with open(path, 'rb') as f:
-            save_dict = pickle.load(f)
+        """Load the classifier."""
+        # Load metadata
+        with open(path / "metadata.pkl", "rb") as f:
+            metadata = pickle.load(f)
 
-        classifier = cls(
-            n_features=save_dict['n_features'],
-            n_classes=save_dict['n_classes'],
-            model=save_dict['model'],
+        # Create instance
+        instance = cls(
+            n_features=metadata['n_features'],
+            n_classes=metadata['n_classes'],
             device=device,
+            use_dictionary_approach=metadata['use_dictionary_approach'],
+            subsample_ratio=metadata['subsample_ratio']
         )
-        classifier.label_encoder = save_dict['label_encoder']
-        classifier.is_fitted = save_dict['is_fitted']
 
-        return classifier
+        if metadata['use_dictionary_approach']:
+            # Load dictionary of models
+            with open(path / "xgb_model_dict.pkl", "rb") as f:
+                instance.xgb_model_dict = pickle.load(f)
+
+            # Load training data if exists
+            if (path / "X_train.npy").exists():
+                instance.X_train_numpy = np.load(path / "X_train.npy")
+                instance.y_train_numpy = np.load(path / "y_train.npy")
+        else:
+            # Load single model
+            with open(path / "xgb_model.pkl", "rb") as f:
+                instance.model = pickle.load(f)
+
+            # Load label encoder
+            with open(path / "label_encoder.pkl", "rb") as f:
+                instance.label_encoder = pickle.load(f)
+
+        instance.is_fitted = metadata['is_fitted']
+        return instance
 
     @override
     def to(self, device: torch.device) -> Self:
@@ -170,72 +284,21 @@ class XGBoostAFAClassifier(AFAClassifier):
 
 @final
 class LitXGBoostAFAClassifier(pl.LightningModule):
-    """Lightning module for training XGBoost classifier."""
+    """Lightning wrapper for XGBoost classifier to maintain compatibility."""
 
     def __init__(
         self,
-        n_features: int,
-        n_classes: int,
+        classifier: XGBoostAFAClassifier,
         min_masking_probability: float = 0.0,
-        max_masking_probability: float = 1.0,
-        **xgb_params
+        max_masking_probability: float = 0.9,
     ):
         super().__init__()
-
-        self.n_features = n_features
-        self.n_classes = n_classes
+        self.classifier = classifier
         self.min_masking_probability = min_masking_probability
         self.max_masking_probability = max_masking_probability
 
-        self.classifier = XGBoostAFAClassifier(
-            n_features=n_features,
-            n_classes=n_classes,
-            **xgb_params
-        )
-
-        self.save_hyperparameters()
-
-    def setup(self, stage: str) -> None:
-        """Setup method called by Lightning."""
-        if stage == "fit":
-            # Collect all training data to fit XGBoost
-            train_dataloader = self.trainer.datamodule.train_dataloader()
-
-            all_features = []
-            all_labels = []
-            all_masks = []
-
-            for batch in train_dataloader:
-                features, labels = batch
-
-                # Apply random masking for training
-                batch_size = features.shape[0]
-                masking_prob = torch.rand(
-                    batch_size, 1, device=features.device)
-                masking_prob = (masking_prob * (self.max_masking_probability - self.min_masking_probability) +
-                                self.min_masking_probability)
-
-                # Create random masks
-                mask_probs = torch.rand_like(features)
-                feature_mask = mask_probs > masking_prob
-
-                # Apply masks
-                masked_features = features * feature_mask.float()
-
-                all_features.append(masked_features)
-                all_labels.append(labels)
-                all_masks.append(feature_mask)
-
-            # Concatenate all data
-            X_train = torch.cat(all_features, dim=0)
-            y_train = torch.cat(all_labels, dim=0)
-            masks_train = torch.cat(all_masks, dim=0)
-
-            # Fit the XGBoost model
-            self.classifier.fit(X_train, y_train, masks_train)
-
     def training_step(self, batch, batch_idx):
-        """Training step (XGBoost is already fitted in setup)."""
+        """Training step - XGBoost trains during fit(), not here."""
         return torch.tensor(0.0, requires_grad=True)  # Dummy loss
 
     def validation_step(self, batch, batch_idx):
@@ -310,9 +373,10 @@ class WrappedXGBoostAFAClassifier(AFAClassifier):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
+        neighbor_indices: Optional[torch.Tensor] = None
     ) -> Label:
         """Predict class probabilities."""
-        return self.classifier(masked_features, feature_mask)
+        return self.classifier(masked_features, feature_mask, neighbor_indices)
 
     @override
     def save(self, path: Path) -> None:
@@ -326,12 +390,7 @@ class WrappedXGBoostAFAClassifier(AFAClassifier):
         classifier = XGBoostAFAClassifier.load(path, device)
 
         # Create a dummy lit_model for interface compatibility
-        lit_model = LitXGBoostAFAClassifier(
-            n_features=classifier.n_features,
-            n_classes=classifier.n_classes,
-        )
-        lit_model.classifier = classifier
-
+        lit_model = LitXGBoostAFAClassifier(classifier=classifier)
         return cls(lit_model=lit_model, device=device)
 
     @override
