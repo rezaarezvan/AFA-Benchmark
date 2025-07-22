@@ -66,7 +66,7 @@ def train_xgboost_classifier(
         n_features=n_features,
         n_classes=n_classes,
         device=device,
-        dictionary_threshold=25,  # Include cube dataset (20 features)
+        dictionary_threshold=12,
         **xgb_params
     )
 
