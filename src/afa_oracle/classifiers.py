@@ -98,24 +98,52 @@ class classifier_xgb_dict():
     def __call__(self, X, idx):
         n = X.shape[0]
         probs = torch.zeros((n, self.output_dim))
+
         for i in range(n):
             # Which mask?
             mask_i = X[i][self.input_dim:]
             nonzero_i = mask_i.nonzero().squeeze()
+
+            # Handle edge case: ensure nonzero_i is always an array
+            if nonzero_i.dim() == 0:  # scalar case (single feature)
+                nonzero_i = nonzero_i.unsqueeze(0)
+
+            # Check if no features are selected
+            if len(nonzero_i) == 0:
+                # No features selected - return uniform probabilities
+                dummy_probs = torch.ones(self.output_dim) / self.output_dim
+                probs[i] = dummy_probs
+                continue
+
             mask_i_string = ''.join(map(str, mask_i.long().tolist()))
+
             # Is the mask in the dictionary?
             if mask_i_string not in self.xgb_model_dict:
                 self.xgb_model_dict[mask_i_string] = XGBClassifier(
                     n_estimators=250, max_depth=5, random_state=29, n_jobs=8)
-                X_train_subset = self.X_train_numpy[:, nonzero_i].reshape(
-                    self.X_train_numpy.shape[0], -1)
-                idx = np.random.choice(X_train_subset.shape[0], int(
-                    X_train_subset.shape[0]*self.subsample_ratio), replace=False)
+
+                # Extract features for selected indices
+                X_train_subset = self.X_train_numpy[:, nonzero_i.cpu().numpy()]
+
+                # Ensure we have the right shape
+                if X_train_subset.ndim == 1:
+                    X_train_subset = X_train_subset.reshape(-1, 1)
+
+                # Subsample training data
+                n_samples = max(
+                    1, int(X_train_subset.shape[0] * self.subsample_ratio))
+                idx_sample = np.random.choice(
+                    X_train_subset.shape[0], n_samples, replace=False)
+
                 self.xgb_model_dict[mask_i_string].fit(
-                    X_train_subset[idx], self.y_train_numpy[idx])
+                    X_train_subset[idx_sample], self.y_train_numpy[idx_sample])
+
             # Prediction
-            probs[i] = torch.from_numpy(self.xgb_model_dict[mask_i_string].predict_proba(
-                X[i, nonzero_i].numpy().reshape(1, -1)))
+            X_query = X[i, nonzero_i].cpu().numpy().reshape(1, -1)
+            pred_probs = self.xgb_model_dict[mask_i_string].predict_proba(
+                X_query)
+            probs[i] = torch.from_numpy(pred_probs[0])
+
         return probs
 
 

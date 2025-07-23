@@ -47,12 +47,21 @@ def load_classifier(dataset_name, X_train, y_train, input_dim, models_dir="model
         return classifier_xgb_dict(output_dim=y_train.shape[1], input_dim=input_dim, subsample_ratio=0.01, X_train=X_train, y_train=y_train)
 
     elif dataset_name_lower == "mnist":
-        # Load XGBoost model for MNIST dataset
+        # Expected input size for the pre-trained model
+        expected_input_size = 512  # 256 features + 256 mask
+        actual_input_size = input_dim * 2  # current features + mask
+
+        if actual_input_size != expected_input_size:
+            print(f"MNIST dimensionality mismatch: expected {
+                  expected_input_size}, got {actual_input_size}")
+            print("Using XGB dictionary classifier for MNIST")
+            return classifier_xgb_dict(output_dim=y_train.shape[1], input_dim=input_dim, subsample_ratio=0.01, X_train=X_train, y_train=y_train)
+
+        # Only try to load pre-trained model if dimensions match
         xgb_model = XGBClassifier()
         model_path = Path(models_dir) / \
             'xgb_classifier_MNIST_random_subsets_5.json'
 
-        # Check if model file exists
         if not model_path.exists():
             print(f"Warning: XGBoost model not found at {model_path}")
             print("Using XGB dictionary classifier as fallback for MNIST")
@@ -69,7 +78,7 @@ def load_mask_generator(dataset_name, input_dim):
     """
     Their exact mask generator loading logic
     """
-    if dataset_name in ["cube", "MNIST"]:
+    if dataset_name in ["cube", "mnist"]:
         return random_mask_generator(10000, input_dim, 1000)
     elif dataset_name in ["grid", "gas10"]:
         # Generate all possible masks for grid and gas10
@@ -85,7 +94,7 @@ def get_initial_feature(dataset_name, n_features):
     """
     if dataset_name == "cube":
         return 6
-    elif dataset_name == "MNIST":
+    elif dataset_name == "mnist":
         return 100
     elif dataset_name == "grid":
         return 1
