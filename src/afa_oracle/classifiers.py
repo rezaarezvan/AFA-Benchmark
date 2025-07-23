@@ -1,8 +1,11 @@
 import torch
+import pickle
+import wandb
 import numpy as np
 import torch.nn as nn
 
 from tqdm import tqdm
+from pathlib import Path
 from scipy.stats import norm
 from xgboost import XGBClassifier
 
@@ -67,18 +70,20 @@ class classifier_xgb_dict():
     XGBoost dictionary classifier with proper GPU support and progress indicators
     """
 
-    def __init__(self, output_dim, input_dim, subsample_ratio, X_train, y_train, device=None):
+    def __init__(self, output_dim, input_dim, subsample_ratio, X_train, y_train, device=None, dataset_name="mnist"):
         """
         Input:
         output_dim: Dimension of the outcome y
         input_dim: Dimension of the input features (X)
         subsample_ratio: Fraction of training points for each boosting iteration
         device: torch.device to use ('cpu' or 'cuda')
+        dataset_name: Name of dataset for caching
         """
         self.xgb_model_dict = {}
         self.output_dim = output_dim
         self.input_dim = input_dim
         self.subsample_ratio = subsample_ratio
+        self.dataset_name = dataset_name
 
         # Use provided device or infer from data
         if device is not None:
@@ -113,6 +118,66 @@ class classifier_xgb_dict():
         }
 
         print(f"XGBoost classifier initialized with device: CPU (to avoid GPU/CPU data mismatch)")
+
+        # Try to load existing classifiers
+        self._load_classifiers_from_wandb()
+
+    def _get_classifier_artifact_name(self):
+        """Generate artifact name for classifiers cache"""
+        return f"xgb_classifiers_{self.dataset_name.lower()}_{self.input_dim}_{self.output_dim}"
+
+    def _load_classifiers_from_wandb(self):
+        """Try to load existing classifiers from wandb artifacts"""
+        try:
+            artifact_name = self._get_classifier_artifact_name()
+            artifact = wandb.use_artifact(
+                f"{artifact_name}:latest", type="classifier_cache")
+            artifact_dir = Path(artifact.download())
+
+            classifiers_path = artifact_dir / "classifiers.pkl"
+            if classifiers_path.exists():
+                with open(classifiers_path, 'rb') as f:
+                    self.xgb_model_dict = pickle.load(f)
+                print(f"Loaded {len(self.xgb_model_dict)
+                                } cached XGBoost classifiers from wandb")
+                return True
+        except Exception as e:
+            print(f"Could not load cached classifiers: {e}")
+        return False
+
+    def _save_classifiers_to_wandb(self):
+        """Save trained classifiers to wandb artifacts"""
+        try:
+            import tempfile
+
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                tmp_path = Path(tmp_dir)
+                classifiers_path = tmp_path / "classifiers.pkl"
+
+                # Save the classifiers dict
+                with open(classifiers_path, 'wb') as f:
+                    pickle.dump(self.xgb_model_dict, f)
+
+                # Create wandb artifact
+                artifact_name = self._get_classifier_artifact_name()
+                artifact = wandb.Artifact(
+                    name=artifact_name,
+                    type="classifier_cache",
+                    metadata={
+                        "dataset": self.dataset_name,
+                        "input_dim": self.input_dim,
+                        "output_dim": self.output_dim,
+                        "n_classifiers": len(self.xgb_model_dict),
+                        "subsample_ratio": self.subsample_ratio,
+                    }
+                )
+                artifact.add_file(str(classifiers_path))
+                wandb.log_artifact(artifact)
+                print(f"Saved {len(self.xgb_model_dict)
+                               } XGBoost classifiers to wandb")
+
+        except Exception as e:
+            print(f"Could not save classifiers to wandb: {e}")
 
     def __call__(self, X, idx):
         n = X.shape[0]
@@ -152,6 +217,7 @@ class classifier_xgb_dict():
                 cached_masks += 1
 
         # Build new classifiers with progress bar
+        new_classifiers_added = False
         if masks_to_build:
             print(f"Building {len(masks_to_build)} new XGBoost classifiers (using {
                   cached_masks} cached)...")
@@ -176,12 +242,17 @@ class classifier_xgb_dict():
 
                     self.xgb_model_dict[mask_i_string].fit(
                         X_train_subset[idx_sample], self.y_train[idx_sample])
+                    new_classifiers_added = True
 
                 except Exception as e:
                     print(f"Warning: Failed to train XGBoost classifier for mask {
                           mask_i_string}: {e}")
                     # Fallback: create a dummy classifier that returns uniform probabilities
                     self.xgb_model_dict[mask_i_string] = None
+
+        # Save new classifiers to wandb if any were added
+        if new_classifiers_added:
+            self._save_classifiers_to_wandb()
 
         # Second pass: make predictions
         for i in range(n):
