@@ -183,8 +183,8 @@ cython_debug/
 /wandb
 /artifacts
 
-# Data folder
-/data*
+# Data
+/data
 
 # Model folder, includes weights and other types of saved models
 /models

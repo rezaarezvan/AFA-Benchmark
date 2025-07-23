@@ -434,6 +434,7 @@ class MNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         transform: Callable[[Tensor], Tensor] | None = None,
         download: bool = True,
         root: str = "data/MNIST",
+        seed: None = None,  # does nothing, added to not panic during data generation
     ):
         super().__init__()
         self.train = train
@@ -509,6 +510,7 @@ class FashionMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         transform: Callable[[Tensor], Tensor] | None = None,
         download: bool = True,
         root: str = "data/FashionMNIST",
+        seed: None = None,  # does nothing, added to not panic during data generation
     ):
         super().__init__()
         self.train = train
@@ -600,8 +602,7 @@ class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
         # Check if file exists
         if not os.path.exists(self.data_path):
-            return
-            # raise FileNotFoundError(f"Diabetes dataset not found at {self.data_path}")
+            raise FileNotFoundError(f"Diabetes dataset not found at {self.data_path}")
 
         # Load the dataset
         df = pd.read_csv(self.data_path)
@@ -694,8 +695,7 @@ class MiniBooNEDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         torch.manual_seed(self.seed)
 
         if not os.path.exists(self.data_path):
-            return
-            # raise FileNotFoundError(f"MiniBooNE dataset not found at {self.data_path}")
+            raise FileNotFoundError(f"MiniBooNE dataset not found at {self.data_path}")
 
         df = pd.read_csv(self.data_path)
 
@@ -780,8 +780,7 @@ class PhysionetDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         torch.manual_seed(self.seed)
 
         if not os.path.exists(self.data_path):
-            return
-            # raise FileNotFoundError(f"Physionet dataset not found at {self.data_path}")
+            raise FileNotFoundError(f"Physionet dataset not found at {self.data_path}")
 
         df = pd.read_csv(self.data_path)
 
