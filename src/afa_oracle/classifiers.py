@@ -6,6 +6,7 @@ import torch.nn as nn
 
 from tqdm import tqdm
 from pathlib import Path
+from datetime import datetime
 from scipy.stats import norm
 from xgboost import XGBClassifier
 
@@ -67,10 +68,10 @@ class NaiveBayes(nn.Module):
 
 class classifier_xgb_dict():
     """
-    XGBoost dictionary classifier with proper GPU support and progress indicators
+    XGBoost dictionary classifier with proper GPU support, progress indicators, and periodic saving
     """
 
-    def __init__(self, output_dim, input_dim, subsample_ratio, X_train, y_train, device=None, dataset_name="mnist"):
+    def __init__(self, output_dim, input_dim, subsample_ratio, X_train, y_train, device=None, dataset_name="mnist", save_batch_size=1000):
         """
         Input:
         output_dim: Dimension of the outcome y
@@ -78,12 +79,15 @@ class classifier_xgb_dict():
         subsample_ratio: Fraction of training points for each boosting iteration
         device: torch.device to use ('cpu' or 'cuda')
         dataset_name: Name of dataset for caching
+        save_batch_size: Number of classifiers to train before saving to wandb
         """
         self.xgb_model_dict = {}
         self.output_dim = output_dim
         self.input_dim = input_dim
         self.subsample_ratio = subsample_ratio
         self.dataset_name = dataset_name
+        self.save_batch_size = save_batch_size
+        self.classifiers_trained_since_save = 0
 
         # Use provided device or infer from data
         if device is not None:
@@ -108,7 +112,6 @@ class classifier_xgb_dict():
             self.y_train = y_train
 
         # XGBoost parameters - always use CPU to avoid device mismatch warnings
-        # since we work with numpy arrays anyway
         self.xgb_params = {
             'n_estimators': 250,
             'max_depth': 5,
@@ -117,7 +120,8 @@ class classifier_xgb_dict():
             'tree_method': 'hist',
         }
 
-        print(f"XGBoost classifier initialized with device: CPU (to avoid GPU/CPU data mismatch)")
+        print("XGBoost classifier initialized with device: CPU (to avoid GPU/CPU data mismatch)")
+        print(f"Periodic saving enabled: every {save_batch_size} classifiers")
 
         # Try to load existing classifiers
         self._load_classifiers_from_wandb()
@@ -145,8 +149,11 @@ class classifier_xgb_dict():
             print(f"Could not load cached classifiers: {e}")
         return False
 
-    def _save_classifiers_to_wandb(self):
-        """Save trained classifiers to wandb artifacts"""
+    def _save_classifiers_to_wandb(self, force_save=False):
+        """Save trained classifiers to wandb artifacts with versioning"""
+        if not force_save and self.classifiers_trained_since_save < self.save_batch_size:
+            return
+
         try:
             import tempfile
 
@@ -158,7 +165,7 @@ class classifier_xgb_dict():
                 with open(classifiers_path, 'wb') as f:
                     pickle.dump(self.xgb_model_dict, f)
 
-                # Create wandb artifact
+                # Create wandb artifact with version info
                 artifact_name = self._get_classifier_artifact_name()
                 artifact = wandb.Artifact(
                     name=artifact_name,
@@ -169,12 +176,16 @@ class classifier_xgb_dict():
                         "output_dim": self.output_dim,
                         "n_classifiers": len(self.xgb_model_dict),
                         "subsample_ratio": self.subsample_ratio,
+                        "save_batch_size": self.save_batch_size,
+                        "last_save_timestamp": str(datetime.now()),
                     }
                 )
                 artifact.add_file(str(classifiers_path))
                 wandb.log_artifact(artifact)
+
                 print(f"Saved {len(self.xgb_model_dict)
                                } XGBoost classifiers to wandb")
+                self.classifiers_trained_since_save = 0
 
         except Exception as e:
             print(f"Could not save classifiers to wandb: {e}")
@@ -216,8 +227,7 @@ class classifier_xgb_dict():
             else:
                 cached_masks += 1
 
-        # Build new classifiers with progress bar
-        new_classifiers_added = False
+        # Build new classifiers with progress bar and periodic saving
         if masks_to_build:
             print(f"Building {len(masks_to_build)} new XGBoost classifiers (using {
                   cached_masks} cached)...")
@@ -242,7 +252,13 @@ class classifier_xgb_dict():
 
                     self.xgb_model_dict[mask_i_string].fit(
                         X_train_subset[idx_sample], self.y_train[idx_sample])
-                    new_classifiers_added = True
+                    self.classifiers_trained_since_save += 1
+
+                    # Periodic saving
+                    if self.classifiers_trained_since_save >= self.save_batch_size:
+                        print(f"Saving progress: {
+                              len(self.xgb_model_dict)} classifiers trained so far...")
+                        self._save_classifiers_to_wandb()
 
                 except Exception as e:
                     print(f"Warning: Failed to train XGBoost classifier for mask {
@@ -250,9 +266,11 @@ class classifier_xgb_dict():
                     # Fallback: create a dummy classifier that returns uniform probabilities
                     self.xgb_model_dict[mask_i_string] = None
 
-        # Save new classifiers to wandb if any were added
-        if new_classifiers_added:
-            self._save_classifiers_to_wandb()
+            # Final save if there are unsaved classifiers
+            if self.classifiers_trained_since_save > 0:
+                print(f"Final save: {
+                      len(self.xgb_model_dict)} total classifiers")
+                self._save_classifiers_to_wandb(force_save=True)
 
         # Second pass: make predictions
         for i in range(n):

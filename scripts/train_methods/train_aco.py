@@ -79,7 +79,9 @@ def main(cfg: AACOTrainConfig):
         metrics = eval_afa_method(
             afa_select_fn=aaco_method.select,
             dataset=val_dataset,
-            budget=n_features,
+            # budget=n_features,
+            budget=25,  # Set a budget for evaluation
+            batch_size=512,
             afa_predict_fn=aaco_method.predict,
             only_n_samples=cfg.aco.eval_only_n_samples,
             device=device,

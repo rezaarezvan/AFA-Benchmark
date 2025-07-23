@@ -101,7 +101,9 @@ def load_mask_generator(dataset_name, input_dim):
     dataset_name_lower = dataset_name.lower()
 
     if dataset_name_lower in ["cube", "mnist", "fashionmnist", "physionet", "miniboone", "afacontext"]:
-        return random_mask_generator(10000, input_dim, 1000)
+        # return random_mask_generator(10000, input_dim, 10000)
+        # return random_mask_generator(100, input_dim, 100)
+        return random_mask_generator(10, input_dim, 10)
     elif dataset_name in ["grid", "gas10", "diabetes", "shim2018cube"]:
         # Generate all possible masks for grid and gas10
         all_masks = generate_all_masks(input_dim)
