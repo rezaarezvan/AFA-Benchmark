@@ -1,4 +1,4 @@
-from .aco_core import ACOOracle
-from .afa_methods import ACOAFAMethod, ACOBCAFAMethod
+from .aaco_core import AACOOracle
+from .afa_methods import AACOAFAMethod, create_aaco_method
 
-__all__ = ["ACOOracle", "ACOAFAMethod", "ACOBCAFAMethod"]
+__all__ = ["AACOOracle", "AACOAFAMethod", "create_aaco_method"]

@@ -1,408 +1,139 @@
-import gc
-import wandb
 import torch
 import hydra
+import wandb
 import logging
-import lightning as pl
 
 from pathlib import Path
 from typing import Any, cast
 from omegaconf import OmegaConf
-from tempfile import TemporaryDirectory
-from lightning.pytorch.loggers import WandbLogger
-from lightning.pytorch.callbacks import ModelCheckpoint
-
-from common.config_classes import ACOTrainConfig
-from common.models import LitMaskedMLPClassifier
-from common.classifiers import WrappedMaskedMLPClassifier
-from common.xgboost_classifier import (
-    XGBoostAFAClassifier,
-    LitXGBoostAFAClassifier,
-    WrappedXGBoostAFAClassifier,
-)
-from afa_rl.datasets import DataModuleFromDatasets
-from afa_oracle.aco_core import create_aco_oracle
-from common.utils import get_class_probabilities, load_dataset_artifact, set_seed
-from afa_oracle.afa_methods import (
-    ACOAFAMethod,
-    ACOBCAFAMethod,
-    train_behavioral_cloning_policy,
-)
-from eval.metrics import eval_afa_method
 from eval.utils import plot_metrics
+from tempfile import TemporaryDirectory
+from eval.metrics import eval_afa_method
+from afa_oracle import create_aaco_method
+from common.config_classes import AACOTrainConfig
+from common.utils import load_dataset_artifact, set_seed
 
 log = logging.getLogger(__name__)
 
 
-def train_xgboost_classifier(
-    train_dataset,
-    val_dataset,
-    n_features: int,
-    n_classes: int,
-    train_class_probabilities,
-    config,
-    device: torch.device,
-):
-    """Train XGBoost classifier for ACO."""
-    log.info("Training XGBoost classifier...")
-
-    # Create data module
-    datamodule = DataModuleFromDatasets(
-        train_dataset, val_dataset, batch_size=config.xgboost_params.batch_size
-    )
-
-    # Create XGBoost model
-    xgb_params = {
-        'n_estimators': config.xgboost_params.n_estimators,
-        'max_depth': config.xgboost_params.max_depth,
-        'learning_rate': config.xgboost_params.learning_rate,
-        'subsample': config.xgboost_params.subsample,
-        'colsample_bytree': config.xgboost_params.colsample_bytree,
-        'random_state': config.seed,
-    }
-
-    # Create XGBoost classifier first
-    classifier = XGBoostAFAClassifier(
-        n_features=n_features,
-        n_classes=n_classes,
-        device=device,
-        dictionary_threshold=25,
-        **xgb_params
-    )
-
-    # Fit the classifier with training data
-    all_features = []
-    all_labels = []
-    all_masks = []
-
-    for features, labels in datamodule.train_dataloader():
-        # Generate random masks for training
-        mask_probs = torch.rand_like(features)
-        feature_mask = mask_probs > torch.rand(features.shape[0], 1)
-
-        all_features.append(features)
-        all_labels.append(labels)
-        all_masks.append(feature_mask)
-
-    # Concatenate and fit
-    X_train = torch.cat(all_features, dim=0)
-    y_train = torch.cat(all_labels, dim=0)
-    masks_train = torch.cat(all_masks, dim=0)
-
-    classifier.fit(X_train, y_train, masks_train)
-
-    lit_model = LitXGBoostAFAClassifier(
-        classifier=classifier,
-        min_masking_probability=config.xgboost_params.min_masking_probability,
-        max_masking_probability=config.xgboost_params.max_masking_probability,
-    )
-
-    # Training setup
-    logger = WandbLogger()
-    trainer = pl.Trainer(
-        max_epochs=1,  # XGBoost trains in setup()
-        logger=logger,
-        accelerator="gpu" if device.type == "cuda" else "cpu",
-        devices=1,
-        enable_checkpointing=False,
-    )
-
-    # Train
-    trainer.fit(lit_model, datamodule)
-
-    # Wrap and return
-    return WrappedXGBoostAFAClassifier(lit_model=lit_model, device=device)
-
-
-def train_mlp_classifier(
-    train_dataset,
-    val_dataset,
-    n_features: int,
-    n_classes: int,
-    train_class_probabilities,
-    config,
-    device: torch.device,
-):
-    """Train MLP classifier for ACO."""
-    log.info("Training MLP classifier...")
-
-    # Create data module
-    datamodule = DataModuleFromDatasets(
-        train_dataset, val_dataset, batch_size=config.classifier_batch_size
-    )
-
-    # Create model
-    lit_model = LitMaskedMLPClassifier(
-        n_features=n_features,
-        n_classes=n_classes,
-        num_cells=tuple(config.classifier_num_cells),
-        dropout=config.classifier_dropout,
-        class_probabilities=train_class_probabilities,
-        min_masking_probability=0.0,
-        max_masking_probability=0.9,
-        lr=config.classifier_lr,
-    )
-
-    # Training setup
-    checkpoint_callback = ModelCheckpoint(
-        monitor="val_loss_many_observations",
-        save_top_k=1,
-        mode="min",
-    )
-
-    logger = WandbLogger()
-    trainer = pl.Trainer(
-        max_epochs=config.classifier_epochs,
-        logger=logger,
-        accelerator=device.type,
-        devices=1,
-        callbacks=[checkpoint_callback],
-    )
-
-    # Train
-    trainer.fit(lit_model, datamodule)
-
-    # Load best model and wrap
-    best_checkpoint = trainer.checkpoint_callback.best_model_path
-    best_lit_model = LitMaskedMLPClassifier.load_from_checkpoint(
-        best_checkpoint,
-        n_features=n_features,
-        n_classes=n_classes,
-        num_cells=config.classifier_num_cells,
-        dropout=config.classifier_dropout,
-        class_probabilities=train_class_probabilities,
-        max_masking_probability=0.9,
-        lr=config.classifier_lr,
-    )
-
-    return WrappedMaskedMLPClassifier(best_lit_model.classifier, device)
-
-
-def get_or_train_classifier(
-    config,
-    train_dataset,
-    val_dataset,
-    n_features: int,
-    n_classes: int,
-    train_class_probabilities,
-    device: torch.device,
-):
-    """Get or train classifier based on configuration."""
-
-    if not config.train_classifier and config.classifier_artifact_name:
-        # Load existing classifier
-        log.info(f"Loading classifier from {config.classifier_artifact_name}")
-        classifier_artifact = wandb.use_artifact(
-            config.classifier_artifact_name, type="trained_classifier"
-        )
-        classifier_dir = Path(classifier_artifact.download())
-
-        # Determine classifier type and load appropriately
-        classifier_type = config.get('classifier_type', 'mlp')
-        if classifier_type == 'xgboost':
-            return WrappedXGBoostAFAClassifier.load(classifier_dir / "classifier.pt", device)
-        else:
-            return WrappedMaskedMLPClassifier.load(classifier_dir / "classifier.pt", device)
-
-    else:
-        # Train new classifier
-        classifier_type = config.get('classifier_type', 'mlp')
-
-        if classifier_type == 'xgboost':
-            return train_xgboost_classifier(
-                train_dataset, val_dataset, n_features, n_classes,
-                train_class_probabilities, config, device
-            )
-        else:
-            return train_mlp_classifier(
-                train_dataset, val_dataset, n_features, n_classes,
-                train_class_probabilities, config, device
-            )
-
-
-@hydra.main(version_base=None, config_path="../../conf/train/aco", config_name="config")
-def main(cfg: ACOTrainConfig) -> None:
+@hydra.main(
+    version_base=None, config_path="../../conf/train/aco", config_name="config"
+)
+def main(cfg: AACOTrainConfig):
     log.debug(cfg)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
 
     run = wandb.init(
-        group="train_aco",
-        job_type="training",
         config=cast(dict[str, Any], OmegaConf.to_container(cfg, resolve=True)),
+        job_type="training",
+        tags=["aaco"],
     )
 
-    # Load dataset
+    log.info(f"W&B run initialized: {run.name} ({run.id})")
+    log.info(f"W&B run URL: {run.url}")
+
     train_dataset, val_dataset, _, dataset_metadata = load_dataset_artifact(
         cfg.dataset_artifact_name
     )
 
-    # Get dataset info
     n_features = train_dataset.features.shape[-1]
     n_classes = train_dataset.labels.shape[-1]
-    train_class_probabilities = get_class_probabilities(train_dataset.labels)
+    dataset_type = dataset_metadata["dataset_type"]
 
-    log.info(f"Dataset: {dataset_metadata['dataset_type']}")
+    log.info(f"Dataset: {dataset_type}")
     log.info(f"Features: {n_features}, Classes: {n_classes}")
     log.info(f"Training samples: {len(train_dataset)}")
 
-    # Train or load classifier
-    classifier = get_or_train_classifier(
-        cfg,
-        train_dataset,
-        val_dataset,
-        n_features,
-        n_classes,
-        train_class_probabilities,
-        device,
-    )
-
-    log.info("Creating ACO oracle...")
-
-    # Create ACO oracle
-    aco_oracle = create_aco_oracle(
+    aaco_method = create_aaco_method(
         k_neighbors=cfg.aco.k_neighbors,
         acquisition_cost=cfg.aco.acquisition_cost,
-        exhaustive_threshold=cfg.aco.exhaustive_search_threshold,
-        subset_search_size=cfg.aco.subset_search_size,
-        max_subset_size=cfg.aco.max_subset_size,
         hide_val=cfg.aco.hide_val,
-        distance_metric=cfg.aco.distance_metric,
-        standardize_features=cfg.aco.standardize_features,
+        dataset_name=dataset_type.lower(),
+        device=device,
     )
 
-    # Fit oracle on training data
-    log.info("Fitting ACO oracle on training data...")
-    aco_oracle.fit(train_dataset.features, train_dataset.labels.argmax(dim=-1))
+    log.info("Fitting AACO oracle on training data...")
+    log.info(f"Using hyperparameters: k_neighbors={cfg.aco.k_neighbors}, acquisition_cost={
+             cfg.aco.acquisition_cost}, hide_val={cfg.aco.hide_val}")
 
-    # Create ACO method
-    aco_method = ACOAFAMethod(
-        aco_oracle=aco_oracle, afa_classifier=classifier, _device=device
-    )
+    X_train = train_dataset.features.to(device)
+    y_train = train_dataset.labels.to(device)
+    aaco_method.aaco_oracle.fit(X_train, y_train)
 
-    log.info("ACO method created and fitted")
+    log.info("AACO method created and fitted")
 
-    # Optionally train behavioral cloning version
-    aco_bc_method = None
-    if cfg.aco_bc is not None:
-        log.info("Training behavioral cloning version...")
+    run.log({
+        "oracle_config/k_neighbors": cfg.aco.k_neighbors,
+        "oracle_config/acquisition_cost": cfg.aco.acquisition_cost,
+        "oracle_config/hide_val": cfg.aco.hide_val,
+        "oracle_config/dataset_features": n_features,
+        "oracle_config/dataset_classes": n_classes,
+        "oracle_config/training_samples": len(train_dataset),
+    })
 
-        bc_policy = train_behavioral_cloning_policy(
-            aco_method=aco_method,
-            dataset=train_dataset,
-            n_features=n_features,
-            bc_config=cfg.aco_bc,
+    if cfg.aco.evaluate_final_performance:
+        log.info("Evaluating AACO method...")
+
+        metrics = eval_afa_method(
+            afa_select_fn=aaco_method.select,
+            dataset=val_dataset,
+            budget=n_features,
+            afa_predict_fn=aaco_method.predict,
+            only_n_samples=cfg.aco.eval_only_n_samples,
             device=device,
         )
 
-        aco_bc_method = ACOBCAFAMethod(
-            policy_network=bc_policy, afa_classifier=classifier, _device=device
-        )
-
-        log.info("Behavioral cloning training completed")
-
-    # Evaluate if requested
-    if cfg.aco.evaluate_final_performance:
-        log.info("Evaluating ACO method...")
-
-        metrics = eval_afa_method(
-            afa_select_fn=aco_method.select,
-            dataset=val_dataset,
-            budget=n_features,
-            afa_predict_fn=aco_method.predict,
-            only_n_samples=cfg.aco.eval_only_n_samples,
-        )
-
         fig = plot_metrics(metrics)
-        run.log({"aco_metrics_plot": fig})
+        run.log({"aaco_metrics_plot": fig})
 
-        # Also evaluate BC version if available
-        if aco_bc_method is not None:
-            log.info("Evaluating ACO+BC method...")
+        final_accuracy = metrics["accuracy_all"][-1].item()
+        final_f1 = metrics["f1_all"][-1].item()
+        final_bce = metrics["bce_all"][-1].item()
 
-            bc_metrics = eval_afa_method(
-                afa_select_fn=aco_bc_method.select,
-                dataset=val_dataset,
-                budget=n_features,
-                afa_predict_fn=aco_bc_method.predict,
-                only_n_samples=cfg.aco.eval_only_n_samples,
-            )
+        run.log({
+            "final_accuracy": final_accuracy,
+            "final_f1_score": final_f1,
+            "final_bce": final_bce,
+            "avg_features_used": len(metrics["accuracy_all"]),
+        })
 
-            bc_fig = plot_metrics(bc_metrics)
-            run.log({"aco_bc_metrics_plot": bc_fig})
+        log.info(f"Final performance - Accuracy: {final_accuracy:.4f}, F1: {
+                 final_f1:.4f}, BCE: {final_bce:.4f}")
 
-    try:
-        # Save ACO method as artifact
-        with TemporaryDirectory(delete=False) as tmp_dir:
-            tmp_path = Path(tmp_dir)
+        budget_metrics = {}
+        for i, (acc, f1, bce) in enumerate(zip(metrics["accuracy_all"], metrics["f1_all"], metrics["bce_all"])):
+            budget_metrics[f"accuracy_at_{i+1}_features"] = acc.item()
+            budget_metrics[f"f1_at_{i+1}_features"] = f1.item()
+            budget_metrics[f"bce_at_{i+1}_features"] = bce.item()
 
-            # Save main ACO method
-            aco_method.save(tmp_path)
+        run.log(budget_metrics)
 
-            aco_artifact = wandb.Artifact(
-                name=f"train_aco-{dataset_metadata['dataset_type']
-                                  }-seed_{cfg.seed}",
-                type="trained_method",
-                metadata={
-                    "method_type": "aco",
-                    "dataset_artifact_name": cfg.dataset_artifact_name,
-                    "dataset_type": dataset_metadata["dataset_type"],
-                    "budget": None,  # ACO doesn't have a fixed budget
-                    "seed": cfg.seed,
-                    "k_neighbors": cfg.aco.k_neighbors,
-                    "acquisition_cost": cfg.aco.acquisition_cost,
-                },
-            )
+    with TemporaryDirectory(delete=False) as tmp_dir:
+        tmp_path = Path(tmp_dir)
 
-            aco_artifact.add_dir(str(tmp_path))
-            run.log_artifact(aco_artifact, aliases=cfg.output_artifact_aliases)
+        aaco_method.save(tmp_path)
 
-            log.info(f"ACO method saved as artifact")
+        aaco_artifact = wandb.Artifact(
+            name=f"train_aaco-{dataset_type}-seed_{cfg.seed}",
+            type="trained_method",
+            metadata={
+                "method_type": "aaco",
+                "dataset_artifact_name": cfg.dataset_artifact_name,
+                "dataset_type": dataset_type,
+                "budget": None,  # AACO doesn't have a fixed budget
+                "seed": cfg.seed,
+                "k_neighbors": cfg.aco.k_neighbors,
+                "acquisition_cost": cfg.aco.acquisition_cost,
+                "hide_val": cfg.aco.hide_val,
+                "implementation": "aaco",
+            },
+        )
+        aaco_artifact.add_dir(str(tmp_path))
+        run.log_artifact(aaco_artifact, aliases=cfg.output_artifact_aliases)
 
-        # Save BC method if available
-        if aco_bc_method is not None:
-            with TemporaryDirectory(delete=False) as tmp_dir_bc:
-                tmp_path_bc = Path(tmp_dir_bc)
-
-                aco_bc_method.save(tmp_path_bc)
-
-                aco_bc_artifact = wandb.Artifact(
-                    name=f"train_aco_bc-{dataset_metadata['dataset_type']}-seed_{
-                        cfg.seed
-                    }",
-                    type="trained_method",
-                    metadata={
-                        "method_type": "aco_bc",
-                        "dataset_artifact_name": cfg.dataset_artifact_name,
-                        "dataset_type": dataset_metadata["dataset_type"],
-                        "budget": None,
-                        "seed": cfg.seed,
-                        "k_neighbors": cfg.aco.k_neighbors,
-                        "acquisition_cost": cfg.aco.acquisition_cost,
-                        "bc_epochs": cfg.aco_bc.bc_epochs,
-                    },
-                )
-
-                aco_bc_artifact.add_dir(str(tmp_path_bc))
-                run.log_artifact(
-                    aco_bc_artifact,
-                    aliases=[
-                        f"{alias}_bc" for alias in cfg.output_artifact_aliases],
-                )
-
-                log.info(f"ACO+BC method saved as artifact")
-
-    except Exception as e:
-        log.error(f"Error saving artifacts: {e}")
-        raise
-    finally:
-        run.finish()
-
-        gc.collect()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-            torch.cuda.synchronize()
+    run.finish()
 
 
 if __name__ == "__main__":

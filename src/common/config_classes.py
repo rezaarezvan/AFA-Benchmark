@@ -507,82 +507,22 @@ cs.store(name="train_kachuee2019", node=Kachuee2019TrainConfig)
 
 
 @dataclass
-class ACOConfig:
-    """Configuration for ACO method"""
-    # Core ACO parameters
+class AACOConfig:
     k_neighbors: int = 5
     acquisition_cost: float = 0.05
-    subset_search_size: int = 10000  # For high-dimensional problems
-    hide_val: float = 10.0  # Value for unobserved features
-
-    # Distance and search parameters
-    distance_metric: str = "euclidean"
-    standardize_features: bool = True
-
-    # Subset search strategy
-    exhaustive_search_threshold: int = 12  # Switch to sampling above this dimension
-    max_subset_size: Optional[int] = None  # Limit subset size if needed
-
-    # Approximation parameters
-    use_random_subsets: bool = True  # Use random subset sampling for high-dim
-
-    # Evaluation settings
+    hide_val: float = 10.0
     evaluate_final_performance: bool = True
     eval_only_n_samples: Optional[int] = None
 
 
 @dataclass
-class ACOBCConfig:
-    """Configuration for ACO + Behavioral Cloning"""
-    # Behavioral cloning parameters
-    bc_epochs: int = 100
-    bc_batch_size: int = 128
-    bc_lr: float = 1e-3
-    bc_num_cells: List[int] = None  # Will default to [128, 128]
-    bc_dropout: float = 0.1
-
-    # BC data generation
-    bc_rollout_samples: int = 1000  # How many samples to rollout for BC training
-
-    def __post_init__(self):
-        if self.bc_num_cells is None:
-            self.bc_num_cells = [128, 128]
-
-
-@dataclass
-class ACOTrainConfig:
-    """Main training configuration for ACO"""
-    # Method configuration
-    aco: ACOConfig = None
-    aco_bc: Optional[ACOBCConfig] = None  # If None, don't train BC version
-
-    # Data and artifacts
-    dataset_artifact_name: str = "cube_split_1:tmp"
-    output_artifact_aliases: List[str] = None
-
-    # Training parameters (for classifier)
-    classifier_epochs: int = 100
-    classifier_batch_size: int = 128
-    classifier_lr: float = 1e-3
-    classifier_num_cells: List[int] = None
-    classifier_dropout: float = 0.1
-
-    # Training settings
-    train_classifier: bool = True  # Whether to train a new classifier or load existing
-    # If not training, load this one
-    classifier_artifact_name: Optional[str] = None
-
-    # General settings
+class AACOTrainConfig:
+    aco: AACOConfig
+    dataset_artifact_name: str
+    output_artifact_aliases: List[str]
     seed: int = 42
-    device: str = "cuda"
+    device: str = "cpu"
 
-    def __post_init__(self):
-        if self.aco is None:
-            self.aco = ACOConfig()
-        if self.output_artifact_aliases is None:
-            self.output_artifact_aliases = ["tmp"]
-        if self.classifier_num_cells is None:
-            self.classifier_num_cells = [128, 128]
 
 # --- TRAINING CLASSIFIERS ---
 
@@ -608,34 +548,6 @@ class TrainMaskedMLPClassifierConfig:
 
 cs.store(name="train_masked_mlp_classifier",
          node=TrainMaskedMLPClassifierConfig)
-
-
-@dataclass
-class TrainXGBoostClassifierConfig:
-    """Configuration for training XGBoost classifier."""
-    dataset_artifact_name: str
-    batch_size: int = 256
-    min_masking_probability: float = 0.0
-    max_masking_probability: float = 1.0
-    # if specified, only evaluate on this many samples
-    eval_only_n_samples: int | None = None
-    seed: int = 42
-    output_artifact_aliases: list[str] | None = None
-    evaluate_final_performance: bool = True
-
-    # XGBoost specific parameters
-    n_estimators: int = 100
-    max_depth: int = 6
-    learning_rate: float = 0.1
-    subsample: float = 0.8
-    colsample_bytree: float = 0.8
-
-    def __post_init__(self):
-        if self.output_artifact_aliases is None:
-            self.output_artifact_aliases = ["tmp"]
-
-
-cs.store(name="train_xgboost_classifier", node=TrainXGBoostClassifierConfig)
 
 # --- EVALUATION ---
 

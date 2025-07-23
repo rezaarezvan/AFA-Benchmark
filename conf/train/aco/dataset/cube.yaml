@@ -5,7 +5,11 @@ dataset_artifact_name: "afa-team/afa-benchmark/cube_split_1:v8"
 aco:
   k_neighbors: 5
   acquisition_cost: 0.05
-  exhaustive_search_threshold: 8
-  subset_search_size: 100
+  hide_val: 10.0
 
-classifier_epochs: 50  # Cube is relatively simple
+  # Evaluation settings
+  evaluate_final_performance: true
+  eval_only_n_samples: null
+
+seed: 42
+device: "cpu"

@@ -4,9 +4,11 @@ dataset_artifact_name: "afa-team/afa-benchmark/MNIST_split_1:latest"
 aco:
   k_neighbors: 5
   acquisition_cost: 0.05
-  exhaustive_search_threshold: 8  # MNIST has 256 features - definitely use sampling
-  subset_search_size: 20000  # More samples for high-dimensional
+  hide_val: 10.0
 
-# MNIST needs more training
-classifier_epochs: 200
-classifier_batch_size: 256
+  # Evaluation settings
+  evaluate_final_performance: true
+  eval_only_n_samples: null
+
+seed: 42
+device: "cpu"
