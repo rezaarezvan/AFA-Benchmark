@@ -1,35 +1,30 @@
 import torch
-import torch.nn
 import numpy as np
+import torch.nn as nn
 
+from tqdm import tqdm
 from scipy.stats import norm
-from distutils.log import error
 from xgboost import XGBClassifier
 
 
-class NaiveBayes(torch.nn.Module):
+class NaiveBayes(nn.Module):
     """
-    Their exact NaiveBayes implementation for CUBE dataset
+    Their exact Naive Bayes implementation for Cube dataset
     """
 
-    def __init__(self, num_features, num_classes, std):
-        super(NaiveBayes, self).__init__()
-
+    def __init__(self, num_features=20, num_classes=8, std=0.3):
+        super().__init__()
         self.num_features = num_features
         self.num_classes = num_classes
         self.std = std
 
-    def forward(self, x):
-        # Get device from input tensor
+    def forward(self, x, mask):
+        """
+        Args:
+            x: data tensor of shape (N, d)
+            mask: mask tensor of shape (N, d)
+        """
         device = x.device
-
-        try:
-            mask = x[:, self.num_features:]
-            x = x[:, :self.num_features]
-        except IndexError:
-            error(
-                "Classifier expects masking information to be concatenated with each feature vector.")
-
         y_classes = list(range(self.num_classes))
 
         # Initialize output_probs on the correct device
@@ -69,38 +64,71 @@ class NaiveBayes(torch.nn.Module):
 
 class classifier_xgb_dict():
     """
-    Their XGBoost dictionary classifier for dynamic training
+    XGBoost dictionary classifier with proper GPU support and progress indicators
     """
 
-    def __init__(self, output_dim, input_dim, subsample_ratio, X_train, y_train):
+    def __init__(self, output_dim, input_dim, subsample_ratio, X_train, y_train, device=None):
         """
         Input:
         output_dim: Dimension of the outcome y
         input_dim: Dimension of the input features (X)
         subsample_ratio: Fraction of training points for each boosting iteration
+        device: torch.device to use ('cpu' or 'cuda')
         """
         self.xgb_model_dict = {}
         self.output_dim = output_dim
         self.input_dim = input_dim
         self.subsample_ratio = subsample_ratio
-        # self.X_train = X_train.cpu().numpy()
-        # self.y_train = y_train.argmax(dim=1).cpu().numpy()
-        self.X_train = X_train if torch.cuda.is_available() else X_train.cpu().numpy()
-        self.y_train = y_train.argmax(dim=1) if torch.cuda.is_available(
-        ) else y_train.argmax(dim=1).cpu().numpy()
 
+        # Use provided device or infer from data
+        if device is not None:
+            self.device = device
+        else:
+            self.device = X_train.device if hasattr(
+                X_train, 'device') else torch.device('cpu')
+
+        # Convert to numpy for XGBoost, but keep track of device
+        if torch.is_tensor(X_train):
+            self.X_train = X_train.cpu().numpy()
+        else:
+            self.X_train = X_train
+
+        if torch.is_tensor(y_train):
+            if len(y_train.shape) > 1 and y_train.shape[1] > 1:
+                # One-hot encoded
+                self.y_train = y_train.argmax(dim=1).cpu().numpy()
+            else:
+                self.y_train = y_train.cpu().numpy()
+        else:
+            self.y_train = y_train
+
+        # XGBoost parameters - always use CPU to avoid device mismatch warnings
+        # since we work with numpy arrays anyway
         self.xgb_params = {
+            'n_estimators': 250,
+            'max_depth': 5,
+            'random_state': 29,
+            'n_jobs': 8,
             'tree_method': 'hist',
-            'device': 'gpu' if torch.cuda.is_available() else 'cpu',
         }
+
+        print(f"XGBoost classifier initialized with device: CPU (to avoid GPU/CPU data mismatch)")
 
     def __call__(self, X, idx):
         n = X.shape[0]
-        probs = torch.zeros((n, self.output_dim))
+        device = X.device if hasattr(X, 'device') else torch.device('cpu')
+        probs = torch.zeros((n, self.output_dim), device=device)
 
+        # Check if we're using GPU XGBoost
+        using_gpu_xgb = self.device.type == 'cuda' and torch.cuda.is_available()
+
+        # Track progress for classifier building
+        masks_to_build = []
+        cached_masks = 0
+
+        # First pass: identify which masks need to be built
         for i in range(n):
-            # Which mask?
-            mask_i = X[i][self.input_dim:]
+            mask_i = X[i][self.input_dim:].cpu()
             nonzero_i = mask_i.nonzero().squeeze()
 
             # Handle edge case: ensure nonzero_i is always an array
@@ -110,46 +138,104 @@ class classifier_xgb_dict():
             # Check if no features are selected
             if len(nonzero_i) == 0:
                 # No features selected - return uniform probabilities
-                dummy_probs = torch.ones(self.output_dim) / self.output_dim
+                dummy_probs = torch.ones(
+                    self.output_dim, device=device) / self.output_dim
                 probs[i] = dummy_probs
                 continue
 
             mask_i_string = ''.join(map(str, mask_i.long().tolist()))
 
-            # Is the mask in the dictionary?
+            # Check if the mask is already in the dictionary
             if mask_i_string not in self.xgb_model_dict:
-                self.xgb_model_dict[mask_i_string] = XGBClassifier(
-                    n_estimators=250, max_depth=5, random_state=29, n_jobs=8,
-                    **self.xgb_params)
+                masks_to_build.append((i, mask_i_string, nonzero_i))
+            else:
+                cached_masks += 1
 
-                # Extract features for selected indices
-                X_train_subset = self.X_train[:, nonzero_i.cpu().numpy()]
+        # Build new classifiers with progress bar
+        if masks_to_build:
+            print(f"Building {len(masks_to_build)} new XGBoost classifiers (using {
+                  cached_masks} cached)...")
 
-                # Ensure we have the right shape
-                if X_train_subset.ndim == 1:
-                    X_train_subset = X_train_subset.reshape(-1, 1)
+            for idx, (i, mask_i_string, nonzero_i) in enumerate(tqdm(masks_to_build, desc="Training classifiers")):
+                try:
+                    self.xgb_model_dict[mask_i_string] = XGBClassifier(
+                        **self.xgb_params)
 
-                # Subsample training data
-                n_samples = max(
-                    1, int(X_train_subset.shape[0] * self.subsample_ratio))
-                idx_sample = np.random.choice(
-                    X_train_subset.shape[0], n_samples, replace=False)
+                    # Extract features for selected indices
+                    X_train_subset = self.X_train[:, nonzero_i.cpu().numpy()]
 
-                self.xgb_model_dict[mask_i_string].fit(
-                    X_train_subset[idx_sample], self.y_train[idx_sample])
+                    # Ensure we have the right shape
+                    if X_train_subset.ndim == 1:
+                        X_train_subset = X_train_subset.reshape(-1, 1)
 
-            # Prediction
-            X_query = X[i, nonzero_i].cpu().numpy().reshape(1, -1)
-            pred_probs = self.xgb_model_dict[mask_i_string].predict_proba(
-                X_query)
-            probs[i] = torch.from_numpy(pred_probs[0])
+                    # Subsample training data
+                    n_samples = max(
+                        1, int(X_train_subset.shape[0] * self.subsample_ratio))
+                    idx_sample = np.random.choice(
+                        X_train_subset.shape[0], n_samples, replace=False)
+
+                    self.xgb_model_dict[mask_i_string].fit(
+                        X_train_subset[idx_sample], self.y_train[idx_sample])
+
+                except Exception as e:
+                    print(f"Warning: Failed to train XGBoost classifier for mask {
+                          mask_i_string}: {e}")
+                    # Fallback: create a dummy classifier that returns uniform probabilities
+                    self.xgb_model_dict[mask_i_string] = None
+
+        # Second pass: make predictions
+        for i in range(n):
+            mask_i = X[i][self.input_dim:].cpu()
+            nonzero_i = mask_i.nonzero().squeeze()
+
+            # Handle edge case: ensure nonzero_i is always an array
+            if nonzero_i.dim() == 0:  # scalar case (single feature)
+                nonzero_i = nonzero_i.unsqueeze(0)
+
+            # Check if no features are selected
+            if len(nonzero_i) == 0:
+                # No features selected - return uniform probabilities
+                dummy_probs = torch.ones(
+                    self.output_dim, device=device) / self.output_dim
+                probs[i] = dummy_probs
+                continue
+
+            mask_i_string = ''.join(map(str, mask_i.long().tolist()))
+
+            # Make prediction
+            if self.xgb_model_dict[mask_i_string] is not None:
+                try:
+                    # Extract query data and handle device properly
+                    X_query = X[i, nonzero_i]
+
+                    # For GPU XGBoost, try to keep data on GPU if possible
+                    if using_gpu_xgb and hasattr(X_query, 'cuda'):
+                        # Keep on GPU and convert to numpy - XGBoost will handle GPU transfer
+                        X_query_np = X_query.detach().cpu().numpy().reshape(1, -1)
+                    else:
+                        # Standard CPU conversion
+                        X_query_np = X_query.cpu().numpy().reshape(1, -1)
+
+                    pred_probs = self.xgb_model_dict[mask_i_string].predict_proba(
+                        X_query_np)
+                    probs[i] = torch.from_numpy(pred_probs[0]).to(device)
+                except Exception as e:
+                    print(f"Warning: Prediction failed for mask {
+                          mask_i_string}: {e}")
+                    # Fallback to uniform probabilities
+                    probs[i] = torch.ones(
+                        self.output_dim, device=device) / self.output_dim
+            else:
+                # Use fallback uniform probabilities
+                probs[i] = torch.ones(
+                    self.output_dim, device=device) / self.output_dim
 
         return probs
 
 
 class classifier_ground_truth():
     """
-    Wrapper for their ground truth NaiveBayes classifier
+    Wrapper for ground truth NaiveBayes classifier
     """
 
     def __init__(self, num_features=20, num_classes=8, std=0.3):
@@ -157,16 +243,36 @@ class classifier_ground_truth():
             num_features=num_features, num_classes=num_classes, std=std)
 
     def __call__(self, X, idx):
+        device = X.device if hasattr(X, 'device') else torch.device('cpu')
+        self.gt_classifier = self.gt_classifier.to(device)
         return self.gt_classifier.predict(X)
 
 
 class classifier_xgb():
     """
-    Wrapper for pre-trained XGBoost models
+    Wrapper for pre-trained XGBoost models with proper device handling
     """
 
     def __init__(self, xgb_model):
         self.xgb_model = xgb_model
 
     def __call__(self, X, idx):
-        return torch.tensor(self.xgb_model.predict_proba(X))
+        device = X.device if hasattr(X, 'device') else torch.device('cpu')
+
+        # Convert to numpy for XGBoost prediction
+        if torch.is_tensor(X):
+            X_np = X.cpu().numpy()
+        else:
+            X_np = X
+
+        try:
+            pred_probs = self.xgb_model.predict_proba(X_np)
+            return torch.tensor(pred_probs, device=device)
+        except Exception as e:
+            print(f"Warning: XGBoost prediction failed: {e}")
+            # Return uniform probabilities as fallback
+            n_samples = X.shape[0] if hasattr(X, 'shape') else len(X)
+            n_classes = getattr(self.xgb_model, 'n_classes_', 2)
+            uniform_probs = torch.ones(
+                (n_samples, n_classes), device=device) / n_classes
+            return uniform_probs

@@ -31,7 +31,7 @@ def get_knn(X_train, X_query, masks, num_neighbors, instance_idx=0, exclude_inst
         return torch.topk(dist_squared, num_neighbors, dim=0, largest=False)[1]
 
 
-def load_classifier(dataset_name, X_train, y_train, input_dim, models_dir="models/aaco"):
+def load_classifier(dataset_name, X_train, y_train, input_dim, device=None, models_dir="models/aaco"):
     """
     Classifier loading logic
     """
@@ -46,11 +46,11 @@ def load_classifier(dataset_name, X_train, y_train, input_dim, models_dir="model
 
     elif dataset_name_lower == "afacontext":
         # AFAContext has 30 features and 8 classes, use XGB dict
-        return classifier_xgb_dict(output_dim=n_classes, input_dim=input_dim, subsample_ratio=0.05, X_train=X_train, y_train=y_train)
+        return classifier_xgb_dict(output_dim=n_classes, input_dim=input_dim, subsample_ratio=0.05, X_train=X_train, y_train=y_train, device=device)
 
     elif dataset_name_lower in ["grid", "gas10"]:
         # Use XGB dictionary classifier for Grid and Gas10 datasets
-        return classifier_xgb_dict(output_dim=y_train.shape[1], input_dim=input_dim, subsample_ratio=0.01, X_train=X_train, y_train=y_train)
+        return classifier_xgb_dict(output_dim=y_train.shape[1], input_dim=input_dim, subsample_ratio=0.01, X_train=X_train, y_train=y_train, device=device)
 
     elif dataset_name_lower in ["mnist", "fashionmnist"]:
         # Expected input size for the pre-trained model
@@ -62,7 +62,7 @@ def load_classifier(dataset_name, X_train, y_train, input_dim, models_dir="model
                     {expected_input_size}, got {actual_input_size}")
             print(
                 f"Using XGB dictionary classifier for {dataset_name_lower.upper()} as fallback")
-            return classifier_xgb_dict(output_dim=y_train.shape[1], input_dim=input_dim, subsample_ratio=0.01, X_train=X_train, y_train=y_train)
+            return classifier_xgb_dict(output_dim=y_train.shape[1], input_dim=input_dim, subsample_ratio=0.01, X_train=X_train, y_train=y_train, device=device)
 
         # Only try to load pre-trained model if dimensions match
         xgb_model = XGBClassifier()
@@ -72,22 +72,22 @@ def load_classifier(dataset_name, X_train, y_train, input_dim, models_dir="model
         if not model_path.exists():
             print(f"Warning: XGBoost model not found at {model_path}")
             print("Using XGB dictionary classifier as fallback for MNIST")
-            return classifier_xgb_dict(output_dim=y_train.shape[1], input_dim=input_dim, subsample_ratio=0.01, X_train=X_train, y_train=y_train)
+            return classifier_xgb_dict(output_dim=y_train.shape[1], input_dim=input_dim, subsample_ratio=0.01, X_train=X_train, y_train=y_train, device=device)
 
         xgb_model.load_model(str(model_path))
         return classifier_xgb(xgb_model)
 
     elif dataset_name_lower == "diabetes":
         # Diabetes dataset - use XGB dict for small feature set
-        return classifier_xgb_dict(output_dim=n_classes, input_dim=input_dim, subsample_ratio=0.1, X_train=X_train, y_train=y_train)
+        return classifier_xgb_dict(output_dim=n_classes, input_dim=input_dim, subsample_ratio=0.1, X_train=X_train, y_train=y_train, device=device)
 
     elif dataset_name_lower == "physionet":
         # Physionet dataset - higher dimensional, use larger subsample
-        return classifier_xgb_dict(output_dim=n_classes, input_dim=input_dim, subsample_ratio=0.02, X_train=X_train, y_train=y_train)
+        return classifier_xgb_dict(output_dim=n_classes, input_dim=input_dim, subsample_ratio=0.02, X_train=X_train, y_train=y_train, device=device)
 
     elif dataset_name_lower == "miniboone":
         # MiniBooNE - medium dimensional, use standard subsample
-        return classifier_xgb_dict(output_dim=n_classes, input_dim=input_dim, subsample_ratio=0.05, X_train=X_train, y_train=y_train)
+        return classifier_xgb_dict(output_dim=n_classes, input_dim=input_dim, subsample_ratio=0.05, X_train=X_train, y_train=y_train, device=device)
 
     else:
         raise ValueError(f"Unsupported dataset: {
@@ -143,6 +143,7 @@ class AACOOracle:
                  acquisition_cost=0.05,
                  hide_val=10.0,
                  dataset_name="cube",
+                 device=None
                  ):
         self.k_neighbors = k_neighbors
         self.acquisition_cost = acquisition_cost
@@ -152,9 +153,10 @@ class AACOOracle:
         self.mask_generator = None
         self.X_train = None
         self.y_train = None
-        self.device = torch.device(
-            "cuda" if torch.cuda.is_available() else "cpu")
-        self.loss_function = nn.CrossEntropyLoss(reduction='none')
+        self.device = device
+        # Move loss function to device to avoid device mismatch
+        self.loss_function = nn.CrossEntropyLoss(
+            reduction='none').to(self.device)
 
     def fit(self, X_train, y_train):
         """
@@ -163,10 +165,10 @@ class AACOOracle:
         self.X_train = X_train.to(self.device)
         self.y_train = y_train.to(self.device)
 
-        # Load exact classifier
+        # Load exact classifier - pass device parameter
         input_dim = X_train.shape[1]
         self.classifier = load_classifier(
-            self.dataset_name, X_train, y_train, input_dim)
+            self.dataset_name, X_train, y_train, input_dim, device=self.device)
 
         # Load exact mask generator
         self.mask_generator = load_mask_generator(self.dataset_name, input_dim)
@@ -225,13 +227,22 @@ class AACOOracle:
 
         y_pred = self.classifier(x_with_mask, idx_nn_rep)
 
-        # Compute loss
+        # Compute loss - ensure tensors are on same device
         y_true_rep = self.y_train[idx_nn_rep]
         if len(y_true_rep.shape) > 1 and y_true_rep.shape[1] > 1:
             # One-hot encoded
             y_true_labels = y_true_rep.argmax(dim=1)
         else:
             y_true_labels = y_true_rep
+
+        # Ensure y_pred is on the correct device before loss computation
+        if hasattr(y_pred, 'to'):
+            y_pred = y_pred.to(self.device)
+        else:
+            y_pred = torch.tensor(y_pred, device=self.device)
+
+        # Ensure y_true_labels is on the correct device
+        y_true_labels = y_true_labels.to(self.device)
 
         loss = self.loss_function(y_pred, y_true_labels)
 
@@ -274,3 +285,13 @@ class AACOOracle:
 
             best_feat_idx = torch.tensor(individual_losses).argmin()
             return new_features[best_feat_idx].item()
+
+    def to(self, device):
+        """Move oracle to device"""
+        self.device = device
+        self.loss_function = self.loss_function.to(device)
+        if self.X_train is not None:
+            self.X_train = self.X_train.to(device)
+        if self.y_train is not None:
+            self.y_train = self.y_train.to(device)
+        return self
