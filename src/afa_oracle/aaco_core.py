@@ -37,24 +37,31 @@ def load_classifier(dataset_name, X_train, y_train, input_dim, models_dir="model
     """
     # Handle case variations
     dataset_name_lower = dataset_name.lower()
+    n_classes = y_train.shape[1] if len(
+        y_train.shape) > 1 else int(y_train.max().item()) + 1
 
-    if dataset_name_lower == "cube":
+    if dataset_name_lower == "cube" or dataset_name_lower == "shim2018cube":
         # Use the ground truth classifier for Cube dataset
         return classifier_ground_truth(num_features=20, num_classes=8, std=0.3)
+
+    elif dataset_name_lower == "afacontext":
+        # AFAContext has 30 features and 8 classes, use XGB dict
+        return classifier_xgb_dict(output_dim=n_classes, input_dim=input_dim, subsample_ratio=0.05, X_train=X_train, y_train=y_train)
 
     elif dataset_name_lower in ["grid", "gas10"]:
         # Use XGB dictionary classifier for Grid and Gas10 datasets
         return classifier_xgb_dict(output_dim=y_train.shape[1], input_dim=input_dim, subsample_ratio=0.01, X_train=X_train, y_train=y_train)
 
-    elif dataset_name_lower == "mnist":
+    elif dataset_name_lower in ["mnist", "fashionmnist"]:
         # Expected input size for the pre-trained model
         expected_input_size = 512  # 256 features + 256 mask
         actual_input_size = input_dim * 2  # current features + mask
 
         if actual_input_size != expected_input_size:
-            print(f"MNIST dimensionality mismatch: expected {
-                  expected_input_size}, got {actual_input_size}")
-            print("Using XGB dictionary classifier for MNIST")
+            print(f"{dataset_name_lower.upper()} dimensionality mismatch: expected \
+                    {expected_input_size}, got {actual_input_size}")
+            print(
+                f"Using XGB dictionary classifier for {dataset_name_lower.upper()} as fallback")
             return classifier_xgb_dict(output_dim=y_train.shape[1], input_dim=input_dim, subsample_ratio=0.01, X_train=X_train, y_train=y_train)
 
         # Only try to load pre-trained model if dimensions match
@@ -69,18 +76,33 @@ def load_classifier(dataset_name, X_train, y_train, input_dim, models_dir="model
 
         xgb_model.load_model(str(model_path))
         return classifier_xgb(xgb_model)
+
+    elif dataset_name_lower == "diabetes":
+        # Diabetes dataset - use XGB dict for small feature set
+        return classifier_xgb_dict(output_dim=n_classes, input_dim=input_dim, subsample_ratio=0.1, X_train=X_train, y_train=y_train)
+
+    elif dataset_name_lower == "physionet":
+        # Physionet dataset - higher dimensional, use larger subsample
+        return classifier_xgb_dict(output_dim=n_classes, input_dim=input_dim, subsample_ratio=0.02, X_train=X_train, y_train=y_train)
+
+    elif dataset_name_lower == "miniboone":
+        # MiniBooNE - medium dimensional, use standard subsample
+        return classifier_xgb_dict(output_dim=n_classes, input_dim=input_dim, subsample_ratio=0.05, X_train=X_train, y_train=y_train)
+
     else:
         raise ValueError(f"Unsupported dataset: {
-                         dataset_name}. Supported: cube, grid, gas10, mnist")
+                         dataset_name}. Supported: cube, shim2018cube, afacontext, grid, gas10, mnist, fashionmnist, diabetes, physionet, miniboone")
 
 
 def load_mask_generator(dataset_name, input_dim):
     """
     Their exact mask generator loading logic
     """
-    if dataset_name in ["cube", "mnist"]:
+    dataset_name_lower = dataset_name.lower()
+
+    if dataset_name_lower in ["cube", "mnist", "fashionmnist", "physionet", "miniboone", "afacontext"]:
         return random_mask_generator(10000, input_dim, 1000)
-    elif dataset_name in ["grid", "gas10"]:
+    elif dataset_name in ["grid", "gas10", "diabetes", "shim2018cube"]:
         # Generate all possible masks for grid and gas10
         all_masks = generate_all_masks(input_dim)
         return all_mask_generator(all_masks)
@@ -92,14 +114,24 @@ def get_initial_feature(dataset_name, n_features):
     """
     Their exact initial feature selection logic
     """
-    if dataset_name == "cube":
+    dataset_name = dataset_name.lower()
+
+    if dataset_name in ["cube", "shim2018cube"]:
         return 6
-    elif dataset_name == "mnist":
+    elif dataset_name in ["mnist", "fashionmnist"]:
         return 100
     elif dataset_name == "grid":
         return 1
     elif dataset_name == "gas10":
         return 6
+    elif dataset_name == "afacontext":
+        return 5
+    elif dataset_name == "diabetes":
+        return 2
+    elif dataset_name == "physionet":
+        return 10
+    elif dataset_name == "miniboone":
+        return 25
     else:
         # Default: select middle feature
         return n_features // 2
@@ -110,7 +142,8 @@ class AACOOracle:
                  k_neighbors=5,
                  acquisition_cost=0.05,
                  hide_val=10.0,
-                 dataset_name="cube"):
+                 dataset_name="cube",
+                 ):
         self.k_neighbors = k_neighbors
         self.acquisition_cost = acquisition_cost
         self.hide_val = hide_val
@@ -119,14 +152,16 @@ class AACOOracle:
         self.mask_generator = None
         self.X_train = None
         self.y_train = None
+        self.device = torch.device(
+            "cuda" if torch.cuda.is_available() else "cpu")
         self.loss_function = nn.CrossEntropyLoss(reduction='none')
 
     def fit(self, X_train, y_train):
         """
         Fit the oracle on training data
         """
-        self.X_train = X_train
-        self.y_train = y_train
+        self.X_train = X_train.to(self.device)
+        self.y_train = y_train.to(self.device)
 
         # Load exact classifier
         input_dim = X_train.shape[1]
@@ -165,12 +200,12 @@ class AACOOracle:
             return initial_feature
 
         # Get the nearest neighbors based on the observed feature mask
-        x_query = x_observed.unsqueeze(0)  # 1 x d
+        x_query = x_observed.unsqueeze(0).to(self.device)  # 1 x d
         idx_nn = get_knn(self.X_train, x_query, mask_curr.T,
                          self.k_neighbors, instance_idx, True).squeeze()
 
         # Generate random masks and get the next set of possible masks
-        new_masks = self.mask_generator(mask_curr)
+        new_masks = self.mask_generator(mask_curr).to(self.device)  # R x d
         mask = torch.maximum(
             new_masks, mask_curr.repeat(new_masks.shape[0], 1))
         mask[0] = mask_curr  # Ensure the current mask is included

@@ -20,6 +20,9 @@ class NaiveBayes(torch.nn.Module):
         self.std = std
 
     def forward(self, x):
+        # Get device from input tensor
+        device = x.device
+
         try:
             mask = x[:, self.num_features:]
             x = x[:, :self.num_features]
@@ -28,49 +31,37 @@ class NaiveBayes(torch.nn.Module):
                 "Classifier expects masking information to be concatenated with each feature vector.")
 
         y_classes = list(range(self.num_classes))
-        output_probs = torch.zeros((len(x), self.num_classes))
+
+        # Initialize output_probs on the correct device
+        output_probs = torch.zeros((len(x), self.num_classes), device=device)
 
         for y_val in y_classes:
             # PDF values for each feature in x conditioned on the given label y_val
 
-            # Default to PDF for U[0,1)
-            p_x_y = torch.where((x >= 0) & (x < 1), torch.ones(
-                x.shape), torch.zeros(x.shape))
+            # Default to PDF for U[0,1) - ensure tensors are on correct device
+            p_x_y = torch.where((x >= 0) & (x < 1),
+                                torch.ones(x.shape, device=device),
+                                torch.zeros(x.shape, device=device))
 
             # Use normal distribution PDFs for appropriate features given y_val
             p_x_y[:, y_val:y_val+3] = torch.transpose(
-                torch.Tensor(np.array([norm.pdf(x[:, y_val], y_val % 2, self.std),
-                                       norm.pdf(x[:, y_val+1],
+                torch.Tensor(np.array([norm.pdf(x[:, y_val].cpu(), y_val % 2, self.std),
+                                       norm.pdf(x[:, y_val+1].cpu(),
                                                 (y_val // 2) % 2, self.std),
-                                       norm.pdf(x[:, y_val+2], (y_val // 4) % 2, self.std)])), 0, 1)
+                                       norm.pdf(x[:, y_val+2].cpu(), (y_val // 4) % 2, self.std)])).to(device), 0, 1)
 
             # Compute joint probability over masked features
-            p_xo_y = torch.prod(torch.where(
-                torch.gt(mask, 0), p_x_y, torch.tensor(1).float()), dim=1)
+            p_xo_y = torch.prod(torch.where(torch.gt(mask, 0), p_x_y,
+                                            torch.tensor(1.0, device=device)), dim=1)
 
-            p_y = 1 / self.num_classes
+            p_y = torch.tensor(1.0 / self.num_classes, device=device)
+
             output_probs[:, y_val] = p_xo_y * p_y
 
-        # Add numerical stability: prevent division by zero
-        prob_sums = torch.sum(output_probs, axis=1)
-        # Prevent division by zero
-        prob_sums = torch.clamp(prob_sums, min=1e-10)
-
-        # Check for any remaining numerical issues
-        if torch.any(torch.isnan(prob_sums)) or torch.any(torch.isinf(prob_sums)):
-            # Return uniform distribution as fallback
-            uniform_probs = torch.ones_like(output_probs) / self.num_classes
-            return uniform_probs
-
-        normalized_probs = output_probs / prob_sums.unsqueeze(1)
-
-        # Final safety check for NaN/inf
-        if torch.any(torch.isnan(normalized_probs)) or torch.any(torch.isinf(normalized_probs)):
-            # Return uniform distribution as fallback
-            uniform_probs = torch.ones_like(output_probs) / self.num_classes
-            return uniform_probs
-
-        return normalized_probs
+        # Normalize properly and avoid division by zero
+        normalizer = torch.sum(output_probs, dim=1, keepdim=True)
+        normalizer = torch.clamp(normalizer, min=1e-8)
+        return output_probs / normalizer
 
     def predict(self, x):
         return self.forward(x)
@@ -92,8 +83,16 @@ class classifier_xgb_dict():
         self.output_dim = output_dim
         self.input_dim = input_dim
         self.subsample_ratio = subsample_ratio
-        self.X_train_numpy = X_train.numpy()
-        self.y_train_numpy = y_train.argmax(dim=1).numpy()
+        # self.X_train = X_train.cpu().numpy()
+        # self.y_train = y_train.argmax(dim=1).cpu().numpy()
+        self.X_train = X_train if torch.cuda.is_available() else X_train.cpu().numpy()
+        self.y_train = y_train.argmax(dim=1) if torch.cuda.is_available(
+        ) else y_train.argmax(dim=1).cpu().numpy()
+
+        self.xgb_params = {
+            'tree_method': 'hist',
+            'device': 'gpu' if torch.cuda.is_available() else 'cpu',
+        }
 
     def __call__(self, X, idx):
         n = X.shape[0]
@@ -120,10 +119,11 @@ class classifier_xgb_dict():
             # Is the mask in the dictionary?
             if mask_i_string not in self.xgb_model_dict:
                 self.xgb_model_dict[mask_i_string] = XGBClassifier(
-                    n_estimators=250, max_depth=5, random_state=29, n_jobs=8)
+                    n_estimators=250, max_depth=5, random_state=29, n_jobs=8,
+                    **self.xgb_params)
 
                 # Extract features for selected indices
-                X_train_subset = self.X_train_numpy[:, nonzero_i.cpu().numpy()]
+                X_train_subset = self.X_train[:, nonzero_i.cpu().numpy()]
 
                 # Ensure we have the right shape
                 if X_train_subset.ndim == 1:
@@ -136,7 +136,7 @@ class classifier_xgb_dict():
                     X_train_subset.shape[0], n_samples, replace=False)
 
                 self.xgb_model_dict[mask_i_string].fit(
-                    X_train_subset[idx_sample], self.y_train_numpy[idx_sample])
+                    X_train_subset[idx_sample], self.y_train[idx_sample])
 
             # Prediction
             X_query = X[i, nonzero_i].cpu().numpy().reshape(1, -1)

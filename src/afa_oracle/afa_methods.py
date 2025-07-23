@@ -18,7 +18,8 @@ logger = logging.getLogger(__name__)
 class AACOAFAMethod(AFAMethod):
     aaco_oracle: AACOOracle
     dataset_name: str
-    _device: torch.device = torch.device("cpu")
+    _device: torch.device = torch.device(
+        "cuda") if torch.cuda.is_available() else torch.device("cpu")
 
     def __post_init__(self):
         # Move oracle to device if needed
@@ -31,6 +32,9 @@ class AACOAFAMethod(AFAMethod):
         """
         Select next feature using their AACO implementation
         """
+        masked_features = masked_features.to(self._device)
+        feature_mask = feature_mask.to(self._device)
+
         original_device = masked_features.device
 
         masked_features = masked_features.to(self._device)
@@ -85,12 +89,12 @@ class AACOAFAMethod(AFAMethod):
             x_with_mask = torch.cat([x_masked, obs_mask.float()])
 
             pred = self.aaco_oracle.classifier(
-                x_with_mask.unsqueeze(0), torch.tensor([0]))
+                x_with_mask.unsqueeze(0), torch.tensor([0], device=self._device))
             pred = pred.squeeze()
 
             # Handle different types of classifier outputs
             # Output is logits or unnormalized, apply softmax
-            if torch.any(pred < 0) or torch.any(pred > 1) or not torch.allclose(pred.sum(), torch.tensor(1.0), atol=1e-6):
+            if torch.any(pred < 0) or torch.any(pred > 1) or not torch.allclose(pred.sum(), torch.tensor(1.0, device=pred.device), atol=1e-6):
                 pred = torch.softmax(pred, dim=0)
 
             # Final safety check: ensure valid probabilities
@@ -170,7 +174,8 @@ def create_aaco_method(
     acquisition_cost: float = 0.05,
     hide_val: float = 10.0,
     dataset_name: str = "cube",
-    device: torch.device = torch.device("cpu")
+    device: torch.device = torch.device(
+        "cuda") if torch.cuda.is_available() else torch.device("cpu"),
 ) -> AACOAFAMethod:
     """
     Factory function to create AACO method
