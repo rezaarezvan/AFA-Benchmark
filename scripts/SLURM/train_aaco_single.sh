@@ -2,7 +2,7 @@
 #SBATCH -A NAISS2025-22-448                 # Project account
 #SBATCH -p alvis 			                # Queue/partiton name
 #SBATCH -N 1 				                # Number of nodes
-#SBATCH --gpus-per-node=A40:1		        # Number of gpus and types
+#SBATCH --gpus-per-node=T4:1		        # Number of gpus and types
 #SBATCH -t 24:00:00			                # Max runtime
 #SBATCH --job-name=aaco_train               # Job name
 #SBATCH --output=logs/aaco_train_%j.out     # Output log file
@@ -13,10 +13,8 @@ module load virtualenv/20.26.2-GCCcore-13.3.0
 module load Python/3.12.3-GCCcore-13.3.0
 
 # Default values
-DATASET=${1:-"cube"}
-SEED=${2:-42}
+DATASET=${1:-"MNIST"}
 DEVICE=${3:-"cuda"}
-ALIAS=${4:-"slurm"}
 
 set -e
 echo "Running on $(hostname)"
@@ -33,10 +31,7 @@ export PYTHONPATH=$PYTHONPATH:$(pwd)
 # Run training
 uv run scripts/train_methods/train_aco.py \
     +dataset=$DATASET \
-    +seed=$SEED \
-    +device=$DEVICE \
-    +output_artifact_aliases=[$ALIAS] \
-    +dataset_artifact_name="${DATASET}_split_1:$ALIAS"
+    device=$DEVICE \
 
 echo "Training completed for $DATASET"
 echo "End time: $(date)"
