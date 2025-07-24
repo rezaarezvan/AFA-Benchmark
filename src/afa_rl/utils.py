@@ -421,25 +421,34 @@ def weighted_cross_entropy(
     target_probs: torch.Tensor,
     weights: torch.Tensor,
     eps: float = 1e-8,
+    reduction: str = "none",  # or 'none', 'sum'
 ) -> torch.Tensor:
     """
-    Cross-entropy between predicted and target probability distributions,
-    with per-class weighting. Batched.
+    Computes weighted cross-entropy between predicted and target distributions.
 
-    input_probs: shape (batch_size, num_classes), predicted probabilities
-    target_probs: shape (batch_size, num_classes), target probabilities
-    weights: shape (num_classes,), weight per class
-    eps: float, to avoid log(0)
+    Args:
+        input_probs: (batch_size, num_classes), predicted class probabilities.
+        target_probs: (batch_size, num_classes), target probability distributions (e.g., one-hot or soft).
+        weights: (num_classes,), per-class weights.
+        eps: small value to avoid log(0).
+        reduction: 'mean', 'sum', or 'none'.
+
+    Returns:
+        Tensor of shape (batch_size,) if reduction='none',
+        else scalar loss.
     """
-
-    assert len(input_probs.shape) == 2
-    assert len(target_probs.shape) == 2
-    assert len(weights.shape) == 1
-    assert weights.shape[0] == input_probs.shape[1] == target_probs.shape[1]
-
     log_input = torch.log(input_probs + eps)
-    weighted_ce = -target_probs * log_input * weights  # element-wise weight
-    return weighted_ce.sum(dim=1)
+    weighted_ce = -target_probs * log_input * weights.unsqueeze(0)
+    loss_per_sample = weighted_ce.sum(dim=1)
+
+    if reduction == "mean":
+        return loss_per_sample.mean()
+    elif reduction == "sum":
+        return loss_per_sample.sum()
+    elif reduction == "none":
+        return loss_per_sample
+    else:
+        raise ValueError(f"Invalid reduction: {reduction}")
 
 
 str_to_activation_class_mapping: dict[str, type[nn.Module]] = {

@@ -8,9 +8,7 @@ import torch.nn.functional as F
 from jaxtyping import Float
 from torch import Tensor, nn
 
-from afa_rl.utils import (
-    mask_data,
-)
+from afa_rl.utils import mask_data, weighted_cross_entropy
 from common.custom_types import (
     AFAClassifier,
     AFAPredictFn,
@@ -204,7 +202,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         lr: float,
         kl_scaling_factor: float = 1e-3,
         classifier_loss_scaling_factor: float = 1,
-        recon_loss_type: PartialVAELossType = PartialVAELossType.SQUARED_ERROR,
+        # recon_loss_type: PartialVAELossType = PartialVAELossType.SQUARED_ERROR,
     ):
         super().__init__()
         self.partial_vae: PartialVAE = partial_vae
@@ -217,14 +215,14 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         self.classifier_loss_scaling_factor = classifier_loss_scaling_factor
         self.kl_scaling_factor: float = kl_scaling_factor
 
-        self.recon_loss_type = recon_loss_type
+        # self.recon_loss_type = recon_loss_type
 
     @override
     def training_step(self, batch: tuple[Tensor, Tensor], batch_idx: int):
         features: Features = batch[0]
         label: Label = batch[1]
 
-        # According to the paper, labels are appended to the features
+        # According to the paper, labels are appended to the features. "Augmented" = features + labels
         augmented_features = torch.cat(
             [features, label], dim=-1
         )  # (batch_size, n_features+n_classes)
@@ -242,13 +240,23 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         _encoding, mu, logvar, z, estimated_augmented_features = self.partial_vae(
             augmented_masked_features, augmented_feature_mask
         )
-        partial_vae_loss, partial_vae_recon_loss, partial_vae_kl_div_loss = (
-            self.partial_vae_loss_function(
-                estimated_augmented_features, augmented_features, mu, logvar
-            )
+        (
+            partial_vae_loss,
+            partial_vae_feature_recon_loss,
+            partial_vae_label_recon_loss,
+            partial_vae_kl_div_loss,
+        ) = self.partial_vae_loss_function(
+            estimated_augmented_features, augmented_features, mu, logvar
         )
         self.log("train_loss_vae", partial_vae_loss, sync_dist=True)
-        self.log("train_recon_loss_vae", partial_vae_recon_loss, sync_dist=True)
+        self.log(
+            "train_feature_recon_loss_vae",
+            partial_vae_feature_recon_loss,
+            sync_dist=True,
+        )
+        self.log(
+            "train_label_recon_loss_vae", partial_vae_label_recon_loss, sync_dist=True
+        )
         self.log("train_kl_div_loss_vae", partial_vae_kl_div_loss, sync_dist=True)
 
         # Pass the encoding through the classifier
@@ -271,15 +279,18 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         augmented_feature_mask: FeatureMask,
         augmented_features: Features,
         label: Label,
-    ) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
         # Pass masked features through VAE, returning estimated augmented features but also encoding which will be passed through classifier
         _encoder, mu, logvar, z, estimated_augmented_features = self.partial_vae(
             augmented_masked_features, augmented_feature_mask
         )
-        partial_vae_loss, partial_vae_recon_loss, partial_vae_kl_div_loss = (
-            self.partial_vae_loss_function(
-                estimated_augmented_features, augmented_features, mu, logvar
-            )
+        (
+            partial_vae_loss,
+            partial_vae_feature_recon_loss,
+            partial_vae_label_recon_loss,
+            partial_vae_kl_div_loss,
+        ) = self.partial_vae_loss_function(
+            estimated_augmented_features, augmented_features, mu, logvar
         )
 
         # Pass the encoding through the classifier
@@ -295,7 +306,8 @@ class Zannone2019PretrainingModel(pl.LightningModule):
 
         return (
             partial_vae_loss,
-            partial_vae_recon_loss,
+            partial_vae_feature_recon_loss,
+            partial_vae_label_recon_loss,
             partial_vae_kl_div_loss,
             classifier_loss,
             acc,
@@ -354,7 +366,8 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         ] = 0
         (
             loss_vae_many_observations,
-            recon_loss_vae_many_observations,
+            feature_recon_loss_vae_many_observations,
+            label_recon_loss_vae_many_observations,
             kl_div_loss_vae_many_observations,
             loss_classifier_many_observations,
             acc_many_observations,
@@ -366,7 +379,12 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         )
         self.log("val_loss_vae_many_observations", loss_vae_many_observations)
         self.log(
-            "val_recon_loss_vae_many_observations", recon_loss_vae_many_observations
+            "val_feature_recon_loss_vae_many_observations",
+            feature_recon_loss_vae_many_observations,
+        )
+        self.log(
+            "val_label_recon_loss_vae_many_observations",
+            label_recon_loss_vae_many_observations,
         )
         self.log(
             "val_kl_div_loss_vae_many_observations", kl_div_loss_vae_many_observations
@@ -391,7 +409,8 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         ] = 0
         (
             loss_vae_few_observations,
-            recon_loss_vae_few_observations,
+            feature_recon_loss_vae_few_observations,
+            label_recon_loss_vae_few_observations,
             kl_div_loss_vae_few_observations,
             loss_classifier_few_observations,
             acc_few_observations,
@@ -402,7 +421,14 @@ class Zannone2019PretrainingModel(pl.LightningModule):
             label,
         )
         self.log("val_loss_vae_few_observations", loss_vae_few_observations)
-        self.log("val_recon_loss_vae_few_observations", recon_loss_vae_few_observations)
+        self.log(
+            "val_feature_recon_loss_vae_few_observations",
+            feature_recon_loss_vae_few_observations,
+        )
+        self.log(
+            "val_label_recon_loss_vae_few_observations",
+            label_recon_loss_vae_few_observations,
+        )
         self.log(
             "val_kl_div_loss_vae_few_observations", kl_div_loss_vae_few_observations
         )
@@ -440,24 +466,30 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         augmented_features: Tensor,
         mu: Tensor,
         logvar: Tensor,
-    ) -> tuple[Tensor, Tensor, Tensor]:
-        if self.recon_loss_type == PartialVAELossType.SQUARED_ERROR:
-            recon_loss = (
-                ((estimated_augmented_features - augmented_features) ** 2)
-                .sum(dim=1)
-                .mean(dim=0)
-            )
-        elif self.recon_loss_type == PartialVAELossType.BINARY_CROSS_ENTROPY:
-            recon_loss = F.binary_cross_entropy(
-                estimated_augmented_features, augmented_features, reduction="mean"
-            )
-        else:
-            raise ValueError(
-                f"Unknown reconstruction loss type: {self.recon_loss_type}. Use any of {set(map(str, PartialVAELossType))}"
-            )
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
+        # Split augmented features (features+labels) into their corresponding parts so we can have different losses for them
+        estimated_features, estimated_labels = (
+            estimated_augmented_features[..., : len(self.class_weights)],
+            estimated_augmented_features[..., len(self.class_weights) :],
+        )
+        features, labels = (
+            augmented_features[..., : len(self.class_weights)],
+            augmented_features[..., len(self.class_weights) :],
+        )
+        feature_recon_loss = (
+            ((estimated_features - features) ** 2).sum(dim=1).mean(dim=0)
+        )
+        label_recon_loss = weighted_cross_entropy(
+            estimated_labels, labels, weights=self.class_weights, reduction="mean"
+        )
         kl_div = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp()).sum(dim=1).mean(dim=0)
         kl_div_loss = self.kl_scaling_factor * kl_div
-        return recon_loss + kl_div_loss, recon_loss, kl_div_loss
+        return (
+            feature_recon_loss + label_recon_loss + kl_div_loss,
+            feature_recon_loss,
+            label_recon_loss,
+            kl_div_loss,
+        )
 
     @override
     def configure_optimizers(self):
