@@ -158,7 +158,7 @@ class AFASelectFn(Protocol):
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
         features: Features | None,
-        labels: Label | None,
+        label: Label | None,
     ) -> AFASelection: ...
 
 

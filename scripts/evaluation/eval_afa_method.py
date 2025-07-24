@@ -1,5 +1,6 @@
 """Evaluate a single AFA method on a dataset, using a trained classifier if specified."""
 
+from matplotlib import pyplot as plt
 import logging
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -185,9 +186,17 @@ def main(cfg: EvalConfig) -> None:
     )
 
     fig = plot_metrics(metrics)
+    action_fig, action_ax = plt.subplots()
+    action_ax.plot(
+        torch.arange(metrics["action_distribution"].shape[-1]),
+        metrics["action_distribution"].cpu(),
+    )
+    action_ax.set_xlabel("Feature index")
+    action_ax.set_ylabel("Action probability")
     run.log(
         {
             "metrics_plot": fig,
+            "action_plot": action_fig,
         }
     )
 

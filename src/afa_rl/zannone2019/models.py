@@ -486,11 +486,11 @@ class Zannone2019PretrainingModel(pl.LightningModule):
             weight=self.class_weights.to(estimated_label_logits.device),
             reduction="mean",
         )
-        label_recon_loss *= self.label_loss_scaling_factor
+        label_recon_loss = label_recon_loss * self.label_loss_scaling_factor
         kl_div_loss = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp()).sum(dim=1).mean(
             dim=0
         )
-        kl_div_loss *= self.kl_scaling_factor
+        kl_div_loss = kl_div_loss * self.kl_scaling_factor
         return (
             feature_recon_loss + label_recon_loss + kl_div_loss,
             feature_recon_loss,

@@ -210,12 +210,6 @@ def eval_afa_method(
         if only_n_samples is not None and n_evaluated_samples >= only_n_samples:
             break
 
-    # Convert everything to tensors instead of lists of tensors
-    # list[Tensor[budget,batch_size,n_features]] (n_batches)
-    # temp = [t.permute(1, 0, 2) for t in feature_mask_history_all]  # list[Tensor[batch_size,budget,n_features]] (n_batches)
-    # feature_mask_history_tensor: Tensor = torch.cat(temp)  # Tensor[n_samples,budget,n_features]
-
-    # list[Tensor[budget,batch_size,n_classes]]] (n_batches)
     temp = [
         t.permute(1, 0, 2) for t in prediction_history_all
     ]  # list[Tensor[batch_size,budget,n_classes]] (n_batches)
@@ -223,8 +217,16 @@ def eval_afa_method(
         temp
     )  # Tensor[n_samples,budget,n_classes] (n_batches)
 
-    # list[Tensor[batch_size,n_classes]] (n_batches)
-    labels_tensor: Tensor = torch.cat(labels_all)  # Tensor[n_samples,C]
+    temp = [
+        t.permute(1, 0, 2) for t in feature_mask_history_all
+    ]  # list[Tensor[batch_size,budget,n_classes]] (n_batches)
+    feature_mask_history_tensor: Tensor = torch.cat(
+        temp
+    )  # Tensor[n_samples,budget,n_classes] (n_batches)
+    action_count = feature_mask_history_tensor[:, -1, :].sum(dim=0)  # (n_classes,)
+    action_distribution = action_count / action_count.sum()  # (n_classes,)
+
+    labels_tensor: Tensor = torch.cat(labels_all)  # Tensor[n_samples,n_classes]
 
     labels_tensor = torch.argmax(labels_tensor, dim=1)
 
@@ -238,6 +240,7 @@ def eval_afa_method(
         "accuracy_all": accuracy_all.detach().cpu(),
         "f1_all": f1_all.detach().cpu(),
         "bce_all": bce_all.detach().cpu(),
+        "action_distribution": action_distribution,
         # "feature_mask_history_all": feature_mask_history_tensor,
         #     [t.detach().cpu() for t in sublist] for sublist in feature_mask_history_tensor
         # ],
