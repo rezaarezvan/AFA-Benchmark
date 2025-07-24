@@ -73,6 +73,8 @@ class AFAMethod(Protocol):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
+        features: Features,
+        label: Label,
     ) -> AFASelection:
         """Return the 1-based index of the feature to be collected next or 0 if no more features should be collected.
 
@@ -81,7 +83,11 @@ class AFAMethod(Protocol):
         ...
 
     def predict(
-        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        features: Features,
+        label: Label,
     ) -> Label:
         """Return the predicted label for the features that have been observed so far.
 
@@ -147,12 +153,20 @@ class AFAClassifier(Protocol):
 # Feature selection interface assumed during evaluation
 class AFASelectFn(Protocol):
     def __call__(
-        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        features: Features,
+        labels: Label,
     ) -> AFASelection: ...
 
 
 # Classifier prediction interface assumed during evaluation
 class AFAPredictFn(Protocol):
     def __call__(
-        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        features: Features,
+        label: Label,
     ) -> Label: ...

@@ -180,13 +180,16 @@ def eval_afa_method(
         # Let AFA method select features for a fixed number of steps
         for i in range(budget):
             # Always calculate a prediction
-            predictions = afa_predict_fn(masked_features, feature_mask)
+            predictions = afa_predict_fn(
+                masked_features, feature_mask, features, labels
+            )
 
             prediction_history[i] = predictions
 
             # Select new features
             selections = afa_select_fn(
-                masked_features, feature_mask).squeeze(-1)
+                masked_features, feature_mask, features, labels
+            ).squeeze(-1)
 
             # Update the feature mask and masked features
             feature_mask[
