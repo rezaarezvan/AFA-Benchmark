@@ -77,7 +77,7 @@ def main(cfg: Ma2018PretraingConfig):
     pv = PartialVAE(
         pointnet=pointnet,
         encoder=encoder,
-        decoder_feature_head=nn.Sequential(
+        decoder=nn.Sequential(
             MLP(
                 in_features=cfg.partial_vae.latent_size,
                 out_features=d_in,
@@ -86,13 +86,22 @@ def main(cfg: Ma2018PretraingConfig):
             ),
             nn.Identity(),
         ),
-        decoder_class_head=MLP(
-            in_features=cfg.partial_vae.latent_size,
-            out_features=d_out,
-            num_cells=cfg.classifier.num_cells,
-            dropout=cfg.classifier.dropout,
-            activation_class=nn.ReLU,
-        ),
+        # decoder_feature_head=nn.Sequential(
+        #     MLP(
+        #         in_features=cfg.partial_vae.latent_size,
+        #         out_features=d_in,
+        #         num_cells=cfg.partial_vae.decoder_num_cells,
+        #         activation_class=nn.ReLU,
+        #     ),
+        #     nn.Identity(),
+        # ),
+        # decoder_class_head=MLP(
+        #     in_features=cfg.partial_vae.latent_size,
+        #     out_features=d_out,
+        #     num_cells=cfg.classifier.num_cells,
+        #     dropout=cfg.classifier.dropout,
+        #     activation_class=nn.ReLU,
+        # ),
         num_classes=d_out
     )
     pv = pv.to(device)
@@ -107,17 +116,29 @@ def main(cfg: Ma2018PretraingConfig):
     )
 
     # Train masked predictor.
-    # model = MLP(
-    #     in_features=cfg.partial_vae.latent_size,
-    #     out_features=d_out,
-    #     num_cells=cfg.classifier.num_cells,
-    #     dropout=cfg.classifier.dropout,
-    #     activation_class=nn.ReLU,
-    # )
+    mask_layer = MaskLayer(append=True)
+    model = MLP(
+        in_features=d_in * 2,
+        out_features=d_out,
+        num_cells=cfg.classifier.num_cells,
+        dropout=cfg.classifier.dropout,
+        activation_class=nn.ReLU,
+    )
+    sampler = UniformSampler(train_dataset.features)
+    iterative = IterativeSelector(model, mask_layer, sampler).to(device)
+    iterative.fit(
+        train_loader,
+        val_loader,
+        lr=cfg.classifier.lr,
+        nepochs=cfg.classifier.epochs,
+        loss_fn=nn.CrossEntropyLoss(),
+        patience=cfg.classifier.patience,
+        verbose=True)
     # eddi = EDDI_Training(model, pv)
     # eddi.fit(train_loader, val_loader)
 
-    eddi_selector = Ma2018AFAMethod(pv, d_out)
+    # eddi_selector = Ma2018AFAMethod(pv, d_out)
+    eddi_selector = Ma2018AFAMethod(pv, model)
     pretrained_model_artifact = wandb.Artifact(
         name=f"pretrain_ma2018-{cfg.dataset_artifact_name.split(':')[0]}",
         type="pretrained_model",

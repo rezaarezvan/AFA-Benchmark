@@ -54,20 +54,23 @@ def calculate_criterion(preds, task):
 
 
 class Ma2018AFAMethod(AFAMethod):
-    def __init__(self, sampler, num_classes, task='classification', device=torch.device("cpu")):
+    def __init__(self, sampler, predictor, task='classification', device=torch.device("cpu")):
         super().__init__()
         assert hasattr(sampler, 'impute')
         self.sampler: PartialVAE = sampler
-        self.num_classes = num_classes
+        self.predictor = predictor
+        # self.num_classes = num_classes
         assert task in ('regression', 'classification')
         self.task = task
         self._device: torch.device = device
 
     def predict(self, masked_features: MaskedFeatures, feature_mask: FeatureMask) -> Label:
         # using an independent classifier
-        # x_masked = torch.cat([masked_features, feature_mask], dim=1)
+        x_masked = torch.cat([masked_features, feature_mask], dim=1)
+        logits = self.predictor(x_masked)
         # pred = self.predictor(x_masked)
-        # return pred
+        pred = F.softmax(logits, dim=-1)
+        return pred
 
         # using a jointly trained classifier
         # masked_features = masked_features.to(self._device)
@@ -78,33 +81,27 @@ class Ma2018AFAMethod(AFAMethod):
         # return self.predictor(z)
 
         # don't use the extra classifier
-        masked_features = masked_features.to(self._device)
-        feature_mask = feature_mask.to(self._device)
-        zeros_label = torch.zeros(masked_features.size(0), self.num_classes, device=self._device)
-        zeros_mask = torch.zeros_like(zeros_label, dtype=feature_mask.dtype)
-        augmented_masked_features = torch.cat([masked_features, zeros_label], dim=-1)
-        augmented_feature_mask = torch.cat([feature_mask, zeros_mask], dim=-1)
-        self.sampler.eval()
-        with torch.no_grad():
-            imputation = self.sampler.impute(augmented_masked_features, augmented_feature_mask)
-            logits = imputation[..., -self.num_classes:]
-            probs = torch.softmax(logits, dim=-1)
-            return probs
+        # masked_features = masked_features.to(self._device)
+        # feature_mask = feature_mask.to(self._device)
+        # zeros_label = torch.zeros(masked_features.size(0), self.num_classes, device=self._device)
+        # zeros_mask = torch.zeros_like(zeros_label, dtype=feature_mask.dtype)
+        # augmented_masked_features = torch.cat([masked_features, zeros_label], dim=-1)
+        # augmented_feature_mask = torch.cat([feature_mask, zeros_mask], dim=-1)
+        # self.sampler.eval()
+        # with torch.no_grad():
+        #     imputation = self.sampler.impute(augmented_masked_features, augmented_feature_mask)
+        #     logits = imputation[..., -self.num_classes:]
+        #     probs = torch.softmax(logits, dim=-1)
+        #     return probs
     
     def select(self, masked_features: MaskedFeatures, feature_mask: FeatureMask) -> AFASelection:
-        device = next(self.predictor.parameters()).device
+        device = self._device
         B, F = masked_features.shape
-        zeros_label = torch.zeros(B, self.num_classes, device=self._device)
-        zeros_mask = torch.zeros(B, self.num_classes, device=self._device, dtype=feature_mask.dtype)
-        augmented_masked_feature = torch.cat([masked_features, zeros_label], dim=-1).to(self._device)
-        augmented_feature_mask = torch.cat([feature_mask, zeros_mask], dim=-1).to(self._device)
-
-        x_full = self.sampler.impute(augmented_masked_feature, augmented_feature_mask).view(B, F + self.num_classes)
+        x_full = self.sampler.impute(masked_features, feature_mask).view(B, F)
         next_feature_idx = []
-        self.sampler.eval()
 
         for i in range(B):
-            m_i = augmented_feature_mask[i]
+            m_i = feature_mask[i]
             x_i = x_full[i : i+1]
             best_j, best_score = None, -float('inf')
 
@@ -117,15 +114,11 @@ class Ma2018AFAMethod(AFAMethod):
                 m_test = m_test.unsqueeze(0).repeat(x_i.size(0), 1)
 
                 x_masked = x_i * m_test
-                # x_masked = torch.cat([x_masked, m_test], dim=1)
-                # preds = self.predictor(x_masked)
+                x_masked = torch.cat([x_masked, m_test], dim=1)
+                preds = self.predictor(x_masked)
                 # with torch.no_grad():
                 #     _, _, _, z, _ = self.sampler(x_masked, m_test)
                 # preds = self.predictor(z)
-                with torch.no_grad():
-                    _, _, _, _, recon = self.sampler(x_masked, m_test)
-                preds = recon[..., -self.num_classes:]
-
 
                 score = calculate_criterion(preds, self.task)
                 if score > best_score:
@@ -141,18 +134,20 @@ class Ma2018AFAMethod(AFAMethod):
     def load(cls, path, device='cpu'):
         checkpoint = torch.load(str(path / "model.pt"), map_location=device, weights_only=False)
         sampler = checkpoint["sampler"]
+        predictor = checkpoint["predictor"]
         task = checkpoint["task"]
-        num_classes = checkpoint["num_classes"]
     
+        predictor = predictor.to(device)
         sampler = sampler.to(device)
-        return cls(sampler, num_classes, task)
+        return cls(sampler, predictor, task, device)
 
     def save(self, path: Path):
         path.mkdir(parents=True, exist_ok=True)
         torch.save({
             "sampler": self.sampler,
+            "predictor": self.predictor,
             "task": self.task,
-            "num_classes": self.num_classes
+            # "num_classes": self.num_classes
         }, str(path / "model.pt"))
 
     def to(self, device):
@@ -365,7 +360,7 @@ class IterativeSelector(nn.Module):
             
             avg_train = epoch_train_loss / len(train_loader)
             wandb.log({
-                "predictor/epoch": epoch,
+                # "predictor/epoch": epoch,
                 "predictor/train_loss": avg_train,
                 "predictor/val_loss": val_loss,
             })
