@@ -402,6 +402,38 @@ class Gadgil2023TrainingConfig:
 
 cs.store(name="train_gadgil2023", node=Gadgil2023TrainingConfig)
 
+
+@dataclass
+class CAEDiffSelectorConfig:
+    lr: float = 1e-3
+    nepochs: int = 250
+    num_cells: list[int] = field(default_factory=lambda: [128, 128])
+    patience: int = 5
+
+
+@dataclass
+class StaticClassifierConfig:
+    lr: float = 1e-3
+    nepochs: int = 250
+    num_cells: list[int] = field(default_factory=lambda: [128, 128])
+
+
+@dataclass
+class CAETrainingConfig:
+    dataset_artifact_name: str
+    output_artifact_aliases: list[str] = field(default_factory=lambda: [])
+
+    batch_size: int = 128
+    hard_budget: int = 20
+    device: str = "cuda"
+    seed: int = 42
+    
+    diff_selector: CAEDiffSelectorConfig = field(default_factory=CAEDiffSelectorConfig)
+    classifier: StaticClassifierConfig = field(default_factory=StaticClassifierConfig)
+
+
+cs.store(name="train_cae", node=CAETrainingConfig)
+
 # randomdummy
 
 

@@ -1,10 +1,15 @@
+import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.distributions import RelaxedOneHotCategorical
 import numpy as np
 from static.utils import restore_parameters
+from static.models import get_network, BaseModel
 from copy import deepcopy
+from pathlib import Path
+from common.custom_types import AFAMethod, AFAPredictFn, MaskedFeatures, FeatureMask, Features, Label, AFASelection
+
 
 class ConcreteMask(nn.Module):
     '''
@@ -94,7 +99,7 @@ class DifferentiableSelector(nn.Module):
             best_model = deepcopy(model)
             best_selector = deepcopy(selector_layer)
             num_bad_epochs = 0
-                
+            epoch = 0
             for epoch in range(nepochs):
                 # Switch model to training mode.
                 model.train()
@@ -199,3 +204,76 @@ class DifferentiableSelector(nn.Module):
         # Copy parameters from best model with zero temperature.
         restore_parameters(model, best_zerotemp_model)
         restore_parameters(selector_layer, best_zerotemp_selector)
+
+
+class StaticBaseMethod(AFAMethod):
+    def __init__(
+        self, selected_history: dict[int, list[int]],
+        predictors: dict[int, nn.Module],
+        device: torch.device = torch.device("cpu"),
+    ):
+        super().__init__()
+        self.selected_history = selected_history
+        self.predictors = {b: m.to(device) for b, m in predictors.items()}
+        self._device = device
+
+    def predict(self, masked_features: MaskedFeatures, feature_mask: FeatureMask,
+            features=None, label=None) -> Label:
+        counts = feature_mask.sum(dim=1)
+        if not (counts == counts[0]).all():
+            raise RuntimeError("mixed budgets in batch")
+        b = int(counts[0].item())
+        cols = self.selected_history[b]
+        x_sel = masked_features[:, cols].to(self._device)
+        logits = self.predictors[b](x_sel)
+        return logits.softmax(dim=-1)
+    
+    def select(self, masked_features: MaskedFeatures, feature_mask: FeatureMask,
+            features=None, label=None) -> AFASelection:
+        counts = feature_mask.sum(dim=1)
+        if not (counts == counts[0]).all():
+            raise RuntimeError("mixed budgets in batch")
+        b = int(counts[0].item())
+        mask0 = feature_mask[0]
+        for idx in self.selected_history[b]:
+            if mask0[idx] == 0:
+                # Is +1 needed here?
+                choice = idx
+                return torch.full(
+                    (masked_features.size(0),),
+                    fill_value=choice,
+                    dtype=torch.long,
+                    device=self._device
+                )
+        
+        # stop sign?
+        return torch.zeros((masked_features.size(0),), dtype=torch.long, device=self._device)
+    
+    def save(self, path: Path):
+        os.makedirs(path, exist_ok=True)
+        torch.save({
+            "selected_history": self.selected_history
+        }, path / "selected.pt")
+        for b, mdl in self.predictors.items():
+            torch.save(mdl, path / f"predictor_b{b}.pt")
+
+    @classmethod
+    def load(cls, path: Path, device="cpu"):
+        data = torch.load(path / "selected.pt", weights_only=False, map_location="cpu")
+        hist = data["selected_history"]
+        preds = {}
+        for b in hist.keys():
+            model = torch.load(path / f"predictor_b{b}.pt", weights_only=False, map_location=device)
+            preds[b] = model.to(device)
+        
+        return cls(hist, preds, device).to(device)
+
+    def to(self, device):
+        self._device = device
+        for b in self.predictors:
+            self.predictors[b] = self.predictors[b].to(device)
+        return self
+    
+    @property
+    def device(self):
+        return self._device
