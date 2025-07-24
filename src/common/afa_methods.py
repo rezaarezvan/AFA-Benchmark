@@ -8,6 +8,7 @@ from common.custom_types import (
     AFAMethod,
     AFASelection,
     FeatureMask,
+    Features,
     Label,
     MaskedFeatures,
 )
@@ -26,6 +27,8 @@ class RandomDummyAFAMethod(AFAMethod):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
+        features: Features,
+        label: Label,
     ) -> AFASelection:
         """Chooses to observe a random feature from the masked features (or stop collecting features)."""
         original_device = masked_features.device
@@ -50,7 +53,11 @@ class RandomDummyAFAMethod(AFAMethod):
 
     @override
     def predict(
-        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        features: Features,
+        label: Label,
     ) -> Label:
         """Return a random prediction from the classes."""
         original_device = masked_features.device
@@ -113,6 +120,8 @@ class SequentialDummyAFAMethod(AFAMethod):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
+        features: Features,
+        label: Label,
     ) -> AFASelection:
         original_device = masked_features.device
 
@@ -129,7 +138,11 @@ class SequentialDummyAFAMethod(AFAMethod):
 
     @override
     def predict(
-        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        features: Features,
+        label: Label,
     ) -> Label:
         """Return a random prediction from the classes."""
         original_device = masked_features.device
@@ -198,6 +211,8 @@ class RandomClassificationAFAMethod(AFAMethod):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
+        features: Features,
+        label: Label,
     ) -> AFASelection:
         """Chooses to observe a random feature from the masked features (or stop collecting features)."""
         original_device = masked_features.device
@@ -222,7 +237,11 @@ class RandomClassificationAFAMethod(AFAMethod):
 
     @override
     def predict(
-        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        features: Features,
+        label: Label,
     ) -> Label:
         """Return a prediction using the classifier."""
         original_device = masked_features.device
@@ -283,6 +302,8 @@ class SequentialClassificationAFAMethod(AFAMethod):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
+        features: Features,
+        label: Label,
     ) -> AFASelection:
         original_device = masked_features.device
 
@@ -299,7 +320,11 @@ class SequentialClassificationAFAMethod(AFAMethod):
 
     @override
     def predict(
-        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        features: Features,
+        label: Label,
     ) -> Label:
         """Return a prediction using the classifier."""
         original_device = masked_features.device
@@ -351,7 +376,11 @@ class AFAContextSmartMethod(AFAMethod):
 
     @override
     def select(
-        self, masked_features: AFASelection, feature_mask: AFASelection
+        self,
+        masked_features: AFASelection,
+        feature_mask: AFASelection,
+        features: Features,
+        label: Label,
     ) -> AFASelection:
         original_device = masked_features.device
 
@@ -362,7 +391,11 @@ class AFAContextSmartMethod(AFAMethod):
 
     @override
     def predict(
-        self, masked_features: AFASelection, feature_mask: AFASelection
+        self,
+        masked_features: AFASelection,
+        feature_mask: AFASelection,
+        features: Features,
+        label: Label,
     ) -> Label:
         # Guess class randomly
         return torch.randint(
