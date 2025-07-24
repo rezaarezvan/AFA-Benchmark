@@ -1,10 +1,7 @@
 # reward_method set in higher config
-pq_module:
-  n_hiddens: [512,512,128,64] # kachuee2019 implementation for MNIST
-  p_dropout: 0.5 # kachuee2019 implementation
 mcdrop_samples: 100 # kachuee2019 implementation
 
-dataset_artifact_name: "MNIST_split_1:tmp"
+pretrained_model_artifact_name: "pretrain_kacuhee2019-MNIST_split_1:tmp"
 # n_agents: 1 # kachuee2019 implementation
 n_agents: 2 # same as shim2018
 hard_budget: 30 # recommended: 10, 20, 30

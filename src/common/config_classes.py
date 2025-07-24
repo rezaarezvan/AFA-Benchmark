@@ -151,6 +151,38 @@ class Zannone2019PretrainConfig:
 
 cs.store(name="pretrain_zannone2019", node=Zannone2019PretrainConfig)
 
+# kachuee2019
+
+
+@dataclass
+class Kachuee2019PQModuleConfig:
+    n_hiddens: list[
+        int
+        # hidden layers in P network. The hidden layers of the Q network are calculated from this.
+    ]
+    p_dropout: float
+
+
+@dataclass
+class Kachuee2019PretrainConfig:
+    dataset_artifact_name: str
+    batch_size: int  # batch size for dataloader
+    epochs: int
+    limit_train_batches: int | None
+    limit_val_batches: int | None
+
+    device: str
+    seed: int
+    lr: float
+    min_masking_probability: float
+    max_masking_probability: float
+    pq_module: Kachuee2019PQModuleConfig
+    output_artifact_aliases: list[str]
+
+
+cs.store(name="pretrain_kachuee2019", node=Kachuee2019PretrainConfig)
+
+
 # --- TRAINING METHODS ---
 
 # shim2018
@@ -435,15 +467,6 @@ cs.store(name="train_zannone2019", node=Zannone2019TrainConfig)
 
 
 @dataclass
-class Kachuee2019PQModuleConfig:
-    n_hiddens: list[
-        int
-        # hidden layers in P network. The hidden layers of the Q network are calculated from this.
-    ]
-    p_dropout: float
-
-
-@dataclass
 class Kachuee2019AgentConfig:
     # epsilon-greedy parameters
     eps_init: float
@@ -474,11 +497,10 @@ class Kachuee2019AgentConfig:
 @dataclass
 class Kachuee2019TrainConfig:
     reward_method: str  # one of {"softmax", "Bayesian-L1", "Bayesian-L2"}
-    pq_module: Kachuee2019PQModuleConfig
     # how many samples to average over when calculating certainty for the reward
     mcdrop_samples: int
 
-    dataset_artifact_name: str
+    pretrained_model_artifact_name: str
     n_agents: int
     hard_budget: int
     agent: Kachuee2019AgentConfig

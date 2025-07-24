@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, cast
 from tempfile import TemporaryDirectory
 
+from dacite import from_dict
 import hydra
 from omegaconf import OmegaConf
 import torch
@@ -22,17 +23,21 @@ from afa_rl.kachuee2019.models import (
     Kachuee2019AFAClassifier,
     Kachuee2019AFAPredictFn,
     Kachuee2019PQModule,
+    LitKachuee2019PQModule,
 )
 from afa_rl.kachuee2019.reward import get_kachuee2019_reward_fn
 from afa_rl.datasets import get_afa_dataset_fn
+from afa_rl.kachuee2019.utils import get_kachuee2019_model_from_config
 from afa_rl.utils import (
     get_eval_metrics,
     module_norm,
 )
 from common.afa_methods import RandomDummyAFAMethod
 from common.config_classes import (
+    Kachuee2019PretrainConfig,
     Kachuee2019TrainConfig,
 )
+from common.custom_types import AFADataset
 from common.utils import (
     dict_with_prefix,
     get_class_probabilities,
@@ -42,6 +47,71 @@ from common.utils import (
 
 from eval.metrics import eval_afa_method
 from eval.utils import plot_metrics
+
+
+def load_pretrained_model_artifacts(
+    artifact_name: str,
+) -> tuple[
+    AFADataset,  # train dataset
+    AFADataset,  # val dataset
+    AFADataset,  # test dataset
+    dict[str, Any],  # dataset metadata
+    LitKachuee2019PQModule,
+    Kachuee2019PretrainConfig,
+]:
+    """Load a pretrained model and the dataset it was trained on, from a WandB artifact."""
+    pretrained_model_artifact = wandb.use_artifact(
+        artifact_name, type="pretrained_model"
+    )
+    pretrained_model_artifact_dir = Path(pretrained_model_artifact.download())
+    # The dataset dir should contain a file called model.pt
+    artifact_filenames = [f.name for f in pretrained_model_artifact_dir.iterdir()]
+    assert {"model.pt"}.issubset(artifact_filenames), (
+        f"Dataset artifact must contain a model.pt file. Instead found: {artifact_filenames}"
+    )
+
+    # Access config of the run that produced this pretrained model
+    pretraining_run = pretrained_model_artifact.logged_by()
+    assert pretraining_run is not None, (
+        "Pretrained model artifact must be logged by a run."
+    )
+    pretrained_model_config_dict = pretraining_run.config
+    pretrained_model_config: Kachuee2019PretrainConfig = from_dict(
+        data_class=Kachuee2019PretrainConfig, data=pretrained_model_config_dict
+    )
+
+    # Load the dataset that the pretrained model was trained on
+    train_dataset, val_dataset, test_dataset, dataset_metadata = load_dataset_artifact(
+        pretrained_model_config.dataset_artifact_name
+    )
+
+    # Get the number of features and classes from the dataset
+    n_features = train_dataset.features.shape[-1]
+    n_classes = train_dataset.labels.shape[-1]
+    train_class_probabilities = get_class_probabilities(train_dataset.labels)
+    log.debug(f"Class probabilities in training set: {train_class_probabilities}")
+
+    pretrained_model = get_kachuee2019_model_from_config(
+        pretrained_model_config,
+        n_features,
+        n_classes,
+        train_class_probabilities,
+    )
+    pretrained_model_checkpoint = torch.load(
+        pretrained_model_artifact_dir / "model.pt",
+        weights_only=True,
+        map_location=torch.device("cpu"),
+    )
+    pretrained_model.load_state_dict(pretrained_model_checkpoint["state_dict"])
+
+    return (
+        train_dataset,
+        val_dataset,
+        test_dataset,
+        dataset_metadata,
+        pretrained_model,
+        pretrained_model_config,
+    )
 
 
 log = logging.getLogger(__name__)
@@ -67,21 +137,30 @@ def main(cfg: Kachuee2019TrainConfig):
     log.info(f"W&B run URL: {run.url}")
 
     # Load dataset artifact
-    train_dataset, val_dataset, _, dataset_metadata = load_dataset_artifact(
-        cfg.dataset_artifact_name
-    )
+    # train_dataset, val_dataset, _, dataset_metadata = load_dataset_artifact(
+    #     cfg.dataset_artifact_name
+    # )
+    # Load pretrained model and dataset from artifacts
+    (
+        train_dataset,
+        val_dataset,
+        _,
+        dataset_metadata,
+        pretrained_model,
+        pretrained_model_config,
+    ) = load_pretrained_model_artifacts(cfg.pretrained_model_artifact_name)
+    pq_module = pretrained_model.pq_module.to(device)
+
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
     log.debug(f"Class probabilities in training set: {train_class_probabilities}")
     class_weights = F.softmax(1 / train_class_probabilities, dim=-1).to(device)
     n_features = train_dataset.features.shape[-1]
     n_classes = train_dataset.labels.shape[-1]
 
-    pq_module = Kachuee2019PQModule(
-        n_features=n_features, n_classes=n_classes, cfg=cfg.pq_module
-    ).to(device)
-
     reward_fn = get_kachuee2019_reward_fn(
-        pq_module=pq_module, method=cfg.reward_method, mcdrop_samples=cfg.mcdrop_samples
+        pq_module=pq_module,
+        method=cfg.reward_method,
+        mcdrop_samples=cfg.mcdrop_samples,
     )
 
     # MDP expects special dataset functions
@@ -226,11 +305,11 @@ def main(cfg: Kachuee2019TrainConfig):
             # Save the model as a WandB artifact
             # Save the name of the afa method class as metadata
             afa_method_artifact = wandb.Artifact(
-                name=f"train_kachuee2019-{cfg.dataset_artifact_name.split(':')[0]}-budget_{cfg.hard_budget}-seed_{cfg.seed}",
+                name=f"train_kachuee2019-{pretrained_model_config.dataset_artifact_name.split(':')[0]}-budget_{cfg.hard_budget}-seed_{cfg.seed}",
                 type="trained_method",
                 metadata={
-                    "method_type": "kachuee2019",
-                    "dataset_artifact_name": cfg.dataset_artifact_name,
+                    "method_type": "kachuee2*19",
+                    "dataset_artifact_name": pretrained_model_config.dataset_artifact_name,
                     "dataset_type": dataset_metadata["dataset_type"],
                     "budget": cfg.hard_budget,
                     "seed": cfg.seed,

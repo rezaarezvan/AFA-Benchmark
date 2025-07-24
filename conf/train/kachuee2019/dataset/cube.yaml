@@ -1,10 +1,7 @@
 # reward_method set in higher config
-pq_module:
-  n_hiddens: [64,32,16] # kachuee2019 implementation for Diabetes
-  p_dropout: 0.5 # kachuee2019 implementation
 mcdrop_samples: 100 # kachuee2019 implementation
 
-dataset_artifact_name: "cube_split_1:tmp"
+pretrained_model_artifact_name: "pretrain_kachuee2019-cube_split_1:tmp"
 # n_agents: 1 # kachuee2019 implementation
 n_agents: 128 # same as shim2018
 hard_budget: 5 # recommended: 3, 5, 10

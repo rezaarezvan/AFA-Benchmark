@@ -1,15 +1,20 @@
 from pathlib import Path
+from jaxtyping import Float
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import lightning as pl
+
 
 from typing import Self, final, override
 
+from afa_rl.utils import mask_data
 from common.config_classes import Kachuee2019PQModuleConfig
 from common.custom_types import (
     AFAClassifier,
     AFAPredictFn,
     FeatureMask,
+    Features,
     Label,
     MaskedFeatures,
 )
@@ -109,6 +114,111 @@ class Kachuee2019PQModule(nn.Module):
         conf = self.confidence(x, mcdrop_samples)
         pred = torch.argmax(conf)
         return pred
+
+
+@final
+class LitKachuee2019PQModule(pl.LightningModule):
+    def __init__(
+        self,
+        pq_module: Kachuee2019PQModule,
+        class_probabilities: Float[torch.Tensor, "n_classes"],
+        min_masking_probability: float = 0.0,
+        max_masking_probability: float = 1.0,
+        lr: float = 1e-3,
+    ):
+        super().__init__()
+        self.save_hyperparameters(ignore=["pq_module"])
+        self.pq_module = pq_module
+        self.class_weight = 1 / class_probabilities
+        self.class_weight = self.class_weight / torch.sum(self.class_weight)
+        self.min_masking_probability = min_masking_probability
+        self.max_masking_probability = max_masking_probability
+        self.lr = lr
+
+    @override
+    def forward(
+        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Forward pass.
+
+        Args:
+            masked_features: currently observed features, with zeros for missing features
+            feature_mask: indicator for missing features, 1 if feature is observed, 0 if missing
+
+        Returns:
+            embedding: the embedding of the input features
+            classifier_output: the output of the classifier
+
+        """
+        class_logits, qvalues = self.pq_module(masked_features)
+        return class_logits, qvalues
+
+    @override
+    def training_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
+        features: Features = batch[0]
+        label: Label = batch[1]
+
+        masking_probability = self.min_masking_probability + torch.rand(1).item() * (
+            self.max_masking_probability - self.min_masking_probability
+        )
+        self.log("masking_probability", masking_probability, sync_dist=True)
+
+        masked_features, feature_mask, _ = mask_data(features, p=masking_probability)
+        class_logits, _ = self(masked_features, feature_mask)
+        loss = F.cross_entropy(
+            class_logits, label, weight=self.class_weight.to(class_logits.device)
+        )
+        self.log("train_loss", loss)
+        return loss
+
+    def _get_loss_and_acc(
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        y: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        class_logits, _ = self(masked_features, feature_mask)
+        loss = F.cross_entropy(
+            class_logits, y, weight=self.class_weight.to(class_logits.device)
+        )
+        predicted_class = torch.argmax(class_logits, dim=1)
+        true_class = torch.argmax(y, dim=1)
+        acc = (predicted_class == true_class).float().mean()
+        return loss, acc
+
+    @override
+    def validation_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
+        feature_values, y = batch
+
+        # Mask features with minimum probability -> see many features (observations)
+        feature_mask_many_observations = (
+            torch.rand(feature_values.shape, device=feature_values.device)
+            > self.min_masking_probability
+        )
+        feature_values_many_observations = feature_values.clone()
+        feature_values_many_observations[feature_mask_many_observations == 0] = 0
+        loss_many_observations, acc_many_observations = self._get_loss_and_acc(
+            feature_values_many_observations, feature_mask_many_observations, y
+        )
+        self.log("val_loss_many_observations", loss_many_observations)
+        self.log("val_acc_many_observations", acc_many_observations)
+
+        # Mask features with maximum probability -> see few features (observations)
+        feature_mask_few_observations = (
+            torch.rand(feature_values.shape, device=feature_values.device)
+            > self.max_masking_probability
+        )
+        feature_values_few_observations = feature_values.clone()
+        feature_values_few_observations[feature_mask_few_observations == 0] = 0
+        loss_few_observations, acc_few_observations = self._get_loss_and_acc(
+            feature_values_few_observations, feature_mask_few_observations, y
+        )
+        self.log("val_loss_few_observations", loss_few_observations)
+        self.log("val_acc_few_observations", acc_few_observations)
+
+    @override
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.parameters(), lr=self.lr)
 
 
 @final
