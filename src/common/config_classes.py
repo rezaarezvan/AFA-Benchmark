@@ -143,9 +143,9 @@ class Zannone2019PretrainConfig:
     encoder: Zannone2019EncoderConfig
     partial_vae: Zannone2019PartialVAEConfig
     classifier: Zannone2019ClassifierConfig
-    recon_loss_type: str  # one of "squared_error" or "binary_cross_entropy"
     kl_scaling_factor: float
     classifier_loss_scaling_factor: float
+    label_loss_scaling_factor: float
     output_artifact_aliases: list[str]
 
 

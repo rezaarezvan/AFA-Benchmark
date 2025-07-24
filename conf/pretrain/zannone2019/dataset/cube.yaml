@@ -34,3 +34,4 @@ classifier:
 recon_loss_type: "squared_error"
 kl_scaling_factor: 0.01
 classifier_loss_scaling_factor: 100
+label_loss_scaling_factor: 1

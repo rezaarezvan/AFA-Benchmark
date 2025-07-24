@@ -200,9 +200,9 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         min_masking_probability: float,
         max_masking_probability: float,
         lr: float,
-        kl_scaling_factor: float = 1e-3,
-        classifier_loss_scaling_factor: float = 1,
-        # recon_loss_type: PartialVAELossType = PartialVAELossType.SQUARED_ERROR,
+        kl_scaling_factor: float,  # how much more to weigh KL loss compared to reconstruction loss in PVAE
+        classifier_loss_scaling_factor: float,  # how much more to weigh the classifier's loss compared to the PVAE's loss
+        label_loss_scaling_factor: float,  # how much more to weigh the label reconstruction loss compared to the feature reconstruction loss
     ):
         super().__init__()
         self.partial_vae: PartialVAE = partial_vae
@@ -214,6 +214,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         self.class_weights: Tensor = self.class_weights / torch.sum(self.class_weights)
         self.classifier_loss_scaling_factor = classifier_loss_scaling_factor
         self.kl_scaling_factor: float = kl_scaling_factor
+        self.label_loss_scaling_factor: float = label_loss_scaling_factor
 
         # self.recon_loss_type = recon_loss_type
 
@@ -482,8 +483,11 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         label_recon_loss = weighted_cross_entropy(
             estimated_labels, labels, weights=self.class_weights, reduction="mean"
         )
-        kl_div = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp()).sum(dim=1).mean(dim=0)
-        kl_div_loss = self.kl_scaling_factor * kl_div
+        label_recon_loss *= self.label_loss_scaling_factor
+        kl_div_loss = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp()).sum(dim=1).mean(
+            dim=0
+        )
+        kl_div_loss *= self.kl_scaling_factor
         return (
             feature_recon_loss + label_recon_loss + kl_div_loss,
             feature_recon_loss,

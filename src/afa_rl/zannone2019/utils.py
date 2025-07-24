@@ -72,14 +72,6 @@ def get_zannone2019_model_from_config(
             ],
         ),
     )
-    if cfg.recon_loss_type == "squared_error":
-        recon_loss_type = PartialVAELossType.SQUARED_ERROR
-    elif cfg.recon_loss_type == "binary_cross_entropy":
-        recon_loss_type = PartialVAELossType.BINARY_CROSS_ENTROPY
-    else:
-        raise ValueError(
-            f"{cfg.recon_loss_type} was not one of ('squared_error', 'binary_cross_entropy')"
-        )
     model = Zannone2019PretrainingModel(
         partial_vae=partial_vae,
         # Classifier acts on latent space
@@ -96,8 +88,8 @@ def get_zannone2019_model_from_config(
         min_masking_probability=cfg.min_masking_probability,
         max_masking_probability=cfg.max_masking_probability,
         class_probabilities=class_probabilities,
-        recon_loss_type=recon_loss_type,
         kl_scaling_factor=cfg.kl_scaling_factor,
         classifier_loss_scaling_factor=cfg.classifier_loss_scaling_factor,
+        label_loss_scaling_factor=cfg.label_loss_scaling_factor,
     )
     return model
