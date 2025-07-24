@@ -100,7 +100,7 @@ def main(cfg: Covert2023TrainingConfig):
         tmp_path = Path(tmp_path_str)
         afa_method.save(tmp_path)
         del afa_method
-        afa_method = Covert2023AFAMethod.load(tmp_path / "model.pt", device=device)
+        afa_method = Covert2023AFAMethod.load(tmp_path, device=device)
         afa_method_artifact = wandb.Artifact(
             name=f"train_covert2023-{pretrained_model_config.dataset_artifact_name.split(':')[0]}-budget_{cfg.hard_budget}-seed_{cfg.seed}",
             type="trained_method",

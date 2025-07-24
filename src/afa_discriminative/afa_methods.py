@@ -366,7 +366,7 @@ class Covert2023AFAMethod(AFAMethod):
         x_masked = torch.cat([masked_features, feature_mask], dim=1)
         predictor = self.predictor
         pred = predictor(x_masked)
-        return pred
+        return pred.softmax(dim=-1)
     
     def select(self, masked_features: MaskedFeatures, feature_mask: FeatureMask) -> AFASelection:
         # mask_layer = self.mask_layer
@@ -381,7 +381,7 @@ class Covert2023AFAMethod(AFAMethod):
     
     @classmethod
     def load(cls, path, device='cpu'):
-        checkpoint = torch.load(path, map_location=device)
+        checkpoint = torch.load(path / "model.pt", map_location=device)
         arch = checkpoint['architecture']
         d_in = arch['d_in']
         d_out = arch['d_out']
@@ -409,12 +409,12 @@ class Covert2023AFAMethod(AFAMethod):
             flag_only_output_layer=False
         )
 
-        model = cls(selector, predictor)
+        model = cls(selector, predictor, device)
         model.selector.load_state_dict(checkpoint['selector_state_dict'])
         model.predictor.load_state_dict(checkpoint['predictor_state_dict'])
         model.selector.eval()
         model.predictor.eval()
-        return model
+        return model.to(device)
 
     def save(self, path: Path):
         os.makedirs(path, exist_ok=True)
@@ -717,7 +717,7 @@ class Gadgil2023AFAMethod(AFAMethod):
         x_masked = torch.cat([masked_features, feature_mask], dim=1)
         predictor = self.predictor
         pred = predictor(x_masked)
-        return pred
+        return pred.softmax(dim=-1)
     
     def select(self, masked_features: MaskedFeatures, feature_mask: FeatureMask) -> AFASelection:
         x_masked = torch.cat([masked_features, feature_mask], dim=1)
@@ -737,7 +737,7 @@ class Gadgil2023AFAMethod(AFAMethod):
 
     @classmethod
     def load(cls, path, device='cpu'):
-        checkpoint = torch.load(path, map_location=device)
+        checkpoint = torch.load(path / "model.pt", map_location=device)
         arch = checkpoint['architecture']
         d_in = arch['d_in']
         d_out = arch['d_out']
@@ -768,12 +768,12 @@ class Gadgil2023AFAMethod(AFAMethod):
         value_network.hidden[0] = predictor.hidden[0]
         value_network.hidden[1] = predictor.hidden[1]
 
-        model = cls(value_network, predictor)
+        model = cls(value_network, predictor, device)
         model.value_network.load_state_dict(checkpoint['value_network_state_dict'])
         model.predictor.load_state_dict(checkpoint['predictor_state_dict'])
         model.value_network.eval()
         model.predictor.eval()
-        return model
+        return model.to(device)
     
     def save(self, path: Path):
         os.makedirs(path, exist_ok=True)
