@@ -27,4 +27,5 @@ split_ratio:
   val: 0.15
   test: 0.15
 output_artifact_aliases: []
+epsilon: 1e-8
 

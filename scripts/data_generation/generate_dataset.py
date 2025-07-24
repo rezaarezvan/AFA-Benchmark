@@ -38,6 +38,7 @@ def generate_and_save_split(
     seed: int,
     data_dir: Path,
     output_artifact_aliases: tuple[str, ...] = (),
+    epsilon: float = 1e-8,  # added when dividing by standard deviation to avoid division by zero
     **dataset_kwargs,
 ):
     """Generate and save a single train/val/test split for a dataset with a specific seed. The seed affects both data generation and split."""
@@ -71,7 +72,7 @@ def generate_and_save_split(
         std = feat.std(dim=0, unbiased=False, keepdim=True)
 
         for ds in (train_dataset, val_dataset, test_dataset):
-            ds.features = (ds.features - mean) / std
+            ds.features = (ds.features - mean) / (std + epsilon)
 
     # Create dataset directory
     dataset_dir = data_dir / dataset_type
@@ -177,6 +178,7 @@ def main(cfg: DatasetGenerationConfig) -> None:
         seed=cfg.seeds[cfg.split_idx - 1],
         data_dir=Path(cfg.data_dir),
         output_artifact_aliases=tuple(cfg.output_artifact_aliases),
+        epsilon=cfg.epsilon,
         **cfg.dataset.kwargs,
     )
 
