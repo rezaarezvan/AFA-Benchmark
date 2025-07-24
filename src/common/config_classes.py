@@ -302,8 +302,6 @@ class Ma2018TraingConfig:
 
 cs.store(name="train_ma2018", node=Ma2018TraingConfig)
 
-# randomdummy
-
 
 @dataclass
 class Covert2023PretrainingConfig:
@@ -397,6 +395,8 @@ class Gadgil2023TrainingConfig:
 
 cs.store(name="train_gadgil2023", node=Gadgil2023TrainingConfig)
 
+# randomdummy
+
 
 @dataclass
 class RandomDummyTrainConfig:
@@ -407,6 +407,19 @@ class RandomDummyTrainConfig:
 
 
 cs.store(name="train_randomdummy", node=RandomDummyTrainConfig)
+
+# optimalcube
+
+
+@dataclass
+class OptimalCubeTrainConfig:
+    dataset_artifact_name: str
+    hard_budget: int  # not used, but pretend that it is
+    seed: int
+    output_artifact_aliases: list[str]
+
+
+cs.store(name="train_optimalcube", node=OptimalCubeTrainConfig)
 
 
 # zannone2019

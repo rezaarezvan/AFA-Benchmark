@@ -424,3 +424,104 @@ class AFAContextSmartMethod(AFAMethod):
     @override
     def device(self) -> torch.device:
         return self._device
+
+
+@final
+class OptimalCubeAFAMethod(AFAMethod):
+    """An AFAMethod that selects features optimally for the cube dataset. It does this by looking at the true label and choosing the 3 informative features. Afterwards, it chooses features randomly."""
+
+    def __init__(self, device: torch.device, n_classes: int):
+        self._device = device
+        self.n_classes = n_classes
+
+    @override
+    def select(
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        features: Features,
+        label: Label,
+    ) -> AFASelection:
+        """Chooses to observe an optimal feature for the cube dataset, or a random unobserved feature if all optimal ones are chosen."""
+        original_device = masked_features.device
+
+        masked_features = masked_features.to(self._device)
+        feature_mask = feature_mask.to(self._device)
+        label = label.to(self._device)
+
+        batch_size, num_features = feature_mask.shape
+        label_int = label.argmax(dim=-1)  # (B,)
+
+        selection = torch.zeros(batch_size, dtype=torch.long, device=self._device)
+
+        for i in range(batch_size):
+            optimal_idxs = torch.arange(label_int[i].item(), label_int[i].item() + 3)
+            unobserved = (~feature_mask[i])[optimal_idxs]
+            if unobserved.any():
+                selection[i] = optimal_idxs[unobserved][0]
+            else:
+                # Pick a random unobserved feature
+                candidates = (~feature_mask[i]).nonzero(as_tuple=True)[0]
+                if candidates.numel() > 0:
+                    selection[i] = candidates[
+                        torch.randint(0, candidates.numel(), (1,))
+                    ]
+                else:
+                    selection[i] = 0  # fallback if all features observed
+
+        return selection.to(original_device)
+
+    @override
+    def predict(
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        features: Features,
+        label: Label,
+    ) -> Label:
+        """Return a random prediction from the classes."""
+        original_device = masked_features.device
+
+        masked_features = masked_features.to(self._device)
+        feature_mask = feature_mask.to(self._device)
+
+        # Pick a random class from the classes
+        prediction = torch.randint(
+            0,
+            self.n_classes,
+            (masked_features.shape[0],),
+            device=masked_features.device,
+        )
+        # One-hot encode the prediction
+        prediction = torch.nn.functional.one_hot(
+            prediction, num_classes=self.n_classes
+        ).float()
+
+        return prediction.to(original_device)
+
+    @override
+    def save(self, path: Path) -> None:
+        """Save the method to a folder."""
+        torch.save(
+            {
+                "n_classes": self.n_classes,
+            },
+            path / "method.pt",
+        )
+
+    @classmethod
+    @override
+    def load(cls, path: Path, device: torch.device) -> Self:
+        """Load the method from a file."""
+        data = torch.load(path / "method.pt")
+        return cls(device, data["n_classes"])
+
+    @override
+    def to(self, device: torch.device) -> Self:
+        self._device = device
+        return self
+
+    @property
+    @override
+    def device(self) -> torch.device:
+        return self._device
