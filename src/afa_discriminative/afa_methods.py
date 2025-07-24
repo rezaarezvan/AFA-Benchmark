@@ -388,14 +388,14 @@ class Covert2023AFAMethod(AFAMethod):
         self._device: torch.device = device
 
     def predict(
-        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+        self, masked_features: MaskedFeatures, feature_mask: FeatureMask, features=None, label=None
     ) -> Label:
         x_masked = torch.cat([masked_features, feature_mask], dim=1)
         predictor = self.predictor
         pred = predictor(x_masked)
         return pred.softmax(dim=-1)
     
-    def select(self, masked_features: MaskedFeatures, feature_mask: FeatureMask) -> AFASelection:
+    def select(self, masked_features: MaskedFeatures, feature_mask: FeatureMask, features=None, label=None) -> AFASelection:
         # mask_layer = self.mask_layer
         selector = self.selector
         # x_masked = mask_layer(feature, feature_mask)
@@ -759,14 +759,14 @@ class Gadgil2023AFAMethod(AFAMethod):
         self._device: torch.device = device
 
     def predict(
-        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+        self, masked_features: MaskedFeatures, feature_mask: FeatureMask, features=None, label=None
     ) -> Label:
         x_masked = torch.cat([masked_features, feature_mask], dim=1)
         predictor = self.predictor
         pred = predictor(x_masked)
         return pred.softmax(dim=-1)
     
-    def select(self, masked_features: MaskedFeatures, feature_mask: FeatureMask) -> AFASelection:
+    def select(self, masked_features: MaskedFeatures, feature_mask: FeatureMask, features=None, label=None) -> AFASelection:
         x_masked = torch.cat([masked_features, feature_mask], dim=1)
         pred = self.predict(masked_features, feature_mask)
         entropy = get_entropy(pred).unsqueeze(1)

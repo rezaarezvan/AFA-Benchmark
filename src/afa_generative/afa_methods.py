@@ -18,7 +18,7 @@ from afa_generative.utils import *
 from afa_generative.datasets import base_UCI_Dataset
 from afa_generative.models import PartialVAE
 from afa_rl.utils import mask_data
-from common.custom_types import AFAMethod, AFASelection, FeatureMask, Label, MaskedFeatures
+from common.custom_types import AFAMethod, AFASelection, FeatureMask, Label, MaskedFeatures, Features
 
 
 def valid_probs(preds):
@@ -64,7 +64,7 @@ class Ma2018AFAMethod(AFAMethod):
         self.task = task
         self._device: torch.device = device
 
-    def predict(self, masked_features: MaskedFeatures, feature_mask: FeatureMask) -> Label:
+    def predict(self, masked_features: MaskedFeatures, feature_mask: FeatureMask, features=None, label=None) -> Label:
         # using an independent classifier
         x_masked = torch.cat([masked_features, feature_mask], dim=1)
         logits = self.predictor(x_masked)
@@ -94,7 +94,7 @@ class Ma2018AFAMethod(AFAMethod):
         #     probs = torch.softmax(logits, dim=-1)
         #     return probs
     
-    def select(self, masked_features: MaskedFeatures, feature_mask: FeatureMask) -> AFASelection:
+    def select(self, masked_features: MaskedFeatures, feature_mask: FeatureMask, features=None, label=None) -> AFASelection:
         device = self._device
         B, F = masked_features.shape
         x_full = self.sampler.impute(masked_features, feature_mask).view(B, F)
