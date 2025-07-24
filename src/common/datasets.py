@@ -790,13 +790,18 @@ class PhysionetDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         # Handle missing values by filling with column means
         features_df = features_df.fillna(features_df.mean())
 
+        # Convert to tensors
+        # self.features = torch.tensor(scaled_features, dtype=torch.float32)
+        self.features = torch.tensor(features_df.values, dtype=torch.float32)
+
+        # Check for NaNs after tensor conversion
+        if torch.isnan(self.features).any():
+            raise ValueError("NaNs detected in features after filling missing values.")
+
         # === Standardize features ===
         # scaler = StandardScaler()
         # scaled_features = scaler.fit_transform(features_df.values)
 
-        # Convert to tensors
-        # self.features = torch.tensor(scaled_features, dtype=torch.float32)
-        self.features = torch.tensor(features_df.values, dtype=torch.float32)
         assert self.features.shape[1] == self.n_features
 
         self.labels = torch.tensor(labels_df.values, dtype=torch.long)
