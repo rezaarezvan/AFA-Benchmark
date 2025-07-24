@@ -27,7 +27,7 @@ class AACOAFAMethod(AFAMethod):
 
     @override
     def select(
-        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+        self, masked_features: MaskedFeatures, feature_mask: FeatureMask, features, labels
     ) -> AFASelection:
         """
         Select next feature using AACO implementation with proper device handling
@@ -46,7 +46,6 @@ class AACOAFAMethod(AFAMethod):
         for i in range(batch_size):
             x_obs = masked_features[i]
             obs_mask = feature_mask[i]
-
             # Get next feature from AACO oracle
             next_feature = self.aaco_oracle.select_next_feature(
                 x_obs, obs_mask, instance_idx=i
@@ -59,12 +58,15 @@ class AACOAFAMethod(AFAMethod):
 
         # Return tensor on original device
         selection_tensor = torch.tensor(
-            selections, dtype=torch.long, device=original_device).unsqueeze(-1)
+            selections,
+            dtype=torch.long,
+            device=original_device,
+        ).unsqueeze(-1)
         return selection_tensor
 
     @override
     def predict(
-        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+        self, masked_features: MaskedFeatures, feature_mask: FeatureMask, features, labels
     ) -> Label:
         """
         Make prediction using classifier approach with proper device handling

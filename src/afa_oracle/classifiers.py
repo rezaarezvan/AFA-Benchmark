@@ -308,24 +308,34 @@ class classifier_xgb():
     def __init__(self, xgb_model):
         self.xgb_model = xgb_model
 
+    def predict_logits(self, X):
+        if torch.is_tensor(X):
+            X = X.cpu().numpy()
+        return torch.tensor(
+            self.xgb_model.predict(X, output_margin=True),
+            dtype=torch.float32,
+        )
+
     def __call__(self, X, idx):
         device = X.device if hasattr(X, 'device') else torch.device('cpu')
 
         # Convert to numpy for XGBoost prediction
         if torch.is_tensor(X):
-            X_np = X.cpu().numpy()
+            X_np = X.detach().cpu().numpy().astype(np.float32)
         else:
-            X_np = X
+            X_np = X.astype(np.float32)
 
-        try:
-            pred_probs = self.xgb_model.predict_proba(X_np)
-            return torch.tensor(pred_probs, device=device, dtype=torch.float32)
-        except Exception as e:
-            log.error(f"XGBoost prediction failed: {e}")
-            # Return uniform probabilities as fallback
-            n_samples = X.shape[0] if hasattr(X, 'shape') else len(X)
-            n_classes = getattr(self.xgb_model, 'n_classes_',
-                                10)  # Default for MNIST
-            uniform_probs = torch.ones(
-                (n_samples, n_classes), device=device) / n_classes
-            return uniform_probs
+        # XGBoost expects 2D input: [batch_size, features]
+        if X_np.ndim == 1:
+            X_np = X_np.reshape(1, -1)
+
+        pred_probs = self.xgb_model.predict_proba(X_np)
+
+        # Convert back to torch tensor on correct device
+        result = torch.tensor(pred_probs, device=device, dtype=torch.float32)
+
+        # Handle single sample case
+        if result.dim() == 1:
+            result = result.unsqueeze(0)
+
+        return result

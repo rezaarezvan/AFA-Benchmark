@@ -205,7 +205,7 @@ def train_single_xgb_classifier(X_train, y_train, input_dim, n_classes, device, 
     X_masked_list = []
     y_list = []
 
-    n_masks = 10  # Small number for efficiency
+    n_masks = 100  # Small number for efficiency
 
     for mask_idx in range(n_masks):
         # Simple random mask generation
@@ -240,8 +240,8 @@ def train_single_xgb_classifier(X_train, y_train, input_dim, n_classes, device, 
     # Train with exact AACO parameters
     log.info("Training XGBoost model...")
     xgb_model = XGBClassifier(
-        n_estimators=50,
-        max_depth=6,
+        n_estimators=250,
+        max_depth=12,
         random_state=29,
         n_jobs=8,
         objective='multi:softprob',
@@ -392,7 +392,8 @@ class AACOOracle:
         x_masked = torch.mul(x_rep, mask_rep) - (1 - mask_rep) * self.hide_val
         x_with_mask = torch.cat([x_masked, mask_rep], -1)
 
-        y_pred = self.classifier(x_with_mask, idx_nn_rep)
+        y_pred = self.classifier.predict_logits(x_with_mask) if hasattr(self.classifier, 'predict_logits') else self.classifier(
+            x_with_mask, torch.tensor([0], device=self.device))
 
         # Compute loss - ensure tensors are on same device
         y_true_rep = self.y_train[idx_nn_rep]
@@ -411,7 +412,7 @@ class AACOOracle:
         # Ensure y_true_labels is on the correct device
         y_true_labels = y_true_labels.to(self.device)
 
-        loss = self.loss_function(y_pred, y_true_labels)
+        loss = self.loss_function(y_pred.to(self.device), y_true_labels)
 
         # Reshape loss to (n_masks, k_neighbors) and average over neighbors
         loss = loss.view(n_masks_updated, self.k_neighbors)

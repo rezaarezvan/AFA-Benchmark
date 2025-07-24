@@ -199,6 +199,15 @@ def eval_afa_method(
                 torch.arange(feature_mask.shape[0], device=device), selections
             ] = features[torch.arange(feature_mask.shape[0], device=device), selections]
 
+            # DEBUG: Debugging ACO
+            # valid = selections >= 0
+            # if valid.any():
+            #     rows = torch.arange(
+            #         feature_mask.shape[0], device=device)[valid]
+            #     cols = selections[valid]
+            #     feature_mask[rows, cols] = True
+            #     masked_features[rows, cols] = features[rows, cols]
+
             # Store a copy of the feature mask in history
             feature_mask_history[i] = feature_mask.clone()
 
@@ -223,10 +232,12 @@ def eval_afa_method(
     feature_mask_history_tensor: Tensor = torch.cat(
         temp
     )  # Tensor[n_samples,budget,n_classes] (n_batches)
-    action_count = feature_mask_history_tensor[:, -1, :].sum(dim=0)  # (n_classes,)
+    # (n_classes,)
+    action_count = feature_mask_history_tensor[:, -1, :].sum(dim=0)
     action_distribution = action_count / action_count.sum()  # (n_classes,)
 
-    labels_tensor: Tensor = torch.cat(labels_all)  # Tensor[n_samples,n_classes]
+    labels_tensor: Tensor = torch.cat(
+        labels_all)  # Tensor[n_samples,n_classes]
 
     labels_tensor = torch.argmax(labels_tensor, dim=1)
 
