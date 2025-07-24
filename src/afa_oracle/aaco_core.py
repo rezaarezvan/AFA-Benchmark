@@ -76,7 +76,7 @@ def load_classifier(dataset_name, X_train, y_train, input_dim, device=None, mode
             if model_path.exists():
                 xgb_model = XGBClassifier()
                 xgb_model.load_model(str(model_path))
-                print("Loaded pre-trained MNIST d=256 XGBoost model")
+                log.info("Loaded pre-trained MNIST d=256 XGBoost model")
                 return classifier_xgb(xgb_model)
 
         # Train single XGB with wandb caching
@@ -101,7 +101,7 @@ def get_single_xgb_artifact_name(dataset_name, input_dim, n_classes):
 def save_single_xgb_to_wandb(xgb_model, dataset_name, input_dim, n_classes):
     """Save single XGBoost model to wandb artifact"""
     if not wandb.run:
-        print("No active wandb run, skipping model save")
+        log.warning("No active wandb run, cannot save model")
         return
 
     artifact_name = get_single_xgb_artifact_name(
@@ -114,7 +114,7 @@ def save_single_xgb_to_wandb(xgb_model, dataset_name, input_dim, n_classes):
         # Create wandb artifact
         artifact = wandb.Artifact(
             name=artifact_name,
-            type="xgb_classifier",
+            type="trained_classifier",
             metadata={
                 "dataset_name": dataset_name,
                 "input_dim": input_dim,
@@ -131,13 +131,13 @@ def save_single_xgb_to_wandb(xgb_model, dataset_name, input_dim, n_classes):
         # Clean up temp file
         os.unlink(tmp_file.name)
 
-    print(f"Saved single XGBoost model to wandb artifact: {artifact_name}")
+    log.info(f"Saved single XGBoost model to wandb artifact: {artifact_name}")
 
 
 def load_single_xgb_from_wandb(dataset_name, input_dim, n_classes):
     """Load single XGBoost model from wandb artifact"""
     if not wandb.run:
-        print("No active wandb run, cannot load model")
+        log.warning("No active wandb run, cannot load model")
         return None
 
     artifact_name = get_single_xgb_artifact_name(
@@ -152,31 +152,31 @@ def load_single_xgb_from_wandb(dataset_name, input_dim, n_classes):
         model_path = os.path.join(artifact_dir, "model.joblib")
         xgb_model = joblib.load(model_path)
 
-        print(f"Loaded single XGBoost model from wandb artifact: {
-              artifact_name}")
+        log.info(f"Loaded single XGBoost model from wandb artifact: {
+                 artifact_name}")
         return xgb_model
 
     except wandb.errors.CommError:
-        print(f"Artifact {artifact_name} not found, will train new model")
+        log.info(f"Artifact {artifact_name} not found, will train new model")
         return None
     except Exception as e:
-        print(f"Error loading artifact {artifact_name}: {e}")
+        log.error(f"Failed to load single XGBoost model: {e}")
         return None
 
 
-def train_single_xgb_classifier(X_train, y_train, input_dim, n_classes, device, dataset_name="mnist"):
+def train_single_xgb_classifier(X_train, y_train, input_dim, n_classes, device, dataset_name="mnist", hide_val=10.0):
     """
     Train single XGBoost classifier with wandb artifact caching
     """
     # Try to load existing model first
-    print(f"Checking for existing XGBoost model for {dataset_name}...")
+    log.info(f"Checking for existing XGBoost model for {dataset_name}...")
     existing_model = load_single_xgb_from_wandb(
         dataset_name, input_dim, n_classes)
     if existing_model is not None:
         return classifier_xgb(existing_model)
 
-    print(f"Training new single XGBoost for {
-          dataset_name} with d={input_dim} features...")
+    log.info(f"Training new single XGBoost for {
+             dataset_name} with d={input_dim} features...")
 
     # Convert to numpy and prepare data
     if torch.is_tensor(X_train):
@@ -200,16 +200,17 @@ def train_single_xgb_classifier(X_train, y_train, input_dim, n_classes, device, 
     y_sub = y_np[train_indices]
 
     # Generate training examples with random masks
-    print("Generating training data with random masks...")
+    log.info("Generating training data with random masks... ")
 
     X_masked_list = []
     y_list = []
 
-    n_masks = 50  # Small number for efficiency
+    n_masks = 10  # Small number for efficiency
 
     for mask_idx in range(n_masks):
         # Simple random mask generation
-        mask_prob = np.random.uniform(0.2, 0.8)
+        mask_prob = np.random.uniform(
+            0.1, 0.5) if input_dim > 20 else np.random.uniform(0.3, 0.9)
         mask = np.random.binomial(1, mask_prob, input_dim).astype(np.float32)
 
         # Ensure at least one feature is selected
@@ -217,7 +218,7 @@ def train_single_xgb_classifier(X_train, y_train, input_dim, n_classes, device, 
             mask[np.random.randint(input_dim)] = 1
 
         # Apply mask to all samples
-        X_masked = X_sub * mask
+        X_masked = X_sub * mask - (1 - mask) * hide_val
 
         # Concatenate [masked_features + mask]
         mask_repeated = np.tile(mask, (n_train_samples, 1))
@@ -227,20 +228,20 @@ def train_single_xgb_classifier(X_train, y_train, input_dim, n_classes, device, 
         y_list.append(y_sub)
 
         if (mask_idx + 1) % 10 == 0:
-            print(f"  Generated {mask_idx + 1}/{n_masks} masks")
+            log.info(f"  Generated {mask_idx + 1}/{n_masks} masks")
 
     # Combine all training data
     X_final = np.vstack(X_masked_list)
     y_final = np.concatenate(y_list)
 
-    print(f"Final training data: {X_final.shape[0]} samples, {
-          X_final.shape[1]} features")
+    log.info(f"Final training data: {X_final.shape[0]} samples, {
+             X_final.shape[1]} features")
 
     # Train with exact AACO parameters
-    print("Training XGBoost with original AACO parameters...")
+    log.info("Training XGBoost model...")
     xgb_model = XGBClassifier(
-        n_estimators=250,
-        max_depth=12,
+        n_estimators=50,
+        max_depth=6,
         random_state=29,
         n_jobs=8,
         objective='multi:softprob',
@@ -250,7 +251,7 @@ def train_single_xgb_classifier(X_train, y_train, input_dim, n_classes, device, 
     )
 
     xgb_model.fit(X_final, y_final)
-    print("XGBoost training completed!")
+    log.info("XGBoost model trained successfully")
 
     # Save to wandb
     save_single_xgb_to_wandb(xgb_model, dataset_name, input_dim, n_classes)
@@ -266,7 +267,8 @@ def load_mask_generator(dataset_name, input_dim):
 
     if dataset_name_lower in ["cube", "mnist", "fashionmnist", "physionet", "miniboone", "afacontext"]:
         # Paper shows this works nearly as well as 10,000 (for MNIST)
-        return random_mask_generator(100, input_dim, 100)
+        # return random_mask_generator(100, input_dim, 100)
+        return random_mask_generator(100, input_dim, 50)
     elif dataset_name in ["grid", "gas10", "diabetes", "shim2018cube"]:
         # Generate all possible masks for grid and gas10
         all_masks = generate_all_masks(input_dim)

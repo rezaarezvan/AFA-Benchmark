@@ -76,12 +76,12 @@ def main(cfg: AACOTrainConfig):
     if cfg.aco.evaluate_final_performance:
         log.info("Evaluating AACO method...")
 
+        # Use a budget of 25 features for feasibility
         metrics = eval_afa_method(
             afa_select_fn=aaco_method.select,
             dataset=val_dataset,
             # AACO does not have a fixed budget, but for feasibility we use a budget of 25 features (no reason to use more)
-            budget=25,
-            # batch_size=32,
+            budget=min(n_features, 25),
             afa_predict_fn=aaco_method.predict,
             only_n_samples=cfg.aco.eval_only_n_samples,
             device=device,
