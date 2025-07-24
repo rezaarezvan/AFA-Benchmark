@@ -1,6 +1,7 @@
 from typing import Any, TypeVar
 
 import torch
+import logging
 from torch.utils.data import DataLoader
 from torch import Tensor
 from tqdm import tqdm
@@ -15,6 +16,8 @@ from common.custom_types import (
 from sklearn.metrics import accuracy_score, f1_score
 import numpy as np
 import torch.nn.functional as F
+
+log = logging.getLogger(__name__)
 
 
 def aggregate_metrics(prediction_history, y_true) -> tuple[Tensor, Tensor, Tensor]:
@@ -56,7 +59,8 @@ def aggregate_metrics(prediction_history, y_true) -> tuple[Tensor, Tensor, Tenso
         probs_i = torch.stack([row for row in prediction_history[:, i]])
         bce_all.append(
             F.binary_cross_entropy(
-                probs_i, F.one_hot(y_true, num_classes=probs_i.shape[-1]).float()
+                probs_i, F.one_hot(
+                    y_true, num_classes=probs_i.shape[-1]).float()
             )
         )
 
@@ -122,8 +126,10 @@ def eval_afa_method(
         device = torch.device("cpu")
 
     # Store feature mask history, label prediction history, and true label for each sample in the dataset
-    feature_mask_history_all = []  # list[Tensor[budget,batch_size,n_features]] (n_batches)
-    prediction_history_all = []  # list[Tensor[budget,batch_size,n_classes]]] (n_batches)
+    # list[Tensor[budget,batch_size,n_features]] (n_batches)
+    feature_mask_history_all = []
+    # list[Tensor[budget,batch_size,n_classes]]] (n_batches)
+    prediction_history_all = []
     labels_all: list[Label] = []  # (n_batches)
 
     dataloader = DataLoader(
@@ -166,7 +172,8 @@ def eval_afa_method(
         )  # budget, batch_size, n_classes
 
         # Start with all features unobserved
-        feature_mask = torch.zeros_like(features, dtype=torch.bool, device=device)
+        feature_mask = torch.zeros_like(
+            features, dtype=torch.bool, device=device)
         masked_features = features.clone()
         masked_features[~feature_mask] = 0.0
 
@@ -178,7 +185,8 @@ def eval_afa_method(
             prediction_history[i] = predictions
 
             # Select new features
-            selections = afa_select_fn(masked_features, feature_mask).squeeze(-1)
+            selections = afa_select_fn(
+                masked_features, feature_mask).squeeze(-1)
 
             # Update the feature mask and masked features
             feature_mask[
@@ -217,11 +225,11 @@ def eval_afa_method(
 
     labels_tensor = torch.argmax(labels_tensor, dim=1)
 
-    print("Aggregating metrics...")
+    log.info("Aggregating metrics...")
     accuracy_all, f1_all, bce_all = aggregate_metrics(
         prediction_history_tensor.cpu(), labels_tensor.cpu()
     )
-    print("Finished aggregating metrics")
+    log.info("Finished aggregating metrics")
 
     return {
         "accuracy_all": accuracy_all.detach().cpu(),

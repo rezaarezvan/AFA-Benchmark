@@ -1,14 +1,17 @@
+import os
 import torch
-import pickle
 import wandb
+import joblib
+import logging
 import numpy as np
+import wandb.errors
 import torch.nn as nn
 
-from tqdm import tqdm
-from pathlib import Path
-from datetime import datetime
 from scipy.stats import norm
 from xgboost import XGBClassifier
+from tempfile import NamedTemporaryFile
+
+log = logging.getLogger(__name__)
 
 
 class NaiveBayes(nn.Module):
@@ -22,21 +25,24 @@ class NaiveBayes(nn.Module):
         self.num_classes = num_classes
         self.std = std
 
-    def forward(self, x, mask):
+    def forward(self, x):
         """
         Args:
             x: data tensor of shape (N, d)
-            mask: mask tensor of shape (N, d)
         """
+        try:
+            mask = x[:, self.num_features:]
+            x = x[:, :self.num_features]
+        except IndexError:
+            log.error(
+                "Classifier expects masking information to be concatenated with each feature vector.")
+
         device = x.device
         y_classes = list(range(self.num_classes))
-
-        # Initialize output_probs on the correct device
         output_probs = torch.zeros((len(x), self.num_classes), device=device)
 
         for y_val in y_classes:
             # PDF values for each feature in x conditioned on the given label y_val
-
             # Default to PDF for U[0,1) - ensure tensors are on correct device
             p_x_y = torch.where((x >= 0) & (x < 1),
                                 torch.ones(x.shape, device=device),
@@ -67,19 +73,16 @@ class NaiveBayes(nn.Module):
 
 
 class classifier_xgb_dict():
-    """
-    XGBoost dictionary classifier with proper GPU support, progress indicators, and periodic saving
-    """
-
-    def __init__(self, output_dim, input_dim, subsample_ratio, X_train, y_train, device=None, dataset_name="mnist", save_batch_size=1000):
+    def __init__(self, output_dim, input_dim, subsample_ratio, X_train, y_train,
+                 device=None, dataset_name="unknown", save_batch_size=100):
         """
         Input:
-        output_dim: Dimension of the outcome y
-        input_dim: Dimension of the input features (X)
-        subsample_ratio: Fraction of training points for each boosting iteration
-        device: torch.device to use ('cpu' or 'cuda')
-        dataset_name: Name of dataset for caching
-        save_batch_size: Number of classifiers to train before saving to wandb
+            output_dim: Dimension of the outcome y
+            input_dim: Dimension of the input features (X)
+            subsample_ratio: Fraction of training points for each boosting iteration
+            device: torch.device to use
+            dataset_name: Name of dataset for artifact naming
+            save_batch_size: Number of classifiers to train before saving to wandb
         """
         self.xgb_model_dict = {}
         self.output_dim = output_dim
@@ -96,7 +99,7 @@ class classifier_xgb_dict():
             self.device = X_train.device if hasattr(
                 X_train, 'device') else torch.device('cpu')
 
-        # Convert to numpy for XGBoost, but keep track of device
+        # Convert to numpy for XGBoost
         if torch.is_tensor(X_train):
             self.X_train = X_train.cpu().numpy()
         else:
@@ -104,218 +107,177 @@ class classifier_xgb_dict():
 
         if torch.is_tensor(y_train):
             if len(y_train.shape) > 1 and y_train.shape[1] > 1:
-                # One-hot encoded
                 self.y_train = y_train.argmax(dim=1).cpu().numpy()
             else:
                 self.y_train = y_train.cpu().numpy()
         else:
             self.y_train = y_train
 
-        # XGBoost parameters - always use CPU to avoid device mismatch warnings
+        # XGBoost parameters - use consistent params with single XGB
         self.xgb_params = {
-            'n_estimators': 250,
-            'max_depth': 5,
+            'n_estimators': 100,  # Smaller for dict since we train many
+            'max_depth': 6,       # Smaller depth for dict
             'random_state': 29,
-            'n_jobs': 8,
+            'n_jobs': 4,          # Fewer jobs since we train many in parallel
             'tree_method': 'hist',
         }
 
-        print("XGBoost classifier initialized with device: CPU (to avoid GPU/CPU data mismatch)")
-        print(f"Periodic saving enabled: every {save_batch_size} classifiers")
+        log.info(f"XGBoost dictionary initialized for {dataset_name}")
+        log.info(f"Periodic saving enabled: every {
+                 save_batch_size} classifiers")
 
         # Try to load existing classifiers
         self._load_classifiers_from_wandb()
 
-    def _get_classifier_artifact_name(self):
-        """Generate artifact name for classifiers cache"""
-        return f"xgb_classifiers_{self.dataset_name.lower()}_{self.input_dim}_{self.output_dim}"
+    def _get_dict_artifact_name(self):
+        """Generate artifact name for XGB dictionary"""
+        return f"xgb_dict_{self.dataset_name}_{self.input_dim}d_{self.output_dim}c"
 
     def _load_classifiers_from_wandb(self):
-        """Try to load existing classifiers from wandb artifacts"""
-        try:
-            artifact_name = self._get_classifier_artifact_name()
-            artifact = wandb.use_artifact(
-                f"{artifact_name}:latest", type="classifier_cache")
-            artifact_dir = Path(artifact.download())
+        """Try to load existing XGB dictionary from wandb"""
+        if not wandb.run:
+            log.warning("No active wandb run, skipping classifier load")
+            return
 
-            classifiers_path = artifact_dir / "classifiers.pkl"
-            if classifiers_path.exists():
-                with open(classifiers_path, 'rb') as f:
-                    self.xgb_model_dict = pickle.load(f)
-                print(f"Loaded {len(self.xgb_model_dict)
-                                } cached XGBoost classifiers from wandb")
-                return True
+        artifact_name = self._get_dict_artifact_name()
+
+        try:
+            artifact = wandb.use_artifact(f"{artifact_name}:latest")
+            artifact_dir = artifact.download()
+
+            dict_path = os.path.join(artifact_dir, "xgb_dict.joblib")
+            if os.path.exists(dict_path):
+                self.xgb_model_dict = joblib.load(dict_path)
+                log.info(f"Loaded {len(self.xgb_model_dict)} XGB classifiers from artifact: {
+                         artifact_name}")
+
+        except wandb.errors.CommError:
+            log.warning("No existing XGB dictionary found for "
+                        f"{self.dataset_name}, starting fresh.")
         except Exception as e:
-            print(f"Could not load cached classifiers: {e}")
-        return False
+            log.error(f"Failed to load XGB dictionary from wandb: {e}")
 
     def _save_classifiers_to_wandb(self, force_save=False):
-        """Save trained classifiers to wandb artifacts with versioning"""
+        """Save XGB dictionary to wandb artifact"""
+        if not wandb.run:
+            return
         if not force_save and self.classifiers_trained_since_save < self.save_batch_size:
             return
 
+        artifact_name = self._get_dict_artifact_name()
+
         try:
-            import tempfile
+            with NamedTemporaryFile(suffix='.joblib', delete=False) as tmp_file:
+                joblib.dump(self.xgb_model_dict, tmp_file.name)
 
-            with tempfile.TemporaryDirectory() as tmp_dir:
-                tmp_path = Path(tmp_dir)
-                classifiers_path = tmp_path / "classifiers.pkl"
-
-                # Save the classifiers dict
-                with open(classifiers_path, 'wb') as f:
-                    pickle.dump(self.xgb_model_dict, f)
-
-                # Create wandb artifact with version info
-                artifact_name = self._get_classifier_artifact_name()
                 artifact = wandb.Artifact(
                     name=artifact_name,
-                    type="classifier_cache",
+                    type="xgb_dict_classifier",
                     metadata={
-                        "dataset": self.dataset_name,
+                        "dataset_name": self.dataset_name,
                         "input_dim": self.input_dim,
                         "output_dim": self.output_dim,
-                        "n_classifiers": len(self.xgb_model_dict),
+                        "num_classifiers": len(self.xgb_model_dict),
                         "subsample_ratio": self.subsample_ratio,
-                        "save_batch_size": self.save_batch_size,
-                        "last_save_timestamp": str(datetime.now()),
                     }
                 )
-                artifact.add_file(str(classifiers_path))
+
+                artifact.add_file(tmp_file.name, name="xgb_dict.joblib")
                 wandb.log_artifact(artifact)
 
-                print(f"Saved {len(self.xgb_model_dict)
-                               } XGBoost classifiers to wandb")
-                self.classifiers_trained_since_save = 0
+                os.unlink(tmp_file.name)
+
+            log.info(f"Saved {len(self.xgb_model_dict)
+                              } XGB classifiers to artifact: {artifact_name}")
+            self.classifiers_trained_since_save = 0
 
         except Exception as e:
-            print(f"Could not save classifiers to wandb: {e}")
+            log.error(f"Failed to save XGB dictionary to wandb: {e}")
 
     def __call__(self, X, idx):
-        n = X.shape[0]
         device = X.device if hasattr(X, 'device') else torch.device('cpu')
+        n = X.shape[0]
         probs = torch.zeros((n, self.output_dim), device=device)
 
-        # Check if we're using GPU XGBoost
-        using_gpu_xgb = self.device.type == 'cuda' and torch.cuda.is_available()
-
-        # Track progress for classifier building
-        masks_to_build = []
-        cached_masks = 0
-
-        # First pass: identify which masks need to be built
+        # First pass: train any missing classifiers
+        masks_to_train = []
         for i in range(n):
             mask_i = X[i][self.input_dim:].cpu()
-            nonzero_i = mask_i.nonzero().squeeze()
-
-            # Handle edge case: ensure nonzero_i is always an array
-            if nonzero_i.dim() == 0:  # scalar case (single feature)
-                nonzero_i = nonzero_i.unsqueeze(0)
-
-            # Check if no features are selected
-            if len(nonzero_i) == 0:
-                # No features selected - return uniform probabilities
-                dummy_probs = torch.ones(
-                    self.output_dim, device=device) / self.output_dim
-                probs[i] = dummy_probs
-                continue
-
             mask_i_string = ''.join(map(str, mask_i.long().tolist()))
 
-            # Check if the mask is already in the dictionary
             if mask_i_string not in self.xgb_model_dict:
-                masks_to_build.append((i, mask_i_string, nonzero_i))
-            else:
-                cached_masks += 1
+                masks_to_train.append((i, mask_i, mask_i_string))
 
-        # Build new classifiers with progress bar and periodic saving
-        if masks_to_build:
-            print(f"Building {len(masks_to_build)} new XGBoost classifiers (using {
-                  cached_masks} cached)...")
+        # Train missing classifiers
+        for i, mask_i, mask_i_string in masks_to_train:
+            try:
+                nonzero_i = mask_i.nonzero().squeeze()
 
-            for idx, (i, mask_i_string, nonzero_i) in enumerate(tqdm(masks_to_build, desc="Training classifiers")):
-                try:
-                    self.xgb_model_dict[mask_i_string] = XGBClassifier(
-                        **self.xgb_params)
-
-                    # Extract features for selected indices
-                    X_train_subset = self.X_train[:, nonzero_i.cpu().numpy()]
-
-                    # Ensure we have the right shape
-                    if X_train_subset.ndim == 1:
-                        X_train_subset = X_train_subset.reshape(-1, 1)
-
-                    # Subsample training data
-                    n_samples = max(
-                        1, int(X_train_subset.shape[0] * self.subsample_ratio))
-                    idx_sample = np.random.choice(
-                        X_train_subset.shape[0], n_samples, replace=False)
-
-                    self.xgb_model_dict[mask_i_string].fit(
-                        X_train_subset[idx_sample], self.y_train[idx_sample])
-                    self.classifiers_trained_since_save += 1
-
-                    # Periodic saving
-                    if self.classifiers_trained_since_save >= self.save_batch_size:
-                        print(f"Saving progress: {
-                              len(self.xgb_model_dict)} classifiers trained so far...")
-                        self._save_classifiers_to_wandb()
-
-                except Exception as e:
-                    print(f"Warning: Failed to train XGBoost classifier for mask {
-                          mask_i_string}: {e}")
-                    # Fallback: create a dummy classifier that returns uniform probabilities
+                if nonzero_i.dim() == 0:
+                    nonzero_i = nonzero_i.unsqueeze(0)
+                if len(nonzero_i) == 0:
                     self.xgb_model_dict[mask_i_string] = None
+                    continue
 
-            # Final save if there are unsaved classifiers
-            if self.classifiers_trained_since_save > 0:
-                print(f"Final save: {
-                      len(self.xgb_model_dict)} total classifiers")
-                self._save_classifiers_to_wandb(force_save=True)
+                # Train classifier for this mask
+                X_train_subset = self.X_train[:, nonzero_i].reshape(
+                    self.X_train.shape[0], -1)
+                n_samples = min(len(X_train_subset), int(
+                    len(X_train_subset) * self.subsample_ratio))
+                n_samples = max(n_samples, 100)  # Minimum samples
+
+                idx_sample = np.random.choice(
+                    X_train_subset.shape[0], n_samples, replace=False)
+
+                self.xgb_model_dict[mask_i_string] = XGBClassifier(
+                    **self.xgb_params)
+                self.xgb_model_dict[mask_i_string].fit(
+                    X_train_subset[idx_sample], self.y_train[idx_sample]
+                )
+                self.classifiers_trained_since_save += 1
+
+                # Periodic saving
+                if self.classifiers_trained_since_save >= self.save_batch_size:
+                    log.info(f"Saving progress: {
+                             len(self.xgb_model_dict)} classifiers trained so far...")
+                    self._save_classifiers_to_wandb()
+
+            except Exception as e:
+                log.error(f"Failed to train XGBoost classifier for mask {
+                          mask_i_string}: {e}")
+                self.xgb_model_dict[mask_i_string] = None
+
+        # Final save if there are unsaved classifiers
+        if self.classifiers_trained_since_save > 0:
+            self._save_classifiers_to_wandb(force_save=True)
 
         # Second pass: make predictions
         for i in range(n):
             mask_i = X[i][self.input_dim:].cpu()
             nonzero_i = mask_i.nonzero().squeeze()
 
-            # Handle edge case: ensure nonzero_i is always an array
-            if nonzero_i.dim() == 0:  # scalar case (single feature)
+            if nonzero_i.dim() == 0:
                 nonzero_i = nonzero_i.unsqueeze(0)
 
-            # Check if no features are selected
             if len(nonzero_i) == 0:
-                # No features selected - return uniform probabilities
-                dummy_probs = torch.ones(
+                probs[i] = torch.ones(
                     self.output_dim, device=device) / self.output_dim
-                probs[i] = dummy_probs
                 continue
 
             mask_i_string = ''.join(map(str, mask_i.long().tolist()))
 
-            # Make prediction
             if self.xgb_model_dict[mask_i_string] is not None:
                 try:
-                    # Extract query data and handle device properly
-                    X_query = X[i, nonzero_i]
-
-                    # For GPU XGBoost, try to keep data on GPU if possible
-                    if using_gpu_xgb and hasattr(X_query, 'cuda'):
-                        # Keep on GPU and convert to numpy - XGBoost will handle GPU transfer
-                        X_query_np = X_query.detach().cpu().numpy().reshape(1, -1)
-                    else:
-                        # Standard CPU conversion
-                        X_query_np = X_query.cpu().numpy().reshape(1, -1)
-
+                    X_query = X[i, nonzero_i].cpu().numpy().reshape(1, -1)
                     pred_probs = self.xgb_model_dict[mask_i_string].predict_proba(
-                        X_query_np)
+                        X_query)
                     probs[i] = torch.from_numpy(pred_probs[0]).to(device)
                 except Exception as e:
-                    print(f"Warning: Prediction failed for mask {
-                          mask_i_string}: {e}")
-                    # Fallback to uniform probabilities
+                    log.error(f"Prediction failed for mask {
+                              mask_i_string}: {e}")
                     probs[i] = torch.ones(
                         self.output_dim, device=device) / self.output_dim
             else:
-                # Use fallback uniform probabilities
                 probs[i] = torch.ones(
                     self.output_dim, device=device) / self.output_dim
 
@@ -339,7 +301,8 @@ class classifier_ground_truth():
 
 class classifier_xgb():
     """
-    Wrapper for pre-trained XGBoost models with proper device handling
+    Single XGBoost classifier that expects [features + mask] as concatenated input
+    Used for MNIST and other high-dimensional datasets
     """
 
     def __init__(self, xgb_model):
@@ -356,12 +319,13 @@ class classifier_xgb():
 
         try:
             pred_probs = self.xgb_model.predict_proba(X_np)
-            return torch.tensor(pred_probs, device=device)
+            return torch.tensor(pred_probs, device=device, dtype=torch.float32)
         except Exception as e:
-            print(f"Warning: XGBoost prediction failed: {e}")
+            log.error(f"XGBoost prediction failed: {e}")
             # Return uniform probabilities as fallback
             n_samples = X.shape[0] if hasattr(X, 'shape') else len(X)
-            n_classes = getattr(self.xgb_model, 'n_classes_', 2)
+            n_classes = getattr(self.xgb_model, 'n_classes_',
+                                10)  # Default for MNIST
             uniform_probs = torch.ones(
                 (n_samples, n_classes), device=device) / n_classes
             return uniform_probs
