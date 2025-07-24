@@ -437,9 +437,14 @@ def weighted_cross_entropy(
         Tensor of shape (batch_size,) if reduction='none',
         else scalar loss.
     """
-    log_input = torch.log(input_probs + eps)
-    weighted_ce = -target_probs * log_input * weights.unsqueeze(0)
-    loss_per_sample = weighted_ce.sum(dim=1)
+    # assert input_probs.ndim == 2
+    # assert target_probs.ndim == 2
+    # assert weights.ndim == 1
+    log_input = torch.log(input_probs + eps)  # (batch_size, num_classes)
+    weighted_ce = (
+        -target_probs * log_input * weights.unsqueeze(0)
+    )  # (batch_size, num_classes)
+    loss_per_sample = weighted_ce.sum(dim=1)  # (batch_size,)
 
     if reduction == "mean":
         return loss_per_sample.mean()

@@ -469,19 +469,22 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         logvar: Tensor,
     ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
         # Split augmented features (features+labels) into their corresponding parts so we can have different losses for them
-        estimated_features, estimated_labels = (
-            estimated_augmented_features[..., : len(self.class_weights)],
-            estimated_augmented_features[..., len(self.class_weights) :],
-        )
         features, labels = (
-            augmented_features[..., : len(self.class_weights)],
-            augmented_features[..., len(self.class_weights) :],
+            augmented_features[..., : 1 - len(self.class_weights)],
+            augmented_features[..., -len(self.class_weights) :],
+        )
+        estimated_features, estimated_label_logits = (
+            estimated_augmented_features[..., : 1 - len(self.class_weights)],
+            estimated_augmented_features[..., -len(self.class_weights) :],
         )
         feature_recon_loss = (
             ((estimated_features - features) ** 2).sum(dim=1).mean(dim=0)
         )
-        label_recon_loss = weighted_cross_entropy(
-            estimated_labels, labels, weights=self.class_weights, reduction="mean"
+        label_recon_loss = F.cross_entropy(
+            estimated_label_logits,
+            labels,
+            weight=self.class_weights.to(estimated_label_logits.device),
+            reduction="mean",
         )
         label_recon_loss *= self.label_loss_scaling_factor
         kl_div_loss = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp()).sum(dim=1).mean(

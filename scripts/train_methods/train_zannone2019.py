@@ -78,6 +78,7 @@ def load_pretrained_model_artifacts(
         "Pretrained model artifact must be logged by a run."
     )
     pretrained_model_config_dict = pretraining_run.config
+    print(f"{pretrained_model_config_dict=}")
     pretrained_model_config: Zannone2019PretrainConfig = from_dict(
         data_class=Zannone2019PretrainConfig, data=pretrained_model_config_dict
     )
@@ -211,19 +212,19 @@ def main(cfg: Zannone2019TrainConfig):
         ).cpu()
 
     # Also reconstruct some samples, both when providing a label and not
-    _, label_reconstructed_features = pretrained_model.fully_observed_reconstruction(
-        features=train_dataset.features[:100].to(device),
-        n_classes=n_classes,
-        label=train_dataset.labels[:100].to(device),
-    )
-    _, reconstructed_features = pretrained_model.fully_observed_reconstruction(
-        features=train_dataset.features[:100].to(device),
-        n_classes=n_classes,
-        label=None,
-    )
+    # _, label_reconstructed_features = pretrained_model.fully_observed_reconstruction(
+    #     features=train_dataset.features[:100].to(device),
+    #     n_classes=n_classes,
+    #     label=train_dataset.labels[:100].to(device),
+    # )
+    # _, reconstructed_features = pretrained_model.fully_observed_reconstruction(
+    #     features=train_dataset.features[:100].to(device),
+    #     n_classes=n_classes,
+    #     label=None,
+    # )
     # z = z.cpu()
-    label_reconstructed_features = label_reconstructed_features.cpu()
-    reconstructed_features = reconstructed_features.cpu()
+    # label_reconstructed_features = label_reconstructed_features.cpu()
+    # reconstructed_features = reconstructed_features.cpu()
 
     # Visualize MNIST digits
     # fig_real, _axs_real = visualize_digits(
@@ -254,7 +255,7 @@ def main(cfg: Zannone2019TrainConfig):
     #     plt.title(f"Latent dim {i}")
     # plt.tight_layout()
     # plt.show()
-    #
+
     combined_features = torch.cat([train_dataset.features, generated_features])
     combined_features = combined_features[torch.randperm(len(combined_features))]
     combined_labels = torch.cat([train_dataset.labels, generated_labels])
