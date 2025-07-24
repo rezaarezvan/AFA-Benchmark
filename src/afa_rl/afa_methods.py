@@ -71,8 +71,8 @@ class RLAFAMethod(AFAMethod):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features,
-        label: Label,
+        features: Features | None,
+        label: Label | None,
     ) -> AFASelection:
         original_device = masked_features.device
 
@@ -95,8 +95,8 @@ class RLAFAMethod(AFAMethod):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features,
-        label: Label,
+        features: Features | None,
+        label: Label | None,
     ) -> Label:
         original_device = masked_features.device
 
@@ -104,7 +104,7 @@ class RLAFAMethod(AFAMethod):
         feature_mask = feature_mask.to(self._device)
 
         with torch.no_grad():
-            probs = self.afa_classifier(masked_features, feature_mask)
+            probs = self.afa_classifier(masked_features, feature_mask, features, label)
         return probs.to(original_device)
 
     @override

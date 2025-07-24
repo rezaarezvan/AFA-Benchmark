@@ -14,6 +14,7 @@ AFA_METHOD_TYPES = {
     "aaco",
     "sequential_dummy",
     "random_dummy",
+    "optimalcube",
 }
 
 
@@ -39,9 +40,15 @@ def get_afa_method_class(name: str) -> type[AFAMethod]:
 
         return Ma2018AFAMethod
 
-    elif name == "aaco":
-        from afa_oracle.afa_methods import AACOAFAMethod
-        return AACOAFAMethod
+    elif name == "aco":
+        from afa_oracle.afa_methods import ACOAFAMethod
+
+        return ACOAFAMethod
+
+    elif name == "aco_bc":
+        from afa_oracle.afa_methods import ACOBCAFAMethod
+
+        return ACOBCAFAMethod
 
     elif name == "sequentialdummy":
         from common.afa_methods import SequentialDummyAFAMethod
@@ -51,6 +58,10 @@ def get_afa_method_class(name: str) -> type[AFAMethod]:
         from common.afa_methods import RandomDummyAFAMethod
 
         return RandomDummyAFAMethod
+    elif name == "optimalcube":
+        from common.afa_methods import OptimalCubeAFAMethod
+
+        return OptimalCubeAFAMethod
     else:
         raise ValueError(f"Unknown AFA method: {name}")
 

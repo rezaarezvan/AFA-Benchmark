@@ -34,7 +34,6 @@ class AFADataset(Protocol):
         """Generate data."""
         ...
 
-    @override
     def __getitem__(self, idx: int) -> tuple[Features, Label]:
         """Return a single (possibly batched) sample from the dataset."""
         ...
@@ -73,8 +72,8 @@ class AFAMethod(Protocol):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features,
-        label: Label,
+        features: Features | None,
+        label: Label | None,
     ) -> AFASelection:
         """Return the 1-based index of the feature to be collected next or 0 if no more features should be collected.
 
@@ -86,8 +85,8 @@ class AFAMethod(Protocol):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features,
-        label: Label,
+        features: Features | None,
+        label: Label | None,
     ) -> Label:
         """Return the predicted label for the features that have been observed so far.
 
@@ -124,6 +123,8 @@ class AFAClassifier(Protocol):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
+        features: Features | None,
+        label: Label | None,
     ) -> Label:
         """Return the predicted label for the features that have been observed so far.
 
@@ -156,8 +157,8 @@ class AFASelectFn(Protocol):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features,
-        labels: Label,
+        features: Features | None,
+        labels: Label | None,
     ) -> AFASelection: ...
 
 
@@ -167,6 +168,6 @@ class AFAPredictFn(Protocol):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features,
-        label: Label,
+        features: Features | None,
+        label: Label | None,
     ) -> Label: ...

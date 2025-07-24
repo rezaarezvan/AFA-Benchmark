@@ -12,6 +12,7 @@ from common.custom_types import (
     Label,
     MaskedFeatures,
 )
+from common.registry import get_afa_classifier_class
 
 
 @final
@@ -27,8 +28,8 @@ class RandomDummyAFAMethod(AFAMethod):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features,
-        label: Label,
+        features: Features | None,
+        label: Label | None,
     ) -> AFASelection:
         """Chooses to observe a random feature from the masked features (or stop collecting features)."""
         original_device = masked_features.device
@@ -56,8 +57,8 @@ class RandomDummyAFAMethod(AFAMethod):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features,
-        label: Label,
+        features: Features | None,
+        label: Label | None,
     ) -> Label:
         """Return a random prediction from the classes."""
         original_device = masked_features.device
@@ -120,8 +121,8 @@ class SequentialDummyAFAMethod(AFAMethod):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features,
-        label: Label,
+        features: Features | None,
+        label: Label | None,
     ) -> AFASelection:
         original_device = masked_features.device
 
@@ -141,8 +142,8 @@ class SequentialDummyAFAMethod(AFAMethod):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features,
-        label: Label,
+        features: Features | None,
+        label: Label | None,
     ) -> Label:
         """Return a random prediction from the classes."""
         original_device = masked_features.device
@@ -211,8 +212,8 @@ class RandomClassificationAFAMethod(AFAMethod):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features,
-        label: Label,
+        features: Features | None,
+        label: Label | None,
     ) -> AFASelection:
         """Chooses to observe a random feature from the masked features (or stop collecting features)."""
         original_device = masked_features.device
@@ -240,14 +241,22 @@ class RandomClassificationAFAMethod(AFAMethod):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features,
-        label: Label,
+        features: Features | None,
+        label: Label | None,
     ) -> Label:
         """Return a prediction using the classifier."""
         original_device = masked_features.device
 
+        if features is not None:
+            features = features.to(self._device)
+        if label is not None:
+            label = label.to(self._device)
+
         return self.afa_classifier(
-            masked_features.to(self._device), feature_mask.to(self._device)
+            masked_features.to(self._device),
+            feature_mask.to(self._device),
+            features,
+            label,
         ).to(original_device)
 
     @override
@@ -264,9 +273,8 @@ class RandomClassificationAFAMethod(AFAMethod):
         """Load the method from a file."""
         with open(path / "classifier_class_name.txt") as f:
             classifier_class_name = f.read()
-        from common.registry import AFA_CLASSIFIER_REGISTRY
 
-        afa_classifier = AFA_CLASSIFIER_REGISTRY[classifier_class_name].load(
+        afa_classifier = get_afa_classifier_class(classifier_class_name).load(
             path / "classifier.pt", device
         )
         return cls(afa_classifier, device)
@@ -302,8 +310,8 @@ class SequentialClassificationAFAMethod(AFAMethod):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features,
-        label: Label,
+        features: Features | None,
+        label: Label | None,
     ) -> AFASelection:
         original_device = masked_features.device
 
@@ -323,14 +331,22 @@ class SequentialClassificationAFAMethod(AFAMethod):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features,
-        label: Label,
+        features: Features | None,
+        label: Label | None,
     ) -> Label:
         """Return a prediction using the classifier."""
         original_device = masked_features.device
 
+        if features is not None:
+            features = features.to(self._device)
+        if label is not None:
+            label = label.to(self._device)
+
         return self.afa_classifier(
-            masked_features.to(self._device), feature_mask.to(self._device)
+            masked_features.to(self._device),
+            feature_mask.to(self._device),
+            features,
+            label,
         ).to(original_device)
 
     @override
@@ -347,9 +363,8 @@ class SequentialClassificationAFAMethod(AFAMethod):
         """Load the method from a file."""
         with open(path / "classifier_class_name.txt") as f:
             classifier_class_name = f.read()
-        from common.registry import AFA_CLASSIFIER_REGISTRY
 
-        afa_classifier = AFA_CLASSIFIER_REGISTRY[classifier_class_name].load(
+        afa_classifier = get_afa_classifier_class(classifier_class_name).load(
             path / "classifier.pt", device
         )
         return cls(afa_classifier, device)
@@ -379,8 +394,8 @@ class AFAContextSmartMethod(AFAMethod):
         self,
         masked_features: AFASelection,
         feature_mask: AFASelection,
-        features: Features,
-        label: Label,
+        features: Features | None,
+        label: Label | None,
     ) -> AFASelection:
         original_device = masked_features.device
 
@@ -394,8 +409,8 @@ class AFAContextSmartMethod(AFAMethod):
         self,
         masked_features: AFASelection,
         feature_mask: AFASelection,
-        features: Features,
-        label: Label,
+        features: Features | None,
+        label: Label | None,
     ) -> Label:
         # Guess class randomly
         return torch.randint(
@@ -439,23 +454,27 @@ class OptimalCubeAFAMethod(AFAMethod):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features,
-        label: Label,
+        features: Features | None,
+        label: Label | None,
     ) -> AFASelection:
         """Chooses to observe an optimal feature for the cube dataset, or a random unobserved feature if all optimal ones are chosen."""
         original_device = masked_features.device
+
+        assert label is not None, "OptimalCubeAFAMethod assumes that label is available"
 
         masked_features = masked_features.to(self._device)
         feature_mask = feature_mask.to(self._device)
         label = label.to(self._device)
 
-        batch_size, num_features = feature_mask.shape
+        batch_size, _num_features = feature_mask.shape
         label_int = label.argmax(dim=-1)  # (B,)
 
         selection = torch.zeros(batch_size, dtype=torch.long, device=self._device)
 
         for i in range(batch_size):
-            optimal_idxs = torch.arange(label_int[i].item(), label_int[i].item() + 3)
+            optimal_idxs = torch.arange(
+                label_int[i].item(), label_int[i].item() + 3, device=feature_mask.device
+            )
             unobserved = (~feature_mask[i])[optimal_idxs]
             if unobserved.any():
                 selection[i] = optimal_idxs[unobserved][0]
@@ -476,8 +495,8 @@ class OptimalCubeAFAMethod(AFAMethod):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features,
-        label: Label,
+        features: Features | None,
+        label: Label | None,
     ) -> Label:
         """Return a random prediction from the classes."""
         original_device = masked_features.device

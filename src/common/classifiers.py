@@ -7,6 +7,7 @@ from pathlib import Path
 from common.custom_types import (
     AFAClassifier,
     FeatureMask,
+    Features,
     Label,
     Logits,
     MaskedFeatures,
@@ -14,6 +15,7 @@ from common.custom_types import (
 from common.models import MaskedMLPClassifier
 
 
+@final
 class RandomDummyAFAClassifier(AFAClassifier):
     """
     A random dummy classifier that outputs random logits. It is used for testing purposes.
@@ -22,8 +24,13 @@ class RandomDummyAFAClassifier(AFAClassifier):
     def __init__(self, n_classes: int):
         self.n_classes = n_classes
 
+    @override
     def __call__(
-        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        features: Features | None,
+        label: Label | None,
     ) -> Logits:
         # Return random logits with the same batch size as masked_features
         batch_size = masked_features.shape[0]
@@ -31,13 +38,15 @@ class RandomDummyAFAClassifier(AFAClassifier):
 
         return logits
 
-    def save(self, path: str) -> None:
+    @override
+    def save(self, path: Path) -> None:
         """
         Saves the classifier to a file. n_classes is all we need.
         """
         torch.save(self.n_classes, path)
 
     @classmethod
+    @override
     def load(cls, path: Path, device: torch.device) -> "RandomDummyAFAClassifier":
         """
         Loads the classifier from a file, placing it on the given device.
@@ -149,6 +158,8 @@ class WrappedMaskedMLPClassifier(AFAClassifier):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
+        features: Features | None,
+        label: Label | None,
     ) -> Label:
         original_device = masked_features.device
 
