@@ -135,4 +135,4 @@ def eval_mode(*models: nn.Module):
 
 def dict_with_prefix(prefix: str, d: dict[str, Any]) -> dict[str, Any]:
     """Return a dictionary with all keys prefixed by ."""
-    return {f"{prefix}.{k}": v for k, v in d.items()}
+    return {f"{prefix}{k}": v for k, v in d.items()}
