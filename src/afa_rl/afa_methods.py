@@ -12,6 +12,7 @@ from common.custom_types import (
     AFAMethod,
     AFASelection,
     FeatureMask,
+    Features,
     Label,
     MaskedFeatures,
 )
@@ -67,7 +68,11 @@ class RLAFAMethod(AFAMethod):
 
     @override
     def select(
-        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        features: Features,
+        label: Label,
     ) -> AFASelection:
         original_device = masked_features.device
 
@@ -87,7 +92,11 @@ class RLAFAMethod(AFAMethod):
 
     @override
     def predict(
-        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        features: Features,
+        label: Label,
     ) -> Label:
         original_device = masked_features.device
 
