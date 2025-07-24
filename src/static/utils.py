@@ -1,7 +1,15 @@
 import torch
 import torch.nn as nn
 from torch.distributions import RelaxedOneHotCategorical
+from torch.utils.data import DataLoader, TensorDataset
+from common.custom_types import AFADataset
 
+
+def transform_dataset(dataset: AFADataset, selected_features):
+    x = dataset.features
+    y = dataset.labels
+    x_selected = x[:, selected_features]
+    return TensorDataset(x_selected, y)
 
 def restore_parameters(model, best_model):
     '''Move parameters from best model to current model.'''

@@ -10,14 +10,15 @@ from tqdm import tqdm
 from tempfile import TemporaryDirectory
 import torch
 import torch.nn as nn
+from torchmetrics import AUROC
 from torchrl.modules import MLP
 from torch.utils.data import DataLoader
 from static.models import BaseModel
 from static.utils import transform_dataset
-from static.static_methods import DifferentiableSelector, ConcreteMask, StaticBaseMethod
+from static.static_methods import StaticBaseMethod
 from afa_discriminative.datasets import prepare_datasets
 from common.utils import set_seed, load_dataset_artifact
-from common.config_classes import CAETrainingConfig
+from common.config_classes import PermutationTrainingConfig
 
 
 log = logging.getLogger(__name__)
@@ -25,10 +26,10 @@ log = logging.getLogger(__name__)
 
 @hydra.main(
     version_base=None,
-    config_path="../../conf/train/cae",
+    config_path="../../conf/train/permutation",
     config_name="config",
 )
-def main(cfg: CAETrainingConfig):
+def main(cfg: PermutationTrainingConfig):
     log.debug(cfg)
     print(OmegaConf.to_yaml(cfg))
     run = wandb.init(
@@ -41,42 +42,46 @@ def main(cfg: CAETrainingConfig):
     train_dataset, val_dataset, _, dataset_metadata = load_dataset_artifact(cfg.dataset_artifact_name)
     train_loader, val_loader, d_in, d_out = prepare_datasets(train_dataset, val_dataset, cfg.batch_size)
 
+    auroc_metric = lambda pred, y: AUROC(task='multiclass', num_classes=d_out)(pred.softmax(dim=1), y)
+    
     predictors: dict[int, nn.Module] = {}
     selected_history: dict[int, list[int]] = {}
     num_features = list(range(1, cfg.hard_budget + 1))
+
+    model = MLP(
+        in_features=d_in,
+        out_features=d_out,
+        num_cells=cfg.selector.num_cells,
+        activation_class=nn.ReLU,
+    )
+    basemodel = BaseModel(model).to(device)
+    basemodel.fit(
+        train_loader,
+        val_loader,
+        lr=cfg.selector.lr,
+        nepochs=cfg.selector.nepochs,
+        loss_fn=nn.CrossEntropyLoss(),
+        verbose=False)
+    
+    permutation_importance = np.zeros(d_in)
+    x_train = train_dataset.features
+    for i in tqdm(range(d_in)):
+        x_val = val_dataset.features
+        y_val = val_dataset.labels
+        x_val[:, i] = x_train[np.random.choice(len(x_train), size=len(x_val)), i]
+        with torch.no_grad():
+            pred = model(x_val.to(device)).cpu()
+            permutation_importance[i] = - auroc_metric(pred, y_val)
+    
+    ranked_features = np.argsort(permutation_importance)[::-1]
+
     for num in num_features:
-        model = MLP(
-            in_features=d_in,
-            out_features=d_out,
-            num_cells=cfg.selector.num_cells,
-            activation_class=nn.ReLU,
-        )
-        selector_layer = ConcreteMask(d_in, num)
-        diff_selector = DifferentiableSelector(model, selector_layer).to(device)
-        diff_selector.fit(
-                train_loader,
-                val_loader,
-                lr=cfg.selector.lr,
-                nepochs=cfg.selector.nepochs,
-                loss_fn=nn.CrossEntropyLoss(),
-                patience=cfg.selector.patience,
-                verbose=False)
-        
-        logits = selector_layer.logits.cpu().data.numpy()
-        selected_features = np.sort(logits.argmax(axis=1))
-        if len(np.unique(selected_features)) != num:
-            print(f'{len(np.unique(selected_features))} selected instead of {num}, appending extras')
-            num_extras = num - len(np.unique(selected_features))
-            remaining_features = np.setdiff1d(np.arange(d_in), selected_features)
-            selected_features = np.sort(np.concatenate([np.unique(selected_features), remaining_features[:num_extras]]))
-        
+        selected_features = ranked_features[:num]
         selected_history[num] = selected_features.tolist()
-
-        train_subset = transform_dataset(train_dataset, selected_features)
-        val_subset = transform_dataset(val_dataset, selected_features)
-
-        train_subset_loader = DataLoader(train_subset, batch_size=cfg.batch_size, shuffle=True, pin_memory=True, drop_last=True)
-        val_subset_loader = DataLoader(val_subset, batch_size=cfg.batch_size, pin_memory=True)
+        train_subset = transform_dataset(train_dataset, selected_features.copy())
+        val_subset = transform_dataset(val_dataset, selected_features.copy())
+        train_subset_loader = DataLoader(train_subset, batch_size=128, shuffle=True, pin_memory=True, drop_last=True)
+        val_subset_loader = DataLoader(val_subset, batch_size=1024, pin_memory=True)
 
         model = MLP(
             in_features=num,
@@ -85,7 +90,6 @@ def main(cfg: CAETrainingConfig):
             activation_class=nn.ReLU,
         )
         predictor = BaseModel(model).to(device)
-        # Need restart here?
         predictor.fit(
             train_subset_loader,
             val_subset_loader,
@@ -104,10 +108,10 @@ def main(cfg: CAETrainingConfig):
         del static_method
         static_method = StaticBaseMethod.load(tmp_path, device=device)
         static_method_artifact = wandb.Artifact(
-            name=f"train_cae-{cfg.dataset_artifact_name.split(':')[0]}-budget_{cfg.hard_budget}-seed_{cfg.seed}",
+            name=f"train_permutation-{cfg.dataset_artifact_name.split(':')[0]}-budget_{cfg.hard_budget}-seed_{cfg.seed}",
             type="trained_method",
             metadata={
-                "method_type": "cae",
+                "method_type": "permutation",
                 "dataset_artifact_name": cfg.dataset_artifact_name,
                 "dataset_type": dataset_metadata["dataset_type"],
                 "budget": cfg.hard_budget,
@@ -124,7 +128,5 @@ def main(cfg: CAETrainingConfig):
         torch.cuda.empty_cache()  # Release cached memory held by PyTorch CUDA allocator
         torch.cuda.synchronize()  # Optional, wait for CUDA ops to finish
 
-
 if __name__ == "__main__":
-    main()      
-
+    main()   

@@ -1,0 +1,28 @@
+hydra:
+  searchpath:
+    - file://conf/global
+
+defaults:
+  - _self_
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+  # - override hydra/launcher: custom_slurm
+
+dataset_artifact_name: "cube_split_1:latest"
+output_artifact_aliases: []
+
+batch_size: 128
+hard_budget: 20
+device: "cuda"
+seed: 42
+
+selector:
+  lr: 0.001
+  nepochs: 250
+  num_cells: [128, 128]
+  patience: 5
+
+classifier:
+  lr: 0.001
+  nepochs: 250
+  num_cells: [128, 128]
