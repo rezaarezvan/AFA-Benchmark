@@ -3,7 +3,7 @@
 #SBATCH -p alvis 			                # Queue/partiton name
 #SBATCH -N 1 				                # Number of nodes
 #SBATCH --gpus-per-node=T4:1		        # Number of gpus and types
-#SBATCH -t 24:00:00			                # Max runtime
+#SBATCH -t 48:00:00			                # Max runtime
 #SBATCH --job-name=aaco_train               # Job name
 #SBATCH --output=logs/aaco_train_%j.out     # Output log file
 #SBATCH --error=logs/aaco_train_%j.err      # Error log file (debugging)
@@ -13,7 +13,7 @@ module load virtualenv/20.26.2-GCCcore-13.3.0
 module load Python/3.12.3-GCCcore-13.3.0
 
 # Default values
-DATASET=${1:-"MNIST"}
+DATASET=${1:-"FashionMNIST"}
 DEVICE=${3:-"cuda"}
 
 set -e
