@@ -16,7 +16,7 @@ hard_budget: 20
 device: "cuda"
 seed: 42
 
-diff_selector:
+selector:
   lr: 0.001
   nepochs: 250
   num_cells: [128, 128]

@@ -12,6 +12,8 @@ AFA_METHOD_TYPES = {
     "gadgil2023",
     "ma2018",
     "aaco",
+    "cae",
+    "permutation",
     "sequential_dummy",
     "random_dummy",
     "optimalcube",
@@ -49,7 +51,11 @@ def get_afa_method_class(name: str) -> type[AFAMethod]:
         from afa_oracle.afa_methods import ACOBCAFAMethod
 
         return ACOBCAFAMethod
+    
+    elif name in {"cae", "permutation"}:
+        from static.static_methods import StaticBaseMethod
 
+        return StaticBaseMethod
     elif name == "sequentialdummy":
         from common.afa_methods import SequentialDummyAFAMethod
 

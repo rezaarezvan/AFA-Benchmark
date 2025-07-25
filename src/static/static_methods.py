@@ -223,9 +223,9 @@ class StaticBaseMethod(AFAMethod):
         if not (counts == counts[0]).all():
             raise RuntimeError("mixed budgets in batch")
         b = int(counts[0].item())
-        cols = self.selected_history[b]
+        cols = self.selected_history[b+1]
         x_sel = masked_features[:, cols].to(self._device)
-        logits = self.predictors[b](x_sel)
+        logits = self.predictors[b+1](x_sel)
         return logits.softmax(dim=-1)
     
     def select(self, masked_features: MaskedFeatures, feature_mask: FeatureMask,
@@ -235,9 +235,8 @@ class StaticBaseMethod(AFAMethod):
             raise RuntimeError("mixed budgets in batch")
         b = int(counts[0].item())
         mask0 = feature_mask[0]
-        for idx in self.selected_history[b]:
+        for idx in self.selected_history[b+1]:
             if mask0[idx] == 0:
-                # Is +1 needed here?
                 choice = idx
                 return torch.full(
                     (masked_features.size(0),),
@@ -246,7 +245,6 @@ class StaticBaseMethod(AFAMethod):
                     device=self._device
                 )
         
-        # stop sign?
         return torch.zeros((masked_features.size(0),), dtype=torch.long, device=self._device)
     
     def save(self, path: Path):
