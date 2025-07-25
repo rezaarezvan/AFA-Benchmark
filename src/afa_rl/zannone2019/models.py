@@ -505,13 +505,6 @@ class Zannone2019PretrainingModel(pl.LightningModule):
                 estimated_augmented_features[..., : -len(self.class_weights)],
                 estimated_augmented_features[..., -len(self.class_weights) :],
             )
-        else:
-            features = augmented_features
-            estimated_features = estimated_augmented_features
-        feature_recon_loss = (
-            ((estimated_features - features) ** 2).sum(dim=1).mean(dim=0)
-        )
-        if self.reconstruct_label:
             label_recon_loss = F.cross_entropy(
                 estimated_label_logits,
                 labels,
@@ -520,7 +513,14 @@ class Zannone2019PretrainingModel(pl.LightningModule):
             )
             label_recon_loss = label_recon_loss * self.label_loss_scaling_factor
         else:
-            label_recon_loss = torch.tensor([0.0])
+            features = augmented_features
+            estimated_features = estimated_augmented_features
+            label_recon_loss = torch.tensor(
+                [0.0], device=estimated_augmented_features.device
+            )
+        feature_recon_loss = (
+            ((estimated_features - features) ** 2).sum(dim=1).mean(dim=0)
+        )
         kl_div_loss = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp()).sum(dim=1).mean(
             dim=0
         )
