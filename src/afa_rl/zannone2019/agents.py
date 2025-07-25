@@ -147,7 +147,7 @@ class Zannone2019Agent(Agent):
         )
         self.policy_head = Zannone2019PolicyModule(
             # latent_size=self.latent_size,
-            latent_size=40,
+            latent_size=20,
             n_actions=self.action_spec.n,  # pyright: ignore
             num_cells=tuple(self.cfg.policy_num_cells),
             dropout=self.cfg.policy_dropout,
@@ -173,7 +173,7 @@ class Zannone2019Agent(Agent):
 
         self.value_head = Zannone2019ValueModule(
             # latent_size=self.latent_size,
-            latent_size=40,
+            latent_size=20,
             num_cells=tuple(self.cfg.value_num_cells),
             dropout=self.cfg.value_dropout,
         ).to(self.module_device)

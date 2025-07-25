@@ -141,13 +141,16 @@ def visualize_pretrained_model(
     indices = torch.randperm(len(dataset))[:5]
     features = dataset.features[indices].to(device)
     n_classes = dataset.labels.shape[-1]
-    with_label_z, with_label_reconstructed_features = (
-        model.fully_observed_reconstruction(
-            features=features,
-            n_classes=n_classes,
-            label=dataset.labels[indices].to(device),
+    if model.reconstruct_label:
+        with_label_z, with_label_reconstructed_features = (
+            model.fully_observed_reconstruction(
+                features=features,
+                n_classes=n_classes,
+                label=dataset.labels[indices].to(device),
+            )
         )
-    )
+        with_label_z = with_label_z.cpu()
+        with_label_reconstructed_features = with_label_reconstructed_features.cpu()
     without_label_z, without_label_reconstructed_features = (
         model.fully_observed_reconstruction(
             features=features,
@@ -155,13 +158,10 @@ def visualize_pretrained_model(
             label=None,
         )
     )
-
-    # Put everything on cpu so we can plot
-    features = features.cpu()
-    with_label_z = with_label_z.cpu()
     without_label_z = without_label_z.cpu()
-    with_label_reconstructed_features = with_label_reconstructed_features.cpu()
     without_label_reconstructed_features = without_label_reconstructed_features.cpu()
+
+    features = features.cpu()
 
     # Plot everything
     def _plot(
@@ -177,10 +177,11 @@ def visualize_pretrained_model(
             axs[i, 2].set_title("Reconstructed features")
         return fig, axs
 
-    _with_label_fig, _with_label_axs = _plot(
-        features, with_label_z, with_label_reconstructed_features
-    )
-    _with_label_fig.suptitle("With label")
+    if model.reconstruct_label:
+        _with_label_fig, _with_label_axs = _plot(
+            features, with_label_z, with_label_reconstructed_features
+        )
+        _with_label_fig.suptitle("With label")
     _without_label_fig, _without_label_axs = _plot(
         features, without_label_z, without_label_reconstructed_features
     )
