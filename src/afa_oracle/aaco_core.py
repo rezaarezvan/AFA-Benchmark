@@ -50,9 +50,31 @@ def load_classifier(dataset_name, X_train, y_train, input_dim, device=None, mode
         return classifier_ground_truth(num_features=20, num_classes=8, std=0.3)
 
     elif dataset_name_lower in ["afacontext", "miniboone", "physionet", "diabetes"]:
-        return train_single_xgb_classifier(
-            X_train, y_train, input_dim, n_classes, device, dataset_name_lower
-        )
+        # return train_single_xgb_classifier(
+        #     X_train, y_train, input_dim, n_classes, device, dataset_name_lower
+        # )
+
+        log.info(f"Loading MLP classifier for {dataset_name}...")
+        try:
+            if wandb.run:
+                if dataset_name_lower == "afacontext":
+                    dataset_name_lower = "AFAContext"
+                artifact_name = f"masked_mlp_classifier-{
+                    dataset_name_lower}_split_1:latest"
+                artifact = wandb.use_artifact(artifact_name)
+                artifact_dir = artifact.download()
+
+                classifier_path = Path(artifact_dir) / "classifier.pt"
+                wrapped_mlp = WrappedMaskedMLPClassifier.load(
+                    classifier_path, device)
+
+                log.info(f"Successfully loaded MLP classifier from {
+                         artifact_name}")
+                return classifier_mlp(wrapped_mlp, hide_val=10.0)
+
+        except Exception as e:
+            log.warning(f"Failed to load MLP classifier: {e}")
+            log.info("Falling back to XGBoost...")
 
     elif dataset_name_lower in ["mnist", "fashionmnist"]:
         # # Train single XGB with wandb caching
