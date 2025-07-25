@@ -207,6 +207,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         end_kl_scaling_factor: float,
         n_annealing_epochs: int,
         classifier_loss_scaling_factor: float,  # how much more to weigh the classifier's loss compared to the PVAE's loss
+        reconstruct_label: bool,
         label_loss_scaling_factor: float,  # how much more to weigh the label reconstruction loss compared to the feature reconstruction loss
     ):
         super().__init__()
@@ -221,6 +222,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         self.start_kl_scaling_factor: float = start_kl_scaling_factor
         self.end_kl_scaling_factor: float = end_kl_scaling_factor
         self.n_annealing_epochs = n_annealing_epochs
+        self.reconstruct_label = reconstruct_label
         self.label_loss_scaling_factor: float = label_loss_scaling_factor
 
         # self.recon_loss_type = recon_loss_type
@@ -238,10 +240,13 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         features: Features = batch[0]
         label: Label = batch[1]
 
-        # According to the paper, labels are appended to the features. "Augmented" = features + labels
-        augmented_features = torch.cat(
-            [features, label], dim=-1
-        )  # (batch_size, n_features+n_classes)
+        if self.reconstruct_label:
+            # According to the paper, labels are appended to the features. "Augmented" = features + labels
+            augmented_features = torch.cat(
+                [features, label], dim=-1
+            )  # (batch_size, n_features+n_classes)
+        else:
+            augmented_features = features
 
         masking_probability = self.min_masking_probability + torch.rand(1).item() * (
             self.max_masking_probability - self.min_masking_probability
@@ -371,9 +376,12 @@ class Zannone2019PretrainingModel(pl.LightningModule):
     @override
     def validation_step(self, batch: tuple[Tensor, Tensor], batch_idx: int):
         features, label = batch
-        augmented_features = torch.cat(
-            [features, label], dim=-1
-        )  # (batch_size, n_features+n_classes)
+        if self.reconstruct_label:
+            augmented_features = torch.cat(
+                [features, label], dim=-1
+            )  # (batch_size, n_features+n_classes)
+        else:
+            augmented_features = features
 
         # Mask features with minimum probability -> see many features (observations)
         augmented_feature_mask_many_observations = (
@@ -487,25 +495,32 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         mu: Tensor,
         logvar: Tensor,
     ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
-        # Split augmented features (features+labels) into their corresponding parts so we can have different losses for them
-        features, labels = (
-            augmented_features[..., : -len(self.class_weights)],
-            augmented_features[..., -len(self.class_weights) :],
-        )
-        estimated_features, estimated_label_logits = (
-            estimated_augmented_features[..., : -len(self.class_weights)],
-            estimated_augmented_features[..., -len(self.class_weights) :],
-        )
+        if self.reconstruct_label:
+            # Split augmented features (features+labels) into their corresponding parts so we can have different losses for them
+            features, labels = (
+                augmented_features[..., : -len(self.class_weights)],
+                augmented_features[..., -len(self.class_weights) :],
+            )
+            estimated_features, estimated_label_logits = (
+                estimated_augmented_features[..., : -len(self.class_weights)],
+                estimated_augmented_features[..., -len(self.class_weights) :],
+            )
+        else:
+            features = augmented_features
+            estimated_features = estimated_augmented_features
         feature_recon_loss = (
             ((estimated_features - features) ** 2).sum(dim=1).mean(dim=0)
         )
-        label_recon_loss = F.cross_entropy(
-            estimated_label_logits,
-            labels,
-            weight=self.class_weights.to(estimated_label_logits.device),
-            reduction="mean",
-        )
-        label_recon_loss = label_recon_loss * self.label_loss_scaling_factor
+        if self.reconstruct_label:
+            label_recon_loss = F.cross_entropy(
+                estimated_label_logits,
+                labels,
+                weight=self.class_weights.to(estimated_label_logits.device),
+                reduction="mean",
+            )
+            label_recon_loss = label_recon_loss * self.label_loss_scaling_factor
+        else:
+            label_recon_loss = torch.tensor([0.0])
         kl_div_loss = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp()).sum(dim=1).mean(
             dim=0
         )
@@ -548,10 +563,13 @@ class Zannone2019PretrainingModel(pl.LightningModule):
             z
         )  # (batch_size, n_features+n_classes)
 
-        # Only the first n_features values are "real" features
-        estimated_features = estimated_augmented_features[
-            :, :n_features
-        ]  # (batch_size, n_features)
+        if self.reconstruct_label:
+            # Only the first n_features values are "real" features
+            estimated_features = estimated_augmented_features[
+                :, :n_features
+            ]  # (batch_size, n_features)
+        else:
+            estimated_features = estimated_augmented_features
 
         # Apply classifier for class probabilities
         logits = self.classifier(z)
@@ -583,21 +601,29 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         label: Label | None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Reconstruct a sample by providing masked features. Optionally provide the label as well"""
-        if label is None:
-            label = torch.zeros(
-                masked_features.shape[0],
-                n_classes,
-                dtype=torch.float32,
-                device=masked_features.device,
-            )
-            label_mask = torch.full_like(label, False)
-        else:
-            label_mask = torch.full_like(label, True)
+        assert label is None or self.reconstruct_label, (
+            "label should not be provided if the model has not been trained to reconstruct labels"
+        )
 
-        augmented_masked_features = torch.cat(
-            [masked_features, label], dim=-1
-        )  # (batch_size, n_features+n_classes)
-        augmented_feature_mask = torch.cat([feature_mask, label_mask], dim=-1)
+        if self.reconstruct_label:
+            augmented_masked_features = masked_features
+            augmented_feature_mask = feature_mask
+        else:
+            if label is None:
+                label = torch.zeros(
+                    masked_features.shape[0],
+                    n_classes,
+                    dtype=torch.float32,
+                    device=masked_features.device,
+                )
+                label_mask = torch.full_like(label, False)
+            else:
+                label_mask = torch.full_like(label, True)
+
+            augmented_masked_features = torch.cat(
+                [masked_features, label], dim=-1
+            )  # (batch_size, n_features+n_classes)
+            augmented_feature_mask = torch.cat([feature_mask, label_mask], dim=-1)
 
         _encoder, _mu, _logvar, z, estimated_augmented_features = self.partial_vae(
             augmented_masked_features, augmented_feature_mask
@@ -625,22 +651,28 @@ class Zannone2019AFAPredictFn(AFAPredictFn):
         label: Label | None,
     ) -> Label:
         batch_size = masked_features.shape[0]
-        augmented_masked_features = torch.cat(
-            [
-                masked_features,
-                torch.zeros(batch_size, self.n_classes, device=masked_features.device),
-            ],
-            dim=-1,
-        )
-        augmented_feature_mask = torch.cat(
-            [
-                feature_mask,
-                torch.full(
-                    (batch_size, self.n_classes), False, device=feature_mask.device
-                ),
-            ],
-            dim=-1,
-        )
+        if self.model.reconstruct_label:
+            augmented_masked_features = torch.cat(
+                [
+                    masked_features,
+                    torch.zeros(
+                        batch_size, self.n_classes, device=masked_features.device
+                    ),
+                ],
+                dim=-1,
+            )
+            augmented_feature_mask = torch.cat(
+                [
+                    feature_mask,
+                    torch.full(
+                        (batch_size, self.n_classes), False, device=feature_mask.device
+                    ),
+                ],
+                dim=-1,
+            )
+        else:
+            augmented_masked_features = masked_features
+            augmented_feature_mask = feature_mask
         _encoding, _mu, _logvar, z = self.model.partial_vae.encode(
             augmented_masked_features, augmented_feature_mask
         )
@@ -676,22 +708,28 @@ class Zannone2019AFAClassifier(AFAClassifier):
         feature_mask = feature_mask.to(self._device)
 
         batch_size = masked_features.shape[0]
-        augmented_masked_features = torch.cat(
-            [
-                masked_features,
-                torch.zeros(batch_size, self.n_classes, device=masked_features.device),
-            ],
-            dim=-1,
-        )
-        augmented_feature_mask = torch.cat(
-            [
-                feature_mask,
-                torch.full(
-                    (batch_size, self.n_classes), False, device=feature_mask.device
-                ),
-            ],
-            dim=-1,
-        )
+        if self.model.reconstruct_label:
+            augmented_masked_features = torch.cat(
+                [
+                    masked_features,
+                    torch.zeros(
+                        batch_size, self.n_classes, device=masked_features.device
+                    ),
+                ],
+                dim=-1,
+            )
+            augmented_feature_mask = torch.cat(
+                [
+                    feature_mask,
+                    torch.full(
+                        (batch_size, self.n_classes), False, device=feature_mask.device
+                    ),
+                ],
+                dim=-1,
+            )
+        else:
+            augmented_masked_features = masked_features
+            augmented_feature_mask = feature_mask
 
         _encoding, _mu, _logvar, z = self.model.partial_vae.encode(
             augmented_masked_features, augmented_feature_mask

@@ -92,6 +92,7 @@ def get_zannone2019_model_from_config(
         end_kl_scaling_factor=cfg.end_kl_scaling_factor,
         n_annealing_epochs=cfg.n_annealing_epochs,
         classifier_loss_scaling_factor=cfg.classifier_loss_scaling_factor,
+        reconstruct_label=cfg.reconstruct_label,
         label_loss_scaling_factor=cfg.label_loss_scaling_factor,
     )
     return model

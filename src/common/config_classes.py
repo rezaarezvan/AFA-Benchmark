@@ -147,6 +147,9 @@ class Zannone2019PretrainConfig:
     end_kl_scaling_factor: float
     n_annealing_epochs: int
     classifier_loss_scaling_factor: float
+    reconstruct_label: (
+        bool  # whether the PVAE should be trained to reconstruct the label as well
+    )
     label_loss_scaling_factor: float
     output_artifact_aliases: list[str]
 
