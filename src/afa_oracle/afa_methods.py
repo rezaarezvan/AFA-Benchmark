@@ -30,7 +30,7 @@ class AACOAFAMethod(AFAMethod):
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask, features, labels
     ) -> AFASelection:
         """
-        Select next feature using AACO implementation with proper device handling
+        Select next feature using AACO implementation with logging
         """
         # Store original device for return tensor
         original_device = masked_features.device
@@ -46,22 +46,17 @@ class AACOAFAMethod(AFAMethod):
         for i in range(batch_size):
             x_obs = masked_features[i]
             obs_mask = feature_mask[i]
+
             # Get next feature from AACO oracle
             next_feature = self.aaco_oracle.select_next_feature(
                 x_obs, obs_mask, instance_idx=i
             )
+            assert next_feature is not None, "AACO oracle must return a valid feature index"
+            selections.append(next_feature)
 
-            if next_feature is not None:
-                selections.append(next_feature)
-            else:
-                selections.append(-1)  # Terminate signal
-
-        # Return tensor on original device
+        # Return selection tensor on original device
         selection_tensor = torch.tensor(
-            selections,
-            dtype=torch.long,
-            device=original_device,
-        ).unsqueeze(-1)
+            selections, dtype=torch.long, device=original_device)
         return selection_tensor
 
     @override

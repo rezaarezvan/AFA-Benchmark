@@ -10,7 +10,8 @@ import torch.nn as nn
 from pathlib import Path
 from xgboost import XGBClassifier
 from tempfile import NamedTemporaryFile
-from afa_oracle.classifiers import classifier_ground_truth, classifier_xgb_dict, classifier_xgb
+from common.classifiers import WrappedMaskedMLPClassifier
+from afa_oracle.classifiers import classifier_ground_truth, classifier_mlp, classifier_xgb
 from afa_oracle.mask_generator import random_mask_generator, all_mask_generator, generate_all_masks
 
 log = logging.getLogger(__name__)
@@ -41,54 +42,48 @@ def get_knn(X_train, X_query, masks, num_neighbors, instance_idx=0, exclude_inst
 
 
 def load_classifier(dataset_name, X_train, y_train, input_dim, device=None, models_dir="models/aaco"):
-    """
-    Classifier loading logic with wandb artifact support
-    """
     dataset_name_lower = dataset_name.lower()
     n_classes = y_train.shape[1] if len(
         y_train.shape) > 1 else int(y_train.max().item()) + 1
 
-    if dataset_name_lower == "cube" or dataset_name_lower == "shim2018cube":
+    if dataset_name_lower == "cube":
         return classifier_ground_truth(num_features=20, num_classes=8, std=0.3)
 
-    elif dataset_name_lower == "afacontext":
-        return classifier_xgb_dict(
-            output_dim=n_classes, input_dim=input_dim, subsample_ratio=0.05,
-            X_train=X_train, y_train=y_train, device=device,
-            dataset_name=dataset_name_lower  # Pass dataset name for artifact naming
-        )
-
-    elif dataset_name_lower in ["grid", "gas10", "diabetes"]:
-        return classifier_xgb_dict(
-            output_dim=y_train.shape[1], input_dim=input_dim, subsample_ratio=0.01,
-            X_train=X_train, y_train=y_train, device=device,
-            dataset_name=dataset_name_lower  # Pass dataset name for artifact naming
+    elif dataset_name_lower in ["afacontext", "miniboone", "physionet", "diabetes"]:
+        return train_single_xgb_classifier(
+            X_train, y_train, input_dim, n_classes, device, dataset_name_lower
         )
 
     elif dataset_name_lower in ["mnist", "fashionmnist"]:
-        # Try pre-trained d=256 model first
-        expected_input_size = 512  # 256 features + 256 mask
-        actual_input_size = input_dim * 2
+        # # Train single XGB with wandb caching
+        # return train_single_xgb_classifier(
+        #     X_train, y_train, input_dim, n_classes, device, dataset_name_lower
+        # )
 
-        if actual_input_size == expected_input_size:
-            model_path = Path(models_dir) / \
-                'xgb_classifier_MNIST_random_subsets_5.json'
-            if model_path.exists():
-                xgb_model = XGBClassifier()
-                xgb_model.load_model(str(model_path))
-                log.info("Loaded pre-trained MNIST d=256 XGBoost model")
-                return classifier_xgb(xgb_model)
+        log.info(f"Loading MLP classifier for {dataset_name}...")
 
-        # Train single XGB with wandb caching
+        try:
+            if wandb.run:
+                artifact_name = "masked_mlp_classifier-MNIST_split_1:latest"
+                artifact = wandb.use_artifact(artifact_name)
+                artifact_dir = artifact.download()
+
+                classifier_path = Path(artifact_dir) / "classifier.pt"
+                wrapped_mlp = WrappedMaskedMLPClassifier.load(
+                    classifier_path, device)
+
+                log.info(f"Successfully loaded MLP classifier from {
+                         artifact_name}")
+                return classifier_mlp(wrapped_mlp, hide_val=10.0)
+
+        except Exception as e:
+            log.warning(f"Failed to load MLP classifier: {e}")
+            log.info("Falling back to XGBoost...")
+
+        # Fallback to XGBoost if MLP loading fails
         return train_single_xgb_classifier(
-            X_train, y_train, input_dim, n_classes, device, dataset_name_lower
+            X_train, y_train, input_dim, n_classes, device, dataset_name_lower, hide_val=10.0
         )
-
-    elif dataset_name_lower in ["physionet", "miniboone"]:
-        return train_single_xgb_classifier(
-            X_train, y_train, input_dim, n_classes, device, dataset_name_lower
-        )
-
     else:
         raise ValueError(f"Unsupported dataset: {dataset_name}")
 
@@ -107,11 +102,9 @@ def save_single_xgb_to_wandb(xgb_model, dataset_name, input_dim, n_classes):
     artifact_name = get_single_xgb_artifact_name(
         dataset_name, input_dim, n_classes)
 
-    # Save model to temporary file
     with NamedTemporaryFile(suffix='.joblib', delete=False) as tmp_file:
         joblib.dump(xgb_model, tmp_file.name)
 
-        # Create wandb artifact
         artifact = wandb.Artifact(
             name=artifact_name,
             type="trained_classifier",
@@ -127,15 +120,12 @@ def save_single_xgb_to_wandb(xgb_model, dataset_name, input_dim, n_classes):
 
         artifact.add_file(tmp_file.name, name="model.joblib")
         wandb.log_artifact(artifact)
-
-        # Clean up temp file
         os.unlink(tmp_file.name)
 
     log.info(f"Saved single XGBoost model to wandb artifact: {artifact_name}")
 
 
 def load_single_xgb_from_wandb(dataset_name, input_dim, n_classes):
-    """Load single XGBoost model from wandb artifact"""
     if not wandb.run:
         log.warning("No active wandb run, cannot load model")
         return None
@@ -144,11 +134,9 @@ def load_single_xgb_from_wandb(dataset_name, input_dim, n_classes):
         dataset_name, input_dim, n_classes)
 
     try:
-        # Try to download the artifact
         artifact = wandb.use_artifact(f"{artifact_name}:latest")
         artifact_dir = artifact.download()
 
-        # Load the model
         model_path = os.path.join(artifact_dir, "model.joblib")
         xgb_model = joblib.load(model_path)
 
@@ -165,10 +153,6 @@ def load_single_xgb_from_wandb(dataset_name, input_dim, n_classes):
 
 
 def train_single_xgb_classifier(X_train, y_train, input_dim, n_classes, device, dataset_name="mnist", hide_val=10.0):
-    """
-    Train single XGBoost classifier with wandb artifact caching
-    """
-    # Try to load existing model first
     log.info(f"Checking for existing XGBoost model for {dataset_name}...")
     existing_model = load_single_xgb_from_wandb(
         dataset_name, input_dim, n_classes)
@@ -267,12 +251,7 @@ def load_mask_generator(dataset_name, input_dim):
 
     if dataset_name_lower in ["cube", "mnist", "fashionmnist", "physionet", "miniboone", "afacontext"]:
         # Paper shows this works nearly as well as 10,000 (for MNIST)
-        # return random_mask_generator(100, input_dim, 100)
-        return random_mask_generator(100, input_dim, 50)
-    elif dataset_name in ["grid", "gas10", "diabetes", "shim2018cube"]:
-        # Generate all possible masks for grid and gas10
-        all_masks = generate_all_masks(input_dim)
-        return all_mask_generator(all_masks)
+        return random_mask_generator(100, input_dim, 100)
     else:
         raise ValueError("Unsupported dataset for mask generation")
 
@@ -283,7 +262,7 @@ def get_initial_feature(dataset_name, n_features):
     """
     dataset_name = dataset_name.lower()
 
-    if dataset_name in ["cube", "shim2018cube"]:
+    if dataset_name == "cube":
         return 6
     elif dataset_name in ["mnist", "fashionmnist"]:
         return 100
@@ -426,21 +405,17 @@ class AACOOracle:
         best_mask_idx = total_cost.argmin()
         best_mask = mask[best_mask_idx]
 
-        # Check if improvement is worth the cost
-        current_cost = total_cost[0]  # Cost of current mask (index 0)
-        best_cost = total_cost[best_mask_idx]
-
-        if best_cost >= current_cost:
-            # No improvement, terminate
-            return None
-
+        # REMOVED: termination check - always select best mask regardless of cost improvement
         # Find which new features to acquire
         new_features = (best_mask - mask_curr.squeeze()
                         ).nonzero(as_tuple=True)[0]
 
         if len(new_features) == 0:
-            return None
-        elif len(new_features) == 1:
+            # If best mask equals current mask, force selection of cheapest unobserved feature
+            unobserved = (~observed_mask).nonzero(as_tuple=True)[0]
+            return unobserved[0].item() if len(unobserved) > 0 else None
+
+        if len(new_features) == 1:
             return new_features[0].item()
         else:
             # If multiple features, select the one with lowest individual loss

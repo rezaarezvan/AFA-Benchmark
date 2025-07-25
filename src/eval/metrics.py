@@ -198,16 +198,6 @@ def eval_afa_method(
             masked_features[
                 torch.arange(feature_mask.shape[0], device=device), selections
             ] = features[torch.arange(feature_mask.shape[0], device=device), selections]
-
-            # DEBUG: Debugging ACO
-            # valid = selections >= 0
-            # if valid.any():
-            #     rows = torch.arange(
-            #         feature_mask.shape[0], device=device)[valid]
-            #     cols = selections[valid]
-            #     feature_mask[rows, cols] = True
-            #     masked_features[rows, cols] = features[rows, cols]
-
             # Store a copy of the feature mask in history
             feature_mask_history[i] = feature_mask.clone()
 
