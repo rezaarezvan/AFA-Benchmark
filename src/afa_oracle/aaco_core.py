@@ -67,7 +67,7 @@ def load_mask_generator(dataset_name, input_dim):
     """
     dataset_name_lower = dataset_name.lower()
 
-    if dataset_name_lower in ["cube", "mnist", "fashionmnist", "physionet", "miniboone", "afacontext"]:
+    if dataset_name_lower in ["cube", "diabetes", "mnist", "fashionmnist", "physionet", "miniboone", "afacontext"]:
         # Paper shows this works nearly as well as 10,000 (for MNIST)
         return random_mask_generator(100, input_dim, 100)
     else:
