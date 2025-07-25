@@ -530,6 +530,7 @@ class Zannone2019TrainConfig:
     output_artifact_aliases: list[str]
     evaluate_final_performance: bool
     eval_only_n_samples: int | None
+    visualize: bool
 
 
 cs.store(name="train_zannone2019", node=Zannone2019TrainConfig)

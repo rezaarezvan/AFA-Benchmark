@@ -48,8 +48,6 @@ from common.utils import (
 from eval.metrics import eval_afa_method
 from eval.utils import plot_metrics
 
-# matplotlib.use("WebAgg")
-
 
 def load_pretrained_model_artifacts(
     artifact_name: str,
@@ -78,7 +76,6 @@ def load_pretrained_model_artifacts(
         "Pretrained model artifact must be logged by a run."
     )
     pretrained_model_config_dict = pretraining_run.config
-    print(f"{pretrained_model_config_dict=}")
     pretrained_model_config: Zannone2019PretrainConfig = from_dict(
         data_class=Zannone2019PretrainConfig, data=pretrained_model_config_dict
     )
@@ -135,6 +132,92 @@ def visualize_digits(
     return fig, axs
 
 
+def visualize_pretrained_model(
+    model: Zannone2019PretrainingModel,
+    dataset: AFADataset,
+    device: torch.device,
+    # dataset_type: str,
+) -> None:
+    indices = torch.randperm(len(dataset))[:5]
+    features = dataset.features[indices].to(device)
+    n_classes = dataset.labels.shape[-1]
+    with_label_z, with_label_reconstructed_features = (
+        model.fully_observed_reconstruction(
+            features=features,
+            n_classes=n_classes,
+            label=dataset.labels[indices].to(device),
+        )
+    )
+    without_label_z, without_label_reconstructed_features = (
+        model.fully_observed_reconstruction(
+            features=features,
+            n_classes=n_classes,
+            label=None,
+        )
+    )
+
+    # Put everything on cpu so we can plot
+    features = features.cpu()
+    with_label_z = with_label_z.cpu()
+    without_label_z = without_label_z.cpu()
+    with_label_reconstructed_features = with_label_reconstructed_features.cpu()
+    without_label_reconstructed_features = without_label_reconstructed_features.cpu()
+
+    # Plot everything
+    def _plot(
+        _features: torch.Tensor, _z: torch.Tensor, _reconstructed_features: torch.Tensor
+    ):
+        fig, axs = plt.subplots(5, 3)
+        for i in range(5):
+            axs[i, 0].plot(_features[i])
+            axs[i, 0].set_title("Features")
+            axs[i, 1].plot(_z[i])
+            axs[i, 1].set_title("Latent vector")
+            axs[i, 2].plot(_reconstructed_features[i])
+            axs[i, 2].set_title("Reconstructed features")
+        return fig, axs
+
+    _with_label_fig, _with_label_axs = _plot(
+        features, with_label_z, with_label_reconstructed_features
+    )
+    _with_label_fig.suptitle("With label")
+    _without_label_fig, _without_label_axs = _plot(
+        features, without_label_z, without_label_reconstructed_features
+    )
+    _without_label_fig.suptitle("Without label")
+    plt.show()
+
+    # Visualize MNIST digits
+    # fig_real, _axs_real = visualize_digits(
+    #     train_dataset.features, train_dataset.labels, shuffle=False
+    # )
+    # fig_real.suptitle("Real digits")
+    # if cfg.n_generated_samples >= 9:
+    #     fig_fake, _axs_fake = visualize_digits(
+    #         generated_features, generated_labels, shuffle=False
+    #     )
+    #     fig_fake.suptitle("Generated digits")
+    # fig_label_recon, _axs_label_recon = visualize_digits(
+    #     label_reconstructed_features, train_dataset.labels, shuffle=False
+    # )
+    # fig_label_recon.suptitle("Reconstructed digits using label")
+    # fig_recon, _axs_recon = visualize_digits(
+    #     reconstructed_features, train_dataset.labels, shuffle=False
+    # )
+    # fig_recon.suptitle("Reconstructed digits without using label")
+    #
+    # plt.show()
+    #
+    # Plot distribution of latent variables
+    # plt.figure(figsize=(12, 4))
+    # for i in range(min(z.shape[1], 10)):
+    #     plt.subplot(2, 5, i + 1)
+    #     plt.hist(z[:, i], bins=30)
+    #     plt.title(f"Latent dim {i}")
+    # plt.tight_layout()
+    # plt.show()
+
+
 log = logging.getLogger(__name__)
 
 
@@ -169,6 +252,12 @@ def main(cfg: Zannone2019TrainConfig):
     pretrained_model = pretrained_model.to(device)
     pretrained_model.eval()
     pretrained_model.requires_grad_(False)  # zannone2019 does not train jointly
+
+    if cfg.visualize:
+        matplotlib.use("WebAgg")
+        # Use pretrained model to reconstruct some samples. Visualize everything
+        visualize_pretrained_model(pretrained_model, val_dataset, device)
+
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
     log.debug(f"Class probabilities in training set: {train_class_probabilities}")
     class_weights = F.softmax(1 / train_class_probabilities, dim=-1).to(device)
@@ -210,51 +299,6 @@ def main(cfg: Zannone2019TrainConfig):
             generated_labels_batch.argmax(-1),
             num_classes=generated_labels_batch.shape[-1],
         ).cpu()
-
-    # Also reconstruct some samples, both when providing a label and not
-    # _, label_reconstructed_features = pretrained_model.fully_observed_reconstruction(
-    #     features=train_dataset.features[:100].to(device),
-    #     n_classes=n_classes,
-    #     label=train_dataset.labels[:100].to(device),
-    # )
-    # _, reconstructed_features = pretrained_model.fully_observed_reconstruction(
-    #     features=train_dataset.features[:100].to(device),
-    #     n_classes=n_classes,
-    #     label=None,
-    # )
-    # z = z.cpu()
-    # label_reconstructed_features = label_reconstructed_features.cpu()
-    # reconstructed_features = reconstructed_features.cpu()
-
-    # Visualize MNIST digits
-    # fig_real, _axs_real = visualize_digits(
-    #     train_dataset.features, train_dataset.labels, shuffle=False
-    # )
-    # fig_real.suptitle("Real digits")
-    # if cfg.n_generated_samples >= 9:
-    #     fig_fake, _axs_fake = visualize_digits(
-    #         generated_features, generated_labels, shuffle=False
-    #     )
-    #     fig_fake.suptitle("Generated digits")
-    # fig_label_recon, _axs_label_recon = visualize_digits(
-    #     label_reconstructed_features, train_dataset.labels, shuffle=False
-    # )
-    # fig_label_recon.suptitle("Reconstructed digits using label")
-    # fig_recon, _axs_recon = visualize_digits(
-    #     reconstructed_features, train_dataset.labels, shuffle=False
-    # )
-    # fig_recon.suptitle("Reconstructed digits without using label")
-    #
-    # plt.show()
-    #
-    # Plot distribution of latent variables
-    # plt.figure(figsize=(12, 4))
-    # for i in range(min(z.shape[1], 10)):
-    #     plt.subplot(2, 5, i + 1)
-    #     plt.hist(z[:, i], bins=30)
-    #     plt.title(f"Latent dim {i}")
-    # plt.tight_layout()
-    # plt.show()
 
     combined_features = torch.cat([train_dataset.features, generated_features])
     combined_features = combined_features[torch.randperm(len(combined_features))]
@@ -329,6 +373,7 @@ def main(cfg: Zannone2019TrainConfig):
                     | dict_with_prefix("cheap_info.", agent.get_cheap_info())
                     | {
                         "reward": td["next", "reward"].mean().item(),
+                        "actions": wandb.Histogram(td["action"]),
                     },
                 )
             )

@@ -3,23 +3,25 @@ n_agents: 128 # same as shim2018
 hard_budget: 5 # recommended: 3, 5, 10
 agent:
   # gamma set by higher config
-  lmbda: 0.95
+  lmbda: 0.75 # not specified by zannone2019
 
-  clip_epsilon: 0.2
-  entropy_bonus: True
-  entropy_coef: 0.0001
-  critic_coef: 1.0
-  loss_critic_type: "smooth_l1"
+  clip_epsilon: 0.2 # not specified by zannone2019
+  entropy_bonus: True # not specified by zannone2019
+  entropy_coef: 0.0001 # not specified by zannone2019
+  critic_coef: 1.0 # not specified by zannone2019
+  loss_critic_type: "smooth_l1" # not specified by zannone2019
 
   num_epochs: 1 # same as shim2018
-  lr: 1e-3
-  max_grad_norm: 1
+  lr: 1e-3 # not specified by zannone2019
+  max_grad_norm: 1 # not specified by zannone2019
   replay_buffer_batch_size: 128 # same as shim2018
 
-  value_num_cells: [32, 32] # same complexity as shim2018
-  value_dropout: 0.0
-  policy_num_cells: [32, 32] # same complexity as shim2018
-  policy_dropout: 0.0
+  # value_num_cells: [32, 32] # same complexity as shim2018
+  value_num_cells: [] # zannone2019
+  value_dropout: 0.0 # not specified by zannone2019
+  # policy_num_cells: [32, 32] # same complexity as shim2018
+  policy_num_cells: [] # zannone2019
+  policy_dropout: 0.0 # not specified by zannone2019
 # n_batches: 15000 # up to 30k also works well, but not significant improvement
 n_batches: 200000 # please give convergence
 batch_size: 512 # same as shim2018
