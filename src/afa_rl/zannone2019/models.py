@@ -93,6 +93,9 @@ class PointNet(nn.Module):
                 Shape: (batch_size, feature_map_size)
         """
 
+        assert masked_features.shape[1] == self.n_features
+        assert feature_mask.shape[1] == self.n_features
+
         # Identity is a learnable embedding according to EDDI paper
         identity = self.embedding_net(
             torch.arange(
@@ -587,9 +590,9 @@ class Zannone2019PretrainingModel(pl.LightningModule):
                 dtype=torch.float32,
                 device=masked_features.device,
             )
-            label_mask = torch.zeros_like(label)
+            label_mask = torch.full_like(label, False)
         else:
-            label_mask = label
+            label_mask = torch.full_like(label, True)
 
         augmented_masked_features = torch.cat(
             [masked_features, label], dim=-1
@@ -611,13 +614,35 @@ class Zannone2019AFAPredictFn(AFAPredictFn):
     def __init__(self, model: Zannone2019PretrainingModel):
         super().__init__()
         self.model = model
+        self.n_classes = len(model.class_weights)
 
     @override
     def __call__(
-        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        features: Features | None,
+        label: Label | None,
     ) -> Label:
+        batch_size = masked_features.shape[0]
+        augmented_masked_features = torch.cat(
+            [
+                masked_features,
+                torch.zeros(batch_size, self.n_classes, device=masked_features.device),
+            ],
+            dim=-1,
+        )
+        augmented_feature_mask = torch.cat(
+            [
+                feature_mask,
+                torch.full(
+                    (batch_size, self.n_classes), False, device=feature_mask.device
+                ),
+            ],
+            dim=-1,
+        )
         _encoding, _mu, _logvar, z = self.model.partial_vae.encode(
-            masked_features, feature_mask
+            augmented_masked_features, augmented_feature_mask
         )
         logits = self.model.classifier(z)
         return logits.softmax(dim=-1)
@@ -635,18 +660,41 @@ class Zannone2019AFAClassifier(AFAClassifier):
         super().__init__()
         self._device = device
         self.model = model.to(self._device)
+        self.n_classes = len(model.class_weights)
 
     @override
     def __call__(
-        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        features: Features | None,
+        label: Label | None,
     ) -> Label:
         original_device = masked_features.device
 
         masked_features = masked_features.to(self._device)
         feature_mask = feature_mask.to(self._device)
 
+        batch_size = masked_features.shape[0]
+        augmented_masked_features = torch.cat(
+            [
+                masked_features,
+                torch.zeros(batch_size, self.n_classes, device=masked_features.device),
+            ],
+            dim=-1,
+        )
+        augmented_feature_mask = torch.cat(
+            [
+                feature_mask,
+                torch.full(
+                    (batch_size, self.n_classes), False, device=feature_mask.device
+                ),
+            ],
+            dim=-1,
+        )
+
         _encoding, _mu, _logvar, z = self.model.partial_vae.encode(
-            masked_features, feature_mask
+            augmented_masked_features, augmented_feature_mask
         )
         logits = self.model.classifier(z)
         return logits.softmax(dim=-1).to(original_device)

@@ -102,6 +102,16 @@ class Zannone2019CommonModule(nn.Module):
 
 
 @final
+class Zannone2019DummyCommonModule(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @override
+    def forward(self, masked_features: MaskedFeatures, feature_mask: FeatureMask):
+        return torch.cat([masked_features, feature_mask], dim=-1)
+
+
+@final
 class Zannone2019Agent(Agent):
     def __init__(
         self,
@@ -125,17 +135,19 @@ class Zannone2019Agent(Agent):
         self.module_device = module_device
         self.replay_buffer_device = replay_buffer_device
 
-        self.common_module = Zannone2019CommonModule(
-            pointnet=self.pointnet,
-            encoder=self.encoder,
-        ).to(self.module_device)
+        # self.common_module = Zannone2019CommonModule(
+        #     pointnet=self.pointnet,
+        #     encoder=self.encoder,
+        # ).to(self.module_device)
+        self.common_module = Zannone2019DummyCommonModule().to(self.module_device)
         self.common_tdmodule = TensorDictModule(
             module=self.common_module,
             in_keys=["masked_features", "feature_mask"],
             out_keys=["mu"],
         )
         self.policy_head = Zannone2019PolicyModule(
-            latent_size=self.latent_size,
+            # latent_size=self.latent_size,
+            latent_size=40,
             n_actions=self.action_spec.n,  # pyright: ignore
             num_cells=tuple(self.cfg.policy_num_cells),
             dropout=self.cfg.policy_dropout,
@@ -160,7 +172,8 @@ class Zannone2019Agent(Agent):
         )
 
         self.value_head = Zannone2019ValueModule(
-            latent_size=self.latent_size,
+            # latent_size=self.latent_size,
+            latent_size=40,
             num_cells=tuple(self.cfg.value_num_cells),
             dropout=self.cfg.value_dropout,
         ).to(self.module_device)
@@ -176,13 +189,13 @@ class Zannone2019Agent(Agent):
             ]
         )
 
-        self.advantage_module = GAE(
-            gamma=self.cfg.gamma,
-            lmbda=self.cfg.lmbda,
-            value_network=self.state_value_tdmodule,
-            average_gae=self.cfg.replay_buffer_batch_size
-            > 1,  # we cannot average or calculate std with a single sample
-        )
+        # self.advantage_module = GAE(
+        #     gamma=self.cfg.gamma,
+        #     lmbda=self.cfg.lmbda,
+        #     value_network=self.state_value_tdmodule,
+        #     average_gae=self.cfg.replay_buffer_batch_size
+        #     > 1,  # we cannot average or calculate std with a single sample
+        # )
         self.loss_tdmodule = ClipPPOLoss(
             actor_network=self.probabilistic_policy_tdmodule,
             critic_network=self.state_value_tdmodule,
@@ -231,7 +244,7 @@ class Zannone2019Agent(Agent):
         # Perform multiple epochs of training
         for _ in range(self.cfg.num_epochs):
             # Compute advantages each epoch
-            self.advantage_module(td)
+            # self.advantage_module(td)
 
             # Reset replay buffer each epoch
             self.replay_buffer.extend(td)
@@ -241,7 +254,7 @@ class Zannone2019Agent(Agent):
                 sampled_td = sampled_td.to(self.module_device)
 
                 self.optimizer.zero_grad()
-                loss_td: TensorDictBase = self.loss_tdmodule(td)
+                loss_td: TensorDictBase = self.loss_tdmodule(sampled_td)
                 loss_tensor: Tensor = sum(
                     (loss_td[k] for k in self.loss_keys),
                     torch.tensor(0.0, device=td.device),
@@ -293,7 +306,7 @@ class Zannone2019Agent(Agent):
     @override
     def get_expensive_info(self) -> dict[str, Any]:
         return {
-            "common_module_norm": module_norm(self.common_module),
+            # "common_module_norm": module_norm(self.common_module),
             "value_head_norm": module_norm(self.value_head),
             "policy_head_norm": module_norm(self.policy_head),
         }

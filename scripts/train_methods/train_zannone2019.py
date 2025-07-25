@@ -267,7 +267,7 @@ def main(cfg: Zannone2019TrainConfig):
     pretrained_model = pretrained_model.to(device)
 
     reward_fn = get_zannone2019_reward_fn(
-        afa_predict_fn=Zannone2019AFAPredictFn(pretrained_model), weights=class_weights
+        pretrained_model=pretrained_model, weights=class_weights
     )
 
     # Use the pretrained model to generate new artificial data
@@ -373,7 +373,7 @@ def main(cfg: Zannone2019TrainConfig):
                     | dict_with_prefix("cheap_info.", agent.get_cheap_info())
                     | {
                         "reward": td["next", "reward"].mean().item(),
-                        "actions": wandb.Histogram(td["action"]),
+                        "actions": wandb.Histogram(td["action"].cpu()),
                     },
                 )
             )

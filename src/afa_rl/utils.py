@@ -406,7 +406,10 @@ def get_eval_metrics(
         # Check whether prediction is correct
         td_end = td[-1:]
         probs = afa_predict_fn(
-            td_end["next", "masked_features"], td_end["next", "feature_mask"]
+            td_end["next", "masked_features"],
+            td_end["next", "feature_mask"],
+            None,
+            None,
         )
         if probs.argmax(dim=-1) == td_end["label"].argmax(dim=-1):
             n_correct_samples += 1
