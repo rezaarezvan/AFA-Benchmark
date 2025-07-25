@@ -143,7 +143,9 @@ class Zannone2019PretrainConfig:
     encoder: Zannone2019EncoderConfig
     partial_vae: Zannone2019PartialVAEConfig
     classifier: Zannone2019ClassifierConfig
-    kl_scaling_factor: float
+    start_kl_scaling_factor: float
+    end_kl_scaling_factor: float
+    n_annealing_epochs: int
     classifier_loss_scaling_factor: float
     label_loss_scaling_factor: float
     output_artifact_aliases: list[str]
@@ -608,7 +610,6 @@ class AACOTrainConfig:
     seed: int = 42
     device: str = "cpu"
     budget: int = 20
-
 
 # --- TRAINING CLASSIFIERS ---
 

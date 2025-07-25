@@ -88,7 +88,9 @@ def get_zannone2019_model_from_config(
         min_masking_probability=cfg.min_masking_probability,
         max_masking_probability=cfg.max_masking_probability,
         class_probabilities=class_probabilities,
-        kl_scaling_factor=cfg.kl_scaling_factor,
+        start_kl_scaling_factor=cfg.start_kl_scaling_factor,
+        end_kl_scaling_factor=cfg.end_kl_scaling_factor,
+        n_annealing_epochs=cfg.n_annealing_epochs,
         classifier_loss_scaling_factor=cfg.classifier_loss_scaling_factor,
         label_loss_scaling_factor=cfg.label_loss_scaling_factor,
     )

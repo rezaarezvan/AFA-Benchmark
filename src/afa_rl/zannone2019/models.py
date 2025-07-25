@@ -200,7 +200,9 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         min_masking_probability: float,
         max_masking_probability: float,
         lr: float,
-        kl_scaling_factor: float,  # how much more to weigh KL loss compared to reconstruction loss in PVAE
+        start_kl_scaling_factor: float,
+        end_kl_scaling_factor: float,
+        n_annealing_epochs: int,
         classifier_loss_scaling_factor: float,  # how much more to weigh the classifier's loss compared to the PVAE's loss
         label_loss_scaling_factor: float,  # how much more to weigh the label reconstruction loss compared to the feature reconstruction loss
     ):
@@ -213,10 +215,20 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         self.class_weights = 1 / class_probabilities
         self.class_weights: Tensor = self.class_weights / torch.sum(self.class_weights)
         self.classifier_loss_scaling_factor = classifier_loss_scaling_factor
-        self.kl_scaling_factor: float = kl_scaling_factor
+        self.start_kl_scaling_factor: float = start_kl_scaling_factor
+        self.end_kl_scaling_factor: float = end_kl_scaling_factor
+        self.n_annealing_epochs = n_annealing_epochs
         self.label_loss_scaling_factor: float = label_loss_scaling_factor
 
         # self.recon_loss_type = recon_loss_type
+
+    def current_kl_weight(self) -> float:
+        """Compute the current KL weight using linear annealing."""
+        progress = min(1.0, self.current_epoch / self.n_annealing_epochs)
+        return (
+            self.start_kl_scaling_factor
+            + (self.end_kl_scaling_factor - self.start_kl_scaling_factor) * progress
+        )
 
     @override
     def training_step(self, batch: tuple[Tensor, Tensor], batch_idx: int):
@@ -272,6 +284,10 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         self.log("train_loss", total_loss, sync_dist=True)
 
         return total_loss
+
+    @override
+    def on_train_epoch_end(self) -> None:
+        self.log("kl_weight", self.current_kl_weight())
 
     def _get_loss_and_acc(
         self,
@@ -490,7 +506,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         kl_div_loss = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp()).sum(dim=1).mean(
             dim=0
         )
-        kl_div_loss = kl_div_loss * self.kl_scaling_factor
+        kl_div_loss = kl_div_loss * self.current_kl_weight()
         return (
             feature_recon_loss + label_recon_loss + kl_div_loss,
             feature_recon_loss,
