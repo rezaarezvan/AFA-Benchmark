@@ -265,11 +265,10 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         classifier_loss = F.cross_entropy(
             logits, label.float(), weight=self.class_weights.to(logits.device)
         )
+        classifier_loss = classifier_loss * self.classifier_loss_scaling_factor
         self.log("train_loss_classifier", classifier_loss, sync_dist=True)
 
-        total_loss = (
-            partial_vae_loss + self.classifier_loss_scaling_factor * classifier_loss
-        )
+        total_loss = partial_vae_loss + classifier_loss
         self.log("train_loss", total_loss, sync_dist=True)
 
         return total_loss
@@ -299,6 +298,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         classifier_loss = F.cross_entropy(
             logits, label, weight=self.class_weights.to(logits.device)
         )
+        classifier_loss = classifier_loss * self.classifier_loss_scaling_factor
 
         # For validation, additionally calculate accuracy
         y_pred = torch.argmax(logits, dim=1)
@@ -470,11 +470,11 @@ class Zannone2019PretrainingModel(pl.LightningModule):
     ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
         # Split augmented features (features+labels) into their corresponding parts so we can have different losses for them
         features, labels = (
-            augmented_features[..., : 1 - len(self.class_weights)],
+            augmented_features[..., : -len(self.class_weights)],
             augmented_features[..., -len(self.class_weights) :],
         )
         estimated_features, estimated_label_logits = (
-            estimated_augmented_features[..., : 1 - len(self.class_weights)],
+            estimated_augmented_features[..., : -len(self.class_weights)],
             estimated_augmented_features[..., -len(self.class_weights) :],
         )
         feature_recon_loss = (

@@ -9,7 +9,7 @@ min_masking_probability: 0.75
 max_masking_probability: 0.99
 pointnet:
   type: "pointnetplus" # zannone2019 paper does not mention which type they use
-  identity_size: 20 # EDDI (MNIST)
+  identity_size: 20 # EDDI (MNIST), not specified by zannone2019
   max_embedding_norm: 1.0
   feature_map_encoder_num_cells: [500] # EDDI (MNIST)
   feature_map_encoder_activation_class: "ReLU"
@@ -31,7 +31,6 @@ classifier:
   num_cells: [128, 128] # zannone2019 paper does not say what this should be, so we use the same num_cells as the "common" classifier
   activation_class: "ReLU"
   dropout: 0.0
-recon_loss_type: "squared_error"
 kl_scaling_factor: 0.01
 classifier_loss_scaling_factor: 100
 label_loss_scaling_factor: 1
