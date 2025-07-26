@@ -32,6 +32,8 @@ from afa_rl.zannone2019.utils import (
     load_pretrained_model_artifacts,
 )
 from afa_rl.utils import (
+    cubeSimple_optimal_selection_wrapper,
+    cubeSimple_worst_selection_wrapper,
     get_eval_metrics,
 )
 from common.afa_methods import RandomDummyAFAMethod
@@ -238,9 +240,11 @@ def main(cfg: Zannone2019TrainConfig):
         ).cpu()
 
     combined_features = torch.cat([train_dataset.features, generated_features])
-    combined_features = combined_features[torch.randperm(len(combined_features))]
     combined_labels = torch.cat([train_dataset.labels, generated_labels])
-    combined_labels = combined_labels[torch.randperm(len(combined_labels))]
+    # Shuffle features and labels so that generated data is mixed with real data
+    rand_indices = torch.randperm(len(combined_features))
+    combined_features = combined_features[rand_indices]
+    combined_labels = combined_labels[rand_indices]
 
     # MDP expects special dataset functions
     train_dataset_fn = get_afa_dataset_fn(combined_features, combined_labels)
@@ -256,10 +260,6 @@ def main(cfg: Zannone2019TrainConfig):
         hard_budget=cfg.hard_budget,
     )
     check_env_specs(train_env)
-
-    # Manual debugging
-    # td = train_env.reset()
-    # td = train_env.rand_step(td)
 
     eval_env = AFAEnv(
         dataset_fn=val_dataset_fn,
@@ -326,13 +326,50 @@ def main(cfg: Zannone2019TrainConfig):
                         ).squeeze(0)
                         for _ in tqdm(range(cfg.n_eval_episodes), desc="Evaluating")
                     ]
+                    # train_td_evals = [
+                    #     train_env.rollout(
+                    #         cfg.eval_max_steps, agent.get_exploitative_policy()
+                    #     ).squeeze(0)
+                    #     for _ in tqdm(
+                    #         range(cfg.n_eval_episodes),
+                    #         desc="Evaluating on training env",
+                    #     )
+                    # ]
+                    optimal_td_evals = [
+                        eval_env.rollout(
+                            cfg.eval_max_steps, cubeSimple_optimal_selection_wrapper
+                        ).squeeze(0)
+                        for _ in tqdm(
+                            range(cfg.n_eval_episodes), desc="Evaluating optimal policy"
+                        )
+                    ]
+                    worst_td_evals = [
+                        eval_env.rollout(
+                            cfg.eval_max_steps, cubeSimple_worst_selection_wrapper
+                        ).squeeze(0)
+                        for _ in tqdm(
+                            range(cfg.n_eval_episodes), desc="Evaluating worst policy"
+                        )
+                    ]
                 metrics_eval = get_eval_metrics(
                     td_evals, Zannone2019AFAPredictFn(pretrained_model)
+                )
+                # train_metrics_eval = get_eval_metrics(
+                #     train_td_evals, Zannone2019AFAPredictFn(pretrained_model)
+                # )
+                optimal_metrics_eval = get_eval_metrics(
+                    optimal_td_evals, Zannone2019AFAPredictFn(pretrained_model)
+                )
+                worst_metrics_eval = get_eval_metrics(
+                    worst_td_evals, Zannone2019AFAPredictFn(pretrained_model)
                 )
                 run.log(
                     dict_with_prefix(
                         "eval/",
-                        metrics_eval
+                        dict_with_prefix("agent_policy.", metrics_eval)
+                        # | dict_with_prefix("agent_train_policy.", train_metrics_eval)
+                        | dict_with_prefix("optimal_policy.", optimal_metrics_eval)
+                        | dict_with_prefix("worst_policy.", worst_metrics_eval)
                         | dict_with_prefix(
                             "expensive_info.", agent.get_expensive_info()
                         ),
@@ -345,27 +382,31 @@ def main(cfg: Zannone2019TrainConfig):
         # Convert the embedder+agent to an AFAMethod and save it as a temporary file
         pretrained_model = pretrained_model.to(torch.device("cpu"))
         afa_method = RLAFAMethod(
-            agent.get_policy().to("cpu"),
+            agent.get_exploitative_policy().to("cpu"),
             Zannone2019AFAClassifier(pretrained_model, device=torch.device("cpu")),
         )
         # Save the method to a temporary directory and load it again to ensure it is saved correctly
         with TemporaryDirectory(delete=False) as tmp_path_str:
             tmp_path = Path(tmp_path_str)
-            afa_method.save(tmp_path)
-            del afa_method
-            afa_method = RLAFAMethod.load(
-                tmp_path,
-                device=torch.device("cpu"),
-            )
+            # afa_method.save(tmp_path)
+            # del afa_method
+            # afa_method = RLAFAMethod.load(
+            #     tmp_path,
+            #     device=torch.device("cpu"),
+            # )
             if cfg.evaluate_final_performance:
                 # Check what the final performance of the method is. Costly for large datasets.
-                metrics = eval_afa_method(
-                    afa_method.select,
-                    val_dataset,
-                    cfg.hard_budget,
-                    afa_method.predict,
-                    only_n_samples=cfg.eval_only_n_samples,
-                )
+                with (
+                    torch.no_grad(),
+                    set_exploration_type(ExplorationType.DETERMINISTIC),
+                ):
+                    metrics = eval_afa_method(
+                        afa_method.select,
+                        val_dataset,
+                        cfg.hard_budget,
+                        afa_method.predict,
+                        only_n_samples=cfg.eval_only_n_samples,
+                    )
                 fig_metrics = plot_metrics(metrics)
                 # Also check performance of dummy method for comparison
                 dummy_afa_method = RandomDummyAFAMethod(
