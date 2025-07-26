@@ -80,49 +80,6 @@ class classifier_ground_truth():
         self.gt_classifier = self.gt_classifier.to(device)
         return self.gt_classifier.predict(X)
 
-
-class classifier_xgb():
-    """
-    Single XGBoost classifier that expects [features + mask] as concatenated input
-    Used for MNIST and other high-dimensional datasets
-    """
-
-    def __init__(self, xgb_model):
-        self.xgb_model = xgb_model
-
-    def predict_logits(self, X):
-        if torch.is_tensor(X):
-            X = X.cpu().numpy()
-        return torch.tensor(
-            self.xgb_model.predict(X, output_margin=True),
-            dtype=torch.float32,
-        )
-
-    def __call__(self, X, idx):
-        device = X.device if hasattr(X, 'device') else torch.device('cpu')
-
-        # Convert to numpy for XGBoost prediction
-        if torch.is_tensor(X):
-            X_np = X.detach().cpu().numpy().astype(np.float32)
-        else:
-            X_np = X.astype(np.float32)
-
-        # XGBoost expects 2D input: [batch_size, features]
-        if X_np.ndim == 1:
-            X_np = X_np.reshape(1, -1)
-
-        pred_probs = self.xgb_model.predict_proba(X_np)
-
-        # Convert back to torch tensor on correct device
-        result = torch.tensor(pred_probs, device=device, dtype=torch.float32)
-
-        # Handle single sample case
-        if result.dim() == 1:
-            result = result.unsqueeze(0)
-
-        return result
-
-
 class classifier_mlp():
     """
     MLP classifier wrapper that adapts WrappedMaskedMLPClassifier to AACO interface
@@ -135,7 +92,7 @@ class classifier_mlp():
 
     def predict_logits(self, X):
         """
-        AACO interface expects this method for compatibility with XGBoost classifiers
+        AACO interface expects this method for compatibility
 
         Args:
             X: tensor of shape [batch_size, features + mask] where features use hide_val for missing

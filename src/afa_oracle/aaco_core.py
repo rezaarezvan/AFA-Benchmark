@@ -5,11 +5,10 @@ import torch.nn as nn
 
 from pathlib import Path
 from common.classifiers import WrappedMaskedMLPClassifier
-from afa_oracle.classifiers import classifier_ground_truth, classifier_mlp
 from afa_oracle.mask_generator import random_mask_generator
+from afa_oracle.classifiers import classifier_ground_truth, classifier_mlp
 
 log = logging.getLogger(__name__)
-
 
 def get_knn(X_train, X_query, masks, num_neighbors, instance_idx=0, exclude_instance=True):
     """
@@ -82,7 +81,7 @@ def get_initial_feature(dataset_name, n_features):
 
     if dataset_name == "cube":
         return 6
-    elif dataset_name in ["mnist", "fashionmnist"]:
+    elif dataset_name == "mnist":
         return 100
     else:
         # Default: select middle feature
@@ -218,8 +217,7 @@ class AACOOracle:
             # If best mask equals current mask, force selection of cheapest unobserved feature
             unobserved = (~observed_mask).nonzero(as_tuple=True)[0]
             return unobserved[0].item() if len(unobserved) > 0 else None
-
-        if len(new_features) == 1:
+        elif len(new_features) == 1:
             return new_features[0].item()
         else:
             # If multiple features, select the one with lowest individual loss

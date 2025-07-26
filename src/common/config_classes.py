@@ -427,7 +427,7 @@ class CAETrainingConfig:
     hard_budget: int = 20
     device: str = "cuda"
     seed: int = 42
-    
+
     selector: StaticSelectorConfig = field(default_factory=StaticSelectorConfig)
     classifier: StaticClassifierConfig = field(default_factory=StaticClassifierConfig)
 
@@ -444,7 +444,7 @@ class PermutationTrainingConfig:
     hard_budget: int = 20
     device: str = "cuda"
     seed: int = 42
-    
+
     selector: StaticSelectorConfig = field(default_factory=StaticSelectorConfig)
     classifier: StaticClassifierConfig = field(default_factory=StaticClassifierConfig)
 
@@ -634,34 +634,6 @@ class TrainMaskedMLPClassifierConfig:
 cs.store(name="train_masked_mlp_classifier",
          node=TrainMaskedMLPClassifierConfig)
 
-
-@dataclass
-class TrainXGBoostClassifierConfig:
-    """Configuration for training XGBoost classifier."""
-
-    dataset_artifact_name: str
-    batch_size: int = 256
-    min_masking_probability: float = 0.0
-    max_masking_probability: float = 1.0
-    # if specified, only evaluate on this many samples
-    eval_only_n_samples: int | None = None
-    seed: int = 42
-    output_artifact_aliases: list[str] | None = None
-    evaluate_final_performance: bool = True
-
-    # XGBoost specific parameters
-    n_estimators: int = 100
-    max_depth: int = 6
-    learning_rate: float = 0.1
-    subsample: float = 0.8
-    colsample_bytree: float = 0.8
-
-    def __post_init__(self):
-        if self.output_artifact_aliases is None:
-            self.output_artifact_aliases = ["tmp"]
-
-
-cs.store(name="train_xgboost_classifier", node=TrainXGBoostClassifierConfig)
 
 # --- EVALUATION ---
 

@@ -51,7 +51,7 @@ def get_afa_method_class(name: str) -> type[AFAMethod]:
         from afa_oracle.afa_methods import ACOBCAFAMethod
 
         return ACOBCAFAMethod
-    
+
     elif name in {"cae", "permutation"}:
         from static.static_methods import StaticBaseMethod
 
@@ -125,7 +125,6 @@ AFA_CLASSIFIER_TYPES = {
     "randomdummy",
     "uniformdummy",
     "WrappedMaskedMLPClassifier",
-    "WrappedXGBoostAFAClassifier",
     "Shim2018AFAClassifier",
 }
 
@@ -143,10 +142,6 @@ def get_afa_classifier_class(name: str) -> type[AFAClassifier]:
         from common.classifiers import WrappedMaskedMLPClassifier
 
         return WrappedMaskedMLPClassifier
-    elif name == "WrappedXGBoostAFAClassifier":
-        from common.xgboost_classifier import WrappedXGBoostAFAClassifier
-
-        return WrappedXGBoostAFAClassifier
     elif name == "Shim2018AFAClassifier":
         from afa_rl.shim2018.models import Shim2018AFAClassifier
 

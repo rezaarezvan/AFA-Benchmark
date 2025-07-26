@@ -126,7 +126,7 @@ class AACOAFAMethod(AFAMethod):
             'y_train': self.aaco_oracle.y_train.cpu() if self.aaco_oracle.y_train is not None else None,
         }
 
-        torch.save(oracle_state, path / "aaco_oracle.pt")
+        torch.save(oracle_state, path / f"aaco_oracle_{self.dataset_name}.pt")
         logger.info(f"Saved AACO method to {path}")
 
     @classmethod
@@ -139,7 +139,7 @@ class AACOAFAMethod(AFAMethod):
             device = torch.device(
                 "cuda" if torch.cuda.is_available() else "cpu")
 
-        oracle_state = torch.load(path / "aaco_oracle.pt", map_location=device)
+        oracle_state = torch.load(path / f"aaco_oracle_{cls.dataset_name}.pt", map_location=device)
 
         # Create new oracle
         aaco_oracle = AACOOracle(
