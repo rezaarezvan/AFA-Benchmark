@@ -231,7 +231,11 @@ class Kachuee2019AFAPredictFn(AFAPredictFn):
 
     @override
     def __call__(
-        self, masked_features: MaskedFeatures, _feature_mask: FeatureMask
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        features: Features | None,
+        label: Label | None,
     ) -> Label:
         class_logits, _qvalues = self.pq_module.forward(masked_features)
         return class_logits.softmax(dim=-1)
@@ -252,7 +256,11 @@ class Kachuee2019AFAClassifier(AFAClassifier):
 
     @override
     def __call__(
-        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        features: Features | None,
+        label: Label | None,
     ) -> Label:
         original_device = masked_features.device
 
