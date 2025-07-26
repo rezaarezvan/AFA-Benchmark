@@ -79,10 +79,10 @@ def get_zannone2019_reward_fn(
         else:
             new_augmented_masked_features = new_masked_features
             new_augmented_feature_mask = new_feature_mask
-        _encoding, _mu, _logvar, z = pretrained_model.partial_vae.encode(
+        _encoding, mu, _logvar, z = pretrained_model.partial_vae.encode(
             new_augmented_masked_features, new_augmented_feature_mask
         )
-        logits = pretrained_model.classifier(z)
+        logits = pretrained_model.classifier(mu)
         reward = -F.cross_entropy(logits, label, weight=weights, reduction="none")
 
         return reward
