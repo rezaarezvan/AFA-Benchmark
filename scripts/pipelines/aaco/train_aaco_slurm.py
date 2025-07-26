@@ -14,16 +14,14 @@ def main():
     print("=== Launching AACO Training Jobs ===")
 
     for dataset, split in itertools.product(DATASETS, SPLITS):
-        cmd = f"""uv run scripts/train_methods/train_aaco.py \
+        cmd = f"""uv run scripts/train_methods/train_aco.py -m \
 dataset_artifact_name={dataset}_split_{split}:{ALIAS} \
 output_artifact_aliases=["{ALIAS}"] \
 hydra/launcher=custom_slurm"""
 
         print(f"Submitting: {dataset}_split_{split}")
         if not args.dry_run:
-            result = subprocess.run(cmd, shell=True)
-            if result.returncode != 0:
-                print(f"Error submitting job for {dataset}_split_{split}")
+            subprocess.Popen(cmd, shell=True)  # Non-blocking
 
     print("All training jobs submitted to SLURM")
 

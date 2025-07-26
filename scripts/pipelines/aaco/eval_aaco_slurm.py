@@ -23,7 +23,7 @@ def main():
 
     for dataset, split in itertools.product(BUDGETS.keys(), SPLITS):
         for budget in BUDGETS[dataset]:
-            cmd = f"""uv run scripts/evaluation/eval_afa_method.py \
+            cmd = f"""uv run scripts/evaluation/eval_afa_method.py -m \
 trained_method_artifact_name=aaco-{dataset}_split_{split}:{ALIAS} \
 trained_classifier_artifact_name=null \
 +budget={budget} \
@@ -33,9 +33,7 @@ hydra/launcher=custom_slurm"""
 
             print(f"Submitting: {dataset}_split_{split}_budget_{budget}")
             if not args.dry_run:
-                result = subprocess.run(cmd, shell=True)
-                if result.returncode != 0:
-                    print(f"Error submitting job for {dataset}_split_{split}_budget_{budget}")
+                subprocess.Popen(cmd, shell=True)  # Non-blocking
 
     print("All evaluation jobs submitted to SLURM")
 
