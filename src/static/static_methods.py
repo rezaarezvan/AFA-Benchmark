@@ -223,9 +223,9 @@ class StaticBaseMethod(AFAMethod):
         if not (counts == counts[0]).all():
             raise RuntimeError("mixed budgets in batch")
         b = int(counts[0].item())
-        cols = self.selected_history[b+1]
+        cols = self.selected_history[b]
         x_sel = masked_features[:, cols].to(self._device)
-        logits = self.predictors[b+1](x_sel)
+        logits = self.predictors[b](x_sel)
         return logits.softmax(dim=-1)
     
     def select(self, masked_features: MaskedFeatures, feature_mask: FeatureMask,
