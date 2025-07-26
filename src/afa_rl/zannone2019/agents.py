@@ -147,7 +147,6 @@ class Zannone2019Agent(Agent):
         )
         self.policy_head = Zannone2019PolicyModule(
             latent_size=self.latent_size,
-            # latent_size=20,
             n_actions=self.action_spec.n,  # pyright: ignore
             num_cells=tuple(self.cfg.policy_num_cells),
             dropout=self.cfg.policy_dropout,
@@ -173,7 +172,6 @@ class Zannone2019Agent(Agent):
 
         self.value_head = Zannone2019ValueModule(
             latent_size=self.latent_size,
-            # latent_size=20,
             num_cells=tuple(self.cfg.value_num_cells),
             dropout=self.cfg.value_dropout,
         ).to(self.module_device)
@@ -189,13 +187,13 @@ class Zannone2019Agent(Agent):
             ]
         )
 
-        # self.advantage_module = GAE(
-        #     gamma=self.cfg.gamma,
-        #     lmbda=self.cfg.lmbda,
-        #     value_network=self.state_value_tdmodule,
-        #     average_gae=self.cfg.replay_buffer_batch_size
-        #     > 1,  # we cannot average or calculate std with a single sample
-        # )
+        self.advantage_module = GAE(
+            gamma=self.cfg.gamma,
+            lmbda=self.cfg.lmbda,
+            value_network=self.state_value_tdmodule,
+            average_gae=self.cfg.replay_buffer_batch_size
+            > 1,  # we cannot average or calculate std with a single sample
+        )
         self.loss_tdmodule = ClipPPOLoss(
             actor_network=self.probabilistic_policy_tdmodule,
             critic_network=self.state_value_tdmodule,
@@ -244,7 +242,7 @@ class Zannone2019Agent(Agent):
         # Perform multiple epochs of training
         for _ in range(self.cfg.num_epochs):
             # Compute advantages each epoch
-            # self.advantage_module(td)
+            self.advantage_module(td)
 
             # Reset replay buffer each epoch
             self.replay_buffer.extend(td)
