@@ -132,24 +132,27 @@ class AACOAFAMethod(AFAMethod):
     @classmethod
     @override
     def load(cls, path: Path, device: torch.device = None) -> Self:
-        """
-        Load method from saved state
-        """
+        """Load method from saved state"""
         if device is None:
-            device = torch.device(
-                "cuda" if torch.cuda.is_available() else "cpu")
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        oracle_state = torch.load(path / f"aaco_oracle_{cls.dataset_name}.pt", map_location=device)
+        # Find saved oracle file
+        oracle_files = list(path.glob("aaco_oracle_*.pt"))
+        if not oracle_files:
+            raise FileNotFoundError(f"No AACO oracle files found in {path}")
 
-        # Create new oracle
+        oracle_state = torch.load(oracle_files[0], map_location=device)
+
+        # Recreate oracle and method
         aaco_oracle = AACOOracle(
             k_neighbors=oracle_state['k_neighbors'],
             acquisition_cost=oracle_state['acquisition_cost'],
             hide_val=oracle_state['hide_val'],
-            dataset_name=oracle_state['dataset_name']
+            dataset_name=oracle_state['dataset_name'],
+            device=device
         )
 
-        # Restore training data if available
+        # Restore fitted state
         if oracle_state['X_train'] is not None and oracle_state['y_train'] is not None:
             aaco_oracle.fit(oracle_state['X_train'].to(device),
                             oracle_state['y_train'].to(device))

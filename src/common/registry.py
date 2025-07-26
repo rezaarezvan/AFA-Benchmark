@@ -42,15 +42,9 @@ def get_afa_method_class(name: str) -> type[AFAMethod]:
 
         return Ma2018AFAMethod
 
-    elif name == "aco":
-        from afa_oracle.afa_methods import ACOAFAMethod
-
-        return ACOAFAMethod
-
-    elif name == "aco_bc":
-        from afa_oracle.afa_methods import ACOBCAFAMethod
-
-        return ACOBCAFAMethod
+    elif name == "aaco":
+        from afa_oracle.afa_methods import AACOAFAMethod
+        return AACOAFAMethod
 
     elif name in {"cae", "permutation"}:
         from static.static_methods import StaticBaseMethod

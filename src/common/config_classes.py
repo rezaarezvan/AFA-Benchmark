@@ -613,7 +613,6 @@ class AACOTrainConfig:
     output_artifact_aliases: List[str]
     seed: int = 42
     device: str = "cpu"
-    budget: int = 20
 
 # --- TRAINING CLASSIFIERS ---
 

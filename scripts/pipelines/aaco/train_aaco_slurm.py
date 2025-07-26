@@ -1,0 +1,31 @@
+import itertools
+import subprocess
+
+DATASETS = ['cube', 'AFAContext', 'MNIST', 'FashionMNIST', 'diabetes', 'miniboone', 'physionet']
+SPLITS = [1, 2]
+ALIAS = "latest"
+
+def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="Launch AACO training jobs on SLURM")
+    parser.add_argument("--dry-run", action="store_true", help="Print commands without running")
+    args = parser.parse_args()
+
+    print("=== Launching AACO Training Jobs ===")
+
+    for dataset, split in itertools.product(DATASETS, SPLITS):
+        cmd = f"""uv run scripts/train_methods/train_aaco.py \
+dataset_artifact_name={dataset}_split_{split}:{ALIAS} \
+output_artifact_aliases=["{ALIAS}"] \
+hydra/launcher=custom_slurm"""
+
+        print(f"Submitting: {dataset}_split_{split}")
+        if not args.dry_run:
+            result = subprocess.run(cmd, shell=True)
+            if result.returncode != 0:
+                print(f"Error submitting job for {dataset}_split_{split}")
+
+    print("All training jobs submitted to SLURM")
+
+if __name__ == "__main__":
+    main()
