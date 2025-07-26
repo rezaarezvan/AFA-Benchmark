@@ -167,7 +167,10 @@ def main(cfg: EvalConfig) -> None:
     # Use the same hard budget during evaluation as during training
     # Note that this can be None, in which case we will use the maximum number of features in the dataset
     # during evaluation
-    if method_metadata["budget"] is None:
+    if hasattr(cfg, 'budget') and cfg.budget is not None:
+        log.info(f"Using explicitly provided budget: {cfg.budget}")
+        eval_budget = cfg.budget
+    elif method_metadata["budget"] is None:
         log.info("Using maximum number of features in the dataset as budget")
         eval_budget = val_dataset.n_features
     else:
