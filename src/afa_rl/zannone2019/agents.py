@@ -135,19 +135,19 @@ class Zannone2019Agent(Agent):
         self.module_device = module_device
         self.replay_buffer_device = replay_buffer_device
 
-        # self.common_module = Zannone2019CommonModule(
-        #     pointnet=self.pointnet,
-        #     encoder=self.encoder,
-        # ).to(self.module_device)
-        self.common_module = Zannone2019DummyCommonModule().to(self.module_device)
+        self.common_module = Zannone2019CommonModule(
+            pointnet=self.pointnet,
+            encoder=self.encoder,
+        ).to(self.module_device)
+        # self.common_module = Zannone2019DummyCommonModule().to(self.module_device)
         self.common_tdmodule = TensorDictModule(
             module=self.common_module,
             in_keys=["masked_features", "feature_mask"],
             out_keys=["mu"],
         )
         self.policy_head = Zannone2019PolicyModule(
-            # latent_size=self.latent_size,
-            latent_size=20,
+            latent_size=self.latent_size,
+            # latent_size=20,
             n_actions=self.action_spec.n,  # pyright: ignore
             num_cells=tuple(self.cfg.policy_num_cells),
             dropout=self.cfg.policy_dropout,
@@ -172,8 +172,8 @@ class Zannone2019Agent(Agent):
         )
 
         self.value_head = Zannone2019ValueModule(
-            # latent_size=self.latent_size,
-            latent_size=20,
+            latent_size=self.latent_size,
+            # latent_size=20,
             num_cells=tuple(self.cfg.value_num_cells),
             dropout=self.cfg.value_dropout,
         ).to(self.module_device)
