@@ -595,6 +595,7 @@ cs.store(name="train_kachuee2019", node=Kachuee2019TrainConfig)
 class AACOConfig:
     k_neighbors: int = 5
     acquisition_cost: float = 0.05
+    budget: int = 20
     hide_val: float = 10.0
     evaluate_final_performance: bool = True
     eval_only_n_samples: Optional[int] = None
