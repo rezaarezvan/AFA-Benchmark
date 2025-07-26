@@ -93,7 +93,9 @@ class PointNet(nn.Module):
                 Shape: (batch_size, feature_map_size)
         """
 
-        assert masked_features.shape[1] == self.n_features
+        assert masked_features.shape[1] == self.n_features, (
+            f"{masked_features.shape[1]} != {self.n_features}"
+        )
         assert feature_mask.shape[1] == self.n_features
 
         # Identity is a learnable embedding according to EDDI paper
@@ -748,7 +750,7 @@ class Zannone2019AFAClassifier(AFAClassifier):
         _encoding, _mu, _logvar, z = self.model.partial_vae.encode(
             augmented_masked_features, augmented_feature_mask
         )
-        logits = self.model.classifier(z)
+        logits = self.model.classifier(_mu)
         return logits.softmax(dim=-1).to(original_device)
 
     @override
