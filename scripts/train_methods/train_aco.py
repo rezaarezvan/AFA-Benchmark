@@ -237,12 +237,13 @@ def main(cfg: AACOTrainConfig):
     if cfg.aco.evaluate_final_performance:
         log.info("Evaluating AACO method...")
 
-        budget = min(n_features, 25)
+        # budget = min(n_features, 25)
 
         metrics = eval_afa_method(
             afa_select_fn=aaco_method.select,
             dataset=val_dataset,
-            budget=budget,
+            # budget=budget,
+            budget=None,  # AACO does not have a fixed budget
             afa_predict_fn=aaco_method.predict,
             only_n_samples=cfg.aco.eval_only_n_samples,
             device=device,
