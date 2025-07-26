@@ -2,7 +2,7 @@ from collections import defaultdict
 from collections.abc import Callable
 from typing import Any
 
-from tensordict import TensorDictBase
+from tensordict import TensorDict, TensorDictBase
 import torch
 from jaxtyping import Integer
 from torch import Tensor, nn
@@ -383,6 +383,58 @@ def afacontext_optimal_selection(
                 selection[i] = unselected_features[0]
 
     return selection
+
+
+def cubeSimple_optimal_selection(
+    masked_features: MaskedFeatures, feature_mask: FeatureMask
+) -> AFASelection:
+    selection = torch.full(
+        (masked_features.shape[0],),
+        -1,
+        dtype=torch.int64,
+        device=masked_features.device,
+    )
+
+    # Always select features 0, 2, and 4 in order if they are not already selected
+    for i in range(masked_features.size(0)):
+        for feature_idx in [0, 2, 4]:
+            if feature_mask[i, feature_idx] == 0:
+                selection[i] = feature_idx
+                break
+
+    return selection
+
+
+def cubeSimple_optimal_selection_wrapper(td: TensorDictBase) -> TensorDictBase:
+    td["action"] = cubeSimple_optimal_selection(
+        td["masked_features"], td["feature_mask"]
+    )
+    return td
+
+
+def cubeSimple_worst_selection(
+    masked_features: MaskedFeatures, feature_mask: FeatureMask
+) -> AFASelection:
+    selection = torch.full(
+        (masked_features.shape[0],),
+        -1,
+        dtype=torch.int64,
+        device=masked_features.device,
+    )
+
+    # Always select features 1, 3, and 5 in order if they are not already selected
+    for i in range(masked_features.size(0)):
+        for feature_idx in [1, 3, 5]:
+            if feature_mask[i, feature_idx] == 0:
+                selection[i] = feature_idx
+                break
+
+    return selection
+
+
+def cubeSimple_worst_selection_wrapper(td: TensorDictBase) -> TensorDictBase:
+    td["action"] = cubeSimple_worst_selection(td["masked_features"], td["feature_mask"])
+    return td
 
 
 def module_norm(module: nn.Module) -> float:
