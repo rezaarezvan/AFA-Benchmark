@@ -244,6 +244,124 @@ class CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
 
 @final
+class CubeSimpleDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
+    """
+    A simplified version of the cube dataset, made for debugging purposes. Three features contain label information and three others are noise.
+
+    Implements the AFADataset protocol.
+    """
+
+    n_classes = 8
+    n_features = 6
+
+    def __init__(
+        self,
+        n_samples: int = 20000,
+        seed: int = 123,
+        non_informative_feature_mean: float = 0.5,
+        informative_feature_std: float = 0.1,
+        non_informative_feature_std: float = 0.3,
+    ):
+        super().__init__()
+        self.n_samples = n_samples
+        self.seed = seed
+        self.non_informative_feature_mean = non_informative_feature_mean
+        self.non_informative_feature_std = non_informative_feature_std
+        self.informative_feature_std = informative_feature_std
+
+        self.rng = torch.Generator()
+
+    @override
+    def generate_data(self) -> None:
+        self.rng.manual_seed(self.seed)
+
+        # Draw labels
+        y_int = torch.randint(
+            0, self.n_classes, (self.n_samples,), dtype=torch.int64, generator=self.rng
+        )
+
+        # Binary codes for labels (8×3)
+        binary_codes = torch.stack(
+            [
+                torch.tensor([int(b) for b in format(i, "03b")])
+                for i in range(self.n_classes)
+            ],
+            dim=0,
+        ).flip(-1)
+
+        # Initialize feature blocks
+        self.features = torch.normal(
+            mean=self.non_informative_feature_mean,
+            std=self.non_informative_feature_std,
+            size=(self.n_samples, 6),
+            generator=self.rng,
+        )
+
+        # Insert informative signals
+        for i in range(self.n_samples):
+            lbl = int(y_int[i].item())
+            mu_bin = binary_codes[lbl]
+
+            # Cube features: 3 bumps
+            self.features[i, [0, 2, 4]] = (
+                torch.normal(
+                    mean=0.0,
+                    std=self.informative_feature_std,
+                    size=(3,),
+                    generator=self.rng,
+                )
+                + mu_bin
+            )
+
+        assert self.features.shape[1] == self.n_features
+
+        # Labels
+        self.labels = y_int
+        self.labels = torch.nn.functional.one_hot(
+            self.labels, num_classes=self.n_classes
+        ).float()
+        assert self.labels.shape[1] == self.n_classes
+
+    @override
+    def __getitem__(self, idx: int) -> tuple[MaskedFeatures, FeatureMask]:
+        return self.features[idx], self.labels[idx]
+
+    @override
+    def __len__(self):
+        return len(self.features)
+
+    @override
+    def get_all_data(self) -> tuple[MaskedFeatures, FeatureMask]:
+        return self.features, self.labels
+
+    @override
+    def save(self, path: Path) -> None:
+        torch.save(
+            {
+                "features": self.features,
+                "labels": self.labels,
+                "config": {
+                    "n_samples": self.n_samples,
+                    "seed": self.seed,
+                    "non_informative_feature_mean": self.non_informative_feature_mean,
+                    "non_informative_feature_std": self.non_informative_feature_std,
+                    "informative_feature_std": self.informative_feature_std,
+                },
+            },
+            path,
+        )
+
+    @classmethod
+    @override
+    def load(cls, path: Path) -> Self:
+        data = torch.load(path)
+        dataset = cls(**data["config"])
+        dataset.features = data["features"]
+        dataset.labels = data["labels"]
+        return dataset
+
+
+@final
 class CubeOnlyInformativeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     """
     A version of the cube dataset that only has the first 10 informative features.
