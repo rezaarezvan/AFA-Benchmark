@@ -59,8 +59,7 @@ def aggregate_metrics(prediction_history, y_true) -> tuple[Tensor, Tensor, Tenso
         probs_i = torch.stack([row for row in prediction_history[:, i]])
         bce_all.append(
             F.binary_cross_entropy(
-                probs_i, F.one_hot(
-                    y_true, num_classes=probs_i.shape[-1]).float()
+                probs_i, F.one_hot(y_true, num_classes=probs_i.shape[-1]).float()
             )
         )
 
@@ -172,20 +171,12 @@ def eval_afa_method(
         )  # budget, batch_size, n_classes
 
         # Start with all features unobserved
-        feature_mask = torch.zeros_like(
-            features, dtype=torch.bool, device=device)
+        feature_mask = torch.zeros_like(features, dtype=torch.bool, device=device)
         masked_features = features.clone()
         masked_features[~feature_mask] = 0.0
 
         # Let AFA method select features for a fixed number of steps
         for i in range(budget):
-            # Always calculate a prediction
-            predictions = afa_predict_fn(
-                masked_features, feature_mask, features, labels
-            )
-
-            prediction_history[i] = predictions
-
             # Select new features
             selections = afa_select_fn(
                 masked_features, feature_mask, features, labels
@@ -200,6 +191,13 @@ def eval_afa_method(
             ] = features[torch.arange(feature_mask.shape[0], device=device), selections]
             # Store a copy of the feature mask in history
             feature_mask_history[i] = feature_mask.clone()
+
+            # Always calculate a prediction
+            predictions = afa_predict_fn(
+                masked_features, feature_mask, features, labels
+            )
+
+            prediction_history[i] = predictions
 
         # Add the feature mask history and prediction history of this batch to the overall history
         feature_mask_history_all.append(feature_mask_history)
