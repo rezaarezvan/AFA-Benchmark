@@ -165,6 +165,17 @@ fish scripts/pipelines/README_example.fish --speed=medium --wandb-entity=<WANDB_
 
 Methods may require differing amounts of iterations per dataset when training. `speed=medium` uses a small amount of epochs such that the methods are clearly separated, but not enough for convergence. Use `speed=slow` for longer training.
 
+## Budgets
+
+| Dataset      | Budgets   |
+|--------------|-----------|
+| cube         | 3,5,10    |
+| AFAContext   | 3,5,10    |
+| MNIST        | 10,20,30  |
+| FashionMNIST | 10,20,30  |
+| diabetes     | X,Y,Z     |
+| miniboone    | X,Y,Z     |
+| physionet    | X,Y,Z     |
 
 ## How to extend
 
