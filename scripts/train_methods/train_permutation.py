@@ -66,7 +66,7 @@ def main(cfg: PermutationTrainingConfig):
     permutation_importance = np.zeros(d_in)
     x_train = train_dataset.features
     for i in tqdm(range(d_in)):
-        x_val = val_dataset.features
+        x_val = val_dataset.features.clone()
         y_val = val_dataset.labels
         x_val[:, i] = x_train[np.random.choice(len(x_train), size=len(x_val)), i]
         with torch.no_grad():
