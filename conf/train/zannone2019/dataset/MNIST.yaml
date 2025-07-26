@@ -3,7 +3,7 @@ n_agents: 2 # same as shim2018
 hard_budget: 10 # recommended: 10, 20, 30
 agent:
   # gamma set by higher config
-  lmbda: 0.95 # not specified by zannone2019
+  lmbda: 0.75 # not specified by zannone2019
 
   clip_epsilon: 0.2 # not specified by zannone2019
   entropy_bonus: True # not specified by zannone2019
@@ -13,7 +13,7 @@ agent:
 
   num_epochs: 1 # same as shim2018
   lr: 1e-3 # not specified by zannone2019
-  max_grad_norm: 1 # not specified by zannone2019
+  max_grad_norm: 9001 # not specified by zannone2019
   replay_buffer_batch_size: 32 # same as shim2018
 
   value_num_cells: [32, 32] # not specified by ODIN paper, same complexity as shim2018

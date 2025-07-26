@@ -13,7 +13,7 @@ agent:
 
   num_epochs: 1 # same as shim2018
   lr: 1e-3 # not specified by zannone2019
-  max_grad_norm: 1 # not specified by zannone2019
+  max_grad_norm: 9001 # not specified by zannone2019
   replay_buffer_batch_size: 128 # same as shim2018
 
   # value_num_cells: [32, 32] # same complexity as shim2018
