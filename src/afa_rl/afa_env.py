@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, final
 from jaxtyping import Bool
 
 import torch
@@ -25,6 +25,7 @@ from common.custom_types import (
 )
 
 
+@final
 class AFAEnv(EnvBase):
     """
     A fixed-length MDP for active feature acquisition (AFA).
