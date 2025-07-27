@@ -790,6 +790,97 @@ class AFAContextSimpleDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
 
 @final
+class ContextSelectiveXORDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
+    """
+    Each data point:
+      - context c ∈ {0, 1}
+      - features: x1, x2, x3, x4 ∈ {0, 1}
+
+    Label:
+      - if c == 0: label = x1 XOR x2
+      - if c == 1: label = x3 XOR x4
+
+    Optimal strategy: query context first, then only relevant pair.
+    """
+
+    n_classes = 2
+    n_features = 5
+
+    def __init__(self, n_samples: int = 1000, seed: int = 42):
+        super().__init__()
+        self.n_samples = n_samples
+        self.seed = seed
+        self.rng = torch.Generator().manual_seed(seed)
+        self.features: Tensor
+        self.labels: Tensor
+
+        self.generate_data()
+
+    @override
+    def generate_data(self) -> None:
+        # Sample context bit: 0 or 1
+        context = torch.randint(0, 2, (self.n_samples,), generator=self.rng)
+
+        # Sample binary features: x1, x2, x3, x4
+        x = torch.randint(0, 2, (self.n_samples, 4), generator=self.rng)
+
+        labels = torch.zeros(self.n_samples, dtype=torch.int64)
+        for i in range(self.n_samples):
+            if context[i] == 0:
+                labels[i] = int(x[i, 0] ^ x[i, 1])  # x1 XOR x2
+            else:
+                labels[i] = int(x[i, 2] ^ x[i, 3])  # x3 XOR x4
+
+        # One-hot labels
+        self.labels = torch.nn.functional.one_hot(labels, num_classes=2).float()
+
+        # Combine context and features into full feature vector
+        self.features = torch.cat(
+            [
+                context.unsqueeze(1).float(),  # shape: (n_samples, 1)
+                x.float(),  # shape: (n_samples, 4)
+            ],
+            dim=1,
+        )  # shape: (n_samples, 5)
+
+    @override
+    def __getitem__(self, idx: int):
+        return self.features[idx], self.labels[idx]
+
+    @override
+    def __len__(self):
+        return self.features.size(0)
+
+    @override
+    def get_all_data(self):
+        return self.features, self.labels
+
+    @override
+    def save(self, path: Path) -> None:
+        torch.save(
+            {
+                "features": self.features,
+                "labels": self.labels,
+                "config": {
+                    "n_samples": self.n_samples,
+                    "seed": self.seed,
+                },
+            },
+            path,
+        )
+
+    @classmethod
+    @override
+    def load(cls, path: Path) -> Self:
+        data = torch.load(path)
+        cfg = data["config"]
+        ds = cls(**cfg)
+        ds.features = data["features"]
+        ds.labels = data["labels"]
+        return ds
+
+
+@final
 class MNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     """MNIST dataset wrapped to follow the AFADataset protocol."""
 
