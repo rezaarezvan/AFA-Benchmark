@@ -2,23 +2,20 @@
 mcdrop_samples: 100 # kachuee2019 implementation
 
 pretrained_model_artifact_name: "pretrain_kachuee2019-cube_split_1:tmp"
-# n_agents: 1 # kachuee2019 implementation
 n_agents: 128 # same as shim2018
 hard_budget: 5 # recommended: 3, 5, 10
 agent:
   eps_init: 1.0 # kachuee2019 implementation
   eps_end: 0.1 # kachuee2019 implementation
-  # eps_annealing_num_batches: 10000 # kachuee2019 implementation, same as `n_batches`
-  eps_annealing_num_batches: 30000 # same as `n_batches`
+  eps_annealing_num_batches: 5000 # half of `n_batches`, similar to kachuee2019 implementation but not the same
 
   replay_buffer_batch_size: 128 # kachuee2019 implementation
-  replay_buffer_size: 10000 # kachuee2019 paper, 1000*n_features
+  replay_buffer_size: 20000 # kachuee2019 paper, 1000*n_features
 
   num_optim: 1 # kachuee2019 implementation
   max_action_value_grad_norm: 9001 # not specified by kachuee2019 implementation
   action_value_lr: 1e-3 # kachuee2019 implementation
-  # update_tau: 0.001 # kachuee2019 implementation
-  update_tau: 0.005 # can be larger since we have a larger batch size?
+  update_tau: 0.001 # kachuee2019 implementation
   max_classification_grad_norm: 9001 # not specified by kachuee2019 implementation
   classification_lr: 1e-3 # kachuee2019 implementation
 
@@ -27,14 +24,10 @@ agent:
   double_dqn: true # kachuee2019 implementation
 
   # gamma set by higher config
-# n_batches: 10000 # kachuee2019 implementation, 1000 episodes
-n_batches: 200000 # is this enough?
-# batch_size: 1 # kachuee2019 implementation
+n_batches: 10000
 batch_size: 512 # same as shim2018
-# eval_every_n_batches: 1000 # kachuee2019 implementation, every 100 episodes
 eval_every_n_batches: 500
 eval_max_steps: 9001
-# n_eval_episodes: 512 # kachuee2019 implementation
 n_eval_episodes: 100
 # device set by higher config
 # seed set by higher config
