@@ -11,7 +11,7 @@ def parse_args():
     parser.add_argument("--budgets", type=str, required=True, nargs="+")
     parser.add_argument("--launcher", default="custom_slurm")
     parser.add_argument("--device", default="cuda")
-    parser.add_argument("--dataset-alias", type=str, required=True)
+    parser.add_argument("--pretrain-alias", type=str, required=True)
     parser.add_argument("--output-alias", type=str, required=True)
     parser.add_argument("--wandb-entity", type=str, default="afa-team")
     parser.add_argument("--wandb-project", type=str, default="afa-benchmark")

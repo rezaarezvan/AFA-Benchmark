@@ -33,4 +33,4 @@ n_eval_episodes: 100
 # seed set by higher config
 # output_artifact_aliases set by higher config
 evaluate_final_performance: true
-eval_only_n_samples: null
+eval_only_n_samples: 100
