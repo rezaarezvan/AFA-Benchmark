@@ -1,6 +1,6 @@
 dataset_artifact_name: "MNIST_split_1:tmp"
 batch_size: 100 # EDDI
-epochs: 2000
+epochs: 1500
 limit_train_batches: null
 limit_val_batches: null
 

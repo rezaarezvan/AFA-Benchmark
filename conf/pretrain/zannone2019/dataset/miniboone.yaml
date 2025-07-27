@@ -1,10 +1,10 @@
 dataset_artifact_name: "miniboone_split_1:tmp"
 batch_size: 100 # EDDI
-epochs: 2000
+epochs: 1500
 limit_train_batches: null
 limit_val_batches: null
 
-lr: 1e-3
+lr: 1e-4
 min_masking_probability: 0.0
 max_masking_probability: 0.9
 pointnet:
