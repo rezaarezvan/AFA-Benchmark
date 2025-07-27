@@ -44,6 +44,7 @@ def get_afa_method_class(name: str) -> type[AFAMethod]:
 
     elif name == "aaco":
         from afa_oracle.afa_methods import AACOAFAMethod
+
         return AACOAFAMethod
 
     elif name in {"cae", "permutation"}:
@@ -72,6 +73,7 @@ AFA_DATASET_TYPES = {
     "cubeOnlyInformative",
     "shim2018cube",
     "AFAContext",
+    "AFAContextSimple",
     "MNIST",
     "diabetes",
     "physionet",
@@ -101,6 +103,10 @@ def get_afa_dataset_class(name: str) -> type[AFADataset]:
         from common.datasets import AFAContextDataset
 
         return AFAContextDataset
+    elif name == "AFAContextSimple":
+        from common.datasets import AFAContextSimpleDataset
+
+        return AFAContextSimpleDataset
     elif name == "MNIST":
         from common.datasets import MNISTDataset
 

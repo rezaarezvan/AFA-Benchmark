@@ -650,6 +650,146 @@ class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
 
 @final
+class AFAContextSimpleDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
+    """
+    A simplified version of AFAContextDataset, where only the context-dependent features are kept.
+
+    Implements the AFADataset protocol.
+    """
+
+    n_classes = 8
+    n_features = 31  # = 10*3+1      10 contexts
+
+    def __init__(
+        self,
+        n_samples: int = 1000,
+        std_bin: float = 0.1,
+        seed: int = 123,
+        non_informative_feature_mean: float = 0.5,
+        non_informative_feature_std: float = 0.3,
+    ):
+        super().__init__()
+        self.n_samples = n_samples
+        self.std_bin = std_bin
+        self.seed = seed
+        self.non_informative_feature_mean = non_informative_feature_mean
+        self.non_informative_feature_std = non_informative_feature_std
+        self.costs = None  # set when generating data
+
+        # Constants
+        self.n_context_groups = 10
+        self.group_size = 3
+        self.n_bin_features = self.n_context_groups * self.group_size  # 30
+
+        self.rng = torch.Generator()
+
+    @override
+    def generate_data(self) -> None:
+        self.rng.manual_seed(self.seed)
+
+        # Draw labels and context
+        y_int = torch.randint(
+            0, self.n_classes, (self.n_samples,), dtype=torch.int64, generator=self.rng
+        )
+        S = torch.randint(
+            0,
+            self.n_context_groups,
+            (self.n_samples,),
+            dtype=torch.int64,
+            generator=self.rng,
+        )
+
+        # Binary codes for labels (8×3)
+        binary_codes = torch.stack(
+            [
+                torch.tensor([int(b) for b in format(i, "03b")])
+                for i in range(self.n_classes)
+            ],
+            dim=0,
+        ).flip(-1)
+
+        # Initialize feature blocks
+        X_context = S.unsqueeze(1).float()
+
+        X_bin = torch.normal(
+            mean=self.non_informative_feature_mean,
+            std=self.non_informative_feature_std,
+            size=(self.n_samples, self.n_bin_features),
+            generator=self.rng,
+        )
+
+        # Insert informative signals
+        for i in range(self.n_samples):
+            lbl = int(y_int[i].item())
+            ctx = S[i].item()
+            mu_bin = binary_codes[lbl]
+
+            # Binary features in active group
+            start = ctx * self.group_size
+            end = start + self.group_size
+            X_bin[i, start:end] = (
+                torch.normal(
+                    mean=0.0,
+                    std=self.std_bin,
+                    size=(self.group_size,),
+                    generator=self.rng,
+                )
+                + mu_bin
+            )
+
+        # Concatenate all features
+        self.features = torch.cat([X_context, X_bin], dim=1).float()
+        assert self.features.shape[1] == self.n_features
+
+        # One-hot labels
+        self.labels = y_int
+        self.labels = torch.nn.functional.one_hot(
+            self.labels, num_classes=self.n_classes
+        ).float()
+        assert self.labels.shape[1] == self.n_classes
+
+    @override
+    def __getitem__(self, idx: int):
+        return self.features[idx], self.labels[idx]
+
+    @override
+    def __len__(self):
+        return self.features.size(0)
+
+    @override
+    def get_all_data(self):
+        return self.features, self.labels
+
+    @override
+    def save(self, path: Path) -> None:
+        torch.save(
+            {
+                "features": self.features,
+                "labels": self.labels,
+                "costs": self.costs,
+                "config": {
+                    "n_samples": self.n_samples,
+                    "std_bin": self.std_bin,
+                    "seed": self.seed,
+                    "non_informative_feature_mean": self.non_informative_feature_mean,
+                    "non_informative_feature_std": self.non_informative_feature_std,
+                },
+            },
+            path,
+        )
+
+    @classmethod
+    @override
+    def load(cls, path: Path) -> Self:
+        data = torch.load(path)
+        cfg = data["config"]
+        ds = cls(**cfg)
+        ds.features = data["features"]
+        ds.labels = data["labels"]
+        return ds
+
+
+@final
 class MNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     """MNIST dataset wrapped to follow the AFADataset protocol."""
 
