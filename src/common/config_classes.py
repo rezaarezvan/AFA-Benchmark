@@ -147,9 +147,6 @@ class Zannone2019PretrainConfig:
     end_kl_scaling_factor: float
     n_annealing_epochs: int
     classifier_loss_scaling_factor: float
-    reconstruct_label: (
-        bool  # whether the PVAE should be trained to reconstruct the label as well
-    )
     label_loss_scaling_factor: float
     output_artifact_aliases: list[str]
 
@@ -252,11 +249,9 @@ cs.store(name="train_shim2018", node=Shim2018TrainConfig)
 @dataclass
 class Ma2018PointNetConfig:
     identity_size: int = 20
-    identity_network_num_cells: list[int] = field(
-        default_factory=lambda: [20, 20])
+    identity_network_num_cells: list[int] = field(default_factory=lambda: [20, 20])
     output_size: int = 40
-    feature_map_encoder_num_cells: list[int] = field(
-        default_factory=lambda: [500])
+    feature_map_encoder_num_cells: list[int] = field(default_factory=lambda: [500])
     max_embedding_norm: float = 1.0
 
 
@@ -265,13 +260,11 @@ class Ma2018PartialVAEConfig:
     lr: float = 1e-3
     epochs: int = 1000
     patience: int = 5
-    encoder_num_cells: list[int] = field(
-        default_factory=lambda: [500, 500, 200])
+    encoder_num_cells: list[int] = field(default_factory=lambda: [500, 500, 200])
     latent_size: int = 20
     kl_scaling_factor: float = 0.1
     max_masking_probability: float = 0.9
-    decoder_num_cells: list[int] = field(
-        default_factory=lambda: [200, 500, 500])
+    decoder_num_cells: list[int] = field(default_factory=lambda: [200, 500, 500])
 
 
 @dataclass
@@ -292,12 +285,9 @@ class Ma2018PretraingConfig:
     seed: int = 42
     device: str = "cuda"
 
-    pointnet: Ma2018PointNetConfig = field(
-        default_factory=Ma2018PointNetConfig)
-    partial_vae: Ma2018PartialVAEConfig = field(
-        default_factory=Ma2018PartialVAEConfig)
-    classifier: Ma2018ClassifierConfig = field(
-        default_factory=Ma2018ClassifierConfig)
+    pointnet: Ma2018PointNetConfig = field(default_factory=Ma2018PointNetConfig)
+    partial_vae: Ma2018PartialVAEConfig = field(default_factory=Ma2018PartialVAEConfig)
+    classifier: Ma2018ClassifierConfig = field(default_factory=Ma2018ClassifierConfig)
 
 
 cs.store(name="pretrain_ma2018", node=Ma2018PretraingConfig)
@@ -614,6 +604,7 @@ class AACOTrainConfig:
     seed: int = 42
     device: str = "cpu"
 
+
 # --- TRAINING CLASSIFIERS ---
 
 
@@ -636,8 +627,7 @@ class TrainMaskedMLPClassifierConfig:
     evaluate_final_performance: bool
 
 
-cs.store(name="train_masked_mlp_classifier",
-         node=TrainMaskedMLPClassifierConfig)
+cs.store(name="train_masked_mlp_classifier", node=TrainMaskedMLPClassifierConfig)
 
 
 # --- EVALUATION ---

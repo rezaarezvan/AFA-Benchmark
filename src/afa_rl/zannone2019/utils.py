@@ -43,9 +43,7 @@ def get_zannone2019_model_from_config(
 
     pointnet = PointNet(
         identity_size=cfg.pointnet.identity_size,
-        n_features=n_features + n_classes
-        if cfg.reconstruct_label
-        else n_features,  # since we append the one-hot label to the features
+        n_features=n_features + n_classes,
         max_embedding_norm=cfg.pointnet.max_embedding_norm,
         feature_map_encoder=MLP(
             in_features=feature_map_encoder_input_size,
@@ -70,9 +68,7 @@ def get_zannone2019_model_from_config(
         encoder=encoder,
         decoder=MLP(
             in_features=cfg.partial_vae.latent_size,
-            out_features=n_features + n_classes
-            if cfg.reconstruct_label
-            else n_features,  # since we append the one-hot label to the features
+            out_features=n_features,
             num_cells=cfg.partial_vae.decoder_num_cells,
             dropout=cfg.partial_vae.decoder_dropout,
             activation_class=str_to_activation_class_mapping[
@@ -100,7 +96,6 @@ def get_zannone2019_model_from_config(
         end_kl_scaling_factor=cfg.end_kl_scaling_factor,
         n_annealing_epochs=cfg.n_annealing_epochs,
         classifier_loss_scaling_factor=cfg.classifier_loss_scaling_factor,
-        reconstruct_label=cfg.reconstruct_label,
         label_loss_scaling_factor=cfg.label_loss_scaling_factor,
     )
     return model

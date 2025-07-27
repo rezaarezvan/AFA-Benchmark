@@ -34,4 +34,3 @@ classifier:
 kl_scaling_factor: 0.01
 classifier_loss_scaling_factor: 100
 reconstruct_label: true
-label_loss_scaling_factor: 1

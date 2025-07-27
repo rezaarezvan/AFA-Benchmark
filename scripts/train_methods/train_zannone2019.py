@@ -73,22 +73,22 @@ def visualize_digits(
 def visualize_pretrained_model(
     model: Zannone2019PretrainingModel,
     dataset: AFADataset,
+    latent_size: int,
     device: torch.device,
     # dataset_type: str,
 ) -> None:
     indices = torch.randperm(len(dataset))[:5]
     features = dataset.features[indices].to(device)
     n_classes = dataset.labels.shape[-1]
-    if model.reconstruct_label:
-        with_label_z, with_label_reconstructed_features = (
-            model.fully_observed_reconstruction(
-                features=features,
-                n_classes=n_classes,
-                label=dataset.labels[indices].to(device),
-            )
+    with_label_z, with_label_reconstructed_features = (
+        model.fully_observed_reconstruction(
+            features=features,
+            n_classes=n_classes,
+            label=dataset.labels[indices].to(device),
         )
-        with_label_z = with_label_z.cpu()
-        with_label_reconstructed_features = with_label_reconstructed_features.cpu()
+    )
+    with_label_z = with_label_z.cpu()
+    with_label_reconstructed_features = with_label_reconstructed_features.cpu()
     without_label_z, without_label_reconstructed_features = (
         model.fully_observed_reconstruction(
             features=features,
@@ -115,15 +115,30 @@ def visualize_pretrained_model(
             axs[i, 2].set_title("Reconstructed features")
         return fig, axs
 
-    if model.reconstruct_label:
-        _with_label_fig, _with_label_axs = _plot(
-            features, with_label_z, with_label_reconstructed_features
-        )
-        _with_label_fig.suptitle("With label")
+    _with_label_fig, _with_label_axs = _plot(
+        features, with_label_z, with_label_reconstructed_features
+    )
+    _with_label_fig.suptitle("With label")
+
     _without_label_fig, _without_label_axs = _plot(
         features, without_label_z, without_label_reconstructed_features
     )
     _without_label_fig.suptitle("Without label")
+
+    generation_fig, generation_axs = plt.subplots(5, 2)
+    # Generate 5 latent vectors and reconstructed features
+    estimated_augmented_features, classifier_probs = model.generate_data(
+        latent_size, device, n_samples=5
+    )
+
+    for i in range(5):
+        generation_axs[i, 0].plot(estimated_augmented_features[i])
+        generation_axs[i, 0].set_title("Generated features")
+        generation_axs[i, 1].plot(_z[i])
+        generation_axs[i, 1].set_title("Latent vector")
+        generation_axs[i, 2].plot(_reconstructed_features[i])
+        generation_axs[i, 2].set_title("Reconstructed features")
+
     plt.show()
 
     # Visualize MNIST digits
