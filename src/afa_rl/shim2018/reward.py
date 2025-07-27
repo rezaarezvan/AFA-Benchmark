@@ -1,4 +1,5 @@
 from jaxtyping import Bool
+from torch.nn import functional as F
 
 import torch
 from torch import Tensor
@@ -7,7 +8,7 @@ from afa_rl.custom_types import (
     AFAReward,
     AFARewardFn,
 )
-from afa_rl.shim2018.models import Shim2018AFAPredictFn
+from afa_rl.shim2018.models import LitShim2018EmbedderClassifier, Shim2018AFAPredictFn
 from afa_rl.utils import weighted_cross_entropy
 from common.custom_types import (
     AFASelection,
@@ -19,7 +20,7 @@ from common.custom_types import (
 
 
 def get_shim2018_reward_fn(
-    afa_predict_fn: Shim2018AFAPredictFn, weights: Tensor
+    pretrained_model: LitShim2018EmbedderClassifier, weights: Tensor
 ) -> AFARewardFn:
     """The reward function for shim2018.
 
@@ -40,13 +41,16 @@ def get_shim2018_reward_fn(
 
         done_mask = done.squeeze(-1)
 
+        # FIX:
         if done_mask.any():
-            probs = afa_predict_fn(
+            _, logits = pretrained_model(
                 new_masked_features[done_mask], new_feature_mask[done_mask]
             )
-            reward[done_mask] = -weighted_cross_entropy(
-                input_probs=probs, target_probs=label[done_mask], weights=weights
+            reward[done_mask] = -F.cross_entropy(
+                logits, label[done_mask], weight=weights
             )
+
+        # reward[(afa_selection == 0) | (afa_selection == 2) | (afa_selection == 4)] = 1
 
         return reward
 

@@ -30,6 +30,7 @@ from afa_rl.shim2018.utils import (
 )
 from afa_rl.shim2018.reward import get_shim2018_reward_fn
 from afa_rl.utils import (
+    cubeSimple_optimal_selection_wrapper,
     get_eval_metrics,
     module_norm,
 )
@@ -159,7 +160,7 @@ def main(cfg: Shim2018TrainConfig):
     )
 
     reward_fn = get_shim2018_reward_fn(
-        afa_predict_fn=Shim2018AFAPredictFn(pretrained_model), weights=class_weights
+        pretrained_model=pretrained_model, weights=class_weights
     )
 
     # MDP expects special dataset functions
@@ -199,7 +200,7 @@ def main(cfg: Shim2018TrainConfig):
 
     collector = SyncDataCollector(
         train_env,
-        agent.get_policy(),
+        agent.get_exploratory_policy(),
         frames_per_batch=cfg.batch_size,
         total_frames=cfg.n_batches * cfg.batch_size,
         # device=device,
@@ -246,6 +247,7 @@ def main(cfg: Shim2018TrainConfig):
                         # "actions": wandb.Histogram(
                         #     td["action"].tolist(), num_bins=20
                         # ),
+                        "actions": wandb.Histogram(td["action"].cpu()),
                     }
                     | {"class_loss": class_loss_next.mean().cpu().item()},
                 )
@@ -264,15 +266,27 @@ def main(cfg: Shim2018TrainConfig):
                         ).squeeze(0)
                         for _ in tqdm(range(cfg.n_eval_episodes), desc="Evaluating")
                     ]
+                    optimal_td_evals = [
+                        eval_env.rollout(
+                            cfg.eval_max_steps, cubeSimple_optimal_selection_wrapper
+                        ).squeeze(0)
+                        for _ in tqdm(
+                            range(cfg.n_eval_episodes), desc="Evaluating optimal policy"
+                        )
+                    ]
                     # Reset the action spec of the agent to the train env action spec
                     agent.egreedy_tdmodule._spec = train_env.action_spec  # pyright: ignore
                 metrics_eval = get_eval_metrics(
                     td_evals, Shim2018AFAPredictFn(pretrained_model)
                 )
+                optimal_metrics_eval = get_eval_metrics(
+                    optimal_td_evals, Shim2018AFAPredictFn(pretrained_model)
+                )
                 run.log(
                     dict_with_prefix(
                         "eval/",
-                        metrics_eval
+                        dict_with_prefix("agent_policy.", metrics_eval)
+                        | dict_with_prefix("optimal_policy.", optimal_metrics_eval)
                         | dict_with_prefix(
                             "expensive_info.", agent.get_expensive_info()
                         )
@@ -289,7 +303,7 @@ def main(cfg: Shim2018TrainConfig):
         # Convert the embedder+agent to an AFAMethod and save it as a temporary file
         pretrained_model = pretrained_model.to(torch.device("cpu"))
         afa_method = RLAFAMethod(
-            agent.get_policy().to("cpu"),
+            agent.get_exploitative_policy().to("cpu"),
             Shim2018AFAClassifier(pretrained_model, device=torch.device("cpu")),
         )
         # Save the method to a temporary directory and load it again to ensure it is saved correctly
@@ -302,14 +316,18 @@ def main(cfg: Shim2018TrainConfig):
                 device=torch.device("cpu"),
             )
             if cfg.evaluate_final_performance:
-                # Check what the final performance of the method is. Costly for large datasets.
-                metrics = eval_afa_method(
-                    afa_method.select,
-                    val_dataset,
-                    cfg.hard_budget,
-                    afa_method.predict,
-                    only_n_samples=cfg.eval_only_n_samples,
-                )
+                with (
+                    torch.no_grad(),
+                    set_exploration_type(ExplorationType.DETERMINISTIC),
+                ):
+                    # Check what the final performance of the method is. Costly for large datasets.
+                    metrics = eval_afa_method(
+                        afa_method.select,
+                        val_dataset,
+                        cfg.hard_budget,
+                        afa_method.predict,
+                        only_n_samples=cfg.eval_only_n_samples,
+                    )
                 fig_metrics = plot_metrics(metrics)
                 # Also check performance of dummy method for comparison
                 dummy_afa_method = RandomDummyAFAMethod(

@@ -209,7 +209,6 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         end_kl_scaling_factor: float,
         n_annealing_epochs: int,
         classifier_loss_scaling_factor: float,  # how much more to weigh the classifier's loss compared to the PVAE's loss
-        label_loss_scaling_factor: float,  # how much more to weigh the label reconstruction loss compared to the feature reconstruction loss
     ):
         super().__init__()
         self.partial_vae: PartialVAE = partial_vae
@@ -223,7 +222,6 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         self.start_kl_scaling_factor: float = start_kl_scaling_factor
         self.end_kl_scaling_factor: float = end_kl_scaling_factor
         self.n_annealing_epochs = n_annealing_epochs
-        self.label_loss_scaling_factor: float = label_loss_scaling_factor
 
         # self.recon_loss_type = recon_loss_type
 
@@ -254,11 +252,19 @@ class Zannone2019PretrainingModel(pl.LightningModule):
             augmented_features, p=masking_probability
         )
 
+        # augmented_masked_features[:, -label.shape[-1] :] = torch.zeros_like(label)
+        # augmented_feature_mask[:, -label.shape[-1] :] = torch.full_like(label, False)
+
         # Pass masked features through VAE, returning estimated features but also encoding which will be passed through classifier
         # IMPORTANT NOTE: the PVAE is trained to reconstruct the *normal* features, not the augmented ones! We can do this
         # since we train a classifier anyways.
-        _encoding, mu, logvar, z, estimated_features = self.partial_vae(
+        _encoding, mu, logvar, z, estimated_features = self.partial_vae.forward(
             augmented_masked_features, augmented_feature_mask
+        )
+
+        self.log("feature_norm", (features**2).sum(dim=-1).mean(0).sqrt())
+        self.log(
+            "estimated_feature_norm", (estimated_features**2).sum(dim=-1).mean(0).sqrt()
         )
 
         (
@@ -275,8 +281,8 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         self.log("train_kl_div_loss_vae", partial_vae_kl_div_loss, sync_dist=True)
 
         # Pass the encoding through the classifier
-        # A bit unclear whether to use z or mu here. Since mu is used at inference time, do the same here.
-        logits = self.classifier(mu)
+        # A bit unclear whether to use z or mu here. Using z should add a bit of regularization
+        logits = self.classifier(z)
         classifier_loss = F.cross_entropy(
             logits, label.float(), weight=self.class_weights.to(logits.device)
         )
@@ -376,6 +382,11 @@ class Zannone2019PretrainingModel(pl.LightningModule):
             torch.rand(augmented_features.shape, device=augmented_features.device)
             > self.min_masking_probability
         )
+
+        # augmented_feature_mask_many_observations[:, -label.shape[-1] :] = (
+        #     torch.full_like(label, False)
+        # )
+
         augmented_masked_features_many_observations = augmented_features.clone()
         augmented_masked_features_many_observations[
             augmented_feature_mask_many_observations == 0
@@ -414,6 +425,10 @@ class Zannone2019PretrainingModel(pl.LightningModule):
             torch.rand(augmented_features.shape, device=augmented_features.device)
             > self.max_masking_probability
         )
+        # augmented_feature_mask_many_observations[:, -label.shape[-1] :] = (
+        #     torch.full_like(label, False)
+        # )
+
         augmented_masked_features_few_observations = augmented_features.clone()
         augmented_masked_features_few_observations[
             augmented_feature_mask_few_observations == 0
@@ -495,7 +510,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         latent_size: int,
         device: torch.device,
         n_samples: int = 1,
-    ) -> tuple[Tensor, Tensor]:
+    ) -> tuple[Tensor, Tensor, Tensor]:
         """Generate `n_samples` of new data.
 
         Args:
@@ -511,15 +526,13 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         z = z.to(device)
 
         # Decode for features
-        estimated_augmented_features = self.partial_vae.decoder(
-            z
-        )  # (batch_size, n_features+n_classes)
+        estimated_features = self.partial_vae.decoder(z)  # (batch_size, n_features)
 
         # Apply classifier for class probabilities
         logits = self.classifier(z)
         classifier_probs = logits.softmax(dim=-1)
 
-        return estimated_augmented_features, classifier_probs
+        return z, estimated_features, classifier_probs
 
     def fully_observed_reconstruction(
         self,
@@ -587,33 +600,29 @@ class Zannone2019AFAPredictFn(AFAPredictFn):
         label: Label | None,
     ) -> Label:
         batch_size = masked_features.shape[0]
-        if self.model.reconstruct_label:
-            augmented_masked_features = torch.cat(
-                [
-                    masked_features,
-                    torch.zeros(
-                        batch_size, self.n_classes, device=masked_features.device
-                    ),
-                ],
-                dim=-1,
-            )
-            augmented_feature_mask = torch.cat(
-                [
-                    feature_mask,
-                    torch.full(
-                        (batch_size, self.n_classes), False, device=feature_mask.device
-                    ),
-                ],
-                dim=-1,
-            )
-        else:
-            augmented_masked_features = masked_features
-            augmented_feature_mask = feature_mask
-        _encoding, _mu, _logvar, z = self.model.partial_vae.encode(
+
+        augmented_masked_features = torch.cat(
+            [
+                masked_features,
+                torch.zeros(batch_size, self.n_classes, device=masked_features.device),
+            ],
+            dim=-1,
+        )
+        augmented_feature_mask = torch.cat(
+            [
+                feature_mask,
+                torch.full(
+                    (batch_size, self.n_classes), False, device=feature_mask.device
+                ),
+            ],
+            dim=-1,
+        )
+        _encoding, mu, _logvar, z = self.model.partial_vae.encode(
             augmented_masked_features, augmented_feature_mask
         )
-        logits = self.model.classifier(z)
-        return logits.softmax(dim=-1)
+        logits = self.model.classifier(mu)
+        classifier_probs = logits.softmax(dim=-1)
+        return classifier_probs
 
 
 @final
@@ -644,33 +653,28 @@ class Zannone2019AFAClassifier(AFAClassifier):
         feature_mask = feature_mask.to(self._device)
 
         batch_size = masked_features.shape[0]
-        if self.model.reconstruct_label:
-            augmented_masked_features = torch.cat(
-                [
-                    masked_features,
-                    torch.zeros(
-                        batch_size, self.n_classes, device=masked_features.device
-                    ),
-                ],
-                dim=-1,
-            )
-            augmented_feature_mask = torch.cat(
-                [
-                    feature_mask,
-                    torch.full(
-                        (batch_size, self.n_classes), False, device=feature_mask.device
-                    ),
-                ],
-                dim=-1,
-            )
-        else:
-            augmented_masked_features = masked_features
-            augmented_feature_mask = feature_mask
 
-        _encoding, _mu, _logvar, z = self.model.partial_vae.encode(
+        augmented_masked_features = torch.cat(
+            [
+                masked_features,
+                torch.zeros(batch_size, self.n_classes, device=masked_features.device),
+            ],
+            dim=-1,
+        )
+        augmented_feature_mask = torch.cat(
+            [
+                feature_mask,
+                torch.full(
+                    (batch_size, self.n_classes), False, device=feature_mask.device
+                ),
+            ],
+            dim=-1,
+        )
+
+        _encoding, mu, _logvar, z = self.model.partial_vae.encode(
             augmented_masked_features, augmented_feature_mask
         )
-        logits = self.model.classifier(_mu)
+        logits = self.model.classifier(mu)
         return logits.softmax(dim=-1).to(original_device)
 
     @override

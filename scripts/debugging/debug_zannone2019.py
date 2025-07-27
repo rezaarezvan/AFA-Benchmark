@@ -92,10 +92,11 @@ def plot_reward(features, feature_mask, label):
 def plot_predictions():
     matplotlib.use("WebAgg")
 
-    features = torch.tensor([0, 0, 0, 1, 1, 0, 0, 0, 0, 0]).unsqueeze(0)  # class 3
-    masked_features = torch.tensor([0, 0, 0, 1, 0, 0, 0, 0, 0, 0]).unsqueeze(0)
+    features = torch.tensor([1, 0.5, 1, 0.5, 0, 0.5]).unsqueeze(0)  # class 3
+    # masked_features = torch.tensor([0, 0, 0, 1, 0, 0]).unsqueeze(0)
+    masked_features = features
     feature_mask = torch.tensor(
-        [0, 0, 0, 1, 0, 0, 0, 0, 0, 0], dtype=torch.bool
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], dtype=torch.bool
     ).unsqueeze(0)
     label = torch.tensor([0, 0, 0, 1, 0, 0, 0, 0], dtype=torch.float32).unsqueeze(
         0

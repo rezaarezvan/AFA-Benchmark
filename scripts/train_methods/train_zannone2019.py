@@ -125,19 +125,22 @@ def visualize_pretrained_model(
     )
     _without_label_fig.suptitle("Without label")
 
-    generation_fig, generation_axs = plt.subplots(5, 2)
+    _generation_fig, generation_axs = plt.subplots(5, 3)
     # Generate 5 latent vectors and reconstructed features
-    estimated_augmented_features, classifier_probs = model.generate_data(
+    generated_z, generated_features, generated_labels = model.generate_data(
         latent_size, device, n_samples=5
     )
+    generated_z = generated_z.cpu()
+    generated_features = generated_features.cpu()
+    generated_labels = generated_labels.cpu()
 
     for i in range(5):
-        generation_axs[i, 0].plot(estimated_augmented_features[i])
-        generation_axs[i, 0].set_title("Generated features")
-        generation_axs[i, 1].plot(_z[i])
-        generation_axs[i, 1].set_title("Latent vector")
-        generation_axs[i, 2].plot(_reconstructed_features[i])
-        generation_axs[i, 2].set_title("Reconstructed features")
+        generation_axs[i, 0].plot(generated_z[i])
+        generation_axs[i, 0].set_title("Latent vector")
+        generation_axs[i, 1].plot(generated_features[i])
+        generation_axs[i, 1].set_title("Generated features")
+        generation_axs[i, 2].plot(generated_labels[i])
+        generation_axs[i, 2].set_title("Generated label")
 
     plt.show()
 
@@ -210,15 +213,17 @@ def main(cfg: Zannone2019TrainConfig):
     if cfg.visualize:
         matplotlib.use("WebAgg")
         # Use pretrained model to reconstruct some samples. Visualize everything
-        visualize_pretrained_model(pretrained_model, val_dataset, device)
-
+        visualize_pretrained_model(
+            pretrained_model,
+            val_dataset,
+            latent_size=pretrained_model_config.partial_vae.latent_size,
+            device=device,
+        )
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
     log.debug(f"Class probabilities in training set: {train_class_probabilities}")
     class_weights = F.softmax(1 / train_class_probabilities, dim=-1).to(device)
     n_features = train_dataset.features.shape[-1]
     n_classes = train_dataset.labels.shape[-1]
-
-    pretrained_model = pretrained_model.to(device)
 
     reward_fn = get_zannone2019_reward_fn(
         pretrained_model=pretrained_model, weights=class_weights
@@ -231,10 +236,9 @@ def main(cfg: Zannone2019TrainConfig):
     for batch_idx in tqdm(
         range(n_generation_batches), desc="Generating artificial samples"
     ):
-        generated_features_batch, generated_labels_batch = (
+        _z, generated_features_batch, generated_labels_batch = (
             pretrained_model.generate_data(
                 latent_size=pretrained_model_config.partial_vae.latent_size,
-                n_features=n_features,
                 device=device,
                 n_samples=cfg.generation_batch_size,
             )
@@ -341,50 +345,14 @@ def main(cfg: Zannone2019TrainConfig):
                         ).squeeze(0)
                         for _ in tqdm(range(cfg.n_eval_episodes), desc="Evaluating")
                     ]
-                    # train_td_evals = [
-                    #     train_env.rollout(
-                    #         cfg.eval_max_steps, agent.get_exploitative_policy()
-                    #     ).squeeze(0)
-                    #     for _ in tqdm(
-                    #         range(cfg.n_eval_episodes),
-                    #         desc="Evaluating on training env",
-                    #     )
-                    # ]
-                    optimal_td_evals = [
-                        eval_env.rollout(
-                            cfg.eval_max_steps, cubeSimple_optimal_selection_wrapper
-                        ).squeeze(0)
-                        for _ in tqdm(
-                            range(cfg.n_eval_episodes), desc="Evaluating optimal policy"
-                        )
-                    ]
-                    worst_td_evals = [
-                        eval_env.rollout(
-                            cfg.eval_max_steps, cubeSimple_worst_selection_wrapper
-                        ).squeeze(0)
-                        for _ in tqdm(
-                            range(cfg.n_eval_episodes), desc="Evaluating worst policy"
-                        )
-                    ]
                 metrics_eval = get_eval_metrics(
                     td_evals, Zannone2019AFAPredictFn(pretrained_model)
-                )
-                # train_metrics_eval = get_eval_metrics(
-                #     train_td_evals, Zannone2019AFAPredictFn(pretrained_model)
-                # )
-                optimal_metrics_eval = get_eval_metrics(
-                    optimal_td_evals, Zannone2019AFAPredictFn(pretrained_model)
-                )
-                worst_metrics_eval = get_eval_metrics(
-                    worst_td_evals, Zannone2019AFAPredictFn(pretrained_model)
                 )
                 run.log(
                     dict_with_prefix(
                         "eval/",
                         dict_with_prefix("agent_policy.", metrics_eval)
                         # | dict_with_prefix("agent_train_policy.", train_metrics_eval)
-                        | dict_with_prefix("optimal_policy.", optimal_metrics_eval)
-                        | dict_with_prefix("worst_policy.", worst_metrics_eval)
                         | dict_with_prefix(
                             "expensive_info.", agent.get_expensive_info()
                         ),

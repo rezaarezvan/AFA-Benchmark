@@ -3,11 +3,11 @@ n_agents: 128 # same as shim2018
 hard_budget: 5 # recommended: 3, 5, 10
 agent:
   # gamma set by higher config
-  lmbda: 0.75 # not specified by zannone2019
+  lmbda: 0.75 # not specified by zannone2019, same as shim2018
 
   clip_epsilon: 0.2 # not specified by zannone2019
   entropy_bonus: True # not specified by zannone2019
-  entropy_coef: 0.0001 # not specified by zannone2019
+  entropy_coef: 0.01 # not specified by zannone2019
   critic_coef: 1.0 # not specified by zannone2019
   loss_critic_type: "smooth_l1" # not specified by zannone2019
 
@@ -22,8 +22,7 @@ agent:
   # policy_num_cells: [32, 32] # same complexity as shim2018
   policy_num_cells: [] # zannone2019
   policy_dropout: 0.0 # not specified by zannone2019
-# n_batches: 15000 # up to 30k also works well, but not significant improvement
-n_batches: 200000 # please give convergence
+n_batches: 10000
 batch_size: 512 # same as shim2018
 eval_every_n_batches: 500
 eval_max_steps: 9001

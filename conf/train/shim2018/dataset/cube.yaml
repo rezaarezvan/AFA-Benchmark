@@ -9,7 +9,7 @@ agent:
   replay_buffer_batch_size: 128 # shim2018 paper
 
   num_epochs: 1 # shim2018 paper
-  max_grad_norm: 1
+  max_grad_norm: 9001 # not specified by shim2018 paper
   lr: 1e-3
   update_tau: 0.005
 

@@ -51,9 +51,12 @@ class Shim2018ActionValueModule(nn.Module):
         action_mask: Tensor,
     ):
         # We do not want to update the embedder weights using the Q-values, this is done separately in the training loop
+        # FIX:
         with torch.no_grad():
             embedding = self.embedder(masked_features, feature_mask)
         qvalues = self.net(embedding)
+
+        # qvalues = self.net(torch.cat([masked_features, feature_mask], dim=-1))
         # By setting the Q-values of invalid actions to -inf, we prevent them from being selected greedily.
         qvalues[~action_mask] = float("-inf")
         return qvalues
@@ -81,7 +84,8 @@ class Shim2018Agent(Agent):
 
         self.action_value_module = Shim2018ActionValueModule(
             embedder=self.embedder,
-            embedding_size=self.embedding_size,
+            embedding_size=self.embedding_size,  # FIX:
+            # embedding_size=12,
             action_size=self.action_spec.n,  # pyright: ignore
             num_cells=tuple(self.cfg.action_value_num_cells),
             dropout=self.cfg.action_value_dropout,
@@ -160,7 +164,6 @@ class Shim2018Agent(Agent):
     def get_expensive_info(self) -> dict[str, Any]:
         return {
             "value net norm": module_norm(self.action_value_module.net),
-            # "embedder norm": module_norm(self.embedder),
         }
 
     @override

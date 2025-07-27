@@ -69,16 +69,12 @@ def get_zannone2019_reward_fn(
         _done: Bool[Tensor, "*batch 1"],
     ) -> AFAReward:
         # We don't get to observe the label
-        if pretrained_model.reconstruct_label:
-            new_augmented_masked_features = torch.cat(
-                [new_masked_features, torch.zeros_like(label)], dim=-1
-            )
-            new_augmented_feature_mask = torch.cat(
-                [new_feature_mask, torch.full_like(label, False)], dim=-1
-            )
-        else:
-            new_augmented_masked_features = new_masked_features
-            new_augmented_feature_mask = new_feature_mask
+        new_augmented_masked_features = torch.cat(
+            [new_masked_features, torch.zeros_like(label)], dim=-1
+        )
+        new_augmented_feature_mask = torch.cat(
+            [new_feature_mask, torch.full_like(label, False)], dim=-1
+        )
         _encoding, mu, _logvar, z = pretrained_model.partial_vae.encode(
             new_augmented_masked_features, new_augmented_feature_mask
         )

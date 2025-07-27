@@ -35,4 +35,3 @@ start_kl_scaling_factor: 0.1
 end_kl_scaling_factor: 0.1
 n_annealing_epochs: 1
 classifier_loss_scaling_factor: 1
-label_loss_scaling_factor: 1

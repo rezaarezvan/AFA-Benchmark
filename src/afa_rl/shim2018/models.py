@@ -212,12 +212,12 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
 
         Returns:
             embedding: the embedding of the input features
-            classifier_output: the output of the classifier
+            logits: the output of the classifier
 
         """
         embedding = self.embedder(masked_features, feature_mask)
-        classifier_output = self.classifier(embedding)
-        return embedding, classifier_output
+        logits = self.classifier(embedding)
+        return embedding, logits
 
     @override
     def training_step(self, batch: tuple[Tensor, Tensor], batch_idx: int):
@@ -230,17 +230,19 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
         self.log("masking_probability", masking_probability, sync_dist=True)
 
         masked_features, feature_mask, _ = mask_data(features, p=masking_probability)
-        _, y_hat = self(masked_features, feature_mask)
-        loss = F.cross_entropy(y_hat, label, weight=self.class_weight.to(y_hat.device))
+        _, logits = self(masked_features, feature_mask)
+        loss = F.cross_entropy(
+            logits, label, weight=self.class_weight.to(logits.device)
+        )
         self.log("train_loss", loss)
         return loss
 
     def _get_loss_and_acc(
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask, y: Tensor
     ) -> tuple[Tensor, Tensor]:
-        _, y_hat = self(masked_features, feature_mask)
-        loss = F.cross_entropy(y_hat, y, weight=self.class_weight.to(y_hat.device))
-        predicted_class = torch.argmax(y_hat, dim=1)
+        _, logits = self(masked_features, feature_mask)
+        loss = F.cross_entropy(logits, y, weight=self.class_weight.to(logits.device))
+        predicted_class = torch.argmax(logits, dim=1)
         true_class = torch.argmax(y, dim=1)
         acc = (predicted_class == true_class).float().mean()
         return loss, acc
@@ -290,7 +292,11 @@ class Shim2018AFAPredictFn(AFAPredictFn):
 
     @override
     def __call__(
-        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        features: Features | None,
+        label: Label | None,
     ) -> Label:
         _, logits = self.embedder_and_classifier(masked_features, feature_mask)
         return logits.softmax(dim=-1)
@@ -302,28 +308,32 @@ class Shim2018AFAClassifier(AFAClassifier):
 
     def __init__(
         self,
-        embedder_and_classifier: LitShim2018EmbedderClassifier,
+        pretrained_model: LitShim2018EmbedderClassifier,
         device: torch.device,
     ):
         super().__init__()
         self._device = device
-        self.embedder_and_classifier = embedder_and_classifier.to(self._device)
+        self.pretrained_model = pretrained_model.to(self._device)
 
     @override
     def __call__(
-        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        features: Features | None,
+        label: Label | None,
     ) -> Label:
         original_device = masked_features.device
 
         masked_features = masked_features.to(self._device)
         feature_mask = feature_mask.to(self._device)
 
-        _, logits = self.embedder_and_classifier(masked_features, feature_mask)
+        _, logits = self.pretrained_model(masked_features, feature_mask)
         return logits.softmax(dim=-1).to(original_device)
 
     @override
     def save(self, path: Path) -> None:
-        torch.save(self.embedder_and_classifier.cpu(), path)
+        torch.save(self.pretrained_model.cpu(), path)
 
     @classmethod
     @override
@@ -335,7 +345,7 @@ class Shim2018AFAClassifier(AFAClassifier):
 
     @override
     def to(self, device: torch.device) -> Self:
-        self.embedder_and_classifier = self.embedder_and_classifier.to(device)
+        self.pretrained_model = self.pretrained_model.to(device)
         return self
 
     @property

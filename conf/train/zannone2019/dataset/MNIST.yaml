@@ -7,7 +7,7 @@ agent:
 
   clip_epsilon: 0.2 # not specified by zannone2019
   entropy_bonus: True # not specified by zannone2019
-  entropy_coef: 0.0001 # not specified by zannone2019
+  entropy_coef: 0.01 # not specified by zannone2019
   critic_coef: 1.0 # not specified by zannone2019
   loss_critic_type: "smooth_l1"
 
