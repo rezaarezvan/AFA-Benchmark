@@ -173,9 +173,9 @@ Methods may require differing amounts of iterations per dataset when training. `
 | AFAContext   | 3,5,10    |
 | MNIST        | 10,20,30  |
 | FashionMNIST | 10,20,30  |
-| diabetes     | X,Y,Z     |
-| miniboone    | X,Y,Z     |
-| physionet    | X,Y,Z     |
+| diabetes     | 5,10,15   |
+| miniboone    | 5,10,15   |
+| physionet    | 5,10,15   |
 
 ## How to extend
 
