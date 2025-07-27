@@ -1,4 +1,5 @@
 from pathlib import Path
+from torch.nn import functional as F
 from typing import Any, Callable, Self, cast, final, override
 from omegaconf import OmegaConf
 from tensordict import TensorDictBase
@@ -95,7 +96,22 @@ class Zannone2019CommonModule(nn.Module):
 
     @override
     def forward(self, masked_features: MaskedFeatures, feature_mask: FeatureMask):
-        pointnet_output = self.pointnet(masked_features, feature_mask)
+        # The pointnet is trained to accept labels appended to the features
+        # Since we don't know the label, simple append a vector of zeros
+        device = masked_features.device
+        batch_size = masked_features.shape[0]
+        n_normal_features = masked_features.shape[1]
+        n_classes = self.pointnet.n_features - n_normal_features
+        augmented_masked_features = torch.cat(
+            [masked_features, torch.zeros((batch_size, n_classes), device=device)],
+            dim=-1,
+        )
+        augmented_feature_mask = torch.cat(
+            [feature_mask, torch.zeros((batch_size, n_classes), device=device)], dim=-1
+        )
+        pointnet_output = self.pointnet(
+            augmented_masked_features, augmented_feature_mask
+        )
         encoding = self.encoder(pointnet_output)
         mu = encoding[:, : encoding.shape[1] // 2]
         return mu
