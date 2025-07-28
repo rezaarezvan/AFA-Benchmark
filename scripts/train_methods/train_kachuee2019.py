@@ -225,6 +225,7 @@ def main(cfg: Kachuee2019TrainConfig):
                         "reward": td["next", "reward"].mean().item(),
                         # "action value": td["action_value"].mean().item(),
                         "chosen action value": td["chosen_action_value"].mean().item(),
+                        "batch_idx": batch_idx,
                     },
                 )
             )

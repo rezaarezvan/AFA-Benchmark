@@ -329,7 +329,8 @@ def main(cfg: Zannone2019TrainConfig):
                     | dict_with_prefix("cheap_info.", agent.get_cheap_info())
                     | {
                         "reward": td["next", "reward"].mean().item(),
-                        "actions": wandb.Histogram(td["action"].cpu()),
+                        # "actions": wandb.Histogram(td["action"].cpu()),
+                        "batch_idx": batch_idx,
                     },
                 )
             )

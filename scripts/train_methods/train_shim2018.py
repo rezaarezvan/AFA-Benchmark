@@ -247,7 +247,8 @@ def main(cfg: Shim2018TrainConfig):
                         # "actions": wandb.Histogram(
                         #     td["action"].tolist(), num_bins=20
                         # ),
-                        "actions": wandb.Histogram(td["action"].cpu()),
+                        # "actions": wandb.Histogram(td["action"].cpu()),
+                        "batch_idx": batch_idx,
                     }
                     | {"class_loss": class_loss_next.mean().cpu().item()},
                 )
