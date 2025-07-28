@@ -10,7 +10,7 @@ agent:
   eps_annealing_num_batches: 15000 # half of `n_batches`, similar to kachuee2019 implementation but not the same
 
   replay_buffer_batch_size: 128 # kachuee2019 implementation
-  replay_buffer_size: 784000 # kachuee2019 paper, 1000*n_features
+  replay_buffer_size: 1000 # kachuee2019 paper uses 1000*n_features but that won't fit on GPU
 
   num_optim: 1 # kachuee2019 implementation
   max_action_value_grad_norm: 9001 # not specified by kachuee2019 implementation
