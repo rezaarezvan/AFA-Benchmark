@@ -4,7 +4,6 @@ import torch.nn.functional as F
 import torch.optim as optim
 from afa_discriminative.utils import generate_uniform_mask, restore_parameters
 from copy import deepcopy
-import collections
 import wandb
 
 
@@ -321,105 +320,6 @@ class fc_Net(nn.Module):
             self.out=nn.Linear(self.input_dim,self.output_dim)
             if self.flag_LV:
                 self.out_LV = nn.Linear(self.hidden_unit[-1], self.LV_dim)
-
-
-    def _assign_weight(self,W_dict):
-        if self.flag_only_output_layer==False:
-            for layer_ind in range(self.hidden_layer_num):
-                layer_weight=W_dict['weight_layer_%s'%(layer_ind)]
-                layer_bias=W_dict['bias_layer_%s'%(layer_ind)]
-
-                self.hidden[layer_ind].weight=torch.nn.Parameter(layer_weight.data)
-                self.hidden[layer_ind].bias=torch.nn.Parameter(layer_bias.data)
-            out_weight=W_dict['weight_out']
-            out_bias=W_dict['bias_out']
-            self.out.weight=torch.nn.Parameter(out_weight.data)
-            self.out.bias=torch.nn.Parameter(out_bias.data)
-            if self.flag_LV:
-                out_weight_LV = W_dict['weight_out_LV']
-                out_bias_LV = W_dict['bias_out_LV']
-                self.out_LV.weight = torch.nn.Parameter(out_weight_LV.data)
-                self.out_LV.bias = torch.nn.Parameter(out_bias_LV.data)
-
-        else:
-            out_weight = W_dict['weight_out']
-            out_bias = W_dict['bias_out']
-            self.out.weight = torch.nn.Parameter(out_weight.data)
-            self.out.bias = torch.nn.Parameter(out_bias.data)
-            if self.flag_LV:
-                out_weight_LV = W_dict['weight_out_LV']
-                out_bias_LV = W_dict['bias_out_LV']
-                self.out_LV.weight = torch.nn.Parameter(out_weight_LV.data)
-                self.out_LV.bias = torch.nn.Parameter(out_bias_LV.data)
-
-
-    def _get_W_dict(self):
-        W_dict=collections.OrderedDict()
-        if self.flag_only_output_layer == False:
-            for layer_ind in range(self.hidden_layer_num):
-                W_dict['weight_layer_%s'%(layer_ind)]=self.hidden[layer_ind].weight.clone().detach()
-                W_dict['bias_layer_%s'%(layer_ind)]=self.hidden[layer_ind].bias.clone().detach()
-            W_dict['weight_out']=self.out.weight.clone().detach()
-            W_dict['bias_out']=self.out.bias.clone().detach()
-            if self.flag_LV:
-                W_dict['weight_out_LV'] = self.out_LV.weight.clone().detach()
-                W_dict['bias_out_LV'] = self.out_LV.bias.clone().detach()
-        else:
-            W_dict['weight_out'] = self.out.weight.clone().detach()
-            W_dict['bias_out'] = self.out.bias.clone().detach()
-            if self.flag_LV:
-                W_dict['weight_out_LV'] = self.out_LV.weight.clone().detach()
-                W_dict['bias_out_LV'] = self.out_LV.bias.clone().detach()
-        return W_dict
-    
-
-    def _get_grad_W_dict(self):
-        G_dict=collections.OrderedDict()
-        if self.flag_only_output_layer == False:
-            for layer_ind in range(self.hidden_layer_num):
-                if self.hidden[layer_ind].weight.grad is not None:
-                    G_dict['weight_layer_%s'%(layer_ind)]=-self.hidden[layer_ind].weight.grad.clone().detach()
-                    G_dict['bias_layer_%s'%(layer_ind)]=-self.hidden[layer_ind].bias.grad.clone().detach()
-            G_dict['weight_out']=-self.out.weight.grad.clone().detach()
-            G_dict['bias_out']=-self.out.bias.grad.clone().detach()
-            if self.flag_LV:
-                G_dict['weight_out_LV'] = -self.out_LV.weight.grad.clone().detach()
-                G_dict['bias_out_LV'] = -self.out_LV.bias.grad.clone().detach()
-        else:
-            G_dict['weight_out'] = -self.out.weight.grad.clone().detach()
-            G_dict['bias_out'] = -self.out.bias.grad.clone().detach()
-            if self.flag_LV:
-                G_dict['weight_out_LV'] = -self.out_LV.weight.grad.clone().detach()
-                G_dict['bias_out_LV'] = -self.out_LV.bias.grad.clone().detach()
-        return G_dict
-    
-
-    def _flatten_stat(self):
-        if self.flag_only_output_layer==False:
-            for idx,layer in enumerate(self.hidden):
-                W_weight,b_weight=layer.weight.view(1,-1),layer.bias.view(1,-1) # 1 x dim
-                weight_comp=torch.cat((W_weight,b_weight),dim=1) # 1 x dim
-                if idx==0:
-                    weight_flat=weight_comp
-                else:
-                    weight_flat=torch.cat((weight_flat,weight_comp),dim=1)
-
-            # Output layer (need to account for the mask)
-            Out_weight,Out_b_weight=self.out.weight,self.out.bias # N_in x N_out or N_out
-
-            if self.flag_LV==True:
-                W_weight_LV,b_weight_LV=self.out_LV.weight,self.out_LV.bias
-                Out_weight,Out_b_weight=torch.cat((Out_weight,W_weight_LV),dim=1),torch.cat((Out_b_weight,b_weight_LV),dim=0) #' This should be N_in x (2 x N_out) or (2 X N_out)'
-
-            return weight_flat,Out_weight,Out_b_weight
-        else:
-            Out_weight, Out_b_weight = self.out.weight, self.out.bias  # N_in x N_out or N_out
-            if self.flag_LV == True:
-                W_weight_LV, b_weight_LV = self.out_LV.weight, self.out_LV.bias
-                Out_weight, Out_b_weight = torch.cat((Out_weight, W_weight_LV), dim=1), torch.cat(
-                    (Out_b_weight, b_weight_LV), dim=0)  # ' This should be N_in x (2 x N_out) or (2 X N_out)'
-
-            return [],Out_weight, Out_b_weight
 
 
     def forward(self,x):
