@@ -1,12 +1,12 @@
-pretrained_model_artifact_name: "pretrain_shim2018-MNIST_split_1:tmp"
-n_agents: 2 # fewer agents than for cube in order to fit on GPU
-hard_budget: 20 # recommended: 10, 20, 30
+pretrained_model_artifact_name: "pretrain_shim2018-physionet_split_1:tmp"
+n_agents: 128 # shim2018 paper
+hard_budget: 5 # recommended: 3, 5, 10
 agent:
   eps_init: 1.0 # shim2018 paper
   eps_end: 0.1 # shim2018 paper
-  eps_annealing_num_batches: 15000 # shim2018 paper
+  eps_annealing_num_batches: 5000 # shim2018 paper
 
-  replay_buffer_batch_size: 16 # 1/4 of batch size, like in shim2018 paper
+  replay_buffer_batch_size: 128 # shim2018 paper
 
   num_epochs: 1 # shim2018 paper
   max_grad_norm: 9001 # not specified by shim2018 paper
@@ -21,8 +21,8 @@ agent:
   double_dqn: true # shim2018 paper
 
   # gamma set by higher config
-n_batches: 30000
-batch_size: 64 # MNIST too large to use standard batch_size 512
+n_batches: 10000 # after 10k steps, the model starts to overfit
+batch_size: 512 # shim2018 paper
 eval_every_n_batches: 500
 eval_max_steps: 9001
 n_eval_episodes: 100
@@ -32,4 +32,4 @@ pretrained_model_lr: 1e-3
 activate_joint_training_after_n_batches: 0
 # output_artifact_aliases set by higher config
 evaluate_final_performance: true
-eval_only_n_samples: 100 # MNIST too large to evaluate every sample
+eval_only_n_samples: null
