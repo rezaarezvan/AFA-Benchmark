@@ -28,14 +28,15 @@ def main():
 
     jobs = []
     for dataset, budgets_str in zip(args.dataset, args.budgets):
-        dataset_artifact_names = [
-            f"{dataset}_split_{split}:{args.dataset_alias}" for split in args.split
+        pretrained_model_artifact_names = [
+            f"pretrain_kachuee2019-{dataset}_split_{split}:{args.pretrain_alias}"
+            for split in args.split
         ]
         cmd = (
             f"uv run scripts/train_methods/train_kachuee2019.py -m "
             f'output_artifact_aliases=["{args.output_alias}"] '
             f"dataset@_global_={dataset} "
-            f"dataset_artifact_name={','.join(dataset_artifact_names)} "
+            f"pretrained_model_artifact_name={','.join(pretrained_model_artifact_names)} "
             f'hard_budget="{budgets_str}" '
             f"device={args.device} hydra/launcher={args.launcher}"
         )
