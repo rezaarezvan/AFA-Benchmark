@@ -69,6 +69,7 @@ def get_afa_method_class(name: str) -> type[AFAMethod]:
 
 AFA_DATASET_TYPES = {
     "cube",
+    "cubeContext",
     "cubeSimple",
     "cubeOnlyInformative",
     "shim2018cube",
@@ -88,10 +89,14 @@ def get_afa_dataset_class(name: str) -> type[AFADataset]:
         from common.datasets import CubeDataset
 
         return CubeDataset
-    if name == "cubeSimple":
+    elif name == "cubeSimple":
         from common.datasets import CubeSimpleDataset
 
         return CubeSimpleDataset
+    elif name == "cubeContext":
+        from common.datasets import ContextualCubeDataset
+
+        return ContextualCubeDataset
     elif name == "cubeOnlyInformative":
         from common.datasets import CubeOnlyInformativeDataset
 
