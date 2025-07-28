@@ -808,7 +808,7 @@ class ContextualCubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     """
 
     n_classes = 8
-    n_features = 3 + 3 * 10  # 3 context + 30 cube features
+    n_features = 3 + 5 * 10  # 5 context + 50 cube features
     block_size = 10
 
     def __init__(
@@ -834,8 +834,8 @@ class ContextualCubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     @override
     def generate_data(self) -> None:
         # Sample context (0, 1, 2)
-        context = torch.randint(0, 3, (self.n_samples,), generator=self.rng)
-        context_onehot = F.one_hot(context, num_classes=3).float()  # (n_samples, 3)
+        context = torch.randint(0, 5, (self.n_samples,), generator=self.rng)
+        context_onehot = F.one_hot(context, num_classes=5).float()  # (n_samples, 5)
 
         # Sample labels 0–7
         y_int = torch.randint(0, self.n_classes, (self.n_samples,), generator=self.rng)
@@ -851,7 +851,7 @@ class ContextualCubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
         # Create 3 blocks of features, each 10D
         blocks = []
-        for block_context in range(3):
+        for block_context in range(5):
             block = torch.normal(
                 mean=self.non_informative_feature_mean,
                 std=self.non_informative_feature_std,
@@ -878,10 +878,10 @@ class ContextualCubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             )
             blocks[i, ctx, insert_idx] = bin_code + noise
 
-        # Flatten blocks: (n_samples, 30)
+        # Flatten blocks: (n_samples, 50)
         block_features = blocks.view(self.n_samples, -1)
 
-        # Final feature matrix: context (3) + all block features (30)
+        # Final feature matrix: context (5) + all block features (50)
         self.features = torch.cat(
             [context_onehot, block_features], dim=1
         )  # (n_samples, 33)
