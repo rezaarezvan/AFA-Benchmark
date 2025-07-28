@@ -10,6 +10,7 @@ from afa_oracle.classifiers import classifier_ground_truth, classifier_mlp
 
 log = logging.getLogger(__name__)
 
+
 def get_knn(X_train, X_query, masks, num_neighbors, instance_idx=0, exclude_instance=True):
     """
     Their exact K-NN implementation
@@ -60,6 +61,7 @@ def load_classifier(dataset_name, device=None):
                  artifact_name}")
         return classifier_mlp(wrapped_mlp, hide_val=10.0)
 
+
 def load_mask_generator(dataset_name, input_dim):
     """
     Their exact mask generator loading logic
@@ -81,7 +83,7 @@ def get_initial_feature(dataset_name, n_features):
 
     if dataset_name == "cube":
         return 6
-    elif dataset_name == "mnist":
+    elif dataset_name in ["mnist", "fashionmnist"]:
         return 100
     else:
         # Default: select middle feature
@@ -117,7 +119,8 @@ class AACOOracle:
 
         # Load exact classifier - pass device parameter
         input_dim = X_train.shape[1]
-        self.classifier = load_classifier(self.dataset_name, device=self.device)
+        self.classifier = load_classifier(
+            self.dataset_name, device=self.device)
 
         # Load exact mask generator
         self.mask_generator = load_mask_generator(self.dataset_name, input_dim)
