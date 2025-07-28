@@ -257,39 +257,47 @@ class Ma2018PointNetConfig:
 @dataclass
 class Ma2018PartialVAEConfig:
     lr: float = 1e-3
-    epochs: int = 1000
     patience: int = 5
     encoder_num_cells: list[int] = field(default_factory=lambda: [500, 500, 200])
     latent_size: int = 20
     kl_scaling_factor: float = 0.1
-    max_masking_probability: float = 0.9
-    decoder_num_cells: list[int] = field(default_factory=lambda: [200, 500, 500])
+    decoder_num_cells: list[int] = field(
+        default_factory=lambda: [200, 500, 500])
 
 
 @dataclass
 class Ma2018ClassifierConfig:
     lr: float = 1e-3
-    epochs: int = 100
     num_cells: list[int] = field(default_factory=lambda: [128, 128])
     dropout: float = 0.3
     patience: int = 5
+    classifier_loss_scaling_factor: float = 1.0
 
 
 @dataclass
-class Ma2018PretraingConfig:
+class Ma2018PretrainingConfig:
     dataset_artifact_name: str
     output_artifact_aliases: list[str] = field(default_factory=lambda: [])
 
     batch_size: int = 128
     seed: int = 42
     device: str = "cuda"
+    n_annealing_epochs: int = 1
+    start_kl_scaling_factor: float = 0.1
+    end_kl_scaling_factor: float = 0.1
+    min_mask: float = 0.1
+    max_mask: float = 0.9
+    epochs: int = 1000
 
-    pointnet: Ma2018PointNetConfig = field(default_factory=Ma2018PointNetConfig)
-    partial_vae: Ma2018PartialVAEConfig = field(default_factory=Ma2018PartialVAEConfig)
-    classifier: Ma2018ClassifierConfig = field(default_factory=Ma2018ClassifierConfig)
+    pointnet: Ma2018PointNetConfig = field(
+        default_factory=Ma2018PointNetConfig)
+    partial_vae: Ma2018PartialVAEConfig = field(
+        default_factory=Ma2018PartialVAEConfig)
+    classifier: Ma2018ClassifierConfig = field(
+        default_factory=Ma2018ClassifierConfig)
 
 
-cs.store(name="pretrain_ma2018", node=Ma2018PretraingConfig)
+cs.store(name="pretrain_ma2018", node=Ma2018PretrainingConfig)
 
 
 @dataclass

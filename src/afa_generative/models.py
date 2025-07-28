@@ -403,9 +403,6 @@ class PartialVAE(nn.Module):
         pointnet: PointNet,
         encoder: nn.Module,
         decoder: nn.Module,
-        # decoder_feature_head: nn.Module,
-        # decoder_class_head: nn.Module,
-        num_classes: int,
     ):
         """
         Args:
@@ -418,9 +415,6 @@ class PartialVAE(nn.Module):
         self.pointnet = pointnet
         self.encoder = encoder
         self.decoder = decoder
-        # self.decoder_feature_head = decoder_feature_head  # Maps from latent space to the original feature space
-        # self.decoder_class_head = decoder_class_head
-        self.num_classes = num_classes
 
     def encode(
         self,
@@ -432,7 +426,7 @@ class PartialVAE(nn.Module):
 
         mu = encoding[:, : encoding.shape[1] // 2]
         logvar = encoding[:, encoding.shape[1] // 2 :]
-        logvar = torch.clamp(logvar, min=-10, max=10)
+        # logvar = torch.clamp(logvar, min=-10, max=10)
         std = torch.exp(0.5 * logvar)
         z = mu + std * torch.randn_like(std)
 
@@ -444,9 +438,6 @@ class PartialVAE(nn.Module):
 
         # Decode
         x_hat = self.decoder(z)
-        # est_x = self.decoder_feature_head(z)
-        # est_logits = self.decoder_class_head(z)
-        # x_hat = torch.cat([est_x, est_logits], dim=-1)
 
         return encoding, mu, logvar, z, x_hat
     
@@ -454,12 +445,6 @@ class PartialVAE(nn.Module):
         recon_loss = ((estimated_features - features) ** 2).sum()
         kl_div = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
         return recon_loss + kl_scaling_factor * kl_div
-        # est_x = estimated_features[:, :features.size(1)]
-        # est_y = estimated_features[:, features.size(1):]
-        # recon_feat = 0.5 * ((est_x - features) ** 2).sum()
-        # recon_label = F.cross_entropy(est_y, labels, reduction="sum")
-        # kl_div = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-        # return recon_feat, recon_label, recon_feat + recon_label + kl_scaling_factor * kl_div
     
     def fit(self,
             train_loader,
@@ -467,6 +452,7 @@ class PartialVAE(nn.Module):
             lr,
             nepochs,
             factor=0.2,
+            p_min=0.1,
             p_max=0.9,
             patience=2,
             min_lr=1e-6,
@@ -504,16 +490,18 @@ class PartialVAE(nn.Module):
             
         for epoch in range(nepochs):
             self.train()
-            p_e = torch.rand(1).item() * p_max
 
             epoch_train_loss = 0.0
-            for features, _ in train_loader:
+            for features, labels in train_loader:
                 # Calculate loss.
-                features = features.to(device)
-                masked_features, feature_mask, _ = mask_data(features, p_e)
-                # loss = self.loss(x, m)
+                # features = features.to(device)
+                # masked_features, feature_mask, _ = mask_data(features, p_e)
+                augmented_features = torch.cat([features, labels], dim=-1)
+                p_e = p_min + torch.rand(1).item() * (p_max - p_min)
+                augmented_masked_features, augmented_feature_mask, _ \
+                    = mask_data(augmented_features, p=p_e)
                 _, mu, logvar, z, estimated_features = self.forward(
-                    masked_features, feature_mask
+                    augmented_masked_features, augmented_feature_mask
                 )
                 loss = self.loss(
                     estimated_features, features, mu, logvar, kl_scaling_factor

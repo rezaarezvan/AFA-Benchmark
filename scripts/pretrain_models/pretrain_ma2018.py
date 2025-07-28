@@ -1,25 +1,20 @@
-import yaml
-import argparse
 from datetime import datetime
 import logging
 import gc
 from pathlib import Path
 import hydra
-from hydra.utils import to_absolute_path
 from omegaconf import DictConfig, OmegaConf
 from tempfile import TemporaryDirectory
 import torch
 import torch.nn as nn
 import wandb
 from torchrl.modules import MLP
-from afa_generative.afa_methods import UniformSampler, IterativeSelector, EDDI_Training, Ma2018AFAMethod
-from afa_generative.utils import MaskLayer
-from afa_generative.models import PartialVAE, fc_Net
+from afa_generative.afa_methods import EDDI_Training, Ma2018AFAMethod
+from afa_generative.models import PartialVAE
 from afa_generative.datasets import prepare_datasets
-from common.config_classes import Ma2018PretraingConfig
-from common.utils import set_seed, dict_to_namespace, load_dataset_artifact
+from common.config_classes import Ma2018PretrainingConfig
+from common.utils import set_seed, load_dataset_artifact
 from afa_rl.zannone2019.models import PointNet, PointNetType
-from afa_rl.utils import get_1D_identity
 
 
 log = logging.getLogger(__name__)
@@ -30,7 +25,7 @@ log = logging.getLogger(__name__)
     config_path="../../conf/pretrain/ma2018",
     config_name="config",
 )
-def main(cfg: Ma2018PretraingConfig):
+def main(cfg: Ma2018PretrainingConfig):
     log.debug(cfg)
     print(OmegaConf.to_yaml(cfg))
 
@@ -38,11 +33,8 @@ def main(cfg: Ma2018PretraingConfig):
         group="pretrain_ma2018",
         job_type="pretraining",
         config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore
+        tags=["EDDI"],
     )
-    # wandb.define_metric("pvae_pretrain/train_loss", step_metric="pvae_pretrain/epoch")
-    # wandb.define_metric("pvae_pretrain/val_loss",   step_metric="pvae_pretrain/epoch")
-    # wandb.define_metric("joint_training/train_loss", step_metric="joint_training/epoch")
-    # wandb.define_metric("joint_training/val_loss",   step_metric="joint_training/epoch")
 
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
@@ -52,9 +44,6 @@ def main(cfg: Ma2018PretraingConfig):
     train_loader, val_loader, d_in, d_out \
         = prepare_datasets(train_dataset, val_dataset, cfg.batch_size)
     
-    # naive_identity_fn=get_1D_identity
-    # naive_identity_size = d_in
-
     # Train PVAE.
     pointnet = PointNet(
         identity_size=cfg.pointnet.identity_size,
@@ -77,68 +66,41 @@ def main(cfg: Ma2018PretraingConfig):
     pv = PartialVAE(
         pointnet=pointnet,
         encoder=encoder,
-        decoder=nn.Sequential(
-            MLP(
-                in_features=cfg.partial_vae.latent_size,
-                out_features=d_in,
-                num_cells=cfg.partial_vae.decoder_num_cells,
-                activation_class=nn.ReLU,
-            ),
-            nn.Identity(),
+        decoder=MLP(
+            in_features=cfg.partial_vae.latent_size,
+            out_features=d_in + d_out,
+            num_cells=cfg.partial_vae.decoder_num_cells,
+            activation_class=nn.ReLU,
         ),
-        # decoder_feature_head=nn.Sequential(
-        #     MLP(
-        #         in_features=cfg.partial_vae.latent_size,
-        #         out_features=d_in,
-        #         num_cells=cfg.partial_vae.decoder_num_cells,
-        #         activation_class=nn.ReLU,
-        #     ),
-        #     nn.Identity(),
-        # ),
-        # decoder_class_head=MLP(
-        #     in_features=cfg.partial_vae.latent_size,
-        #     out_features=d_out,
-        #     num_cells=cfg.classifier.num_cells,
-        #     dropout=cfg.classifier.dropout,
-        #     activation_class=nn.ReLU,
-        # ),
-        num_classes=d_out
     )
     pv = pv.to(device)
-    pv.fit(
-        train_loader=train_loader,
-        val_loader=val_loader,
-        lr=cfg.partial_vae.lr,
-        nepochs=cfg.partial_vae.epochs,
-        p_max=cfg.partial_vae.max_masking_probability,
-        patience=cfg.partial_vae.patience,
-        kl_scaling_factor=cfg.partial_vae.kl_scaling_factor,
-    )
 
-    # Train masked predictor.
-    mask_layer = MaskLayer(append=True)
-    model = MLP(
-        in_features=d_in * 2,
+    classifier = MLP(
+        in_features=cfg.partial_vae.latent_size,
         out_features=d_out,
         num_cells=cfg.classifier.num_cells,
         dropout=cfg.classifier.dropout,
         activation_class=nn.ReLU,
     )
-    sampler = UniformSampler(train_dataset.features)
-    iterative = IterativeSelector(model, mask_layer, sampler).to(device)
-    iterative.fit(
-        train_loader,
-        val_loader,
+    eddi_model = EDDI_Training(
+        classifier=classifier, 
+        partial_vae=pv, 
+        num_classes=d_out,
+        n_annealing_epochs=cfg.n_annealing_epochs,
+        start_kl_scaling_factor=cfg.start_kl_scaling_factor,
+        end_kl_scaling_factor=cfg.end_kl_scaling_factor)
+    eddi_model.fit(
+        train_loader=train_loader,
+        val_loader=val_loader,
         lr=cfg.classifier.lr,
-        nepochs=cfg.classifier.epochs,
-        loss_fn=nn.CrossEntropyLoss(),
-        patience=cfg.classifier.patience,
-        verbose=True)
-    # eddi = EDDI_Training(model, pv)
-    # eddi.fit(train_loader, val_loader)
+        classifier_loss_scaling_factor=cfg.classifier.classifier_loss_scaling_factor,
+        min_mask=cfg.min_mask,
+        max_mask=cfg.max_mask,
+        epochs=cfg.epochs,
+        device=cfg.device,
+    )
 
-    # eddi_selector = Ma2018AFAMethod(pv, d_out)
-    eddi_selector = Ma2018AFAMethod(pv, model)
+    eddi_selector = Ma2018AFAMethod(pv, classifier, num_classes=d_out)
     pretrained_model_artifact = wandb.Artifact(
         name=f"pretrain_ma2018-{cfg.dataset_artifact_name.split(':')[0]}",
         type="pretrained_model",
