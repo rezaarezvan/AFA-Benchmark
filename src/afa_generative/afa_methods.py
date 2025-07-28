@@ -22,32 +22,6 @@ from afa_rl.utils import mask_data
 from common.custom_types import AFAMethod, AFASelection, FeatureMask, Label, MaskedFeatures, Features
 
 
-def valid_probs(preds):
-    '''Ensure valid probabilities.'''
-    return torch.all((preds >= 0) & (preds <= 1))
-
-
-def calculate_criterion(preds):
-    '''Calculate feature selection criterion.'''
-
-    if (len(preds.shape) == 1) or (preds.shape[1] == 1):
-        # Binary classification.
-        if not valid_probs(preds):
-            preds = preds.sigmoid()
-        if len(preds.shape) == 1:
-            preds = preds.view(-1, 1)
-        preds = torch.cat([1 - preds, preds])
-    else:
-        # Multiclass classification.
-        if not valid_probs(preds):
-            preds = preds.softmax(dim=1)
-            
-    # Calculate criterion: MI I(Y; X_j | x_s), KL divergence interpretation.
-    mean = torch.mean(preds, dim=0, keepdim=True)
-    kl = torch.sum(preds * torch.log(preds / (mean + 1e-6) + 1e-6), dim=1)
-    return torch.mean(kl)
-
-
 class Ma2018AFAMethod(AFAMethod):
     def __init__(self, sampler, predictor, num_classes, device=torch.device("cpu")):
         super().__init__()
@@ -78,38 +52,43 @@ class Ma2018AFAMethod(AFAMethod):
         augmented_masked_feature = torch.cat([masked_features, zeros_label], dim=-1).to(self._device)
         augmented_feature_mask = torch.cat([feature_mask, zeros_mask], dim=-1).to(self._device)
         # x_full = self.sampler.impute(augmented_masked_feature, augmented_feature_mask).view(B, F+self.num_classes)
-        _, _, _, _, x_full = self.sampler.forward(augmented_masked_feature, augmented_feature_mask)
+        with torch.no_grad():
+            _, _, _, _, x_full = self.sampler.forward(augmented_masked_feature, augmented_feature_mask)
         x_full = x_full.view(B, F)
         x_full = torch.cat([x_full, zeros_label], dim=-1).to(self._device)
-        next_feature_idx = []
 
-        for i in range(B):
-            m_i = augmented_feature_mask[i]
-            x_i = x_full[i : i+1]
-            best_j, best_score = None, -float('inf')
+        feature_mask_all = augmented_feature_mask[:, :F]
+        feature_indices = torch.eye(F, device=device, dtype=feature_mask_all.dtype)
+        # onehot mask (BxFxF)
+        mask_features_all = (feature_mask_all | feature_indices.unsqueeze(0))
+        mask_features_flat = mask_features_all.reshape(B*F, F)
+        mask_label_all = zeros_mask.unsqueeze(1).expand(B, F, -1)
+        mask_label_flat = mask_label_all.reshape(B*F, self.num_classes)
+        # (B*F x (F+num_classes))
+        mask_tests = torch.cat([mask_features_flat, mask_label_flat], dim=1)
 
-            for j in range(F):
-                if m_i[j] == 1:
-                    continue
+        x_rep = x_full.unsqueeze(1).expand(B, F, F+self.num_classes)
+        x_masks = x_rep.reshape(B*F, F+self.num_classes) * mask_tests
 
-                m_test = m_i.clone()
-                m_test[j] = 1
-                m_test = m_test.unsqueeze(0).repeat(x_i.size(0), 1)
-
-                x_masked = x_i * m_test
-                with torch.no_grad():
-                    _, _, _, z, _ = self.sampler(x_masked, m_test)
-                preds = self.predictor(z)
-
-                score = calculate_criterion(preds)
-                if score > best_score:
-                    best_score = score
-                    best_j = j
-            
-            next_feature_idx.append(best_j)
+        with torch.no_grad():
+            _, _, _, z_all, _ = self.sampler(x_masks, mask_tests)
+            preds_all = self.predictor(z_all)
         
-        next_feature_idx = torch.tensor(next_feature_idx, device=device)
-        return next_feature_idx
+        if preds_all.ndim == 2 and preds_all.size(1) > 1:
+            if not ((preds_all >= 0) & (preds_all <= 1)).all():
+                preds_all = preds_all.softmax(dim=1)
+        else:
+            preds_all = preds_all.sigmoid().view(-1, 1)
+            preds_all = torch.cat([1 - preds_all, preds_all], dim=1)
+        
+        mean_all = preds_all.mean(dim=0, keepdim=True)
+        kl_all = torch.sum(preds_all * torch.log(preds_all / (mean_all + 1e-6) + 1e-6), dim=1)
+
+        scores = kl_all.view(B, F)
+        # avoid choosing the masked feature j
+        scores = scores.masked_fill(feature_mask_all.bool(), float('-inf'))
+        best_j = scores.argmax(dim=1)
+        return best_j
         
     @classmethod
     def load(cls, path, device='cpu'):
