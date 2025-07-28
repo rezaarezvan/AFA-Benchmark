@@ -301,7 +301,7 @@ cs.store(name="pretrain_ma2018", node=Ma2018PretrainingConfig)
 
 
 @dataclass
-class Ma2018TraingConfig:
+class Ma2018TrainingConfig:
     pretrained_model_artifact_name: str
     hard_budget: int
     device: str = "cuda"
@@ -309,7 +309,7 @@ class Ma2018TraingConfig:
     output_artifact_aliases: list[str] = field(default_factory=lambda: [])
 
 
-cs.store(name="train_ma2018", node=Ma2018TraingConfig)
+cs.store(name="train_ma2018", node=Ma2018TrainingConfig)
 
 
 @dataclass

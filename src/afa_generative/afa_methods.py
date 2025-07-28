@@ -51,8 +51,7 @@ def calculate_criterion(preds):
 class Ma2018AFAMethod(AFAMethod):
     def __init__(self, sampler, predictor, num_classes, device=torch.device("cpu")):
         super().__init__()
-        assert hasattr(sampler, 'impute')
-        self.sampler: PartialVAE = sampler
+        self.sampler = sampler
         self.predictor = predictor
         self.num_classes = num_classes
         self._device: torch.device = device
@@ -78,7 +77,10 @@ class Ma2018AFAMethod(AFAMethod):
         zeros_mask = torch.zeros(B, self.num_classes, device=self._device, dtype=feature_mask.dtype)
         augmented_masked_feature = torch.cat([masked_features, zeros_label], dim=-1).to(self._device)
         augmented_feature_mask = torch.cat([feature_mask, zeros_mask], dim=-1).to(self._device)
-        x_full = self.sampler.impute(augmented_masked_feature, augmented_feature_mask).view(B, F+self.num_classes)
+        # x_full = self.sampler.impute(augmented_masked_feature, augmented_feature_mask).view(B, F+self.num_classes)
+        _, _, _, _, x_full = self.sampler.forward(augmented_masked_feature, augmented_feature_mask)
+        x_full = x_full.view(B, F)
+        x_full = torch.cat([x_full, zeros_label], dim=-1).to(self._device)
         next_feature_idx = []
 
         for i in range(B):
