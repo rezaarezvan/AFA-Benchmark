@@ -50,8 +50,6 @@ def get_shim2018_reward_fn(
                 logits, label[done_mask], weight=weights
             )
 
-        # reward[(afa_selection == 0) | (afa_selection == 2) | (afa_selection == 4)] = 1
-
         return reward
 
     return f
