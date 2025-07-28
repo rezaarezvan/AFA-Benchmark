@@ -267,27 +267,27 @@ def main(cfg: Shim2018TrainConfig):
                         ).squeeze(0)
                         for _ in tqdm(range(cfg.n_eval_episodes), desc="Evaluating")
                     ]
-                    optimal_td_evals = [
-                        eval_env.rollout(
-                            cfg.eval_max_steps, cubeSimple_optimal_selection_wrapper
-                        ).squeeze(0)
-                        for _ in tqdm(
-                            range(cfg.n_eval_episodes), desc="Evaluating optimal policy"
-                        )
-                    ]
+                    # optimal_td_evals = [
+                    #     eval_env.rollout(
+                    #         cfg.eval_max_steps, cubeSimple_optimal_selection_wrapper
+                    #     ).squeeze(0)
+                    #     for _ in tqdm(
+                    #         range(cfg.n_eval_episodes), desc="Evaluating optimal policy"
+                    #     )
+                    # ]
                     # Reset the action spec of the agent to the train env action spec
                     agent.egreedy_tdmodule._spec = train_env.action_spec  # pyright: ignore
                 metrics_eval = get_eval_metrics(
                     td_evals, Shim2018AFAPredictFn(pretrained_model)
                 )
-                optimal_metrics_eval = get_eval_metrics(
-                    optimal_td_evals, Shim2018AFAPredictFn(pretrained_model)
-                )
+                # optimal_metrics_eval = get_eval_metrics(
+                #     optimal_td_evals, Shim2018AFAPredictFn(pretrained_model)
+                # )
                 run.log(
                     dict_with_prefix(
                         "eval/",
                         dict_with_prefix("agent_policy.", metrics_eval)
-                        | dict_with_prefix("optimal_policy.", optimal_metrics_eval)
+                        # | dict_with_prefix("optimal_policy.", optimal_metrics_eval)
                         | dict_with_prefix(
                             "expensive_info.", agent.get_expensive_info()
                         )
