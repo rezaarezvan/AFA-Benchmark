@@ -17,7 +17,7 @@ agent:
   action_value_lr: 1e-3 # kachuee2019 implementation
   update_tau: 0.001 # kachuee2019 implementation
   max_classification_grad_norm: 9001 # not specified by kachuee2019 implementation
-  classification_lr: 1e-3 # kachuee2019 implementation
+  classification_lr: 1e-4 # kachuee2019 implementation
 
   loss_function: "l2" # kachuee2019 implementation
   delay_value: true # kachuee2019 implementation
