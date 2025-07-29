@@ -1,17 +1,105 @@
-from collections import defaultdict
-from omegaconf import OmegaConf
-from matplotlib import pyplot as plt
-import numpy as np
-import logging
-from pathlib import Path
-from typing import Any
 import hydra
 import torch
 import wandb
+import logging
+import tempfile
+import numpy as np
+import matplotlib as mpl
 
+from typing import Any
+from pathlib import Path
+from omegaconf import OmegaConf
+from collections import defaultdict
+from matplotlib import pyplot as plt
 from common.config_classes import PlotConfig
 
 log = logging.getLogger(__name__)
+
+plt.style.use(['seaborn-v0_8-whitegrid'])
+mpl.rcParams.update({
+    'font.family': 'DejaVu Sans',
+    'font.size': 10,
+    'axes.titlesize': 11,
+    'axes.labelsize': 10,
+    'xtick.labelsize': 9,
+    'ytick.labelsize': 9,
+    'legend.fontsize': 9,
+
+    'figure.figsize': (6, 4),
+    'figure.dpi': 150,
+    'savefig.dpi': 300,
+    'savefig.bbox': 'tight',
+    'savefig.facecolor': 'white',
+
+    'axes.spines.top': False,
+    'axes.spines.right': False,
+    'axes.grid': True,
+    'grid.alpha': 0.3,
+    'lines.linewidth': 2,
+    'lines.markersize': 4,
+})
+
+mpl.use('pgf')
+mpl.rcParams.update({
+    'pgf.texsystem': 'pdflatex',
+    'font.family': 'serif',
+    'text.usetex': True,
+    'pgf.rcfonts': False,
+})
+
+
+def create_figure(x, grouped_metrics, metric_cfg):
+    fig, ax = plt.subplots(figsize=(6, 4))
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c',
+              '#d62728', '#9467bd', '#8c564b', '#e377c2']
+
+    for i, (method_type, metrics_list) in enumerate(grouped_metrics.items()):
+        data = torch.stack([m[metric_cfg.key] for m in metrics_list])
+        mean = data.mean(dim=0)
+        std = data.std(dim=0)
+
+        color = colors[i % len(colors)]
+        label = method_type.replace('_', ' ').title()
+
+        ax.plot(x, mean, label=label, color=color, linewidth=2,
+                marker='o', markersize=4, markerfacecolor='white',
+                markeredgecolor=color, markeredgewidth=1.5)
+
+        ax.fill_between(x, mean - std, mean + std, alpha=0.2, color=color)
+
+    ax.set_xlabel('Number of Features Selected')
+    ax.set_ylabel(metric_cfg.description)
+    ax.legend(frameon=True, fancybox=False, edgecolor='black', framealpha=0.9)
+
+    if metric_cfg.ylim is not None:
+        ax.set_ylim(*metric_cfg.ylim)
+
+    plt.tight_layout()
+    return fig
+
+
+def save_figures(fig, filename_base):
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir)
+
+        svg_path = tmp_path / f"{filename_base}.svg"
+        fig.savefig(svg_path, format='svg', bbox_inches='tight')
+
+        pdf_path = tmp_path / f"{filename_base}.pdf"
+        fig.savefig(pdf_path, format='pdf', bbox_inches='tight')
+
+        png_path = tmp_path / f"{filename_base}.png"
+        fig.savefig(png_path, format='png', bbox_inches='tight', dpi=300)
+
+        for format_ext, file_path in [('svg', svg_path), ('pdf', pdf_path), ('png', png_path)]:
+            artifact = wandb.Artifact(
+                name=f"figure-{filename_base}-{format_ext}",
+                type="publication_figure"
+            )
+            artifact.add_file(str(file_path))
+            wandb.log_artifact(artifact)
+
+        wandb.log({f"{filename_base}_publication": wandb.Image(fig)})
 
 
 def load_eval_results(
@@ -63,7 +151,8 @@ def main(cfg: PlotConfig):
             if info["dataset_type"] == dataset_type
         )
         for classifier_type in classifier_types:
-            log.info(f"  Plotting results for classifier type: {classifier_type}")
+            log.info(f"  Plotting results for classifier type: {
+                     classifier_type}")
             budgets = set(
                 info["budget"]
                 for (info, _) in eval_results
@@ -92,37 +181,11 @@ def main(cfg: PlotConfig):
                     continue
 
                 for metric_cfg in cfg.metric_keys_and_descriptions:
-                    fig, ax = plt.subplots()
+                    fig = create_figure(x, grouped_metrics, metric_cfg)
+                    filename_base = f"{dataset_type}_{
+                        classifier_type}_budget{budget}_{metric_cfg.key}"
+                    save_figures(fig, filename_base)
 
-                    for method_type, metrics_list in grouped_metrics.items():
-                        log.info(
-                            f"      Plotting results for method type: {method_type}"
-                        )
-                        # Shape: [num_runs, T]
-                        data = torch.stack([m[metric_cfg.key] for m in metrics_list])
-                        mean = data.mean(dim=0)
-                        std = data.std(dim=0)
-
-                        ax.plot(x, mean, label=method_type)
-                        if metric_cfg.ylim is not None:
-                            ax.set_ylim(*metric_cfg.ylim)
-                        ax.fill_between(x, mean - std, mean + std, alpha=0.3)
-
-                    ax.set_title(
-                        f"{metric_cfg.key} – {dataset_type} | {classifier_type} | Budget: {budget}"
-                    )
-                    ax.set_xlabel("Number of features selected")
-                    ax.set_ylabel(metric_cfg.description)
-                    ax.legend()
-                    ax.grid(True)
-
-                    wandb.log(
-                        {
-                            f"{dataset_type}_{classifier_type}_budget{budget}_{metric_cfg.key}": wandb.Image(
-                                fig
-                            )
-                        }
-                    )
                     plt.close(fig)
 
 
