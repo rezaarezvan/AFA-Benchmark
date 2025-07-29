@@ -229,44 +229,44 @@ def main(cfg: Zannone2019TrainConfig):
         pretrained_model=pretrained_model, weights=class_weights
     )
 
-    # Use the pretrained model to generate new artificial data
-    generated_features = torch.zeros(cfg.n_generated_samples, n_features)
-    generated_labels = torch.zeros(cfg.n_generated_samples, n_classes)
-    n_generation_batches = cfg.n_generated_samples // cfg.generation_batch_size
-    for batch_idx in tqdm(
-        range(n_generation_batches), desc="Generating artificial samples"
-    ):
-        _z, generated_features_batch, generated_labels_batch = (
-            pretrained_model.generate_data(
-                latent_size=pretrained_model_config.partial_vae.latent_size,
-                device=device,
-                n_samples=cfg.generation_batch_size,
+    if cfg.n_generated_samples > 0:
+        # Use the pretrained model to generate new artificial data
+        generated_features = torch.zeros(cfg.n_generated_samples, n_features)
+        generated_labels = torch.zeros(cfg.n_generated_samples, n_classes)
+        n_generation_batches = cfg.n_generated_samples // cfg.generation_batch_size
+        for batch_idx in tqdm(
+            range(n_generation_batches), desc="Generating artificial samples"
+        ):
+            _z, generated_features_batch, generated_labels_batch = (
+                pretrained_model.generate_data(
+                    latent_size=pretrained_model_config.partial_vae.latent_size,
+                    device=device,
+                    n_samples=cfg.generation_batch_size,
+                )
             )
-        )
-        generated_features[
-            batch_idx * cfg.generation_batch_size : (batch_idx + 1)
-            * cfg.generation_batch_size,
-            :,
-        ] = generated_features_batch.cpu()
-        # Convert labels to one hot instead of continuous probabilities
-        generated_labels[
-            batch_idx * cfg.generation_batch_size : (batch_idx + 1)
-            * cfg.generation_batch_size,
-            :,
-        ] = F.one_hot(
-            generated_labels_batch.argmax(-1),
-            num_classes=generated_labels_batch.shape[-1],
-        ).cpu()
+            generated_features[
+                batch_idx * cfg.generation_batch_size : (batch_idx + 1)
+                * cfg.generation_batch_size,
+                :,
+            ] = generated_features_batch.cpu()
+            # Convert labels to one hot instead of continuous probabilities
+            generated_labels[
+                batch_idx * cfg.generation_batch_size : (batch_idx + 1)
+                * cfg.generation_batch_size,
+                :,
+            ] = F.one_hot(
+                generated_labels_batch.argmax(-1),
+                num_classes=generated_labels_batch.shape[-1],
+            ).cpu()
 
-    combined_features = torch.cat([train_dataset.features, generated_features])
-    combined_labels = torch.cat([train_dataset.labels, generated_labels])
-    # Shuffle features and labels so that generated data is mixed with real data
-    rand_indices = torch.randperm(len(combined_features))
-    combined_features = combined_features[rand_indices]
-    combined_labels = combined_labels[rand_indices]
+        train_features = generated_features
+        train_labels = generated_labels
+    else:
+        train_features = train_dataset.features
+        train_labels = train_dataset.labels
 
     # MDP expects special dataset functions
-    train_dataset_fn = get_afa_dataset_fn(combined_features, combined_labels)
+    train_dataset_fn = get_afa_dataset_fn(train_features, train_labels)
     val_dataset_fn = get_afa_dataset_fn(val_dataset.features, val_dataset.labels)
 
     train_env = AFAEnv(
@@ -372,12 +372,12 @@ def main(cfg: Zannone2019TrainConfig):
         # Save the method to a temporary directory and load it again to ensure it is saved correctly
         with TemporaryDirectory(delete=False) as tmp_path_str:
             tmp_path = Path(tmp_path_str)
-            # afa_method.save(tmp_path)
-            # del afa_method
-            # afa_method = RLAFAMethod.load(
-            #     tmp_path,
-            #     device=torch.device("cpu"),
-            # )
+            afa_method.save(tmp_path)
+            del afa_method
+            afa_method = RLAFAMethod.load(
+                tmp_path,
+                device=torch.device("cpu"),
+            )
             if cfg.evaluate_final_performance:
                 # Check what the final performance of the method is. Costly for large datasets.
                 with (
