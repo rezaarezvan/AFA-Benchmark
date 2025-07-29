@@ -1,7 +1,7 @@
 dataset_artifact_name: "AFAContext_split_1:tmp"
 evaluate_final_performance: true
 batch_size: 128
-epochs: 5000
+epochs: 2000
 limit_train_batches: null
 limit_val_batches: null
 min_masking_probability: 0.0

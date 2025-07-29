@@ -1,4 +1,4 @@
-pretrained_model_artifact_name: "pretrain_zannone2019-AFAContext_split_1:tmp"
+pretrained_model_artifact_name: "pretrain_zannone2019-AFAContextRandomInsert_split_1:tmp"
 n_agents: 128 # same as shim2018
 hard_budget: 5 # recommended: 3, 5, 10
 agent:
@@ -22,13 +22,13 @@ agent:
   policy_num_cells: [32, 32] # had to be increased from [] to work on this dataset
   # policy_num_cells: []
   policy_dropout: 0.0 # not specified by zannone2019
-n_batches: 10000
+n_batches: 200000 # AFAContext is treated specially
 batch_size: 512 # same as shim2018
 eval_every_n_batches: 500
 eval_max_steps: 9001
 n_eval_episodes: 100
-n_generated_samples: 10000 # ODIN paper
-# n_generated_samples: 0
+# n_generated_samples: 10000 # ODIN paper
+n_generated_samples: 0
 generation_batch_size: 100
 evaluate_final_performance: true
 eval_only_n_samples: null
