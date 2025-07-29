@@ -8,5 +8,5 @@ lr: 1e-3
 min_masking_probability: 0.75
 max_masking_probability: 0.99
 pq_module:
-  n_hiddens: [128,128,128] # kachuee2019 does not list this for MNIST, so we have the same number of layers but larger than their architecture for the diabetes dataset.
+  n_hiddens: [512,512,128,64] # kachuee2019 for MNIST
   p_dropout: 0.5 # kachuee2019 implementation
