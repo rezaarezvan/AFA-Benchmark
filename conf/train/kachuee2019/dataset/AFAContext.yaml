@@ -7,7 +7,7 @@ hard_budget: 5 # recommended: 3, 5, 10
 agent:
   eps_init: 1.0 # kachuee2019 implementation
   eps_end: 0.1 # kachuee2019 implementation
-  eps_annealing_num_batches: 5000 # half of `n_batches`, similar to kachuee2019 implementation but not the same
+  eps_annealing_num_batches: 100000 # half of `n_batches`, similar to kachuee2019 implementation but not the same
 
   replay_buffer_batch_size: 128 # kachuee2019 implementation
   replay_buffer_size: 30000 # kachuee2019 paper, 1000*n_features
@@ -24,7 +24,7 @@ agent:
   double_dqn: true # kachuee2019 implementation
 
   # gamma set by higher config
-n_batches: 10000
+n_batches: 200000 # AFAContext is treated specially
 batch_size: 512 # same as shim2018
 eval_every_n_batches: 500
 eval_max_steps: 9001

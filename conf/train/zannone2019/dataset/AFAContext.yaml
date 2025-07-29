@@ -16,13 +16,11 @@ agent:
   max_grad_norm: 9001 # not specified by zannone2019
   replay_buffer_batch_size: 128 # same as shim2018
 
-  # value_num_cells: [32, 32] # same complexity as shim2018
-  value_num_cells: [] # zannone2019
+  value_num_cells: [32, 32] # had to be increased from [] to work on this dataset
   value_dropout: 0.0 # not specified by zannone2019
-  # policy_num_cells: [32, 32] # same complexity as shim2018
-  policy_num_cells: [] # zannone2019
+  policy_num_cells: [32, 32] # had to be increased from [] to work on this dataset
   policy_dropout: 0.0 # not specified by zannone2019
-n_batches: 10000
+n_batches: 200000 # AFAContext is treated specially
 batch_size: 512 # same as shim2018
 eval_every_n_batches: 500
 eval_max_steps: 9001
