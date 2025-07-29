@@ -478,10 +478,8 @@ class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     A hybrid dataset combining context-based feature selection and the Cube dataset.
 
     - Features:
-        * First 3 features: one-hot context (0, 1, or 2)
-        * Next 10 features: Cube features if context == 0, else noise
-        * Next 10 features: Cube features if context == 1, else noise
-        * Next 10 features: Cube features if context == 2, else noise
+        * First n_contexts features: one-hot context (0, 1, ..., n_contexts-1)
+        * Next n_contexts * 10 features: Each block of 10 features is informative if context == block index, else noise
 
     - Label:
         * One of 8 classes encoded by a 3-bit binary vector inserted into the relevant block
@@ -490,9 +488,8 @@ class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     """
 
     n_classes = 8
-    n_contexts = 5
-    n_features = 3 + 5 * 10  # 5 context + 50 cube features
     block_size = 10
+    n_features = 22
 
     def __init__(
         self,
@@ -505,10 +502,13 @@ class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     ):
         self.n_samples = n_samples
         self.seed = seed
+        self.n_contexts = 2
         self.context_feature_std = context_feature_std
         self.informative_feature_std = informative_feature_std
         self.non_informative_feature_mean = non_informative_feature_mean
         self.non_informative_feature_std = non_informative_feature_std
+
+        # self.n_features = self.n_contexts + self.n_contexts * self.block_size
 
         self.rng = torch.Generator().manual_seed(seed)
         self.features: Tensor
@@ -518,7 +518,7 @@ class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
     @override
     def generate_data(self) -> None:
-        # Sample context (0, 1, 2)
+        # Sample context (0, 1, ..., n_contexts-1)
         context = torch.randint(
             0, self.n_contexts, (self.n_samples,), generator=self.rng
         )
@@ -529,7 +529,7 @@ class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             std=self.context_feature_std,
             size=(self.n_samples, self.n_contexts),
             generator=self.rng,
-        )  # (n_samples, 5)
+        )  # (n_samples, n_contexts)
 
         # Sample labels 0–7
         y_int = torch.randint(0, self.n_classes, (self.n_samples,), generator=self.rng)
@@ -543,7 +543,7 @@ class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             dim=0,
         ).flip(-1)  # (8, 3)
 
-        # Create 3 blocks of features, each 10D
+        # Create n_contexts blocks of features, each 10D
         blocks = []
         for block_context in range(self.n_contexts):
             block = torch.normal(
@@ -553,7 +553,7 @@ class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 generator=self.rng,
             )
             blocks.append(block)
-        blocks = torch.stack(blocks, dim=1)  # (n_samples, 3, 10)
+        blocks = torch.stack(blocks, dim=1)  # (n_samples, n_contexts, 10)
 
         # Insert informative signal into the correct block based on context
         for i in range(self.n_samples):
@@ -572,13 +572,13 @@ class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             )
             blocks[i, ctx, insert_idx] = bin_code + noise
 
-        # Flatten blocks: (n_samples, 50)
+        # Flatten blocks: (n_samples, n_contexts * 10)
         block_features = blocks.view(self.n_samples, -1)
 
-        # Final feature matrix: context (5) + all block features (50)
+        # Final feature matrix: context (n_contexts) + all block features (n_contexts * 10)
         self.features = torch.cat(
             [context_onehot, block_features], dim=1
-        )  # (n_samples, 33)
+        )  # (n_samples, n_contexts + n_contexts * 10)
 
         # One-hot labels
         self.labels = F.one_hot(y_int, num_classes=self.n_classes).float()
@@ -604,6 +604,7 @@ class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 "config": {
                     "n_samples": self.n_samples,
                     "seed": self.seed,
+                    # "n_contexts": self.n_contexts,
                     "informative_feature_std": self.informative_feature_std,
                     "non_informative_feature_mean": self.non_informative_feature_mean,
                     "non_informative_feature_std": self.non_informative_feature_std,
