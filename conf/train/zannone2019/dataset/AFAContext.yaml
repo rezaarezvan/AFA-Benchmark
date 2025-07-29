@@ -6,10 +6,8 @@ agent:
   lmbda: 0.75 # not specified by zannone2019, same as shim2018
 
   clip_epsilon: 0.2 # not specified by zannone2019
-  # entropy_bonus: True # not specified by zannone2019
-  entropy_bonus: False # not specified by zannone2019
-  # entropy_coef: 0.01 # not specified by zannone2019
-  entropy_coef: 0.0 # not specified by zannone2019
+  entropy_bonus: True # not specified by zannone2019
+  entropy_coef: 0.01 # not specified by zannone2019
   critic_coef: 1.0 # not specified by zannone2019
   loss_critic_type: "smooth_l1" # not specified by zannone2019
 
@@ -18,9 +16,11 @@ agent:
   max_grad_norm: 9001 # not specified by zannone2019
   replay_buffer_batch_size: 128 # same as shim2018
 
-  value_num_cells: [32, 32] # had to be increased from [] to work on this dataset
+  # value_num_cells: [32, 32] # had to be increased from [] to work on this dataset
+  value_num_cells: []
   value_dropout: 0.0 # not specified by zannone2019
-  policy_num_cells: [32, 32] # had to be increased from [] to work on this dataset
+  # policy_num_cells: [32, 32] # had to be increased from [] to work on this dataset
+  policy_num_cells: []
   policy_dropout: 0.0 # not specified by zannone2019
 n_batches: 200000 # AFAContext is treated specially
 batch_size: 512 # same as shim2018
