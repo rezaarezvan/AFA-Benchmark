@@ -41,35 +41,38 @@ def main(cfg: CAETrainingConfig):
     train_dataset, val_dataset, _, dataset_metadata = load_dataset_artifact(cfg.dataset_artifact_name)
     train_loader, val_loader, d_in, d_out = prepare_datasets(train_dataset, val_dataset, cfg.batch_size)
 
+    model = MLP(
+        in_features=d_in,
+        out_features=d_out,
+        num_cells=cfg.selector.num_cells,
+        activation_class=nn.ReLU,
+    )
+    selector_layer = ConcreteMask(d_in, cfg.hard_budget)
+    diff_selector = DifferentiableSelector(model, selector_layer).to(device)
+    diff_selector.fit(
+        train_loader,
+        val_loader,
+        lr=cfg.selector.lr,
+        nepochs=cfg.selector.nepochs,
+        loss_fn=nn.CrossEntropyLoss(),
+        patience=cfg.selector.patience,
+        verbose=False)
+
+    logits = selector_layer.logits.cpu().data.numpy()
+    ranked_features = np.sort(logits.argmax(axis=1))
+
+    if len(np.unique(ranked_features)) != cfg.hard_budget:
+        print(f'{len(np.unique(ranked_features))} selected instead of {cfg.hard_budget}, appending extras')
+    num_extras = cfg.hard_budget - len(np.unique(ranked_features))
+    remaining_features = np.setdiff1d(np.arange(d_in), ranked_features)
+    ranked_features = np.sort(np.concatenate([np.unique(ranked_features), remaining_features[:num_extras]]))
+    
     predictors: dict[int, nn.Module] = {}
     selected_history: dict[int, list[int]] = {}
+
     num_features = list(range(1, cfg.hard_budget + 1))
     for num in num_features:
-        model = MLP(
-            in_features=d_in,
-            out_features=d_out,
-            num_cells=cfg.selector.num_cells,
-            activation_class=nn.ReLU,
-        )
-        selector_layer = ConcreteMask(d_in, num)
-        diff_selector = DifferentiableSelector(model, selector_layer).to(device)
-        diff_selector.fit(
-                train_loader,
-                val_loader,
-                lr=cfg.selector.lr,
-                nepochs=cfg.selector.nepochs,
-                loss_fn=nn.CrossEntropyLoss(),
-                patience=cfg.selector.patience,
-                verbose=False)
-        
-        logits = selector_layer.logits.cpu().data.numpy()
-        selected_features = np.sort(logits.argmax(axis=1))
-        if len(np.unique(selected_features)) != num:
-            print(f'{len(np.unique(selected_features))} selected instead of {num}, appending extras')
-            num_extras = num - len(np.unique(selected_features))
-            remaining_features = np.setdiff1d(np.arange(d_in), selected_features)
-            selected_features = np.sort(np.concatenate([np.unique(selected_features), remaining_features[:num_extras]]))
-        
+        selected_features = ranked_features[:num]
         selected_history[num] = selected_features.tolist()
 
         train_subset = transform_dataset(train_dataset, selected_features)
@@ -85,7 +88,6 @@ def main(cfg: CAETrainingConfig):
             activation_class=nn.ReLU,
         )
         predictor = BaseModel(model).to(device)
-        # Need restart here?
         predictor.fit(
             train_subset_loader,
             val_subset_loader,
