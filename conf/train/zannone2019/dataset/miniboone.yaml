@@ -27,8 +27,8 @@ batch_size: 512 # same as shim2018
 eval_every_n_batches: 500
 eval_max_steps: 9001
 n_eval_episodes: 100
-# n_generated_samples: 10000 # ODIN paper
-n_generated_samples: 0
+n_generated_samples: 10000 # ODIN paper
+# n_generated_samples: 0
 generation_batch_size: 100
 evaluate_final_performance: true
 eval_only_n_samples: null
