@@ -31,7 +31,7 @@ classifier:
   num_cells: [128, 128] # zannone2019 paper does not say what this should be, so we use the same num_cells as the "common" classifier
   activation_class: "ReLU"
   dropout: 0.0
-start_kl_scaling_factor: 0.01 # NOTE: 0.1 leads to posterior collapse
-end_kl_scaling_factor: 0.01 # NOTE: 0.1 leads to posterior collapse
+start_kl_scaling_factor: 0.1
+end_kl_scaling_factor: 0.1
 n_annealing_epochs: 1
 classifier_loss_scaling_factor: 1

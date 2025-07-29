@@ -73,6 +73,7 @@ AFA_DATASET_TYPES = {
     "cubeOnlyInformative",
     "shim2018cube",
     "AFAContext",
+    "AFAContextRandomInsert",
     "ContextSelectiveXOR",
     "MNIST",
     "diabetes",
@@ -103,6 +104,10 @@ def get_afa_dataset_class(name: str) -> type[AFADataset]:
         from common.datasets import AFAContextDataset
 
         return AFAContextDataset
+    elif name == "AFAContextRandomInsert":
+        from common.datasets import AFAContextRandomInsertDataset
+
+        return AFAContextRandomInsertDataset
     elif name == "ContextSelectiveXOR":
         from common.datasets import ContextSelectiveXORDataset
 
