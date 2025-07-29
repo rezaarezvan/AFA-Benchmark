@@ -1,9 +1,7 @@
 type: "AFAContext"
 kwargs:
   n_samples: 1000
-  std_bin: 0.0
-  std_cube: 0.0
-  bin_feature_cost: 5.0
+  context_feature_std: 0.0
+  informative_feature_std: 0.0
   non_informative_feature_mean: 0.5
   non_informative_feature_std: 0.0
-

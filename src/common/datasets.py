@@ -475,324 +475,6 @@ class CubeOnlyInformativeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 @final
 class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     """
-    A PyTorch Dataset merging AFA structure with cube-dataset dummy-feature behavior.
-
-    Implements the AFADataset protocol.
-    """
-
-    n_classes = 8
-    n_features = 30  # Fixed number of features
-
-    def __init__(
-        self,
-        n_samples: int = 1000,
-        std_bin: float = 0.1,
-        std_cube: float = 1.0,
-        bin_feature_cost: float = 5.0,
-        seed: int = 123,
-        non_informative_feature_mean: float = 0.5,
-        non_informative_feature_std: float = 0.3,
-    ):
-        super().__init__()
-        self.n_samples = n_samples
-        self.std_bin = std_bin
-        self.std_cube = std_cube
-        self.bin_feature_cost = bin_feature_cost
-        self.seed = seed
-        self.non_informative_feature_mean = non_informative_feature_mean
-        self.non_informative_feature_std = non_informative_feature_std
-        self.costs = None  # set when generating data
-
-        # Constants
-        self.n_context_groups = 3
-        self.group_size = 3
-        self.n_bin_features = self.n_context_groups * self.group_size  # 9
-        self.n_cube_features = 10
-        self.n_dummy_features = self.n_features - (
-            1 + self.n_bin_features + self.n_cube_features
-        )
-
-        self.rng = torch.Generator()
-
-    @override
-    def generate_data(self) -> None:
-        self.rng.manual_seed(self.seed)
-
-        # Draw labels and context
-        y_int = torch.randint(
-            0, self.n_classes, (self.n_samples,), dtype=torch.int64, generator=self.rng
-        )
-        S = torch.randint(
-            0,
-            self.n_context_groups,
-            (self.n_samples,),
-            dtype=torch.int64,
-            generator=self.rng,
-        )
-
-        # Binary codes for labels (8×3)
-        binary_codes = torch.stack(
-            [
-                torch.tensor([int(b) for b in format(i, "03b")])
-                for i in range(self.n_classes)
-            ],
-            dim=0,
-        ).flip(-1)
-
-        # Initialize feature blocks
-        X_context = S.unsqueeze(1).float()
-
-        X_bin = torch.normal(
-            mean=self.non_informative_feature_mean,
-            std=self.non_informative_feature_std,
-            size=(self.n_samples, self.n_bin_features),
-            generator=self.rng,
-        )
-
-        X_cube = torch.normal(
-            mean=self.non_informative_feature_mean,
-            std=self.non_informative_feature_std,
-            size=(self.n_samples, self.n_cube_features),
-            generator=self.rng,
-        )
-
-        X_dummy = torch.normal(
-            mean=self.non_informative_feature_mean,
-            std=self.non_informative_feature_std,
-            size=(self.n_samples, self.n_dummy_features),
-            generator=self.rng,
-        )
-
-        # Insert informative signals
-        for i in range(self.n_samples):
-            lbl = int(y_int[i].item())
-            ctx = S[i].item()
-            mu_bin = binary_codes[lbl]
-
-            # Binary features in active group
-            start = ctx * self.group_size
-            end = start + self.group_size
-            X_bin[i, start:end] = (
-                torch.normal(
-                    mean=0.0,
-                    std=self.std_bin,
-                    size=(self.group_size,),
-                    generator=self.rng,
-                )
-                + mu_bin
-            )
-
-            # Cube features: 3 bumps
-            idxs = [(lbl + j) for j in range(3)]
-            X_cube[i, idxs] = (
-                torch.normal(mean=0.0, std=self.std_cube, size=(3,), generator=self.rng)
-                + mu_bin
-            )
-
-        # Concatenate all features
-        self.features = torch.cat([X_context, X_bin, X_cube, X_dummy], dim=1).float()
-        assert self.features.shape[1] == self.n_features
-
-        # Build costs vector
-        total_dim = self.features.shape[1]
-        costs = torch.ones(total_dim)
-        costs[1 : 1 + self.n_bin_features] = self.bin_feature_cost
-        self.costs = costs
-
-        # One-hot labels
-        self.labels = y_int
-        self.labels = torch.nn.functional.one_hot(
-            self.labels, num_classes=self.n_classes
-        ).float()
-        assert self.labels.shape[1] == self.n_classes
-
-    @override
-    def __getitem__(self, idx: int):
-        return self.features[idx], self.labels[idx]
-
-    @override
-    def __len__(self):
-        return self.features.size(0)
-
-    @override
-    def get_all_data(self):
-        return self.features, self.labels
-
-    @override
-    def save(self, path: Path) -> None:
-        torch.save(
-            {
-                "features": self.features,
-                "labels": self.labels,
-                "costs": self.costs,
-                "config": {
-                    "n_samples": self.n_samples,
-                    "std_bin": self.std_bin,
-                    "std_cube": self.std_cube,
-                    "bin_feature_cost": self.bin_feature_cost,
-                    "seed": self.seed,
-                    "non_informative_feature_mean": self.non_informative_feature_mean,
-                    "non_informative_feature_std": self.non_informative_feature_std,
-                },
-            },
-            path,
-        )
-
-    @classmethod
-    @override
-    def load(cls, path: Path) -> Self:
-        data = torch.load(path)
-        cfg = data["config"]
-        ds = cls(**cfg)
-        ds.features = data["features"]
-        ds.labels = data["labels"]
-        ds.costs = data["costs"]
-        return ds
-
-
-@final
-class AFAContextSimpleDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
-    """
-    A simplified version of AFAContextDataset, where only the context-dependent features are kept.
-
-    Implements the AFADataset protocol.
-    """
-
-    n_classes = 8
-    n_features = 31  # = 10*3+1      10 contexts
-
-    def __init__(
-        self,
-        n_samples: int = 1000,
-        std_bin: float = 0.1,
-        seed: int = 123,
-        non_informative_feature_mean: float = 0.5,
-        non_informative_feature_std: float = 0.3,
-    ):
-        super().__init__()
-        self.n_samples = n_samples
-        self.std_bin = std_bin
-        self.seed = seed
-        self.non_informative_feature_mean = non_informative_feature_mean
-        self.non_informative_feature_std = non_informative_feature_std
-        self.costs = None  # set when generating data
-
-        # Constants
-        self.n_context_groups = 10
-        self.group_size = 3
-        self.n_bin_features = self.n_context_groups * self.group_size  # 30
-
-        self.rng = torch.Generator()
-
-    @override
-    def generate_data(self) -> None:
-        self.rng.manual_seed(self.seed)
-
-        # Draw labels and context
-        y_int = torch.randint(
-            0, self.n_classes, (self.n_samples,), dtype=torch.int64, generator=self.rng
-        )
-        S = torch.randint(
-            0,
-            self.n_context_groups,
-            (self.n_samples,),
-            dtype=torch.int64,
-            generator=self.rng,
-        )
-
-        # Binary codes for labels (8×3)
-        binary_codes = torch.stack(
-            [
-                torch.tensor([int(b) for b in format(i, "03b")])
-                for i in range(self.n_classes)
-            ],
-            dim=0,
-        ).flip(-1)
-
-        # Initialize feature blocks
-        X_context = S.unsqueeze(1).float()
-
-        X_bin = torch.normal(
-            mean=self.non_informative_feature_mean,
-            std=self.non_informative_feature_std,
-            size=(self.n_samples, self.n_bin_features),
-            generator=self.rng,
-        )
-
-        # Insert informative signals
-        for i in range(self.n_samples):
-            lbl = int(y_int[i].item())
-            ctx = S[i].item()
-            mu_bin = binary_codes[lbl]
-
-            # Binary features in active group
-            start = ctx * self.group_size
-            end = start + self.group_size
-            X_bin[i, start:end] = (
-                torch.normal(
-                    mean=0.0,
-                    std=self.std_bin,
-                    size=(self.group_size,),
-                    generator=self.rng,
-                )
-                + mu_bin
-            )
-
-        # Concatenate all features
-        self.features = torch.cat([X_context, X_bin], dim=1).float()
-        assert self.features.shape[1] == self.n_features
-
-        # One-hot labels
-        self.labels = y_int
-        self.labels = torch.nn.functional.one_hot(
-            self.labels, num_classes=self.n_classes
-        ).float()
-        assert self.labels.shape[1] == self.n_classes
-
-    @override
-    def __getitem__(self, idx: int):
-        return self.features[idx], self.labels[idx]
-
-    @override
-    def __len__(self):
-        return self.features.size(0)
-
-    @override
-    def get_all_data(self):
-        return self.features, self.labels
-
-    @override
-    def save(self, path: Path) -> None:
-        torch.save(
-            {
-                "features": self.features,
-                "labels": self.labels,
-                "costs": self.costs,
-                "config": {
-                    "n_samples": self.n_samples,
-                    "std_bin": self.std_bin,
-                    "seed": self.seed,
-                    "non_informative_feature_mean": self.non_informative_feature_mean,
-                    "non_informative_feature_std": self.non_informative_feature_std,
-                },
-            },
-            path,
-        )
-
-    @classmethod
-    @override
-    def load(cls, path: Path) -> Self:
-        data = torch.load(path)
-        cfg = data["config"]
-        ds = cls(**cfg)
-        ds.features = data["features"]
-        ds.labels = data["labels"]
-        return ds
-
-
-@final
-class ContextualCubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
-    """
     A hybrid dataset combining context-based feature selection and the Cube dataset.
 
     - Features:
@@ -808,6 +490,7 @@ class ContextualCubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     """
 
     n_classes = 8
+    n_contexts = 5
     n_features = 3 + 5 * 10  # 5 context + 50 cube features
     block_size = 10
 
@@ -815,12 +498,14 @@ class ContextualCubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         self,
         n_samples: int = 20000,
         seed: int = 123,
+        context_feature_std: float = 0.1,
         informative_feature_std: float = 0.1,
         non_informative_feature_mean: float = 0.5,
         non_informative_feature_std: float = 0.3,
     ):
         self.n_samples = n_samples
         self.seed = seed
+        self.context_feature_std = context_feature_std
         self.informative_feature_std = informative_feature_std
         self.non_informative_feature_mean = non_informative_feature_mean
         self.non_informative_feature_std = non_informative_feature_std
@@ -834,8 +519,17 @@ class ContextualCubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     @override
     def generate_data(self) -> None:
         # Sample context (0, 1, 2)
-        context = torch.randint(0, 5, (self.n_samples,), generator=self.rng)
-        context_onehot = F.one_hot(context, num_classes=5).float()  # (n_samples, 5)
+        context = torch.randint(
+            0, self.n_contexts, (self.n_samples,), generator=self.rng
+        )
+        context_onehot = F.one_hot(
+            context, num_classes=self.n_contexts
+        ).float() + torch.normal(
+            mean=0,
+            std=self.context_feature_std,
+            size=(self.n_samples, self.n_contexts),
+            generator=self.rng,
+        )  # (n_samples, 5)
 
         # Sample labels 0–7
         y_int = torch.randint(0, self.n_classes, (self.n_samples,), generator=self.rng)
@@ -851,7 +545,7 @@ class ContextualCubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
         # Create 3 blocks of features, each 10D
         blocks = []
-        for block_context in range(5):
+        for block_context in range(self.n_contexts):
             block = torch.normal(
                 mean=self.non_informative_feature_mean,
                 std=self.non_informative_feature_std,

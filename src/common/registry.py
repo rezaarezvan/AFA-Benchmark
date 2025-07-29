@@ -69,12 +69,10 @@ def get_afa_method_class(name: str) -> type[AFAMethod]:
 
 AFA_DATASET_TYPES = {
     "cube",
-    "cubeContext",
     "cubeSimple",
     "cubeOnlyInformative",
     "shim2018cube",
     "AFAContext",
-    "AFAContextSimple",
     "ContextSelectiveXOR",
     "MNIST",
     "diabetes",
@@ -93,10 +91,6 @@ def get_afa_dataset_class(name: str) -> type[AFADataset]:
         from common.datasets import CubeSimpleDataset
 
         return CubeSimpleDataset
-    elif name == "cubeContext":
-        from common.datasets import ContextualCubeDataset
-
-        return ContextualCubeDataset
     elif name == "cubeOnlyInformative":
         from common.datasets import CubeOnlyInformativeDataset
 
@@ -109,10 +103,6 @@ def get_afa_dataset_class(name: str) -> type[AFADataset]:
         from common.datasets import AFAContextDataset
 
         return AFAContextDataset
-    elif name == "AFAContextSimple":
-        from common.datasets import AFAContextSimpleDataset
-
-        return AFAContextSimpleDataset
     elif name == "ContextSelectiveXOR":
         from common.datasets import ContextSelectiveXORDataset
 
