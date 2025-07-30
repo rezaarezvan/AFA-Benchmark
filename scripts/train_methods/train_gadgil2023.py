@@ -102,7 +102,7 @@ def main(cfg: Gadgil2023TrainingConfig):
         max_features=cfg.hard_budget,
         eps=cfg.eps,
         loss_fn=nn.CrossEntropyLoss(reduction='none', weight=class_weights),
-        val_loss_fn=Accuracy(task='multiclass', num_classes=d_out),
+        val_loss_fn=Accuracy(task='multiclass', num_classes=d_out).to(device),
         val_loss_mode='max',
         eps_decay=cfg.eps_decay,
         eps_steps=cfg.eps_steps,

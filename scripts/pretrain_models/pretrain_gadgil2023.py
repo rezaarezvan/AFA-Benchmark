@@ -65,7 +65,7 @@ def main(cfg: Gadgil2023PretrainingConfig):
         lr=cfg.lr,
         nepochs=cfg.nepochs,
         loss_fn=nn.CrossEntropyLoss(weight=class_weights),
-        val_loss_fn=Accuracy(task='multiclass', num_classes=d_out),
+        val_loss_fn=Accuracy(task='multiclass', num_classes=d_out).to(device),
         val_loss_mode='max',
         patience=cfg.patience,
         verbose=True,
