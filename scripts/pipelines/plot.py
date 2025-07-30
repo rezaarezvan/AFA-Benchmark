@@ -23,16 +23,16 @@ def main():
     print("Starting plotting job...")
     time.sleep(1)
 
-    with open(args.yaml) as f:
-        config = yaml.safe_load(f)
-    eval_artifact_names = config["eval_artifact_names"]
-    joined_names = ",".join(eval_artifact_names)
+    # with open(args.yaml) as f:
+    #     config = yaml.safe_load(f)
+    # eval_artifact_names = config["eval_artifact_names"]
+    # joined_names = ",".join(eval_artifact_names)
 
     cmd = [
         "uv",
         "run",
         "scripts/plotting/plot_results.py",
-        f"eval_artifact_names=[{joined_names}]",
+        f"eval_artifact_config_path={args.yaml}",
     ]
     subprocess.run(cmd)
 

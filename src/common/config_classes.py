@@ -261,8 +261,7 @@ class Ma2018PartialVAEConfig:
     encoder_num_cells: list[int] = field(default_factory=lambda: [500, 500, 200])
     latent_size: int = 20
     kl_scaling_factor: float = 0.1
-    decoder_num_cells: list[int] = field(
-        default_factory=lambda: [200, 500, 500])
+    decoder_num_cells: list[int] = field(default_factory=lambda: [200, 500, 500])
 
 
 @dataclass
@@ -289,12 +288,9 @@ class Ma2018PretrainingConfig:
     max_mask: float = 0.9
     epochs: int = 1000
 
-    pointnet: Ma2018PointNetConfig = field(
-        default_factory=Ma2018PointNetConfig)
-    partial_vae: Ma2018PartialVAEConfig = field(
-        default_factory=Ma2018PartialVAEConfig)
-    classifier: Ma2018ClassifierConfig = field(
-        default_factory=Ma2018ClassifierConfig)
+    pointnet: Ma2018PointNetConfig = field(default_factory=Ma2018PointNetConfig)
+    partial_vae: Ma2018PartialVAEConfig = field(default_factory=Ma2018PartialVAEConfig)
+    classifier: Ma2018ClassifierConfig = field(default_factory=Ma2018ClassifierConfig)
 
 
 cs.store(name="pretrain_ma2018", node=Ma2018PretrainingConfig)
@@ -667,7 +663,7 @@ class MetricConfig:
 
 @dataclass
 class PlotConfig:
-    eval_artifact_names: list[str]
+    eval_artifact_config_path: str  # path to a YAML config file which contains a list of evaluation artifacts to use
     metric_keys_and_descriptions: list[
         MetricConfig
     ]  # Inner list has two elements: [metric_key, description]

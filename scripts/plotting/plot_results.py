@@ -1,4 +1,6 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import hydra
+import yaml
 import torch
 import wandb
 import logging
@@ -15,43 +17,52 @@ from common.config_classes import PlotConfig
 
 log = logging.getLogger(__name__)
 
-plt.style.use(['seaborn-v0_8-whitegrid'])
-mpl.rcParams.update({
-    'font.family': 'DejaVu Sans',
-    'font.size': 10,
-    'axes.titlesize': 11,
-    'axes.labelsize': 10,
-    'xtick.labelsize': 9,
-    'ytick.labelsize': 9,
-    'legend.fontsize': 9,
+plt.style.use(["seaborn-v0_8-whitegrid"])
+mpl.rcParams.update(
+    {
+        "font.family": "DejaVu Sans",
+        "font.size": 10,
+        "axes.titlesize": 11,
+        "axes.labelsize": 10,
+        "xtick.labelsize": 9,
+        "ytick.labelsize": 9,
+        "legend.fontsize": 9,
+        "figure.figsize": (6, 4),
+        "figure.dpi": 150,
+        "savefig.dpi": 300,
+        "savefig.bbox": "tight",
+        "savefig.facecolor": "white",
+        "axes.spines.top": False,
+        "axes.spines.right": False,
+        "axes.grid": True,
+        "grid.alpha": 0.3,
+        "lines.linewidth": 2,
+        "lines.markersize": 4,
+    }
+)
 
-    'figure.figsize': (6, 4),
-    'figure.dpi': 150,
-    'savefig.dpi': 300,
-    'savefig.bbox': 'tight',
-    'savefig.facecolor': 'white',
-
-    'axes.spines.top': False,
-    'axes.spines.right': False,
-    'axes.grid': True,
-    'grid.alpha': 0.3,
-    'lines.linewidth': 2,
-    'lines.markersize': 4,
-})
-
-mpl.use('pgf')
-mpl.rcParams.update({
-    'pgf.texsystem': 'pdflatex',
-    'font.family': 'serif',
-    'text.usetex': True,
-    'pgf.rcfonts': False,
-})
+mpl.use("pgf")
+mpl.rcParams.update(
+    {
+        "pgf.texsystem": "pdflatex",
+        "font.family": "serif",
+        "text.usetex": True,
+        "pgf.rcfonts": False,
+    }
+)
 
 
 def create_figure(x, grouped_metrics, metric_cfg):
     fig, ax = plt.subplots(figsize=(6, 4))
-    colors = ['#1f77b4', '#ff7f0e', '#2ca02c',
-              '#d62728', '#9467bd', '#8c564b', '#e377c2']
+    colors = [
+        "#1f77b4",
+        "#ff7f0e",
+        "#2ca02c",
+        "#d62728",
+        "#9467bd",
+        "#8c564b",
+        "#e377c2",
+    ]
 
     for i, (method_type, metrics_list) in enumerate(grouped_metrics.items()):
         data = torch.stack([m[metric_cfg.key] for m in metrics_list])
@@ -59,17 +70,26 @@ def create_figure(x, grouped_metrics, metric_cfg):
         std = data.std(dim=0)
 
         color = colors[i % len(colors)]
-        label = method_type.replace('_', ' ').title()
+        label = method_type.replace("_", " ").title()
 
-        ax.plot(x, mean, label=label, color=color, linewidth=2,
-                marker='o', markersize=4, markerfacecolor='white',
-                markeredgecolor=color, markeredgewidth=1.5)
+        ax.plot(
+            x,
+            mean,
+            label=label,
+            color=color,
+            linewidth=2,
+            marker="o",
+            markersize=4,
+            markerfacecolor="white",
+            markeredgecolor=color,
+            markeredgewidth=1.5,
+        )
 
         ax.fill_between(x, mean - std, mean + std, alpha=0.2, color=color)
 
-    ax.set_xlabel('Number of Features Selected')
+    ax.set_xlabel("Number of Features Selected")
     ax.set_ylabel(metric_cfg.description)
-    ax.legend(frameon=True, fancybox=False, edgecolor='black', framealpha=0.9)
+    ax.legend(frameon=True, fancybox=False, edgecolor="black", framealpha=0.9)
 
     if metric_cfg.ylim is not None:
         ax.set_ylim(*metric_cfg.ylim)
@@ -83,18 +103,21 @@ def save_figures(fig, filename_base):
         tmp_path = Path(tmp_dir)
 
         svg_path = tmp_path / f"{filename_base}.svg"
-        fig.savefig(svg_path, format='svg', bbox_inches='tight')
+        fig.savefig(svg_path, format="svg", bbox_inches="tight")
 
         pdf_path = tmp_path / f"{filename_base}.pdf"
-        fig.savefig(pdf_path, format='pdf', bbox_inches='tight')
+        fig.savefig(pdf_path, format="pdf", bbox_inches="tight")
 
         png_path = tmp_path / f"{filename_base}.png"
-        fig.savefig(png_path, format='png', bbox_inches='tight', dpi=300)
+        fig.savefig(png_path, format="png", bbox_inches="tight", dpi=300)
 
-        for format_ext, file_path in [('svg', svg_path), ('pdf', pdf_path), ('png', png_path)]:
+        for format_ext, file_path in [
+            ("svg", svg_path),
+            ("pdf", pdf_path),
+            ("png", png_path),
+        ]:
             artifact = wandb.Artifact(
-                name=f"figure-{filename_base}-{format_ext}",
-                type="publication_figure"
+                name=f"figure-{filename_base}-{format_ext}", type="publication_figure"
             )
             artifact.add_file(str(file_path))
             wandb.log_artifact(artifact)
@@ -102,29 +125,85 @@ def save_figures(fig, filename_base):
         wandb.log({f"{filename_base}_publication": wandb.Image(fig)})
 
 
-def load_eval_results(
-    artifact_names: list[str],
-) -> list[tuple[dict[str, Any], dict[str, Any]]]:
-    """Load eval results from wandb artifacts.
+# def load_eval_results(config_path: Path) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+#     """Load eval results from wandb artifacts.
+#
+#     The results are returned as a list of tuples, where each tuple contains:
+#     1. Info describing the evaluation (dataset type, method type, split, seed, classifier type)
+#     2. The actual metrics dictionary.
+#     Skips missing artifacts.
+#     """
+#     # Read artifact_names from the config file
+#
+#     with open(config_path, "r") as f:
+#         config = yaml.safe_load(f)
+#     artifact_names = config.get("eval_artifact_names", [])
+#
+#     eval_results = []
+#     wandb_api = wandb.Api()
+#     for artifact_name in artifact_names:
+#         # Check if the artifact exists before using it
+#         try:
+#             eval_artifact = wandb_api.artifact(artifact_name, type="eval_results")
+#             # Optionally, check if artifact is actually logged
+#             if eval_artifact is None:
+#                 log.warning(f"Artifact {artifact_name} does not exist. Skipping.")
+#                 continue
+#         except Exception as e:
+#             log.warning(f"Could not find artifact {artifact_name}: {e}. Skipping.")
+#             continue
+#         log.info(f"Downloading evaluation artifact {artifact_name}")
+#         eval_artifact_dir = Path(eval_artifact.download())
+#         metrics = torch.load(
+#             eval_artifact_dir / "metrics.pt", map_location=torch.device("cpu")
+#         )
+#         info = {
+#             "dataset_type": eval_artifact.metadata["dataset_type"],
+#             "method_type": eval_artifact.metadata["method_type"],
+#             "budget": eval_artifact.metadata["budget"],
+#             "seed": eval_artifact.metadata["seed"],
+#             "classifier_type": eval_artifact.metadata["classifier_type"],
+#         }
+#         eval_results.append((info, metrics))
+#     return eval_results
 
-    The results are returned as a list of tuples, where each tuple contains:
-    1. Info describing the evaluation (dataset type, method type, split, seed, classifier type)
-    2. The actual metrics dictionary.
-    """
-    eval_results = []
-    for artifact_name in artifact_names:
-        eval_artifact = wandb.use_artifact(artifact_name, type="eval_results")
-        log.info(f"Downloading evaluation artifact {artifact_name}")
-        eval_artifact_dir = Path(eval_artifact.download())
-        metrics = torch.load(eval_artifact_dir / "metrics.pt")
+
+def load_single_artifact(
+    api: wandb.Api, artifact_name: str
+) -> tuple[dict[str, Any], Any] | None:
+    try:
+        artifact = api.artifact(artifact_name, type="eval_results")
+        artifact_dir = Path(artifact.download())
+        metrics = torch.load(artifact_dir / "metrics.pt", map_location="cpu")
         info = {
-            "dataset_type": eval_artifact.metadata["dataset_type"],
-            "method_type": eval_artifact.metadata["method_type"],
-            "budget": eval_artifact.metadata["budget"],
-            "seed": eval_artifact.metadata["seed"],
-            "classifier_type": eval_artifact.metadata["classifier_type"],
+            "dataset_type": artifact.metadata["dataset_type"],
+            "method_type": artifact.metadata["method_type"],
+            "budget": artifact.metadata["budget"],
+            "seed": artifact.metadata["seed"],
+            "classifier_type": artifact.metadata["classifier_type"],
         }
-        eval_results.append((info, metrics))
+        return (info, metrics)
+    except Exception as e:
+        log.warning(f"Skipping artifact {artifact_name}: {e}")
+        return None
+
+
+def load_eval_results(config_path: Path) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+    with open(config_path, "r") as f:
+        config = yaml.safe_load(f)
+    artifact_names = config.get("eval_artifact_names", [])
+
+    api = wandb.Api()
+    eval_results = []
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        futures = {
+            executor.submit(load_single_artifact, api, name): name
+            for name in artifact_names
+        }
+        for future in as_completed(futures):
+            result = future.result()
+            if result is not None:
+                eval_results.append(result)
     return eval_results
 
 
@@ -138,7 +217,7 @@ def main(cfg: PlotConfig):
         config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore
     )
 
-    eval_results = load_eval_results(cfg.eval_artifact_names)
+    eval_results = load_eval_results(Path(cfg.eval_artifact_config_path))
     log.info("All evaluation result artifacts loaded.")
 
     dataset_types = set(info["dataset_type"] for (info, _) in eval_results)
@@ -151,8 +230,7 @@ def main(cfg: PlotConfig):
             if info["dataset_type"] == dataset_type
         )
         for classifier_type in classifier_types:
-            log.info(f"  Plotting results for classifier type: {
-                     classifier_type}")
+            log.info(f"  Plotting results for classifier type: {classifier_type}")
             budgets = set(
                 info["budget"]
                 for (info, _) in eval_results
@@ -182,8 +260,9 @@ def main(cfg: PlotConfig):
 
                 for metric_cfg in cfg.metric_keys_and_descriptions:
                     fig = create_figure(x, grouped_metrics, metric_cfg)
-                    filename_base = f"{dataset_type}_{
-                        classifier_type}_budget{budget}_{metric_cfg.key}"
+                    filename_base = f"{dataset_type}_{classifier_type}_budget{budget}_{
+                        metric_cfg.key
+                    }"
                     save_figures(fig, filename_base)
 
                     plt.close(fig)
