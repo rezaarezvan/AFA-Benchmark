@@ -176,7 +176,7 @@ def load_single_artifact(
     api: wandb.Api, artifact_name: str
 ) -> tuple[dict[str, Any], Any] | None:
     try:
-        artifact = api.artifact(artifact_name, type="eval_results")
+        artifact = wandb.use_artifact(artifact_name, type="eval_results")
         artifact_dir = Path(artifact.download())
         metrics = torch.load(artifact_dir / "metrics.pt", map_location="cpu")
         info = {
