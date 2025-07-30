@@ -10,13 +10,14 @@ from tqdm import tqdm
 from tempfile import TemporaryDirectory
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torchrl.modules import MLP
 from torch.utils.data import DataLoader
 from static.models import BaseModel
 from static.utils import transform_dataset
 from static.static_methods import DifferentiableSelector, ConcreteMask, StaticBaseMethod
 from afa_discriminative.datasets import prepare_datasets
-from common.utils import set_seed, load_dataset_artifact
+from common.utils import set_seed, load_dataset_artifact, get_class_probabilities
 from common.config_classes import CAETrainingConfig
 
 
@@ -41,6 +42,8 @@ def main(cfg: CAETrainingConfig):
     train_dataset, val_dataset, _, dataset_metadata = load_dataset_artifact(cfg.dataset_artifact_name)
     train_loader, val_loader, d_in, d_out = prepare_datasets(train_dataset, val_dataset, cfg.batch_size)
 
+    train_class_probabilities = get_class_probabilities(train_dataset.labels)
+    class_weights = F.softmax(1 / train_class_probabilities, dim=-1).to(device)
     model = MLP(
         in_features=d_in,
         out_features=d_out,
@@ -54,7 +57,7 @@ def main(cfg: CAETrainingConfig):
         val_loader,
         lr=cfg.selector.lr,
         nepochs=cfg.selector.nepochs,
-        loss_fn=nn.CrossEntropyLoss(),
+        loss_fn=nn.CrossEntropyLoss(weight=class_weights),
         patience=cfg.selector.patience,
         verbose=False)
 
@@ -93,7 +96,7 @@ def main(cfg: CAETrainingConfig):
             val_subset_loader,
             lr=cfg.classifier.lr,
             nepochs=cfg.classifier.nepochs,
-            loss_fn=nn.CrossEntropyLoss(),
+            loss_fn=nn.CrossEntropyLoss(weight=class_weights),
             verbose=False)
         
         predictors[num] = model

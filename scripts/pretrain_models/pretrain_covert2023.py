@@ -3,6 +3,7 @@ import gc
 import logging
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from pathlib import Path
 from datetime import datetime
 import wandb
@@ -12,7 +13,7 @@ from tempfile import TemporaryDirectory
 from afa_discriminative.utils import MaskLayer
 from afa_discriminative.models import MaskingPretrainer, fc_Net
 from afa_discriminative.datasets import prepare_datasets
-from common.utils import load_dataset_artifact, set_seed
+from common.utils import load_dataset_artifact, set_seed, get_class_probabilities
 from common.config_classes import Covert2023PretrainingConfig
 
 
@@ -38,6 +39,8 @@ def main(cfg: Covert2023PretrainingConfig):
 
     train_dataset, val_dataset, _, _ = load_dataset_artifact(cfg.dataset_artifact_name)
     train_loader, val_loader, d_in, d_out = prepare_datasets(train_dataset, val_dataset, cfg.batch_size)
+    train_class_probabilities = get_class_probabilities(train_dataset.labels)
+    class_weights = F.softmax(1 / train_class_probabilities, dim=-1).to(device)
 
     predictor = fc_Net(
         input_dim=d_in * 2,
@@ -58,9 +61,11 @@ def main(cfg: Covert2023PretrainingConfig):
         val_loader,
         lr=cfg.lr,
         nepochs=cfg.nepochs,
-        loss_fn=nn.CrossEntropyLoss(),
+        loss_fn=nn.CrossEntropyLoss(weight=class_weights),
         patience=cfg.patience,
-        verbose=True)
+        verbose=True,
+        min_mask=cfg.min_masking_probability,
+        max_mask=cfg.max_masking_probability)
     
     pretrained_model_artifact = wandb.Artifact(
         name=f"pretrain_covert2023-{cfg.dataset_artifact_name.split(':')[0]}",

@@ -319,6 +319,8 @@ class Covert2023PretrainingConfig:
     lr: float = 1e-3
     nepochs: int = 100
     patience: int = 5
+    min_masking_probability: float = 0.0
+    max_masking_probability: float = 0.9
 
     hidden_units: list[int] = field(default_factory=lambda: [128, 128])
     dropout: float = 0.3
@@ -364,6 +366,8 @@ class Gadgil2023PretrainingConfig:
     lr: float = 1e-3
     nepochs: int = 100
     patience: int = 5
+    min_masking_probability: float = 0.0
+    max_masking_probability: float = 0.9
 
     hidden_units: list[int] = field(default_factory=lambda: [128, 128])
     dropout: float = 0.3

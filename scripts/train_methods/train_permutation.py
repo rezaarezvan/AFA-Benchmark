@@ -10,6 +10,7 @@ from tqdm import tqdm
 from tempfile import TemporaryDirectory
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torchmetrics import AUROC
 from torchrl.modules import MLP
 from torch.utils.data import DataLoader
@@ -17,7 +18,7 @@ from static.models import BaseModel
 from static.utils import transform_dataset
 from static.static_methods import StaticBaseMethod
 from afa_discriminative.datasets import prepare_datasets
-from common.utils import set_seed, load_dataset_artifact
+from common.utils import set_seed, load_dataset_artifact, get_class_probabilities
 from common.config_classes import PermutationTrainingConfig
 
 
@@ -54,13 +55,15 @@ def main(cfg: PermutationTrainingConfig):
         num_cells=cfg.selector.num_cells,
         activation_class=nn.ReLU,
     )
+    train_class_probabilities = get_class_probabilities(train_dataset.labels)
+    class_weights = F.softmax(1 / train_class_probabilities, dim=-1).to(device)
     basemodel = BaseModel(model).to(device)
     basemodel.fit(
         train_loader,
         val_loader,
         lr=cfg.selector.lr,
         nepochs=cfg.selector.nepochs,
-        loss_fn=nn.CrossEntropyLoss(),
+        loss_fn=nn.CrossEntropyLoss(weight=class_weights),
         verbose=False)
     
     permutation_importance = np.zeros(d_in)
@@ -95,7 +98,7 @@ def main(cfg: PermutationTrainingConfig):
             val_subset_loader,
             lr=cfg.classifier.lr,
             nepochs=cfg.classifier.nepochs,
-            loss_fn=nn.CrossEntropyLoss(),
+            loss_fn=nn.CrossEntropyLoss(weight=class_weights),
             verbose=False)
         
         predictors[num] = model

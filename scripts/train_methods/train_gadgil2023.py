@@ -4,6 +4,7 @@ import wandb
 import hydra
 import logging
 import torch.nn as nn
+import torch.nn.functional as F
 from pathlib import Path
 from dacite import from_dict
 from typing import Any, cast
@@ -14,7 +15,7 @@ from afa_discriminative.utils import MaskLayer
 from afa_discriminative.models import fc_Net
 from afa_discriminative.datasets import prepare_datasets
 from afa_discriminative.afa_methods import CMIEstimator, Gadgil2023AFAMethod
-from common.utils import load_dataset_artifact, set_seed
+from common.utils import load_dataset_artifact, set_seed, get_class_probabilities
 from common.custom_types import AFADataset
 from common.config_classes import Gadgil2023PretrainingConfig, Gadgil2023TrainingConfig
 
@@ -57,7 +58,8 @@ def main(cfg: Gadgil2023TrainingConfig):
         pretrained_model_config.dataset_artifact_name
     )
     train_loader, val_loader, d_in, d_out = prepare_datasets(train_dataset, val_dataset, cfg.batch_size)
-
+    train_class_probabilities = get_class_probabilities(train_dataset.labels)
+    class_weights = F.softmax(1 / train_class_probabilities, dim=-1).to(device)
 
     predictor = fc_Net(
         input_dim=d_in * 2,
@@ -97,7 +99,7 @@ def main(cfg: Gadgil2023TrainingConfig):
         nepochs=cfg.nepochs,
         max_features=cfg.hard_budget,
         eps=cfg.eps,
-        loss_fn=nn.CrossEntropyLoss(reduction='none'),
+        loss_fn=nn.CrossEntropyLoss(reduction='none', weight=class_weights),
         val_loss_fn=Accuracy(task='multiclass', num_classes=d_out),
         val_loss_mode='max',
         eps_decay=cfg.eps_decay,

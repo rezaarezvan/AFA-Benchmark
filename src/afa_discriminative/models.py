@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+from afa_rl.utils import mask_data
 from afa_discriminative.utils import generate_uniform_mask, restore_parameters
 from copy import deepcopy
 import wandb
@@ -28,6 +29,8 @@ class MaskingPretrainer(nn.Module):
             min_lr=1e-6,
             early_stopping_epochs=None,
             verbose=True,
+            min_mask=0.1,
+            max_mask=0.9,
             tag="eval_loss"):
         '''
         Train model.
@@ -89,7 +92,9 @@ class MaskingPretrainer(nn.Module):
                 y = y.to(device)
                 
                 # Generate missingness.
-                m = generate_uniform_mask(len(x), mask_size).to(device)
+                p = min_mask + torch.rand(1).item() * (max_mask - min_mask)
+                # m = generate_uniform_mask(len(x), mask_size).to(device)
+                _, m, _= mask_data(x, p)
 
                 # Calculate loss.
                 x_masked = mask_layer(x, m)
@@ -116,10 +121,10 @@ class MaskingPretrainer(nn.Module):
                     x = x.to(device)
                     
                     # Generate missingness.
-                    # TODO this should be precomputed and shared across epochs
-                    m = generate_uniform_mask(len(x), mask_size).to(device)
+                    p = min_mask + torch.rand(1).item() * (max_mask - min_mask)
 
                     # Calculate prediction.
+                    _, m, _= mask_data(x, p)
                     x_masked = mask_layer(x, m)
                     pred = model(x_masked)
                     pred_list.append(pred.cpu())
