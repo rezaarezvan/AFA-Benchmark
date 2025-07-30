@@ -1,11 +1,14 @@
 import torch
 import wandb
 import logging
+import numpy as np
 import torch.nn as nn
+import torch.nn.functional as F
 
 from pathlib import Path
 from afa_oracle.classifiers import classifier_mlp
 from common.classifiers import WrappedMaskedMLPClassifier
+from common.utils import get_class_probabilities
 from afa_oracle.mask_generator import random_mask_generator
 
 log = logging.getLogger(__name__)
@@ -106,8 +109,7 @@ class AACOOracle:
         self.X_train = None
         self.y_train = None
         self.device = device
-        self.loss_function = nn.CrossEntropyLoss(
-            reduction='none').to(self.device)
+        self.class_weights = None
 
     def fit(self, X_train, y_train):
         """
@@ -115,6 +117,7 @@ class AACOOracle:
         """
         self.X_train = X_train.to(self.device)
         self.y_train = y_train.to(self.device)
+        self.class_weights = get_class_probabilities(self.y_train)
 
         # Load exact classifier - pass device parameter
         input_dim = X_train.shape[1]
@@ -196,7 +199,8 @@ class AACOOracle:
         # Ensure y_true_labels is on the correct device
         y_true_labels = y_true_labels.to(self.device)
 
-        loss = self.loss_function(y_pred.to(self.device), y_true_labels)
+        loss = F.cross_entropy(y_pred, y_true_labels,
+                               weight=self.class_weights, reduction='none')
 
         # Reshape loss to (n_masks, k_neighbors) and average over neighbors
         loss = loss.view(n_masks_updated, self.k_neighbors)
@@ -236,7 +240,6 @@ class AACOOracle:
     def to(self, device):
         """Move oracle to device"""
         self.device = device
-        self.loss_function = self.loss_function.to(device)
         if self.X_train is not None:
             self.X_train = self.X_train.to(device)
         if self.y_train is not None:
