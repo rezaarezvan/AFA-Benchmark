@@ -667,6 +667,9 @@ class PlotConfig:
     metric_keys_and_descriptions: list[
         MetricConfig
     ]  # Inner list has two elements: [metric_key, description]
+    max_workers: (
+        int  # how many parallel workers to use for loading evaluation artifacts
+    )
 
 
 cs.store(name="plot", node=PlotConfig)

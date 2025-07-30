@@ -188,14 +188,16 @@ def load_single_artifact(
         return None
 
 
-def load_eval_results(config_path: Path) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+def load_eval_results(
+    config_path: Path, max_workers: int = 8
+) -> list[tuple[dict[str, Any], dict[str, Any]]]:
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
     artifact_names = config.get("eval_artifact_names", [])
 
     api = wandb.Api()
     eval_results = []
-    with ThreadPoolExecutor(max_workers=8) as executor:
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
             executor.submit(load_single_artifact, api, name): name
             for name in artifact_names
@@ -217,7 +219,9 @@ def main(cfg: PlotConfig):
         config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore
     )
 
-    eval_results = load_eval_results(Path(cfg.eval_artifact_config_path))
+    eval_results = load_eval_results(
+        Path(cfg.eval_artifact_config_path), max_workers=cfg.max_workers
+    )
     log.info("All evaluation result artifacts loaded.")
 
     dataset_types = set(info["dataset_type"] for (info, _) in eval_results)
