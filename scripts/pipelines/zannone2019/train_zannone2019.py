@@ -15,11 +15,13 @@ def parse_args():
     parser.add_argument("--output-alias", type=str, required=True)
     parser.add_argument("--wandb-entity", type=str, default="afa-team")
     parser.add_argument("--wandb-project", type=str, default="afa-benchmark")
-    return parser.parse_args()
+    args, unknown = parser.parse_known_args()
+    return args, unknown
 
 
 def main():
-    args = parse_args()
+    args, extra_args = parse_args()
+    extra_args_str = " ".join(extra_args)
     os.environ["WANDB_ENTITY"] = args.wandb_entity
     os.environ["WANDB_PROJECT"] = args.wandb_project
 
@@ -38,7 +40,8 @@ def main():
             f"dataset@_global_={dataset} "
             f"pretrained_model_artifact_name={','.join(pretrained_model_artifact_names)} "
             f'hard_budget="{budgets_str}" '
-            f"device={args.device} hydra/launcher={args.launcher}"
+            f"device={args.device} hydra/launcher={args.launcher} "
+            f"{extra_args_str}"
         )
         jobs.append(cmd)
 
