@@ -655,6 +655,18 @@ class EvalConfig:
 
 cs.store(name="eval", node=EvalConfig)
 
+# --- MISC ---
+
+
+@dataclass
+class TrainingTimeCalculationConfig:
+    plotting_run_name: str
+    output_artifact_aliases: list[str]
+    max_workers: int
+
+
+cs.store(name="training_time_calculation", node=TrainingTimeCalculationConfig)
+
 # --- PLOTTING ---
 
 
