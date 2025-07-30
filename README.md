@@ -57,8 +57,7 @@ Patient arrives → Blood test → More tests needed?
 git clone https://github.com/Linusaronsson/AFA-Benchmark.git
 cd AFA-Benchmark
 
-# Install with uv (recommended)
-pip install uv
+# Install dependencies with uv (recommended)
 uv sync
 
 # Or with pip
@@ -67,6 +66,8 @@ pip install -e .
 # Setup W&B (optional but recommended)
 wandb login
 ```
+
+Additionally, if you have access to a cluster running [slurm](https://slurm.schedmd.com/), you might be interested in adding a configuration file to the `conf/global/hydra/launcher/` directory. The name of this file can then be referenced in scripts in order to run experiments in parallel.
 
 ## Simple Example
 
@@ -117,7 +118,43 @@ uv run scripts/plotting/plot_results.py \
 | **Diabetes** | Real World | 92 063 | 45 | 3 |
 | **Physionet** | Real World | 12 000 | 41 | 2
 
-## Full Pipeline Tutorial
+## Full Pipeline Tutorial TODO CHECK IF THIS WORKS
+
+Here follows an example for training **ODIN**, one of the RL methods implemented in this benchmark.
+
+### Dataset generation
+First, generate some data. You can choose hyperparameters by creating new configurations in `conf/dataset_generation/dataset/`. Let's assume that you want to generate two noiseless versions of the **cube** and **AFAContext** datasets. Then run
+```bash
+uv run scripts/dataset_generation/generate_dataset.py -m hydra/launcher=submitit_basic dataset=AFAContext_without_noise,cube_without_noise split_idx=1,2 output_artifact_aliases=["tutorial-data"]
+```
+
+Note how the chosen alias `"tutorial-data"` will be used by subsequent scripts that use these datasets.
+
+### Pretraining
+
+**ODIN** has a pretraining stage where a partial variational autoencoder (PVAE) is trained. To pretrain on the recently generated datasets, run
+```bash
+uv run scripts/pipeline/pretrain.py --method-name "zannone2019" --dataset cube AFAContext --split 1 2 --launcher <LAUNCHER> --device <DEVICE> --dataset cube AFAContext --dataset-alias tutorial-data --output-alias tutorial-pretrained
+```
+where `<LAUNCHER>` should be replaced by either `basic` (if you run everything locally in sequence) or the name of the configuration file (without suffix) that you created in `conf/global/hydra/launcher/` if you plan to run everything on a cluster using Slurm.
+
+## Training
+
+The training procedure is very similar to pretraining. The most notable difference is that you now have to provide a set of hard budgets to use for each dataset. If you want to use the budgets [3,5,10] on **cube** but [2,4,8] on **AFAContext**, you would run
+```bash
+uv run scripts/pipeline/train.py --method-name "zannone2019" --dataset cube AFAContext --budgets "3,5,10" "2,4,8" --split 1 2 --launcher <LAUNCHER> --device <DEVICE> --dataset cube AFAContext --pretrain-alias tutorial-pretrained --output-alias tutorial-trained
+```
+
+## Evaluation
+
+One of the main feature of **AFABench** is the consistent evaluation. The same evaluation script is used for all methods. To evaluate your method, either add the name of your method artifact to one of the files in `conf/eval/lists/` or create a new file. If we only wanted to evaluate the method we recently trained, we would create a YAML file with the contents
+```yaml
+```
+
+
+```bash
+uv run scripts/pipeline/evaluate.py --
+```
 
 ## Adding New Components
 
