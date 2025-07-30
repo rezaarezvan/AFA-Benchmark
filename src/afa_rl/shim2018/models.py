@@ -196,7 +196,6 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
         self.embedder = embedder
         self.classifier = classifier
         self.class_weight = 1 / class_probabilities
-        self.class_weight = self.class_weight / torch.sum(self.class_weight)
         self.min_masking_probability = min_masking_probability
         self.max_masking_probability = max_masking_probability
 

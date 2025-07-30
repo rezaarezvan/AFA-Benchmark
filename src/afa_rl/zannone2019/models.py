@@ -217,7 +217,6 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         self.min_masking_probability: float = min_masking_probability
         self.max_masking_probability: float = max_masking_probability
         self.class_weights = 1 / class_probabilities
-        self.class_weights: Tensor = self.class_weights / torch.sum(self.class_weights)
         self.classifier_loss_scaling_factor = classifier_loss_scaling_factor
         self.start_kl_scaling_factor: float = start_kl_scaling_factor
         self.end_kl_scaling_factor: float = end_kl_scaling_factor

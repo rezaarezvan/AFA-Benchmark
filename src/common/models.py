@@ -54,7 +54,6 @@ class LitMaskedMLPClassifier(pl.LightningModule):
         else:
             self.class_probabilities = class_probabilities
         self.class_weight = 1 / self.class_probabilities
-        self.class_weight = self.class_weight / torch.sum(self.class_weight)
 
         self.lr = lr
 
@@ -84,7 +83,9 @@ class LitMaskedMLPClassifier(pl.LightningModule):
         features: Features = batch[0]
         label: Label = batch[1]
 
-        masking_probability = self.min_masking_probability + torch.rand(1).item() * (self.max_masking_probability-self.min_masking_probability)
+        masking_probability = self.min_masking_probability + torch.rand(1).item() * (
+            self.max_masking_probability - self.min_masking_probability
+        )
         self.log("masking_probability", masking_probability, sync_dist=True)
 
         masked_features, feature_mask, _ = mask_data(features, p=masking_probability)
@@ -111,9 +112,10 @@ class LitMaskedMLPClassifier(pl.LightningModule):
         feature_values, y = batch
 
         # Mask features with minimum probability -> see many features (observations)
-        feature_mask_many_observations = torch.rand(
-            feature_values.shape, device=feature_values.device
-        ) > self.min_masking_probability
+        feature_mask_many_observations = (
+            torch.rand(feature_values.shape, device=feature_values.device)
+            > self.min_masking_probability
+        )
         feature_values_many_observations = feature_values.clone()
         feature_values_many_observations[feature_mask_many_observations == 0] = 0
         loss_many_observations, acc_many_observations = self._get_loss_and_acc(
@@ -123,9 +125,10 @@ class LitMaskedMLPClassifier(pl.LightningModule):
         self.log("val_acc_many_observations", acc_many_observations)
 
         # Mask features with maximum probability -> see few features (observations)
-        feature_mask_few_observations = torch.rand(
-            feature_values.shape, device=feature_values.device
-        ) > self.max_masking_probability
+        feature_mask_few_observations = (
+            torch.rand(feature_values.shape, device=feature_values.device)
+            > self.max_masking_probability
+        )
         feature_values_few_observations = feature_values.clone()
         feature_values_few_observations[feature_mask_few_observations == 0] = 0
         loss_few_observations, acc_few_observations = self._get_loss_and_acc(
