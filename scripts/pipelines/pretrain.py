@@ -34,7 +34,7 @@ def main():
             f"{dataset}_split_{split}:{args.dataset_alias}" for split in args.split
         ]
         cmd = (
-            f"uv run scripts/pretrain_models/pretrain_{args.method_name}py -m "
+            f"uv run scripts/pretrain_models/pretrain_{args.method_name}.py -m "
             f'output_artifact_aliases=["{args.output_alias}"] '
             f"dataset@_global_={dataset} "
             f"dataset_artifact_name={','.join(dataset_artifact_names)} "
