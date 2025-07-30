@@ -1,16 +1,15 @@
-pretrained_model_artifact_name: "pretrain_ma2018-MNIST_split_1:v1"
-output_artifact_aliases: []
+hydra:
+  searchpath:
+    - file://conf/global
 
-batch_size: 128
-lr: 0.001
-hard_budget: 20
-nepochs: 250
-patience: 5
+defaults:
+  - _self_
+  - dataset@_global_: cube
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+  - override hydra/launcher: custom_slurm
+
 device: "cuda"
 seed: 42
 
-hidden_units: [128,128]
-dropout: 0.3
-activations: 'ReLU'
-flag_drop_out: True
-flag_only_output_layer: False
+output_artifact_aliases: ["test"]

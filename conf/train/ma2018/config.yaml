@@ -1,8 +1,16 @@
+hydra:
+  searchpath:
+    - file://conf/global
+
 defaults:
   - _self_
+  - dataset@_global_: cube
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+  - override hydra/launcher: custom_slurm
 
-pretrained_model_artifact_name: "pretrain_ma2018-MNIST_split_1:v1"
-output_artifact_aliases: []
+
+output_artifact_aliases: ["test"]
 device: "cuda"
 seed: 42
 hard_budget: 20
