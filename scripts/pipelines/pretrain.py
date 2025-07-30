@@ -6,7 +6,7 @@ import time
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--method-name", type=str, required=True, nargs="+")
+    parser.add_argument("--method-name", type=str, required=True)
     parser.add_argument("--dataset", type=str, required=True, nargs="+")
     parser.add_argument("--split", type=int, required=True, nargs="+")
     parser.add_argument("--launcher", default="custom_slurm")
