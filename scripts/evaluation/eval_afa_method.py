@@ -162,7 +162,10 @@ def main(cfg: EvalConfig) -> None:
     else:
         log.info("Using builtin classifier")
         afa_predict_fn: AFAPredictFn = afa_method.predict
-        classifier_type = "builtin"
+        if method_metadata["method_type"] == "aaco":
+            classifier_type = "MaskedMLPClassifier"
+        else:
+            classifier_type = "builtin"
 
     # Use the same hard budget during evaluation as during training
     # Note that this can be None, in which case we will use the maximum number of features in the dataset

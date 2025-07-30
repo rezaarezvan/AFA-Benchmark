@@ -17,6 +17,17 @@ from common.config_classes import PlotConfig
 
 log = logging.getLogger(__name__)
 
+METHOD_STYLES = {
+    'aaco': {'color': '#0173B2', 'linestyle': '-', 'name': 'AACO'},
+    'cae': {'color': '#DE8F05', 'linestyle': '--', 'name': 'CAE'},
+    'permutation': {'color': '#029E73', 'linestyle': '-.', 'name': 'Static'},
+    'covert2023': {'color': '#CC78BC', 'linestyle': ':', 'name': 'EDDI'},
+    'gadgil2023': {'color': '#CA3542', 'linestyle': '-', 'name': 'GDFS'},
+    'shim2018': {'color': '#FB4F14', 'linestyle': '--', 'name': 'JAFA'},
+    'kachuee2019': {'color': '#56B4E9', 'linestyle': '-.', 'name': 'ODIN'},
+    'zannone2019': {'color': '#949494', 'linestyle': ':', 'name': 'DIME'},
+}
+
 plt.style.use(["seaborn-v0_8-whitegrid"])
 mpl.rcParams.update(
     {
@@ -54,38 +65,31 @@ mpl.rcParams.update(
 
 def create_figure(x, grouped_metrics, metric_cfg):
     fig, ax = plt.subplots(figsize=(6, 4))
-    colors = [
-        "#1f77b4",
-        "#ff7f0e",
-        "#2ca02c",
-        "#d62728",
-        "#9467bd",
-        "#8c564b",
-        "#e377c2",
-    ]
 
-    for i, (method_type, metrics_list) in enumerate(grouped_metrics.items()):
+    for method_type, metrics_list in grouped_metrics.items():
         data = torch.stack([m[metric_cfg.key] for m in metrics_list])
         mean = data.mean(dim=0)
         std = data.std(dim=0)
 
-        color = colors[i % len(colors)]
-        label = method_type.replace("_", " ").title()
+        style = METHOD_STYLES.get(method_type, {
+            'color': '#000000', 'linestyle': '-', 'name': method_type.replace('_', ' ').title()
+        })
 
         ax.plot(
             x,
             mean,
-            label=label,
-            color=color,
+            label=style['name'],
+            color=style['color'],
             linewidth=2,
             marker="o",
             markersize=4,
             markerfacecolor="white",
-            markeredgecolor=color,
+            markeredgecolor=style['color'],
             markeredgewidth=1.5,
         )
 
-        ax.fill_between(x, mean - std, mean + std, alpha=0.2, color=color)
+        ax.fill_between(x, mean - std, mean + std,
+                        alpha=0.2, color=style['color'])
 
     ax.set_xlabel("Number of Features Selected")
     ax.set_ylabel(metric_cfg.description)
@@ -234,7 +238,8 @@ def main(cfg: PlotConfig):
             if info["dataset_type"] == dataset_type
         )
         for classifier_type in classifier_types:
-            log.info(f"  Plotting results for classifier type: {classifier_type}")
+            log.info(f"  Plotting results for classifier type: {
+                     classifier_type}")
             budgets = set(
                 info["budget"]
                 for (info, _) in eval_results
