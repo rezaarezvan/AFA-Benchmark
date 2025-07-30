@@ -4,9 +4,9 @@ import logging
 import torch.nn as nn
 
 from pathlib import Path
+from afa_oracle.classifiers import classifier_mlp
 from common.classifiers import WrappedMaskedMLPClassifier
 from afa_oracle.mask_generator import random_mask_generator
-from afa_oracle.classifiers import classifier_ground_truth, classifier_mlp
 
 log = logging.getLogger(__name__)
 
@@ -35,31 +35,28 @@ def get_knn(X_train, X_query, masks, num_neighbors, instance_idx=0, exclude_inst
         return torch.topk(dist_squared, num_neighbors, dim=0, largest=False)[1]
 
 
-def load_classifier(dataset_name, device=None):
-    if dataset_name == "cube":
-        return classifier_ground_truth(num_features=20, num_classes=8, std=0.3)
+def load_classifier(dataset_name, split, device=None):
+    if dataset_name == "afacontext":
+        dataset_name = "AFAContext"
+    elif dataset_name == "mnist":
+        dataset_name = "MNIST"
+    elif dataset_name == "fashionmnist":
+        dataset_name = "FashionMNIST"
 
-    elif dataset_name in ["afacontext", "miniboone", "physionet", "diabetes", "mnist", "fashionmnist"]:
-        if dataset_name == "afacontext":
-            dataset_name = "AFAContext"
-        elif dataset_name == "mnist":
-            dataset_name = "MNIST"
-        elif dataset_name == "fashionmnist":
-            dataset_name = "FashionMNIST"
+    log.info(f"Checking for existing MLP classifier for {dataset_name}...")
+    artifact_name = f"masked_mlp_classifier-{
+        dataset_name}_split_{split}:latest"
+    log.info(f"Found existing MLP classifier artifact: {artifact_name}")
+    artifact = wandb.use_artifact(artifact_name)
+    artifact_dir = artifact.download()
 
-        log.info(f"Checking for existing MLP classifier for {dataset_name}...")
-        artifact_name = f"masked_mlp_classifier-{
-            dataset_name}_split_1:latest"
-        artifact = wandb.use_artifact(artifact_name)
-        artifact_dir = artifact.download()
+    classifier_path = Path(artifact_dir) / "classifier.pt"
+    wrapped_mlp = WrappedMaskedMLPClassifier.load(
+        classifier_path, device)
 
-        classifier_path = Path(artifact_dir) / "classifier.pt"
-        wrapped_mlp = WrappedMaskedMLPClassifier.load(
-            classifier_path, device)
-
-        log.info(f"Successfully loaded MLP classifier from {
-                 artifact_name}")
-        return classifier_mlp(wrapped_mlp, hide_val=10.0)
+    log.info(f"Successfully loaded MLP classifier from {
+             artifact_name}")
+    return classifier_mlp(wrapped_mlp, hide_val=10.0)
 
 
 def load_mask_generator(dataset_name, input_dim):
@@ -96,12 +93,14 @@ class AACOOracle:
                  acquisition_cost=0.05,
                  hide_val=10.0,
                  dataset_name="cube",
+                 split="1",
                  device=None
                  ):
         self.k_neighbors = k_neighbors
         self.acquisition_cost = acquisition_cost
         self.hide_val = hide_val
         self.dataset_name = dataset_name
+        self.split = split
         self.classifier = None
         self.mask_generator = None
         self.X_train = None
@@ -120,7 +119,7 @@ class AACOOracle:
         # Load exact classifier - pass device parameter
         input_dim = X_train.shape[1]
         self.classifier = load_classifier(
-            self.dataset_name, device=self.device)
+            self.dataset_name, self.split, device=self.device)
 
         # Load exact mask generator
         self.mask_generator = load_mask_generator(self.dataset_name, input_dim)

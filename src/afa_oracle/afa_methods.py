@@ -134,7 +134,8 @@ class AACOAFAMethod(AFAMethod):
     def load(cls, path: Path, device: torch.device = None) -> Self:
         """Load method from saved state"""
         if device is None:
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            device = torch.device(
+                "cuda" if torch.cuda.is_available() else "cpu")
 
         # Find saved oracle file
         oracle_files = list(path.glob("aaco_oracle_*.pt"))
@@ -189,6 +190,7 @@ def create_aaco_method(
     acquisition_cost: float = 0.05,
     hide_val: float = 10.0,
     dataset_name: str = "cube",
+    split: str = "1",
     device: torch.device = None,
 ) -> AACOAFAMethod:
     """
@@ -202,6 +204,7 @@ def create_aaco_method(
         acquisition_cost=acquisition_cost,
         hide_val=hide_val,
         dataset_name=dataset_name,
+        split=split,
         device=device  # Pass device parameter
     )
 

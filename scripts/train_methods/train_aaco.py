@@ -13,6 +13,7 @@ from common.utils import load_dataset_artifact, set_seed
 
 log = logging.getLogger(__name__)
 
+
 @hydra.main(
     version_base=None, config_path="../../conf/train/aco", config_name="config"
 )
@@ -36,6 +37,7 @@ def main(cfg: AACOTrainConfig):
     )
 
     dataset_type = dataset_metadata["dataset_type"]
+    split = dataset_metadata["split_idx"]
     n_features = train_dataset.features.shape[-1]
     n_classes = train_dataset.labels.shape[-1]
 
@@ -48,6 +50,7 @@ def main(cfg: AACOTrainConfig):
         acquisition_cost=cfg.aco.acquisition_cost,
         hide_val=cfg.aco.hide_val,
         dataset_name=dataset_type.lower(),
+        split=split,
         device=device,
     )
 
@@ -62,7 +65,8 @@ def main(cfg: AACOTrainConfig):
         temp_path = Path(temp_dir)
         aaco_method.save(temp_path)
 
-        split_idx = cfg.dataset_artifact_name.split('_split_')[-1].split(':')[0]
+        split_idx = cfg.dataset_artifact_name.split(
+            '_split_')[-1].split(':')[0]
 
         trained_method_artifact = wandb.Artifact(
             name=f"aaco-{dataset_type}_split_{split_idx}",
@@ -76,10 +80,12 @@ def main(cfg: AACOTrainConfig):
             },
         )
         trained_method_artifact.add_dir(str(temp_path))
-        run.log_artifact(trained_method_artifact, aliases=cfg.output_artifact_aliases)
+        run.log_artifact(trained_method_artifact,
+                         aliases=cfg.output_artifact_aliases)
 
     log.info("AACO method saved as artifact")
     run.finish()
+
 
 if __name__ == "__main__":
     main()
