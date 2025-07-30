@@ -1,20 +1,15 @@
+hydra:
+  searchpath:
+    - file://conf/global
+
 defaults:
   - _self_
+  - dataset@_global_: cube
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+  - override hydra/launcher: custom_slurm
 
-batch_size: 128
-lr: 0.001
-nepochs: 100
-patience: 5
-device: "cuda"
+device: cuda
 seed: 42
 
-hidden_units: [128,128]
-dropout: 0.3
-activations: 'ReLU'
-flag_drop_out: True
-flag_only_output_layer: False
-min_masking_probability: 0.0
-max_masking_probability: 0.9
-
-dataset_artifact_name: "cube_split_1:latest"
-output_artifact_aliases: []
+output_artifact_aliases: ["tmp"]
