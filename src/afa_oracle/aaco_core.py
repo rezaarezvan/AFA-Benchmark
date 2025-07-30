@@ -117,7 +117,9 @@ class AACOOracle:
         """
         self.X_train = X_train.to(self.device)
         self.y_train = y_train.to(self.device)
-        self.class_weights = get_class_probabilities(self.y_train)
+        train_class_probabilities = get_class_probabilities(self.y_train)
+        self.class_weights = len(train_class_probabilities) / \
+            (len(train_class_probabilities) * train_class_probabilities)
 
         # Load exact classifier - pass device parameter
         input_dim = X_train.shape[1]
