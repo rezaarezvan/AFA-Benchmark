@@ -42,7 +42,8 @@ def main(cfg: CAETrainingConfig):
 
     train_dataset, val_dataset, _, dataset_metadata = load_dataset_artifact(cfg.dataset_artifact_name)
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
-    class_weights = F.softmax(1 / train_class_probabilities, dim=-1).to(device)
+    class_weights = len(train_class_probabilities) / (len(train_class_probabilities) * train_class_probabilities)
+    class_weights = class_weights.to(device)
     train_loader, val_loader, d_in, d_out = prepare_datasets(train_dataset, val_dataset, cfg.batch_size)
     
     model = MLP(
