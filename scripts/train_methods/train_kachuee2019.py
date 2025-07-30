@@ -309,7 +309,7 @@ def main(cfg: Kachuee2019TrainConfig):
                 name=f"train_kachuee2019-{pretrained_model_config.dataset_artifact_name.split(':')[0]}-budget_{cfg.hard_budget}-seed_{cfg.seed}",
                 type="trained_method",
                 metadata={
-                    "method_type": "kachuee2*19",
+                    "method_type": "kachuee2019",
                     "dataset_artifact_name": pretrained_model_config.dataset_artifact_name,
                     "dataset_type": dataset_metadata["dataset_type"],
                     "budget": cfg.hard_budget,
