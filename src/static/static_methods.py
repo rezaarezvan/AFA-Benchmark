@@ -143,6 +143,7 @@ class DifferentiableSelector(nn.Module):
                     for x, y in val_loader:
                         # Move to device.
                         x = x.to(device)
+                        y = y.to(device)
 
                         # Evaluate model with soft sample.
                         x_masked = selector_layer(x, temp)
@@ -153,9 +154,9 @@ class DifferentiableSelector(nn.Module):
                         hard_pred = model(x_masked)
                         
                         # Append to lists.
-                        pred_list.append(pred.cpu())
-                        hard_pred_list.append(hard_pred.cpu())
-                        label_list.append(y.cpu())
+                        pred_list.append(pred)
+                        hard_pred_list.append(hard_pred)
+                        label_list.append(y)
                         
                     # Calculate mean loss.
                     pred = torch.cat(pred_list, 0)

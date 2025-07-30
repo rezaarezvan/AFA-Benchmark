@@ -33,15 +33,16 @@ def main(cfg: Gadgil2023PretrainingConfig):
         group="pretrain_gadgil2023",
         job_type="pretraining",
         config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore
+        tags=["DIME"],
     )
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
 
     train_dataset, val_dataset, _, _ = load_dataset_artifact(cfg.dataset_artifact_name)
-    train_loader, val_loader, d_in, d_out = prepare_datasets(train_dataset, val_dataset, cfg.batch_size)
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
     class_weights = F.softmax(1 / train_class_probabilities, dim=-1).to(device)
-
+    train_loader, val_loader, d_in, d_out = prepare_datasets(train_dataset, val_dataset, cfg.batch_size)
+    
     predictor = fc_Net(
         input_dim=d_in * 2,
         output_dim=d_out,

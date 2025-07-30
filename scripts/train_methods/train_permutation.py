@@ -36,11 +36,14 @@ def main(cfg: PermutationTrainingConfig):
     run = wandb.init(
         config=cast(dict[str, Any], OmegaConf.to_container(cfg, resolve=True)),
         job_type="training",
+        tags=["permutation"],
     )
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
 
     train_dataset, val_dataset, _, dataset_metadata = load_dataset_artifact(cfg.dataset_artifact_name)
+    train_class_probabilities = get_class_probabilities(train_dataset.labels)
+    class_weights = F.softmax(1 / train_class_probabilities, dim=-1).to(device)
     train_loader, val_loader, d_in, d_out = prepare_datasets(train_dataset, val_dataset, cfg.batch_size)
 
     auroc_metric = lambda pred, y: AUROC(task='multiclass', num_classes=d_out)(pred.softmax(dim=1), y)
@@ -55,8 +58,6 @@ def main(cfg: PermutationTrainingConfig):
         num_cells=cfg.selector.num_cells,
         activation_class=nn.ReLU,
     )
-    train_class_probabilities = get_class_probabilities(train_dataset.labels)
-    class_weights = F.softmax(1 / train_class_probabilities, dim=-1).to(device)
     basemodel = BaseModel(model).to(device)
     basemodel.fit(
         train_loader,

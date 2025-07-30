@@ -35,15 +35,16 @@ def main(cfg: CAETrainingConfig):
     run = wandb.init(
         config=cast(dict[str, Any], OmegaConf.to_container(cfg, resolve=True)),
         job_type="training",
+        tags=["CAE"],
     )
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
 
     train_dataset, val_dataset, _, dataset_metadata = load_dataset_artifact(cfg.dataset_artifact_name)
-    train_loader, val_loader, d_in, d_out = prepare_datasets(train_dataset, val_dataset, cfg.batch_size)
-
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
     class_weights = F.softmax(1 / train_class_probabilities, dim=-1).to(device)
+    train_loader, val_loader, d_in, d_out = prepare_datasets(train_dataset, val_dataset, cfg.batch_size)
+    
     model = MLP(
         in_features=d_in,
         out_features=d_out,

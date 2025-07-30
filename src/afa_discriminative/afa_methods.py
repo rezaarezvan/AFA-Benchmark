@@ -228,9 +228,9 @@ class GreedyDynamicSelection(nn.Module):
                             hard_pred = predictor(x_masked)
 
                             # Append predictions and labels.
-                            pred_list.append(pred.cpu())
-                            hard_pred_list.append(hard_pred.cpu())
-                            label_list.append(y.cpu())
+                            pred_list.append(pred)
+                            hard_pred_list.append(hard_pred)
+                            label_list.append(y)
 
                     # Calculate mean loss.
                     pred = torch.cat(pred_list, 0)

@@ -32,6 +32,7 @@ def main(cfg: Covert2023TrainingConfig):
     run = wandb.init(
         config=cast(dict[str, Any], OmegaConf.to_container(cfg, resolve=True)),
         job_type="training",
+        tags=["GDFS"],
     )
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
@@ -55,10 +56,10 @@ def main(cfg: Covert2023TrainingConfig):
     train_dataset, val_dataset, test_dataset, dataset_metadata = load_dataset_artifact(
         pretrained_model_config.dataset_artifact_name
     )
-    train_loader, val_loader, d_in, d_out = prepare_datasets(train_dataset, val_dataset, cfg.batch_size)
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
     class_weights = F.softmax(1 / train_class_probabilities, dim=-1).to(device)
-
+    train_loader, val_loader, d_in, d_out = prepare_datasets(train_dataset, val_dataset, cfg.batch_size)
+    
     predictor = fc_Net(
         input_dim=d_in * 2,
         output_dim=d_out,

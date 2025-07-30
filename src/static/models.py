@@ -93,11 +93,12 @@ class BaseModel(nn.Module):
                 for x, y in val_loader:
                     # Move to device.
                     x = x.to(device)
+                    y = y.to(device)
                     
                     # Calculate prediction.
                     pred = model(x)
-                    pred_list.append(pred.cpu())
-                    label_list.append(y.cpu())
+                    pred_list.append(pred)
+                    label_list.append(y)
                     
                 # Calculate loss.
                 y = torch.cat(label_list, 0)

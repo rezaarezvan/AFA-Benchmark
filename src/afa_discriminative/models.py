@@ -119,6 +119,7 @@ class MaskingPretrainer(nn.Module):
                 for x, y in val_loader:
                     # Move to device.
                     x = x.to(device)
+                    y = y.to(device)
                     
                     # Generate missingness.
                     p = min_mask + torch.rand(1).item() * (max_mask - min_mask)
@@ -127,8 +128,8 @@ class MaskingPretrainer(nn.Module):
                     _, m, _= mask_data(x, p)
                     x_masked = mask_layer(x, m)
                     pred = model(x_masked)
-                    pred_list.append(pred.cpu())
-                    label_list.append(y.cpu())
+                    pred_list.append(pred)
+                    label_list.append(y)
                     
                 # Calculate loss.
                 y = torch.cat(label_list, 0)
