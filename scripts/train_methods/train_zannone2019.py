@@ -221,7 +221,8 @@ def main(cfg: Zannone2019TrainConfig):
         )
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
     log.debug(f"Class probabilities in training set: {train_class_probabilities}")
-    class_weights = F.softmax(1 / train_class_probabilities, dim=-1).to(device)
+    class_weights = 1 / train_class_probabilities
+    class_weights = (class_weights / class_weights.sum()).to(device)
     n_features = train_dataset.features.shape[-1]
     n_classes = train_dataset.labels.shape[-1]
 
