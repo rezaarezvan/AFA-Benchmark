@@ -7,7 +7,7 @@ defaults:
   - dataset@_global_: cube
   - override hydra/job_logging: colorlog
   - override hydra/hydra_logging: colorlog
-  - override hydra/launcher: valter_slurm
+  - override hydra/launcher: filip_slurm
 
 agent:
   gamma: 1.0
