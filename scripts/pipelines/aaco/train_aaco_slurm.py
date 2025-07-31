@@ -4,7 +4,8 @@ import subprocess
 DATASETS = ['cube', 'AFAContext', 'MNIST',
             'FashionMNIST', 'diabetes', 'miniboone', 'physionet']
 SPLITS = [1, 2, 3, 4, 5]
-ALIAS = "latest"
+INPUT_ALIAS = "latest"
+OUTPUT_ALIAS = "KDD"
 
 
 def main():
@@ -19,8 +20,8 @@ def main():
 
     for dataset, split in itertools.product(DATASETS, SPLITS):
         cmd = f"""uv run scripts/train_methods/train_aaco.py -m \
-dataset_artifact_name={dataset}_split_{split}:{ALIAS} \
-output_artifact_aliases=["{ALIAS}"] \
+dataset_artifact_name={dataset}_split_{split}:{INPUT_ALIAS} \
+output_artifact_aliases=["{OUTPUT_ALIAS}"] \
 hydra/launcher=custom_slurm"""
 
         print(f"Submitting: {dataset}_split_{split}")

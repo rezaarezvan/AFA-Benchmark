@@ -11,7 +11,7 @@ BUDGETS = {
     'physionet': [5, 10, 15]
 }
 SPLITS = [1, 2, 3, 4, 5]
-ALIAS = "latest"
+ALIAS = "KDD"
 
 
 def main():
@@ -30,7 +30,7 @@ def main():
 trained_method_artifact_name=aaco-{dataset}_split_{split}:{ALIAS} \
 trained_classifier_artifact_name=null \
 +budget={budget} \
-dataset_split=validation \
+dataset_split=testing \
 output_artifact_aliases=["{ALIAS}"] \
 hydra/launcher=custom_slurm"""
 
