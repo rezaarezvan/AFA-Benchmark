@@ -1,6 +1,7 @@
 """Calculate the average time required to train each method presented in a plotting run."""
 
 from collections import defaultdict
+import numpy as np
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
@@ -65,7 +66,7 @@ def main(cfg: TrainingTimeCalculationConfig) -> None:
     torch.set_float32_matmul_precision("medium")
 
     run = wandb.init(
-        job_type="evaluation",
+        job_type="time_calculation",
         config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore
     )
 
@@ -82,6 +83,15 @@ def main(cfg: TrainingTimeCalculationConfig) -> None:
         plotting_run, training_times, max_workers=cfg.max_workers
     )
 
+    # We also want to store the mean and std
+    processed_training_times = {}
+    for method_name, values in training_times.items():
+        processed_training_times[method_name] = {}
+        processed_training_times[method_name]["values"] = values
+        # Calculate mean and std using numpy
+        processed_training_times[method_name]["mean"] = float(np.mean(values))
+        processed_training_times[method_name]["std"] = float(np.std(values))
+
     # Save results as wandb artifact
     training_time_artifact = wandb.Artifact(
         name=f"{cfg.plotting_run_name}-training_time",
@@ -90,7 +100,7 @@ def main(cfg: TrainingTimeCalculationConfig) -> None:
     )
     with NamedTemporaryFile("w", delete=False) as f:
         metrics_save_path = Path(f.name)
-        torch.save(training_times, metrics_save_path)
+        torch.save(processed_training_times, metrics_save_path)
     training_time_artifact.add_file(str(metrics_save_path), name="metrics.pt")
     run.log_artifact(training_time_artifact, aliases=cfg.output_artifact_aliases)
     run.finish()
