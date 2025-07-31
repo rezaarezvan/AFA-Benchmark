@@ -80,6 +80,7 @@ def create_figure(x, grouped_metrics, metric_cfg):
             mean,
             label=style['name'],
             color=style['color'],
+            linestyle=style['linestyle'],
             linewidth=2,
             marker="o",
             markersize=4,
