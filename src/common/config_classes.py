@@ -669,6 +669,16 @@ cs.store(name="training_time_calculation", node=TrainingTimeCalculationConfig)
 
 
 @dataclass
+class EvaluationTimeCalculationConfig:
+    plotting_run_name: str
+    output_artifact_aliases: list[str]
+    max_workers: int
+
+
+cs.store(name="evaluation_time_calculation", node=EvaluationTimeCalculationConfig)
+
+
+@dataclass
 class PlotDownloadConfig:
     plotting_run_name: str
     datasets: list[str]
