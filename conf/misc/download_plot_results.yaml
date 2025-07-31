@@ -1,0 +1,12 @@
+plotting_run_name: "7vvqegaj"
+datasets:
+  - AFAContext
+  - cube
+metrics:
+  - accuracy_all
+  - f1_all
+budgets:
+  - "3,5,10"
+  - "3,5,10"
+file_type: svg
+output_path: "plots/"

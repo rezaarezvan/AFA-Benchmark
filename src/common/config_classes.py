@@ -667,6 +667,19 @@ class TrainingTimeCalculationConfig:
 
 cs.store(name="training_time_calculation", node=TrainingTimeCalculationConfig)
 
+
+@dataclass
+class PlotDownloadConfig:
+    plotting_run_name: str
+    datasets: list[str]
+    metrics: list[str]  # one metric per dataset
+    budgets: list[str]  # one list of budgets per dataset
+    file_type: str  # e.g svg, png, pdf
+    output_path: str  # where to store the downloaded figures
+
+
+cs.store(name="training_time_calculation", node=TrainingTimeCalculationConfig)
+
 # --- PLOTTING ---
 
 

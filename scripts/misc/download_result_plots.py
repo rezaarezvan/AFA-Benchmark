@@ -1,0 +1,108 @@
+"""Calculate the average time required to train each method presented in a plotting run."""
+
+import re
+
+from collections import defaultdict
+
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import logging
+from pathlib import Path
+import shutil
+from tempfile import NamedTemporaryFile
+
+import hydra
+import torch
+import wandb
+
+from common.config_classes import PlotDownloadConfig, TrainingTimeCalculationConfig
+from omegaconf import OmegaConf
+
+import asyncio
+
+
+def process_figure_artifact(figure_artifact, files):
+    # extract the svg file saved in this artifact and save it to files
+    artifact_dir = Path(figure_artifact.download())
+    figure_file_path = [f for f in artifact_dir.iterdir()][0]
+    files.append(figure_file_path)
+
+
+def process_plot_artifact(cfg: PlotDownloadConfig, plot_run):
+    files = []
+    figure_artifacts = [
+        artifact
+        for artifact in plot_run.logged_artifacts()
+        if artifact.type == "publication_figure"
+    ]
+    for figure_artifact in figure_artifacts:
+        log.debug(f"Processing {figure_artifact.name}")
+        # Check if the artifact name matches something we want
+        for dataset_name, budgets, metric in zip(
+            cfg.datasets, cfg.budgets, cfg.metrics
+        ):
+            for budget in map(int, budgets.split(",")):
+                if is_match(
+                    figure_artifact.name,
+                    dataset_name,
+                    budget,
+                    metric,
+                    cfg.file_type,
+                ):
+                    log.info(f"MATCH: {figure_artifact.name}")
+                    process_figure_artifact(figure_artifact, files)
+    return files
+
+
+def is_match(
+    artifact_name: str, dataset: str, budget: int, metric: str, file_type: str
+):
+    """
+    Checks if the artifact_name matches the expected pattern for the given dataset, budget, and metric.
+    Example artifact_name:
+        figure-FashionMNIST_MaskedMLPClassifier_budget10_f1_all-svg:v0
+    """
+    # log.info(
+    #     f"checking if {artifact_name} matches figure-{dataset}_budget{budget}_{metric}-{file_type}:v?"
+    # )
+    pattern = rf"^figure-{re.escape(dataset)}_.*_budget{budget}_{re.escape(metric)}-{file_type}:v\d+$"
+    return re.match(pattern, artifact_name) is not None
+
+
+log = logging.getLogger(__name__)
+
+
+@hydra.main(
+    version_base=None,
+    config_path="../../conf/misc",
+    config_name="download_plot_results",
+)
+def main(cfg: PlotDownloadConfig) -> None:
+    log.debug(cfg)
+    torch.set_float32_matmul_precision("medium")
+
+    run = wandb.init(
+        job_type="evaluation",
+        config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore
+    )
+
+    # Log W&B run URL
+    log.info(f"W&B run initialized: {run.name} ({run.id})")
+    log.info(f"W&B run URL: {run.url}")
+
+    plotting_run = wandb.Api().run(cfg.plotting_run_name)
+
+    files = process_plot_artifact(cfg, plotting_run)
+
+    # Move all files to the desired output folder
+    output_path = Path(cfg.output_path)
+    output_path.mkdir(parents=True, exist_ok=True)
+    for file_path in files:
+        dest_path = output_path / Path(file_path).name
+        shutil.move(str(file_path), str(dest_path))
+        log.info(f"Moved {file_path} to {dest_path}")
+
+    run.finish()
+
+
+if __name__ == "__main__":
+    main()
