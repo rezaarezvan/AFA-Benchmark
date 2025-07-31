@@ -32,7 +32,7 @@ def main():
     jobs = []
     for dataset, budgets_str in zip(args.dataset, args.budgets):
         pretrained_model_artifact_names = [
-            f"pretrain_zannone2019-{dataset}_split_{split}:{args.pretrain_alias}"
+            f"pretrain_{args.method_name}-{dataset}_split_{split}:{args.pretrain_alias}"
             for split in args.split
         ]
         cmd = (
