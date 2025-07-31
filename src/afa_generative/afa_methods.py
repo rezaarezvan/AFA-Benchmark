@@ -60,7 +60,7 @@ class Ma2018AFAMethod(AFAMethod):
         feature_mask_all = augmented_feature_mask[:, :F]
         feature_indices = torch.eye(F, device=device, dtype=feature_mask_all.dtype)
         # onehot mask (BxFxF)
-        mask_features_all = (feature_mask_all | feature_indices.unsqueeze(0))
+        mask_features_all = (feature_mask_all.unsqueeze(1) | feature_indices.unsqueeze(0))
         mask_features_flat = mask_features_all.reshape(B*F, F)
         mask_label_all = zeros_mask.unsqueeze(1).expand(B, F, -1)
         mask_label_flat = mask_label_all.reshape(B*F, self.num_classes)
