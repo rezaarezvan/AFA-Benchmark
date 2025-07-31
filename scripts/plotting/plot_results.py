@@ -17,15 +17,73 @@ from common.config_classes import PlotConfig
 
 log = logging.getLogger(__name__)
 
+# METHOD_STYLES = {
+#     "aaco": {"color": "#0173B2", "linestyle": "-", "name": "AACO"},
+#     "cae": {"color": "#DE8F05", "linestyle": "--", "name": "CAE-S"},
+#     "permutation": {"color": "#029E73", "linestyle": "-.", "name": "PT-S"},
+#     "covert2023": {"color": "#CC78BC", "linestyle": ":", "name": "GDFS-DG"},
+#     "gadgil2023": {"color": "#CA3542", "linestyle": "-", "name": "DIME-DG"},
+#     "ma2018": {"color": "#CA3542", "linestyle": "-", "name": "EDDI-GG"},
+#     "shim2018": {"color": "#FB4F14", "linestyle": "--", "name": "JAFA-MFRL"},
+#     "kachuee2019": {"color": "#56B4E9", "linestyle": "-.", "name": "OL-MFRL"},
+#     "zannone2019": {"color": "#949494", "linestyle": ":", "name": "ODIN-MBRL"},
+# }
+
 METHOD_STYLES = {
-    "aaco": {"color": "#0173B2", "linestyle": "-", "name": "AACO"},
-    "cae": {"color": "#DE8F05", "linestyle": "--", "name": "CAE"},
-    "permutation": {"color": "#029E73", "linestyle": "-.", "name": "Static"},
-    "covert2023": {"color": "#CC78BC", "linestyle": ":", "name": "EDDI"},
-    "gadgil2023": {"color": "#CA3542", "linestyle": "-", "name": "GDFS"},
-    "shim2018": {"color": "#FB4F14", "linestyle": "--", "name": "JAFA-MFRL"},
-    "kachuee2019": {"color": "#56B4E9", "linestyle": "-.", "name": "OP-MFRL"},
-    "zannone2019": {"color": "#949494", "linestyle": ":", "name": "ODIN-MBRL"},
+    "aaco": {
+        "color": "#56B4E9",
+        "linestyle": "-",
+        "marker": "o",
+        "name": "AACO",
+    },
+    "cae": {
+        "color": "#E69F00",
+        "linestyle": "--",
+        "marker": "s",
+        "name": "CAE-S",
+    },
+    "permutation": {
+        "color": "#009E73",
+        "linestyle": "-.",
+        "marker": "^",
+        "name": "PT-S",
+    },
+    "covert2023": {
+        "color": "#CC79A7",
+        "linestyle": ":",
+        "marker": "D",
+        "name": "GDFS-DG",
+    },
+    "gadgil2023": {
+        "color": "#D55E00",
+        "linestyle": (0, (5, 10)),
+        "marker": "v",
+        "name": "DIME-DG",
+    },
+    "ma2018": {
+        "color": "#0072B2",
+        "linestyle": (0, (3, 5, 1, 5, 1, 5)),
+        "marker": "P",
+        "name": "EDDI-GG",
+    },
+    "shim2018": {
+        "color": "#F0E442",
+        "linestyle": (0, (1, 1)),
+        "marker": "X",
+        "name": "JAFA-MFRL",
+    },
+    "kachuee2019": {
+        "color": "#000000",
+        "linestyle": (0, (10, 3)),
+        "marker": "x",
+        "name": "OL-MFRL",
+    },
+    "zannone2019": {
+        "color": "#999999",
+        "linestyle": (0, (2, 2)),
+        "marker": "d",
+        "name": "ODIN-MBRL",
+    },
 }
 
 plt.style.use(["seaborn-v0_8-whitegrid"])
@@ -76,6 +134,7 @@ def create_figure(x, grouped_metrics, metric_cfg):
             {
                 "color": "#000000",
                 "linestyle": "-",
+                "marker": "o",
                 "name": method_type.replace("_", " ").title(),
             },
         )
@@ -87,7 +146,7 @@ def create_figure(x, grouped_metrics, metric_cfg):
             color=style["color"],
             linestyle=style["linestyle"],
             linewidth=2,
-            marker="o",
+            marker=style["marker"],
             markersize=4,
             markerfacecolor="white",
             markeredgecolor=style["color"],
