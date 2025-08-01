@@ -97,11 +97,11 @@ plt.style.use(["seaborn-v0_8-whitegrid"])
 mpl.rcParams.update(
     {
         "font.family": "DejaVu Sans",
-        "font.size": 11,
-        "axes.titlesize": 11,
-        "axes.labelsize": 11,
-        "xtick.labelsize": 11,
-        "ytick.labelsize": 11,
+        "font.size": 12,
+        "axes.titlesize": 12,
+        "axes.labelsize": 12,
+        "xtick.labelsize": 12,
+        "ytick.labelsize": 12,
         "legend.fontsize": 9,
         "figure.figsize": (6, 4),
         "figure.dpi": 150,
