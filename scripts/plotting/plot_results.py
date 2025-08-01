@@ -1,4 +1,3 @@
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import hydra
 import yaml
 import torch
@@ -13,7 +12,9 @@ from pathlib import Path
 from omegaconf import OmegaConf
 from collections import defaultdict
 from matplotlib import pyplot as plt
+from matplotlib.ticker import MaxNLocator
 from common.config_classes import PlotConfig
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 log = logging.getLogger(__name__)
 
@@ -164,6 +165,7 @@ def create_figure(x, grouped_metrics, metric_cfg):
     ax.set_xlabel("Number of Features Selected")
     ax.set_ylabel(metric_cfg.description)
     ax.legend(frameon=True, fancybox=False, edgecolor="black", framealpha=0.9)
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
     if metric_cfg.ylim is not None:
         ax.set_ylim(*metric_cfg.ylim)
