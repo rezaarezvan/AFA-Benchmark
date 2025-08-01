@@ -39,7 +39,6 @@ def process_eval_artifact_sync(eval_artifact, training_times):
     for pretraining_artifact in pretraining_artifacts:
         pretraining_run = pretraining_artifact.logged_by()
         runtime += pretraining_run.summary["_wandb"]["runtime"]
-        print(f"{runtime}")
     training_times[method_type].append(runtime)
 
 

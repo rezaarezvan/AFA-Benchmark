@@ -253,8 +253,10 @@ def load_single_artifact(
         metrics = torch.load(artifact_dir / "metrics.pt", map_location="cpu")
         # HACK: we have a model-based and model-free zannone2019 variant
         # we differentiate between them by looking at their aliases
-        if any(alias.endswith("model-free") for alias in eval_artifact.aliases):
-            method_type = "zannone2019-MFRL"
+        if "zannone2019" in eval_artifact.name and any(
+            alias.endswith("model-free") for alias in eval_artifact.aliases
+        ):
+            method_type = "zannone2019-model-free"
         else:
             method_type = eval_artifact.metadata.get("method_type", None)
         info = {
