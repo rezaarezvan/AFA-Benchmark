@@ -84,6 +84,12 @@ METHOD_STYLES = {
         "marker": "d",
         "name": "ODIN-MBRL",
     },
+    "zannone2019-model-free": {
+        "color": "#F2B701",
+        "linestyle": (0, (2, 2)),
+        "marker": "d",
+        "name": "ODIN-MFRL",
+    },
 }
 
 plt.style.use(["seaborn-v0_8-whitegrid"])
@@ -240,15 +246,21 @@ def load_single_artifact(
     api: wandb.Api, artifact_name: str
 ) -> tuple[dict[str, Any], Any] | None:
     try:
-        artifact = wandb.use_artifact(artifact_name, type="eval_results")
-        artifact_dir = Path(artifact.download())
+        eval_artifact = api.artifact(artifact_name, type="eval_results")
+        artifact_dir = Path(eval_artifact.download())
         metrics = torch.load(artifact_dir / "metrics.pt", map_location="cpu")
+        # HACK: we have a model-based and model-free zannone2019 variant
+        # we differentiate between them by looking at their aliases
+        if any(alias.endswith("model-free") for alias in eval_artifact.aliases):
+            method_type = "zannone2019-MFRL"
+        else:
+            method_type = eval_artifact.metadata.get("method_type", None)
         info = {
-            "dataset_type": artifact.metadata["dataset_type"],
-            "method_type": artifact.metadata["method_type"],
-            "budget": artifact.metadata["budget"],
-            "seed": artifact.metadata["seed"],
-            "classifier_type": artifact.metadata["classifier_type"],
+            "dataset_type": eval_artifact.metadata.get("dataset_type", None),
+            "method_type": method_type,
+            "budget": eval_artifact.metadata.get("budget", None),
+            "seed": eval_artifact.metadata.get("seed", None),
+            "classifier_type": eval_artifact.metadata.get("classifier_type", None),
         }
         return (info, metrics)
     except Exception as e:
