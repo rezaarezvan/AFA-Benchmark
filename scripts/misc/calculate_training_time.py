@@ -99,7 +99,7 @@ def main(cfg: TrainingTimeCalculationConfig) -> None:
 
     # Save results as wandb artifact
     training_time_artifact = wandb.Artifact(
-        name=f"{'&'.join(cfg.plotting_run_names)}-training_time",
+        name=f"{'_'.join(cfg.plotting_run_names)}-training_time",
         type="training_time",
         metadata={},
     )
