@@ -85,7 +85,7 @@ METHOD_STYLES = {
         "name": "ODIN-MBRL",
     },
     "zannone2019-model-free": {
-        "color": "#F2B701",
+        "color": "#A1D76A",
         "linestyle": (0, (2, 2)),
         "marker": "d",
         "name": "ODIN-MFRL",
