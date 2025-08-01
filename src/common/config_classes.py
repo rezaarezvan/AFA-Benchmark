@@ -660,7 +660,7 @@ cs.store(name="eval", node=EvalConfig)
 
 @dataclass
 class TrainingTimeCalculationConfig:
-    plotting_run_name: str
+    plotting_run_names: list[str]
     output_artifact_aliases: list[str]
     max_workers: int
 

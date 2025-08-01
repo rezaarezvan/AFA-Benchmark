@@ -43,12 +43,17 @@ def process_eval_artifact_sync(eval_artifact, training_times):
     training_times[method_type].append(runtime)
 
 
-def process_all_eval_artifacts(plotting_run, training_times, max_workers=8):
+def process_all_eval_artifacts(plotting_runs, training_times, max_workers=8):
+    """
+    Accepts a list of plotting runs and processes all their eval artifacts concurrently.
+    """
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = [
-            executor.submit(process_eval_artifact_sync, artifact, training_times)
-            for artifact in plotting_run.used_artifacts()
-        ]
+        futures = []
+        for plotting_run in plotting_runs:
+            futures.extend(
+                executor.submit(process_eval_artifact_sync, artifact, training_times)
+                for artifact in plotting_run.used_artifacts()
+            )
         for future in as_completed(futures):
             future.result()
 
@@ -77,10 +82,10 @@ def main(cfg: TrainingTimeCalculationConfig) -> None:
     # In seconds
     training_times: defaultdict[str, list[int]] = defaultdict(list)
 
-    plotting_run = wandb.Api().run(cfg.plotting_run_name)
+    plotting_runs = [wandb.Api().run(run_name) for run_name in cfg.plotting_run_names]
 
     process_all_eval_artifacts(
-        plotting_run, training_times, max_workers=cfg.max_workers
+        plotting_runs, training_times, max_workers=cfg.max_workers
     )
 
     # We also want to store the mean and std
@@ -94,7 +99,7 @@ def main(cfg: TrainingTimeCalculationConfig) -> None:
 
     # Save results as wandb artifact
     training_time_artifact = wandb.Artifact(
-        name=f"{cfg.plotting_run_name}-training_time",
+        name=f"{'&'.join(cfg.plotting_run_names)}-training_time",
         type="training_time",
         metadata={},
     )

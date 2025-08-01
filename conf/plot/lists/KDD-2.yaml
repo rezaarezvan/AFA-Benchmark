@@ -492,6 +492,13 @@ eval_artifact_names:
   - train_zannone2019-diabetes_split_1-budget_15-seed_42-masked_mlp_classifier-diabetes_split_1:KDD
   - train_zannone2019-diabetes_split_1-budget_5-seed_42-builtin:KDD
   - train_zannone2019-diabetes_split_1-budget_10-seed_42-builtin:KDD
+  - train_zannone2019-diabetes_split_1-budget_5-seed_42-masked_mlp_classifier-diabetes_split_1:KDD-model-free
+  - train_zannone2019-diabetes_split_1-budget_10-seed_42-masked_mlp_classifier-diabetes_split_1:KDD-model-free
+  - train_zannone2019-diabetes_split_1-budget_15-seed_42-masked_mlp_classifier-diabetes_split_1:KDD-model-free
+  - train_zannone2019-diabetes_split_1-budget_5-seed_42-builtin:KDD-model-free
+  - train_zannone2019-diabetes_split_1-budget_10-seed_42-builtin:KDD-model-free
+  - train_zannone2019-diabetes_split_1-budget_15-seed_42-builtin:KDD-model-free
+
   - train_zannone2019-diabetes_split_1-budget_15-seed_42-builtin:KDD
   # diabetes split 2 - shim2018
   - train_shim2018-diabetes_split_2-budget_5-seed_42-masked_mlp_classifier-diabetes_split_2:KDD
@@ -513,6 +520,13 @@ eval_artifact_names:
   - train_zannone2019-diabetes_split_2-budget_15-seed_42-masked_mlp_classifier-diabetes_split_2:KDD
   - train_zannone2019-diabetes_split_2-budget_5-seed_42-builtin:KDD
   - train_zannone2019-diabetes_split_2-budget_10-seed_42-builtin:KDD
+  - train_zannone2019-diabetes_split_2-budget_5-seed_42-masked_mlp_classifier-diabetes_split_2:KDD-model-free
+  - train_zannone2019-diabetes_split_2-budget_10-seed_42-masked_mlp_classifier-diabetes_split_2:KDD-model-free
+  - train_zannone2019-diabetes_split_2-budget_15-seed_42-masked_mlp_classifier-diabetes_split_2:KDD-model-free
+  - train_zannone2019-diabetes_split_2-budget_5-seed_42-builtin:KDD-model-free
+  - train_zannone2019-diabetes_split_2-budget_10-seed_42-builtin:KDD-model-free
+  - train_zannone2019-diabetes_split_2-budget_15-seed_42-builtin:KDD-model-free
+
   - train_zannone2019-diabetes_split_2-budget_15-seed_42-builtin:KDD
   # diabetes split 3 - shim2018
   - train_shim2018-diabetes_split_3-budget_5-seed_42-masked_mlp_classifier-diabetes_split_3:KDD
@@ -534,6 +548,13 @@ eval_artifact_names:
   - train_zannone2019-diabetes_split_3-budget_15-seed_42-masked_mlp_classifier-diabetes_split_3:KDD
   - train_zannone2019-diabetes_split_3-budget_5-seed_42-builtin:KDD
   - train_zannone2019-diabetes_split_3-budget_10-seed_42-builtin:KDD
+  - train_zannone2019-diabetes_split_3-budget_5-seed_42-masked_mlp_classifier-diabetes_split_3:KDD-model-free
+  - train_zannone2019-diabetes_split_3-budget_10-seed_42-masked_mlp_classifier-diabetes_split_3:KDD-model-free
+  - train_zannone2019-diabetes_split_3-budget_15-seed_42-masked_mlp_classifier-diabetes_split_3:KDD-model-free
+  - train_zannone2019-diabetes_split_3-budget_5-seed_42-builtin:KDD-model-free
+  - train_zannone2019-diabetes_split_3-budget_10-seed_42-builtin:KDD-model-free
+  - train_zannone2019-diabetes_split_3-budget_15-seed_42-builtin:KDD-model-free
+
   - train_zannone2019-diabetes_split_3-budget_15-seed_42-builtin:KDD
   # diabetes split 4 - shim2018
   - train_shim2018-diabetes_split_4-budget_5-seed_42-masked_mlp_classifier-diabetes_split_4:KDD
@@ -555,6 +576,13 @@ eval_artifact_names:
   - train_zannone2019-diabetes_split_4-budget_15-seed_42-masked_mlp_classifier-diabetes_split_4:KDD
   - train_zannone2019-diabetes_split_4-budget_5-seed_42-builtin:KDD
   - train_zannone2019-diabetes_split_4-budget_10-seed_42-builtin:KDD
+  - train_zannone2019-diabetes_split_4-budget_5-seed_42-masked_mlp_classifier-diabetes_split_4:KDD-model-free
+  - train_zannone2019-diabetes_split_4-budget_10-seed_42-masked_mlp_classifier-diabetes_split_4:KDD-model-free
+  - train_zannone2019-diabetes_split_4-budget_15-seed_42-masked_mlp_classifier-diabetes_split_4:KDD-model-free
+  - train_zannone2019-diabetes_split_4-budget_5-seed_42-builtin:KDD-model-free
+  - train_zannone2019-diabetes_split_4-budget_10-seed_42-builtin:KDD-model-free
+  - train_zannone2019-diabetes_split_4-budget_15-seed_42-builtin:KDD-model-free
+
   - train_zannone2019-diabetes_split_4-budget_15-seed_42-builtin:KDD
   # diabetes split 5 - shim2018
   - train_shim2018-diabetes_split_5-budget_5-seed_42-masked_mlp_classifier-diabetes_split_5:KDD
@@ -576,8 +604,14 @@ eval_artifact_names:
   - train_zannone2019-diabetes_split_5-budget_15-seed_42-masked_mlp_classifier-diabetes_split_5:KDD
   - train_zannone2019-diabetes_split_5-budget_5-seed_42-builtin:KDD
   - train_zannone2019-diabetes_split_5-budget_10-seed_42-builtin:KDD
-  - train_zannone2019-diabetes_split_5-budget_15-seed_42-builtin:KDD
+  - train_zannone2019-diabetes_split_5-budget_5-seed_42-masked_mlp_classifier-diabetes_split_5:KDD-model-free
+  - train_zannone2019-diabetes_split_5-budget_10-seed_42-masked_mlp_classifier-diabetes_split_5:KDD-model-free
+  - train_zannone2019-diabetes_split_5-budget_15-seed_42-masked_mlp_classifier-diabetes_split_5:KDD-model-free
+  - train_zannone2019-diabetes_split_5-budget_5-seed_42-builtin:KDD-model-free
+  - train_zannone2019-diabetes_split_5-budget_10-seed_42-builtin:KDD-model-free
+  - train_zannone2019-diabetes_split_5-budget_15-seed_42-builtin:KDD-model-free
 
+  - train_zannone2019-diabetes_split_5-budget_15-seed_42-builtin:KDD
   # miniboone split 1 - shim2018
   - train_shim2018-miniboone_split_1-budget_5-seed_42-masked_mlp_classifier-miniboone_split_1:KDD
   - train_shim2018-miniboone_split_1-budget_10-seed_42-masked_mlp_classifier-miniboone_split_1:KDD
@@ -598,6 +632,13 @@ eval_artifact_names:
   - train_zannone2019-miniboone_split_1-budget_15-seed_42-masked_mlp_classifier-miniboone_split_1:KDD
   - train_zannone2019-miniboone_split_1-budget_5-seed_42-builtin:KDD
   - train_zannone2019-miniboone_split_1-budget_10-seed_42-builtin:KDD
+  - train_zannone2019-miniboone_split_1-budget_5-seed_42-masked_mlp_classifier-miniboone_split_1:KDD-model-free
+  - train_zannone2019-miniboone_split_1-budget_10-seed_42-masked_mlp_classifier-miniboone_split_1:KDD-model-free
+  - train_zannone2019-miniboone_split_1-budget_15-seed_42-masked_mlp_classifier-miniboone_split_1:KDD-model-free
+  - train_zannone2019-miniboone_split_1-budget_5-seed_42-builtin:KDD-model-free
+  - train_zannone2019-miniboone_split_1-budget_10-seed_42-builtin:KDD-model-free
+  - train_zannone2019-miniboone_split_1-budget_15-seed_42-builtin:KDD-model-free
+
   - train_zannone2019-miniboone_split_1-budget_15-seed_42-builtin:KDD
   # miniboone split 2 - shim2018
   - train_shim2018-miniboone_split_2-budget_5-seed_42-masked_mlp_classifier-miniboone_split_2:KDD
@@ -619,6 +660,13 @@ eval_artifact_names:
   - train_zannone2019-miniboone_split_2-budget_15-seed_42-masked_mlp_classifier-miniboone_split_2:KDD
   - train_zannone2019-miniboone_split_2-budget_5-seed_42-builtin:KDD
   - train_zannone2019-miniboone_split_2-budget_10-seed_42-builtin:KDD
+  - train_zannone2019-miniboone_split_2-budget_5-seed_42-masked_mlp_classifier-miniboone_split_2:KDD-model-free
+  - train_zannone2019-miniboone_split_2-budget_10-seed_42-masked_mlp_classifier-miniboone_split_2:KDD-model-free
+  - train_zannone2019-miniboone_split_2-budget_15-seed_42-masked_mlp_classifier-miniboone_split_2:KDD-model-free
+  - train_zannone2019-miniboone_split_2-budget_5-seed_42-builtin:KDD-model-free
+  - train_zannone2019-miniboone_split_2-budget_10-seed_42-builtin:KDD-model-free
+  - train_zannone2019-miniboone_split_2-budget_15-seed_42-builtin:KDD-model-free
+
   - train_zannone2019-miniboone_split_2-budget_15-seed_42-builtin:KDD
   # miniboone split 3 - shim2018
   - train_shim2018-miniboone_split_3-budget_5-seed_42-masked_mlp_classifier-miniboone_split_3:KDD
@@ -640,6 +688,13 @@ eval_artifact_names:
   - train_zannone2019-miniboone_split_3-budget_15-seed_42-masked_mlp_classifier-miniboone_split_3:KDD
   - train_zannone2019-miniboone_split_3-budget_5-seed_42-builtin:KDD
   - train_zannone2019-miniboone_split_3-budget_10-seed_42-builtin:KDD
+  - train_zannone2019-miniboone_split_3-budget_5-seed_42-masked_mlp_classifier-miniboone_split_3:KDD-model-free
+  - train_zannone2019-miniboone_split_3-budget_10-seed_42-masked_mlp_classifier-miniboone_split_3:KDD-model-free
+  - train_zannone2019-miniboone_split_3-budget_15-seed_42-masked_mlp_classifier-miniboone_split_3:KDD-model-free
+  - train_zannone2019-miniboone_split_3-budget_5-seed_42-builtin:KDD-model-free
+  - train_zannone2019-miniboone_split_3-budget_10-seed_42-builtin:KDD-model-free
+  - train_zannone2019-miniboone_split_3-budget_15-seed_42-builtin:KDD-model-free
+
   - train_zannone2019-miniboone_split_3-budget_15-seed_42-builtin:KDD
   # miniboone split 4 - shim2018
   - train_shim2018-miniboone_split_4-budget_5-seed_42-masked_mlp_classifier-miniboone_split_4:KDD
@@ -661,6 +716,13 @@ eval_artifact_names:
   - train_zannone2019-miniboone_split_4-budget_15-seed_42-masked_mlp_classifier-miniboone_split_4:KDD
   - train_zannone2019-miniboone_split_4-budget_5-seed_42-builtin:KDD
   - train_zannone2019-miniboone_split_4-budget_10-seed_42-builtin:KDD
+  - train_zannone2019-miniboone_split_4-budget_5-seed_42-masked_mlp_classifier-miniboone_split_4:KDD-model-free
+  - train_zannone2019-miniboone_split_4-budget_10-seed_42-masked_mlp_classifier-miniboone_split_4:KDD-model-free
+  - train_zannone2019-miniboone_split_4-budget_15-seed_42-masked_mlp_classifier-miniboone_split_4:KDD-model-free
+  - train_zannone2019-miniboone_split_4-budget_5-seed_42-builtin:KDD-model-free
+  - train_zannone2019-miniboone_split_4-budget_10-seed_42-builtin:KDD-model-free
+  - train_zannone2019-miniboone_split_4-budget_15-seed_42-builtin:KDD-model-free
+
   - train_zannone2019-miniboone_split_4-budget_15-seed_42-builtin:KDD
   # miniboone split 5 - shim2018
   - train_shim2018-miniboone_split_5-budget_5-seed_42-masked_mlp_classifier-miniboone_split_5:KDD
@@ -682,6 +744,13 @@ eval_artifact_names:
   - train_zannone2019-miniboone_split_5-budget_15-seed_42-masked_mlp_classifier-miniboone_split_5:KDD
   - train_zannone2019-miniboone_split_5-budget_5-seed_42-builtin:KDD
   - train_zannone2019-miniboone_split_5-budget_10-seed_42-builtin:KDD
+  - train_zannone2019-miniboone_split_5-budget_5-seed_42-masked_mlp_classifier-miniboone_split_5:KDD-model-free
+  - train_zannone2019-miniboone_split_5-budget_10-seed_42-masked_mlp_classifier-miniboone_split_5:KDD-model-free
+  - train_zannone2019-miniboone_split_5-budget_15-seed_42-masked_mlp_classifier-miniboone_split_5:KDD-model-free
+  - train_zannone2019-miniboone_split_5-budget_5-seed_42-builtin:KDD-model-free
+  - train_zannone2019-miniboone_split_5-budget_10-seed_42-builtin:KDD-model-free
+  - train_zannone2019-miniboone_split_5-budget_15-seed_42-builtin:KDD-model-free
+
   - train_zannone2019-miniboone_split_5-budget_15-seed_42-builtin:KDD
 
   # physionet split 1 - shim2018
@@ -704,6 +773,13 @@ eval_artifact_names:
   - train_zannone2019-physionet_split_1-budget_15-seed_42-masked_mlp_classifier-physionet_split_1:KDD
   - train_zannone2019-physionet_split_1-budget_5-seed_42-builtin:KDD
   - train_zannone2019-physionet_split_1-budget_10-seed_42-builtin:KDD
+  - train_zannone2019-physionet_split_1-budget_5-seed_42-masked_mlp_classifier-physionet_split_1:KDD-model-free
+  - train_zannone2019-physionet_split_1-budget_10-seed_42-masked_mlp_classifier-physionet_split_1:KDD-model-free
+  - train_zannone2019-physionet_split_1-budget_15-seed_42-masked_mlp_classifier-physionet_split_1:KDD-model-free
+  - train_zannone2019-physionet_split_1-budget_5-seed_42-builtin:KDD-model-free
+  - train_zannone2019-physionet_split_1-budget_10-seed_42-builtin:KDD-model-free
+  - train_zannone2019-physionet_split_1-budget_15-seed_42-builtin:KDD-model-free
+
   - train_zannone2019-physionet_split_1-budget_15-seed_42-builtin:KDD
   # physionet split 2 - shim2018
   - train_shim2018-physionet_split_2-budget_5-seed_42-masked_mlp_classifier-physionet_split_2:KDD
@@ -725,6 +801,13 @@ eval_artifact_names:
   - train_zannone2019-physionet_split_2-budget_15-seed_42-masked_mlp_classifier-physionet_split_2:KDD
   - train_zannone2019-physionet_split_2-budget_5-seed_42-builtin:KDD
   - train_zannone2019-physionet_split_2-budget_10-seed_42-builtin:KDD
+  - train_zannone2019-physionet_split_2-budget_5-seed_42-masked_mlp_classifier-physionet_split_2:KDD-model-free
+  - train_zannone2019-physionet_split_2-budget_10-seed_42-masked_mlp_classifier-physionet_split_2:KDD-model-free
+  - train_zannone2019-physionet_split_2-budget_15-seed_42-masked_mlp_classifier-physionet_split_2:KDD-model-free
+  - train_zannone2019-physionet_split_2-budget_5-seed_42-builtin:KDD-model-free
+  - train_zannone2019-physionet_split_2-budget_10-seed_42-builtin:KDD-model-free
+  - train_zannone2019-physionet_split_2-budget_15-seed_42-builtin:KDD-model-free
+
   - train_zannone2019-physionet_split_2-budget_15-seed_42-builtin:KDD
   # physionet split 3 - shim2018
   - train_shim2018-physionet_split_3-budget_5-seed_42-masked_mlp_classifier-physionet_split_3:KDD
@@ -746,6 +829,13 @@ eval_artifact_names:
   - train_zannone2019-physionet_split_3-budget_15-seed_42-masked_mlp_classifier-physionet_split_3:KDD
   - train_zannone2019-physionet_split_3-budget_5-seed_42-builtin:KDD
   - train_zannone2019-physionet_split_3-budget_10-seed_42-builtin:KDD
+  - train_zannone2019-physionet_split_3-budget_5-seed_42-masked_mlp_classifier-physionet_split_3:KDD-model-free
+  - train_zannone2019-physionet_split_3-budget_10-seed_42-masked_mlp_classifier-physionet_split_3:KDD-model-free
+  - train_zannone2019-physionet_split_3-budget_15-seed_42-masked_mlp_classifier-physionet_split_3:KDD-model-free
+  - train_zannone2019-physionet_split_3-budget_5-seed_42-builtin:KDD-model-free
+  - train_zannone2019-physionet_split_3-budget_10-seed_42-builtin:KDD-model-free
+  - train_zannone2019-physionet_split_3-budget_15-seed_42-builtin:KDD-model-free
+
   - train_zannone2019-physionet_split_3-budget_15-seed_42-builtin:KDD
   # physionet split 4 - shim2018
   - train_shim2018-physionet_split_4-budget_5-seed_42-masked_mlp_classifier-physionet_split_4:KDD
@@ -767,6 +857,13 @@ eval_artifact_names:
   - train_zannone2019-physionet_split_4-budget_15-seed_42-masked_mlp_classifier-physionet_split_4:KDD
   - train_zannone2019-physionet_split_4-budget_5-seed_42-builtin:KDD
   - train_zannone2019-physionet_split_4-budget_10-seed_42-builtin:KDD
+  - train_zannone2019-physionet_split_4-budget_5-seed_42-masked_mlp_classifier-physionet_split_4:KDD-model-free
+  - train_zannone2019-physionet_split_4-budget_10-seed_42-masked_mlp_classifier-physionet_split_4:KDD-model-free
+  - train_zannone2019-physionet_split_4-budget_15-seed_42-masked_mlp_classifier-physionet_split_4:KDD-model-free
+  - train_zannone2019-physionet_split_4-budget_5-seed_42-builtin:KDD-model-free
+  - train_zannone2019-physionet_split_4-budget_10-seed_42-builtin:KDD-model-free
+  - train_zannone2019-physionet_split_4-budget_15-seed_42-builtin:KDD-model-free
+
   - train_zannone2019-physionet_split_4-budget_15-seed_42-builtin:KDD
   # physionet split 5 - shim2018
   - train_shim2018-physionet_split_5-budget_5-seed_42-masked_mlp_classifier-physionet_split_5:KDD
@@ -788,4 +885,11 @@ eval_artifact_names:
   - train_zannone2019-physionet_split_5-budget_15-seed_42-masked_mlp_classifier-physionet_split_5:KDD
   - train_zannone2019-physionet_split_5-budget_5-seed_42-builtin:KDD
   - train_zannone2019-physionet_split_5-budget_10-seed_42-builtin:KDD
+  - train_zannone2019-physionet_split_5-budget_5-seed_42-masked_mlp_classifier-physionet_split_5:KDD-model-free
+  - train_zannone2019-physionet_split_5-budget_10-seed_42-masked_mlp_classifier-physionet_split_5:KDD-model-free
+  - train_zannone2019-physionet_split_5-budget_15-seed_42-masked_mlp_classifier-physionet_split_5:KDD-model-free
+  - train_zannone2019-physionet_split_5-budget_5-seed_42-builtin:KDD-model-free
+  - train_zannone2019-physionet_split_5-budget_10-seed_42-builtin:KDD-model-free
+  - train_zannone2019-physionet_split_5-budget_15-seed_42-builtin:KDD-model-free
+
   - train_zannone2019-physionet_split_5-budget_15-seed_42-builtin:KDD
