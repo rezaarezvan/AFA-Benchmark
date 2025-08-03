@@ -97,26 +97,29 @@ uv run scripts/plotting/plot_results.py \
 ## Implemented Methods
 
 | Method | Paper | Strategy | Greedy? |
-|--------|--------|--------|--------|
-| **EDDI** |
-| **GDFS** |
-| **DIME** |
-| **JAFA** |
-| **ODIN** |
-| **AACO** |
-| **JAFA** |
-| **PT** |
-| **CAE** |
+|:--------:|:--------:|:--------:|:--------:|
+| **EDDI-GG** | [link](https://proceedings.mlr.press/v97/ma19c) | Generative estimation of CMI | Greedy |
+| **GDFS-DG** | [link](https://proceedings.mlr.press/v202/covert23a) | Discriminative estimation of CMI | Greedy |
+| **DIME-DG** | [link](https://arxiv.org/pdf/2306.03301) | Discriminative estimation of CMI | Greedy |
+| **JAFA-MFRL** | [link]() | Model-free RL | Non-greedy |
+| **OL-MFRL** | [link]() | Model-free RL | Non-greedy |
+| **ODIN-MFRL** | [link]() | Model-free RL | Non-greedy |
+| **ODIN-MBRL** | [link]() | Model-based RL | Non-greedy |
+| **AACO** | [link]() | Oracle-based | Non-greedy |
+| **PT-S** | [link](https://link.springer.com/article/10.1023/A:1010933404324) | Global feature importance | N/A |
+| **CAE-S** | [link](https://proceedings.mlr.press/v97/balin19a.html) | Global feature importance | N/A |
 
 ## Datasets
 
 | Dataset | Type | Size (total, # data instances) | # Features | # Classes |
-|---------|----------|---------|---------|----------|
+|:---------:|:----------:|:---------:|:---------:|:----------:|
 | **CUBE** | Synthetic | 1000 | 20 | 8 |
 | **AFAContext** | Synthetic | 1000 | 30 | 8 |
 | **MNIST** | Real World | 60 000| 784 | 10 |
+| **FashionMNIST** | Real World |  |  |  |
 | **Diabetes** | Real World | 92 063 | 45 | 3 |
-| **Physionet** | Real World | 12 000 | 41 | 2
+| **miniboone** | Real World |  |  |  |
+| **Physionet** | Real World | 12 000 | 41 | 2 |
 
 ## Full Pipeline Tutorial TODO CHECK IF THIS WORKS
 
