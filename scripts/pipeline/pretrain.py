@@ -6,13 +6,40 @@ import time
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--method-name", type=str, required=True)
-    parser.add_argument("--dataset", type=str, required=True, nargs="+")
-    parser.add_argument("--split", type=int, required=True, nargs="+")
-    parser.add_argument("--launcher", default="custom_slurm")
-    parser.add_argument("--device", default="cuda")
-    parser.add_argument("--dataset-alias", type=str, required=True)
-    parser.add_argument("--output-alias", type=str, required=True)
+    parser.add_argument(
+        "--method-name",
+        type=str,
+        required=True,
+        help='Example: "kachuee2019" or "shim2018"',
+    )
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        required=True,
+        nargs="+",
+        help='Example: "cube AFAContext"',
+    )
+    parser.add_argument(
+        "--split", type=int, required=True, nargs="+", help='Example: "1 2 3"'
+    )
+    parser.add_argument(
+        "--launcher",
+        default="custom_slurm",
+        help='"submitit_basic" or one of the files (without suffix) defined in conf/global/hydra/launcher/',
+    )
+    parser.add_argument("--device", choices=["cuda", "cpu"], default="cuda")
+    parser.add_argument(
+        "--dataset-alias",
+        type=str,
+        required=True,
+        help="The alias that was specified when generating data (generate_dataset.py)",
+    )
+    parser.add_argument(
+        "--output-alias",
+        type=str,
+        required=True,
+        help="The alias that the resulting pretrained model should have.",
+    )
     parser.add_argument("--wandb-entity", type=str, default="afa-team")
     parser.add_argument("--wandb-project", type=str, default="afa-benchmark")
     args, unknown = parser.parse_known_args()
