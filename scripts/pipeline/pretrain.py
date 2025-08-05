@@ -10,22 +10,26 @@ def parse_args():
         "--method-name",
         type=str,
         required=True,
-        help='Example: "kachuee2019" or "shim2018"',
+        help='Determines what sort of model gets pretrained. Example: "kachuee2019" or "shim2018".',
     )
     parser.add_argument(
         "--dataset",
         type=str,
         required=True,
         nargs="+",
-        help='Example: "cube AFAContext"',
+        help='Which dataset(s) the model gets pretrained on. Example: "cube AFAContext"',
     )
     parser.add_argument(
-        "--split", type=int, required=True, nargs="+", help='Example: "1 2 3"'
+        "--split",
+        type=int,
+        required=True,
+        nargs="+",
+        help='Which dataset splits to use. Example: "1 2 3"',
     )
     parser.add_argument(
         "--launcher",
         default="custom_slurm",
-        help='"submitit_basic" or one of the files (without suffix) defined in conf/global/hydra/launcher/',
+        help='Train locally in sequence or in parallel using Slurm. Value should be "submitit_basic" or one of the files (without suffix) defined in conf/global/hydra/launcher/',
     )
     parser.add_argument("--device", choices=["cuda", "cpu"], default="cuda")
     parser.add_argument(
