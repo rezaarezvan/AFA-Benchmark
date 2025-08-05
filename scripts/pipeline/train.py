@@ -20,6 +20,12 @@ def parse_args():
         help='Which dataset(s) the method gets trained on. Example: "cube AFAContext"',
     )
     parser.add_argument(
+        "--dataset-alias",
+        type=str,
+        required=False,  # Now optional
+        help="The alias that was specified when generating data (generate_dataset.py). Only required if the method has no pretraining stage.",
+    )
+    parser.add_argument(
         "--split",
         type=int,
         required=True,
@@ -42,8 +48,8 @@ def parse_args():
     parser.add_argument(
         "--pretrain-alias",
         type=str,
-        required=True,
-        help='The alias that was specified when pretraining the model ("--output-alias" of pretrain.py)',
+        required=False,
+        help='The alias that was specified when pretraining the model ("--output-alias" of pretrain.py). Only required if the method has a pretraining stage.',
     )
     parser.add_argument(
         "--output-alias",
@@ -54,6 +60,15 @@ def parse_args():
     parser.add_argument("--wandb-entity", type=str, default="afa-team")
     parser.add_argument("--wandb-project", type=str, default="afa-benchmark")
     args, unknown = parser.parse_known_args()
+
+    # Verify that either dataset-alias or pretrain-alias is provided, but not both
+    if (args.dataset_alias is not None) and (args.pretrain_alias is not None):
+        parser.error(
+            "Provide either --dataset-alias or --pretrain-alias, but not both."
+        )
+    if (args.dataset_alias is None) and (args.pretrain_alias is None):
+        parser.error("You must provide either --dataset-alias or --pretrain-alias.")
+
     return args, unknown
 
 
@@ -68,17 +83,30 @@ def main():
 
     jobs = []
     for dataset, budgets_str in zip(args.dataset, args.budgets):
-        pretrained_model_artifact_names = [
-            f"pretrain_{args.method_name}-{dataset}_split_{split}:{args.pretrain_alias}"
-            for split in args.split
-        ]
+        if args.pretrain_alias:
+            pretrained_model_artifact_names = [
+                f"pretrain_{args.method_name}-{dataset}_split_{split}:{args.pretrain_alias}"
+                for split in args.split
+            ]
+            pretrained_model_or_dataset_names = f"pretrained_model_artifact_name={','.join(pretrained_model_artifact_names)}"
+        elif args.dataset_alias:
+            dataset_artifact_names = [
+                f"{dataset}_split_{split}:{args.dataset_alias}" for split in args.split
+            ]
+            pretrained_model_or_dataset_names = (
+                f"dataset_artifact_name={','.join(dataset_artifact_names)}"
+            )
+        else:
+            raise Exception("Unreachable")
+
         cmd = (
             f"uv run scripts/train_methods/train_{args.method_name}.py -m "
             f'output_artifact_aliases=["{args.output_alias}"] '
             f"dataset@_global_={dataset} "
-            f"pretrained_model_artifact_name={','.join(pretrained_model_artifact_names)} "
+            f"{pretrained_model_or_dataset_names} "
             f'hard_budget="{budgets_str}" '
-            f"device={args.device} hydra/launcher={args.launcher} "
+            f"device={args.device} "
+            f"hydra/launcher={args.launcher} "
             f"{extra_args_str}"
         )
         jobs.append(cmd)
