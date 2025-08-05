@@ -145,7 +145,7 @@ uv run scripts/plotting/plot_results.py \
 
 ## Full Pipeline Tutorial TODO CHECK IF THIS WORKS
 
-Here follows an example for training **ODIN**, one of the RL methods implemented in this benchmark.
+This tutorial will show how to train and evaluate two separate methods. The first one, **ODIN**, is RL-based and has a pretraining stage. The second one, **TODO**, is TODO and does not require pretraining. This will hopefully give you a good idea of how the remaining methods are trained and evaluated as well.
 
 ### Dataset generation
 First, generate some data. You can choose hyperparameters by creating new configurations in `conf/dataset_generation/dataset/`. Let's assume that you want to generate two noiseless versions of the **cube** and **AFAContext** datasets. Then run
@@ -163,22 +163,95 @@ uv run scripts/pipeline/pretrain.py --method-name "zannone2019" --dataset cube A
 ```
 where `<LAUNCHER>` should be replaced by either `submitit_basic` (if you run everything locally in sequence) or the name of the configuration file (without suffix) that you created in `conf/global/hydra/launcher/` if you plan to run everything on a cluster using Slurm.
 
-## Training
+The **TODO** method does not have to be pretrained.
 
-The training procedure is very similar to pretraining. The most notable difference is that you now have to provide a set of hard budgets to use for each dataset. If you want to use the budgets [3,5,10] on **cube** but [2,4,8] on **AFAContext**, you would run
+### Training
+
+The training procedure is very similar to pretraining. The most notable difference is that you now have to provide a set of hard budgets to use for each dataset. To train **ODIN** and use the budgets [5,10] on **cube** but [4,8] on **AFAContext**, you would run
 ```bash
-uv run scripts/pipeline/train.py --method-name "zannone2019" --dataset cube AFAContext --budgets "3,5,10" "2,4,8" --split 1 2 --launcher <LAUNCHER> --device <DEVICE> --dataset cube AFAContext --pretrain-alias tutorial-pretrained --output-alias tutorial-trained
+uv run scripts/pipeline/train.py --method-name "zannone2019" --dataset cube AFAContext --budgets "5,10" "4,8" --split 1 2 --launcher <LAUNCHER> --device <DEVICE> --dataset cube AFAContext --pretrain-alias tutorial-pretrained --output-alias tutorial-trained
 ```
 
-## Evaluation
+Since **TODO** does not have a pretraining stage, we supply dataset artifact aliases instead of pretrained model aliases:
+```bash
+uv run scripts/pipeline/train.py --method-name "TODO" --dataset cube AFAContext --budgets "5,10" "4,8" --split 1 2 --launcher <LAUNCHER> --device <DEVICE> --dataset cube AFAContext --dataset-alias tutorial-data --output-alias tutorial-trained
+```
 
-One of the main feature of **AFABench** is the consistent evaluation. The same evaluation script is used for all methods. To evaluate your method, either add the name of your method artifact to one of the files in `conf/eval/lists/` or create a new file. If we only wanted to evaluate the method we recently trained, we would create a YAML file with the contents
+### Classifier training
+
+This is an optional step, but useful if you want to assess a method's feature acquisition performance in isolation from a jointly trained classifier. Some methods train a classifier jointly, but using such a classifier directly during evaluation can make comparisons between methods difficult.
+
+To train classifiers on our generated datasets, run:
+```bash
+uv run scripts/pipeline/train_classifier.py --dataset cube AFAContext --split 1 2 --launcher <LAUNCHER> --device <DEVICE> --dataset-alias tutorial-data --output-alias tutorial-classifier
+```
+
+
+### Evaluation
+
+One of the main feature of **AFABench** is the consistent evaluation. The same evaluation script is used for all methods. To evaluate your method, either add the name of your method artifact to one of the files in `conf/eval/lists/` or create a new file. To evaluate the two methods we just trained, we can create the file
 ```yaml
+cube:
+  split1:
+    trained_method_artifact_names:
+      - train_zannone2019-cube_split_1-budget_5-seed_42:tutorial-trained
+      - train_zannone2019-cube_split_1-budget_10-seed_42:tutorial-trained
+      - train_todo-cube_split_1-budget_5-seed_42:tutorial-trained
+      - train_todo-cube_split_1-budget_10-seed_42:tutorial-trained
+    trained_classifier_artifact_name: "masked_mlp_classifier-cube_split_1:trained-classifier"
+  split2:
+    trained_method_artifact_names:
+      - train_zannone2019-cube_split_2-budget_5-seed_42:tutorial-trained
+      - train_zannone2019-cube_split_2-budget_10-seed_42:tutorial-trained
+    trained_classifier_artifact_name: "masked_mlp_classifier-cube_split_2:trained-classifier"
+AFAContext:
+  split1:
+    trained_method_artifact_names:
+      - train_zannone2019-AFAContext_split_1-budget_4-seed_42:tutorial-trained
+      - train_zannone2019-AFAContext_split_1-budget_8-seed_42:tutorial-trained
+      - train_todo-AFAContext_split_1-budget_4-seed_42:tutorial-trained
+      - train_todo-AFAContext_split_1-budget_8-seed_42:tutorial-trained
+    trained_classifier_artifact_name: "masked_mlp_classifier-AFAContext_split_1:trained-classifier"
+  split2:
+    trained_method_artifact_names:
+      - train_zannone2019-AFAContext_split_2-budget_4-seed_42:tutorial-trained
+      - train_zannone2019-AFAContext_split_2-budget_8-seed_42:tutorial-trained
+    trained_classifier_artifact_name: "masked_mlp_classifier-AFAContext_split_2:trained-classifier"
+```
+at `conf/eval/lists/tutorial.yaml` and run the evaluation script:
+```bash
+uv run scripts/pipeline/evaluate.py --launcher <LAUNCHER> --device <DEVICE> --yaml conf/eval/lists/tutorial.yaml --output-alias tutorial-eval
 ```
 
+### Plotting
+
+Now we are ready to produce some plots:
+```bash
+uv run scripts/plotting/plot_results.py --eval-artifact-yaml-list conf/eval/lists/tutorial.yaml
+```
+
+This will allow you to view the plots within the WandB run. They are also stored as artifacts within the run, but can be annoying to download by hand. Hence, there is a script that downloads all the figures for you. If the preceeding plotting run has the id "9zsjrqn8" and you only want to download the plots displaying accuracy, run:
+```bash
+uv run scripts/misc/download_plot_results.py --plotting-run-name 9zsjrqn8 --datasets cube AFAContext --metrics accuracy_all accuracy_all --budgets "" "" --output-path plots
+```
+
+This will download the figures to a local `plots/` directory.
+
+The empty strings for budgets mean that we accept any budget.
+
+
+### Miscellaneous
+
+The `scripts/misc` contains other optional scripts that are not related to the main AFA results.
+
+There is a script for calculating the mean and standard deviation of both training and evaluation time, for each method that a plotting run depends on. Since some methods train a lot longer on some datasets, the standard deviation can be quite large. If the plotting run has the id "9zsjrqn8", you can run:
 
 ```bash
-uv run scripts/pipeline/evaluate.py --
+uv run scripts/misc/calculate_training_time.py --plotting-run-names ["9zsjrqn8"] --output-artifact-aliases ["tutorial-training-time"]
+```
+
+```bash
+uv run scripts/misc/calculate_evaluation_time.py --plotting-run-names ["9zsjrqn8"] --output-artifact-aliases ["tutorial-evaluation-time"]
 ```
 
 ## Adding New Components
