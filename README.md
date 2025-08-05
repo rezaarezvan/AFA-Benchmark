@@ -49,6 +49,7 @@ Patient arrives → Blood test → More tests needed?
 - Python 3.12
 - [uv](https://docs.astral.sh/uv/) (recommended) or pip
 - [Weights & Biases](https://wandb.ai) account (for experiment tracking)
+- [mprocs](https://github.com/pvolok/mprocs) (optional, for batch training)
 
 ### Setup
 
@@ -121,6 +122,27 @@ uv run scripts/plotting/plot_results.py \
 | **miniboone** | Real World |  |  |  |
 | **Physionet** | Real World | 12 000 | 41 | 2 |
 
+## Project structure
+
+- `conf`: This is where all the configuration files are. Each configuration file corresponds to a class in `config_classes.py`.
+- `docs`: Documentation.
+- `scripts/`:
+  - `dataset_generation/generate_dataset.py`: A script that generates datasets individually. Generates a dataset artifact.
+  - `evaluation/eval_afa_method.py`: Evaluates a single method on a single dataset split. Generates an evaluation artifact.
+  - `misc/calculate_evaluation_time.py`: Calculates the time it takes for a given method to be evaluated. Takes a list of plotting runs as input.
+  - `misc/calculate_training_time.py`: Calculates the time it takes for a given method to be trained. Takes a list of plotting runs as input.
+  - `misc/download_results_plot.py`: Downloads plots locally to your computer. Takes a plotting run as input.
+  - `pipeline/`: Contains scripts that simplify batch training, i.e training a method on several datasets at the same time.
+    - `pretrain.py`: Batch pretrain a model.
+    - `train.py`: Batch train a method.
+    - `train_classifier.py`: Batch train a classifier.
+  - `plotting/plot_results.py`: Plots results from a list of evaluation artifacts.
+  - `pretrain_models`: Method-specific pretraining. Prefer `pipeline/pretrain.py` for batch pretraining.
+  - `train_methods`: Method-specific training. Prefer `pipeline/train.py` for batch training.
+- `src`: Source code.
+- `tests`: Unit tests.
+
+
 ## Full Pipeline Tutorial TODO CHECK IF THIS WORKS
 
 Here follows an example for training **ODIN**, one of the RL methods implemented in this benchmark.
@@ -139,7 +161,7 @@ Note how the chosen alias `"tutorial-data"` will be used by subsequent scripts t
 ```bash
 uv run scripts/pipeline/pretrain.py --method-name "zannone2019" --dataset cube AFAContext --split 1 2 --launcher <LAUNCHER> --device <DEVICE> --dataset cube AFAContext --dataset-alias tutorial-data --output-alias tutorial-pretrained
 ```
-where `<LAUNCHER>` should be replaced by either `basic` (if you run everything locally in sequence) or the name of the configuration file (without suffix) that you created in `conf/global/hydra/launcher/` if you plan to run everything on a cluster using Slurm.
+where `<LAUNCHER>` should be replaced by either `submitit_basic` (if you run everything locally in sequence) or the name of the configuration file (without suffix) that you created in `conf/global/hydra/launcher/` if you plan to run everything on a cluster using Slurm.
 
 ## Training
 
