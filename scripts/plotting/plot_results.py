@@ -304,7 +304,7 @@ def main(cfg: PlotConfig):
     )
 
     eval_results = load_eval_results(
-        Path(cfg.eval_artifact_config_path), max_workers=cfg.max_workers
+        Path(cfg.eval_artifact_yaml_list), max_workers=cfg.max_workers
     )
     log.info("All evaluation result artifacts loaded.")
 

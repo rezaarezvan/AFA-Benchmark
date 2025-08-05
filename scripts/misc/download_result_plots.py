@@ -40,7 +40,9 @@ def process_plot_artifact(cfg: PlotDownloadConfig, plot_run):
         for dataset_name, budgets, metric in zip(
             cfg.datasets, cfg.budgets, cfg.metrics
         ):
-            for budget in map(int, budgets.split(",")):
+            # If budgets is an empty string, accept any budget
+            if budgets.strip() == "":
+                budget = None
                 if is_match(
                     figure_artifact.name,
                     dataset_name,
@@ -50,21 +52,37 @@ def process_plot_artifact(cfg: PlotDownloadConfig, plot_run):
                 ):
                     log.info(f"MATCH: {figure_artifact.name}")
                     process_figure_artifact(figure_artifact, files)
+            else:
+                for budget in map(int, budgets.split(",")):
+                    if is_match(
+                        figure_artifact.name,
+                        dataset_name,
+                        budget,
+                        metric,
+                        cfg.file_type,
+                    ):
+                        log.info(f"MATCH: {figure_artifact.name}")
+                        process_figure_artifact(figure_artifact, files)
     return files
 
 
 def is_match(
-    artifact_name: str, dataset: str, budget: int, metric: str, file_type: str
+    artifact_name: str, dataset: str, budget: int | None, metric: str, file_type: str
 ):
     """
     Checks if the artifact_name matches the expected pattern for the given dataset, budget, and metric.
     Example artifact_name:
         figure-FashionMNIST_MaskedMLPClassifier_budget10_f1_all-svg:v0
+    If budget is None, accept any budget value.
     """
     # log.info(
     #     f"checking if {artifact_name} matches figure-{dataset}_budget{budget}_{metric}-{file_type}:v?"
     # )
-    pattern = rf"^figure-{re.escape(dataset)}_.*_budget{budget}_{re.escape(metric)}-{file_type}:v\d+$"
+    if budget is None:
+        budget_pattern = r"budget\\d+"
+    else:
+        budget_pattern = f"budget{budget}"
+    pattern = rf"^figure-{re.escape(dataset)}_.*_{budget_pattern}_{re.escape(metric)}-{file_type}:v\\d+$"
     return re.match(pattern, artifact_name) is not None
 
 

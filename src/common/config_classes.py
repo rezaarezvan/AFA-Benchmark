@@ -681,9 +681,11 @@ cs.store(name="evaluation_time_calculation", node=EvaluationTimeCalculationConfi
 @dataclass
 class PlotDownloadConfig:
     plotting_run_name: str
-    datasets: list[str]
+    datasets: list[str]  # only download plots of these datasets
     metrics: list[str]  # one metric per dataset
-    budgets: list[str]  # one list of budgets per dataset
+    budgets: list[
+        str
+    ]  # one list of budgets per dataset. Empty strings mean that all budgets are accepted.
     file_type: str  # e.g svg, png, pdf
     output_path: str  # where to store the downloaded figures
 
@@ -702,7 +704,7 @@ class MetricConfig:
 
 @dataclass
 class PlotConfig:
-    eval_artifact_config_path: str  # path to a YAML config file which contains a list of evaluation artifacts to use
+    eval_artifact_yaml_list: str  # path to a YAML config file which contains a list of evaluation artifacts to use
     metric_keys_and_descriptions: list[
         MetricConfig
     ]  # Inner list has two elements: [metric_key, description]
