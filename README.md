@@ -189,7 +189,7 @@ uv run scripts/pipeline/train_classifier.py --dataset cube AFAContext --split 1 
 
 ### Evaluation
 
-One of the main feature of **AFABench** is the consistent evaluation. The same evaluation script is used for all methods. To evaluate your method, either add the name of your method artifact to one of the files in `conf/eval/lists/` or create a new file. To evaluate the two methods we just trained, we can create the file
+One of the main feature of **AFABench** is the consistent evaluation. The same evaluation script is used for all methods. To evaluate your method, either add the name of your method artifact to one of the files in `conf/eval/lists/` or create a new file. To evaluate the two methods and classifier we just trained, we can create the file
 ```yaml
 cube:
   split1:
