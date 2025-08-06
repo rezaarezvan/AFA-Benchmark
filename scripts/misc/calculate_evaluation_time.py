@@ -56,6 +56,7 @@ def main(cfg: EvaluationTimeCalculationConfig) -> None:
     run = wandb.init(
         job_type="time_calculation",
         config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore
+        dir="wandb",
     )
 
     # Log W&B run URL

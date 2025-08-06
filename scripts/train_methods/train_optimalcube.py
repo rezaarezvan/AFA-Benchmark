@@ -30,6 +30,7 @@ def main(cfg: OptimalCubeTrainConfig):
         config=cast(dict[str, Any], OmegaConf.to_container(cfg, resolve=True)),
         job_type="training",
         tags=["randomdummy"],
+        dir="wandb",
     )
 
     # Log W&B run URL

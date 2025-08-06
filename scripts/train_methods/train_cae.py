@@ -36,16 +36,23 @@ def main(cfg: CAETrainingConfig):
         config=cast(dict[str, Any], OmegaConf.to_container(cfg, resolve=True)),
         job_type="training",
         tags=["CAE"],
+        dir="wandb",
     )
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
 
-    train_dataset, val_dataset, _, dataset_metadata = load_dataset_artifact(cfg.dataset_artifact_name)
+    train_dataset, val_dataset, _, dataset_metadata = load_dataset_artifact(
+        cfg.dataset_artifact_name
+    )
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
-    class_weights = len(train_class_probabilities) / (len(train_class_probabilities) * train_class_probabilities)
+    class_weights = len(train_class_probabilities) / (
+        len(train_class_probabilities) * train_class_probabilities
+    )
     class_weights = class_weights.to(device)
-    train_loader, val_loader, d_in, d_out = prepare_datasets(train_dataset, val_dataset, cfg.batch_size)
-    
+    train_loader, val_loader, d_in, d_out = prepare_datasets(
+        train_dataset, val_dataset, cfg.batch_size
+    )
+
     model = MLP(
         in_features=d_in,
         out_features=d_out,
@@ -61,17 +68,22 @@ def main(cfg: CAETrainingConfig):
         nepochs=cfg.selector.nepochs,
         loss_fn=nn.CrossEntropyLoss(weight=class_weights),
         patience=cfg.selector.patience,
-        verbose=False)
+        verbose=False,
+    )
 
     logits = selector_layer.logits.cpu().data.numpy()
     ranked_features = np.sort(logits.argmax(axis=1))
 
     if len(np.unique(ranked_features)) != cfg.hard_budget:
-        print(f'{len(np.unique(ranked_features))} selected instead of {cfg.hard_budget}, appending extras')
+        print(
+            f"{len(np.unique(ranked_features))} selected instead of {cfg.hard_budget}, appending extras"
+        )
     num_extras = cfg.hard_budget - len(np.unique(ranked_features))
     remaining_features = np.setdiff1d(np.arange(d_in), ranked_features)
-    ranked_features = np.sort(np.concatenate([np.unique(ranked_features), remaining_features[:num_extras]]))
-    
+    ranked_features = np.sort(
+        np.concatenate([np.unique(ranked_features), remaining_features[:num_extras]])
+    )
+
     predictors: dict[int, nn.Module] = {}
     selected_history: dict[int, list[int]] = {}
 
@@ -83,8 +95,16 @@ def main(cfg: CAETrainingConfig):
         train_subset = transform_dataset(train_dataset, selected_features)
         val_subset = transform_dataset(val_dataset, selected_features)
 
-        train_subset_loader = DataLoader(train_subset, batch_size=cfg.batch_size, shuffle=True, pin_memory=True, drop_last=True)
-        val_subset_loader = DataLoader(val_subset, batch_size=cfg.batch_size, pin_memory=True)
+        train_subset_loader = DataLoader(
+            train_subset,
+            batch_size=cfg.batch_size,
+            shuffle=True,
+            pin_memory=True,
+            drop_last=True,
+        )
+        val_subset_loader = DataLoader(
+            val_subset, batch_size=cfg.batch_size, pin_memory=True
+        )
 
         model = MLP(
             in_features=num,
@@ -99,10 +119,11 @@ def main(cfg: CAETrainingConfig):
             lr=cfg.classifier.lr,
             nepochs=cfg.classifier.nepochs,
             loss_fn=nn.CrossEntropyLoss(weight=class_weights),
-            verbose=False)
-        
+            verbose=False,
+        )
+
         predictors[num] = model
-    
+
     static_method = StaticBaseMethod(selected_history, predictors, device)
 
     with TemporaryDirectory(delete=False) as tmp_path_str:
@@ -123,7 +144,7 @@ def main(cfg: CAETrainingConfig):
         )
         static_method_artifact.add_dir(str(tmp_path))
         run.log_artifact(static_method_artifact, aliases=cfg.output_artifact_aliases)
-    
+
     run.finish()
 
     gc.collect()  # Force Python GC
@@ -133,5 +154,4 @@ def main(cfg: CAETrainingConfig):
 
 
 if __name__ == "__main__":
-    main()      
-
+    main()

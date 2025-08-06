@@ -34,6 +34,7 @@ def main(cfg: Ma2018PretrainingConfig):
         job_type="pretraining",
         config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore
         tags=["EDDI"],
+        dir="wandb",
     )
 
     set_seed(cfg.seed)
@@ -41,9 +42,10 @@ def main(cfg: Ma2018PretrainingConfig):
 
     train_dataset, val_dataset, _, _ = load_dataset_artifact(cfg.dataset_artifact_name)
 
-    train_loader, val_loader, d_in, d_out \
-        = prepare_datasets(train_dataset, val_dataset, cfg.batch_size)
-    
+    train_loader, val_loader, d_in, d_out = prepare_datasets(
+        train_dataset, val_dataset, cfg.batch_size
+    )
+
     # Train PVAE.
     pointnet = PointNet(
         identity_size=cfg.pointnet.identity_size,
@@ -83,12 +85,13 @@ def main(cfg: Ma2018PretrainingConfig):
         activation_class=nn.ReLU,
     )
     eddi_model = EDDI_Training(
-        classifier=classifier, 
-        partial_vae=pv, 
+        classifier=classifier,
+        partial_vae=pv,
         num_classes=d_out,
         n_annealing_epochs=cfg.n_annealing_epochs,
         start_kl_scaling_factor=cfg.start_kl_scaling_factor,
-        end_kl_scaling_factor=cfg.end_kl_scaling_factor)
+        end_kl_scaling_factor=cfg.end_kl_scaling_factor,
+    )
     eddi_model.fit(
         train_loader=train_loader,
         val_loader=val_loader,
@@ -111,7 +114,7 @@ def main(cfg: Ma2018PretrainingConfig):
         del eddi_selector
         eddi_selector = Ma2018AFAMethod.load(tmp_path, device=device)
 
-    pretrained_model_artifact.add_file(str(tmp_path / 'model.pt'))
+    pretrained_model_artifact.add_file(str(tmp_path / "model.pt"))
     run.log_artifact(
         pretrained_model_artifact,
         aliases=[*cfg.output_artifact_aliases, datetime.now().strftime("%b%d")],

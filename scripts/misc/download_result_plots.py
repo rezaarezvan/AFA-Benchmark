@@ -101,6 +101,7 @@ def main(cfg: PlotDownloadConfig) -> None:
     run = wandb.init(
         job_type="evaluation",
         config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore
+        dir="wandb",
     )
 
     # Log W&B run URL

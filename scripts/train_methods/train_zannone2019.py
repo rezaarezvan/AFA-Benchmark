@@ -191,6 +191,7 @@ def main(cfg: Zannone2019TrainConfig):
         config=cast(dict[str, Any], OmegaConf.to_container(cfg, resolve=True)),
         job_type="training",
         tags=["zannone2019"],
+        dir="wandb",
     )
 
     # Log W&B run URL

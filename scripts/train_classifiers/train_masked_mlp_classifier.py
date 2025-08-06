@@ -41,6 +41,7 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
         group="train_masked_mlp_classifier",
         job_type="train_classifier",
         config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore
+        dir="wandb",
     )
 
     # Log W&B run URL
@@ -79,7 +80,7 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
         mode="min",
     )
 
-    logger = WandbLogger()
+    logger = WandbLogger(save_dir="wandb")
     trainer = pl.Trainer(
         max_epochs=cfg.epochs,
         logger=logger,

@@ -131,6 +131,7 @@ def main(cfg: Shim2018TrainConfig):
         config=cast(dict[str, Any], OmegaConf.to_container(cfg, resolve=True)),
         job_type="training",
         tags=["shim2018"],
+        dir="wandb",
     )
 
     # Log W&B run URL

@@ -22,9 +22,7 @@ log = logging.getLogger(__name__)
 
 
 @hydra.main(
-    version_base=None, 
-    config_path="../../conf/train/covert2023", 
-    config_name="config"
+    version_base=None, config_path="../../conf/train/covert2023", config_name="config"
 )
 def main(cfg: Covert2023TrainingConfig):
     log.debug(cfg)
@@ -33,6 +31,7 @@ def main(cfg: Covert2023TrainingConfig):
         config=cast(dict[str, Any], OmegaConf.to_container(cfg, resolve=True)),
         job_type="training",
         tags=["GDFS"],
+        dir="wandb",
     )
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
@@ -57,10 +56,14 @@ def main(cfg: Covert2023TrainingConfig):
         pretrained_model_config.dataset_artifact_name
     )
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
-    class_weights = len(train_class_probabilities) / (len(train_class_probabilities) * train_class_probabilities)
+    class_weights = len(train_class_probabilities) / (
+        len(train_class_probabilities) * train_class_probabilities
+    )
     class_weights = class_weights.to(device)
-    train_loader, val_loader, d_in, d_out = prepare_datasets(train_dataset, val_dataset, cfg.batch_size)
-    
+    train_loader, val_loader, d_in, d_out = prepare_datasets(
+        train_dataset, val_dataset, cfg.batch_size
+    )
+
     predictor = fc_Net(
         input_dim=d_in * 2,
         output_dim=d_out,
@@ -69,13 +72,16 @@ def main(cfg: Covert2023TrainingConfig):
         activations=cfg.activations,
         drop_out_rate=cfg.dropout,
         flag_drop_out=cfg.flag_drop_out,
-        flag_only_output_layer=cfg.flag_only_output_layer
+        flag_only_output_layer=cfg.flag_only_output_layer,
     )
-    
-    checkpoint = torch.load(str(pretrained_model_artifact_dir  / "model.pt"), 
-        map_location=device, weights_only=False)
+
+    checkpoint = torch.load(
+        str(pretrained_model_artifact_dir / "model.pt"),
+        map_location=device,
+        weights_only=False,
+    )
     predictor.load_state_dict(checkpoint["predictor_state_dict"])
-    
+
     selector = fc_Net(
         input_dim=d_in * 2,
         output_dim=d_in,
@@ -84,9 +90,9 @@ def main(cfg: Covert2023TrainingConfig):
         activations=cfg.activations,
         drop_out_rate=cfg.dropout,
         flag_drop_out=cfg.flag_drop_out,
-        flag_only_output_layer=cfg.flag_only_output_layer
+        flag_only_output_layer=cfg.flag_only_output_layer,
     )
-    
+
     mask_layer = MaskLayer(append=True)
     gdfs = GreedyDynamicSelection(selector, predictor, mask_layer).to(device)
     gdfs.fit(
@@ -97,8 +103,9 @@ def main(cfg: Covert2023TrainingConfig):
         max_features=cfg.hard_budget,
         loss_fn=nn.CrossEntropyLoss(weight=class_weights),
         patience=cfg.patience,
-        verbose=True)
-    
+        verbose=True,
+    )
+
     afa_method = Covert2023AFAMethod(gdfs.selector.cpu(), gdfs.predictor.cpu())
 
     with TemporaryDirectory(delete=False) as tmp_path_str:
@@ -119,7 +126,7 @@ def main(cfg: Covert2023TrainingConfig):
         )
         afa_method_artifact.add_file(str(tmp_path / "model.pt"))
         run.log_artifact(afa_method_artifact, aliases=cfg.output_artifact_aliases)
-    
+
     run.finish()
 
     gc.collect()  # Force Python GC

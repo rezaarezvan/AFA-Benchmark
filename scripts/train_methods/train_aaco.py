@@ -14,9 +14,7 @@ from common.utils import load_dataset_artifact, set_seed
 log = logging.getLogger(__name__)
 
 
-@hydra.main(
-    version_base=None, config_path="../../conf/train/aco", config_name="config"
-)
+@hydra.main(version_base=None, config_path="../../conf/train/aco", config_name="config")
 def main(cfg: AACOTrainConfig):
     log.debug(cfg)
     set_seed(cfg.seed)
@@ -27,6 +25,7 @@ def main(cfg: AACOTrainConfig):
         config=cast(dict[str, Any], OmegaConf.to_container(cfg, resolve=True)),
         job_type="training",
         tags=["aaco"],
+        dir="wandb",
     )
 
     log.info(f"W&B run initialized: {run.name} ({run.id})")
@@ -65,8 +64,7 @@ def main(cfg: AACOTrainConfig):
         temp_path = Path(temp_dir)
         aaco_method.save(temp_path)
 
-        split_idx = cfg.dataset_artifact_name.split(
-            '_split_')[-1].split(':')[0]
+        split_idx = cfg.dataset_artifact_name.split("_split_")[-1].split(":")[0]
 
         trained_method_artifact = wandb.Artifact(
             name=f"aaco-{dataset_type}_split_{split_idx}",
@@ -80,8 +78,7 @@ def main(cfg: AACOTrainConfig):
             },
         )
         trained_method_artifact.add_dir(str(temp_path))
-        run.log_artifact(trained_method_artifact,
-                         aliases=cfg.output_artifact_aliases)
+        run.log_artifact(trained_method_artifact, aliases=cfg.output_artifact_aliases)
 
     log.info("AACO method saved as artifact")
     run.finish()

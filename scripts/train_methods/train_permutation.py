@@ -37,18 +37,27 @@ def main(cfg: PermutationTrainingConfig):
         config=cast(dict[str, Any], OmegaConf.to_container(cfg, resolve=True)),
         job_type="training",
         tags=["permutation"],
+        dir="wandb",
     )
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
 
-    train_dataset, val_dataset, _, dataset_metadata = load_dataset_artifact(cfg.dataset_artifact_name)
+    train_dataset, val_dataset, _, dataset_metadata = load_dataset_artifact(
+        cfg.dataset_artifact_name
+    )
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
-    class_weights = len(train_class_probabilities) / (len(train_class_probabilities) * train_class_probabilities)
+    class_weights = len(train_class_probabilities) / (
+        len(train_class_probabilities) * train_class_probabilities
+    )
     class_weights = class_weights.to(device)
-    train_loader, val_loader, d_in, d_out = prepare_datasets(train_dataset, val_dataset, cfg.batch_size)
+    train_loader, val_loader, d_in, d_out = prepare_datasets(
+        train_dataset, val_dataset, cfg.batch_size
+    )
 
-    auroc_metric = lambda pred, y: AUROC(task='multiclass', num_classes=d_out)(pred.softmax(dim=1), y)
-    
+    auroc_metric = lambda pred, y: AUROC(task="multiclass", num_classes=d_out)(
+        pred.softmax(dim=1), y
+    )
+
     predictors: dict[int, nn.Module] = {}
     selected_history: dict[int, list[int]] = {}
     num_features = list(range(1, cfg.hard_budget + 1))
@@ -66,8 +75,9 @@ def main(cfg: PermutationTrainingConfig):
         lr=cfg.selector.lr,
         nepochs=cfg.selector.nepochs,
         loss_fn=nn.CrossEntropyLoss(weight=class_weights),
-        verbose=False)
-    
+        verbose=False,
+    )
+
     permutation_importance = np.zeros(d_in)
     x_train = train_dataset.features
     for i in tqdm(range(d_in)):
@@ -76,8 +86,8 @@ def main(cfg: PermutationTrainingConfig):
         x_val[:, i] = x_train[np.random.choice(len(x_train), size=len(x_val)), i]
         with torch.no_grad():
             pred = model(x_val.to(device)).cpu()
-            permutation_importance[i] = - auroc_metric(pred, y_val)
-    
+            permutation_importance[i] = -auroc_metric(pred, y_val)
+
     ranked_features = np.argsort(permutation_importance)[::-1]
 
     for num in num_features:
@@ -85,7 +95,9 @@ def main(cfg: PermutationTrainingConfig):
         selected_history[num] = selected_features.tolist()
         train_subset = transform_dataset(train_dataset, selected_features.copy())
         val_subset = transform_dataset(val_dataset, selected_features.copy())
-        train_subset_loader = DataLoader(train_subset, batch_size=128, shuffle=True, pin_memory=True, drop_last=True)
+        train_subset_loader = DataLoader(
+            train_subset, batch_size=128, shuffle=True, pin_memory=True, drop_last=True
+        )
         val_subset_loader = DataLoader(val_subset, batch_size=1024, pin_memory=True)
 
         model = MLP(
@@ -101,10 +113,11 @@ def main(cfg: PermutationTrainingConfig):
             lr=cfg.classifier.lr,
             nepochs=cfg.classifier.nepochs,
             loss_fn=nn.CrossEntropyLoss(weight=class_weights),
-            verbose=False)
-        
+            verbose=False,
+        )
+
         predictors[num] = model
-    
+
     static_method = StaticBaseMethod(selected_history, predictors, device)
 
     with TemporaryDirectory(delete=False) as tmp_path_str:
@@ -125,7 +138,7 @@ def main(cfg: PermutationTrainingConfig):
         )
         static_method_artifact.add_dir(str(tmp_path))
         run.log_artifact(static_method_artifact, aliases=cfg.output_artifact_aliases)
-    
+
     run.finish()
 
     gc.collect()  # Force Python GC
@@ -133,5 +146,7 @@ def main(cfg: PermutationTrainingConfig):
         torch.cuda.empty_cache()  # Release cached memory held by PyTorch CUDA allocator
         torch.cuda.synchronize()  # Optional, wait for CUDA ops to finish
 
+
 if __name__ == "__main__":
-    main()   
+    main()
+

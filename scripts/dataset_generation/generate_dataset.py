@@ -116,42 +116,6 @@ def generate_and_save_split(
     )
 
 
-# def verify_dataset(dataset_type, split_idx, data_dir):
-#     """Verify that a dataset can be loaded correctly."""
-#     dataset_class = get_afa_dataset_class(dataset_type)
-#
-#     # Load train, val, and test splits
-#     train_path = os.path.join(data_dir, dataset_type, f"train_split_{split_idx + 1}.pt")
-#     val_path = os.path.join(data_dir, dataset_type, f"val_split_{split_idx + 1}.pt")
-#     test_path = os.path.join(data_dir, dataset_type, f"test_split_{split_idx + 1}.pt")
-#
-#     train_dataset = dataset_class.load(Path(train_path))
-#     val_dataset = dataset_class.load(Path(val_path))
-#     test_dataset = dataset_class.load(Path(test_path))
-#
-#     print(f"Verified {dataset_type} split {split_idx + 1}:")
-#     print(f"  Train: {len(train_dataset)} samples")
-#     print(f"  Val: {len(val_dataset)} samples")
-#     print(f"  Test: {len(test_dataset)} samples")
-#
-#     # Check a sample from each split
-#     train_features, train_labels = train_dataset.features, train_dataset.labels
-#     val_features, val_labels = val_dataset.features, val_dataset.labels
-#     test_features, test_labels = test_dataset.features, test_dataset.labels
-#
-#     print(f"train_features: {train_features.shape}")
-#     print(f"train_labels: {train_labels.shape}")
-#     print(f"train_labels: {train_labels[:10]}")
-#     print(f"val_features: {val_features.shape}")
-#     print(f"val_labels: {val_labels.shape}")
-#     print(f"val_labels: {val_labels[:10]}")
-#     print(f"test_features: {test_features.shape}")
-#     print(f"test_labels: {test_labels.shape}")
-#     print(f"test_labels: {test_labels[:10]}")
-#
-#     return train_dataset, val_dataset, test_dataset
-
-
 log = logging.getLogger(__name__)
 
 
@@ -165,7 +129,7 @@ def main(cfg: DatasetGenerationConfig) -> None:
 
     # Data will be logged as a wandb artifact
     # Since we often generate data with multiruns, only create a new run if not already running
-    run = wandb.run or wandb.init(job_type="data_generation")
+    run = wandb.run or wandb.init(job_type="data_generation", dir="wandb")
 
     dataset_class = get_afa_dataset_class(cfg.dataset.type)
 
@@ -181,9 +145,6 @@ def main(cfg: DatasetGenerationConfig) -> None:
         epsilon=cfg.epsilon,
         **cfg.dataset.kwargs,
     )
-
-    # Verify split
-    # verify_dataset(cfg.dataset_type, 0, cfg.data_dir)
 
 
 if __name__ == "__main__":
