@@ -11,8 +11,8 @@ def parse_args():
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--launcher", default="custom_slurm")
     parser.add_argument("--output-alias", default="tmp")
-    parser.add_argument("--wandb-entity", default="")
-    parser.add_argument("--wandb-project", default="")
+    parser.add_argument("--wandb-entity")
+    parser.add_argument("--wandb-project")
     parser.add_argument("--yaml", required=True, help="YAML file with artifact names")
     return parser.parse_args()
 
@@ -38,8 +38,10 @@ def build_eval_job(
 
 def main():
     args = parse_args()
-    os.environ["WANDB_ENTITY"] = args.wandb_entity
-    os.environ["WANDB_PROJECT"] = args.wandb_project
+    if args.wandb_entity is not None:
+        os.environ["WANDB_ENTITY"] = args.wandb_entity
+    if args.wandb_project is not None:
+        os.environ["WANDB_PROJECT"] = args.wandb_project
 
     with open(args.yaml) as f:
         config = yaml.safe_load(f)

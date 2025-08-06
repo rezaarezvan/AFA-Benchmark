@@ -57,8 +57,8 @@ def parse_args():
         required=True,
         help="The alias that the resulting trained method should have.",
     )
-    parser.add_argument("--wandb-entity", type=str, default="")
-    parser.add_argument("--wandb-project", type=str, default="")
+    parser.add_argument("--wandb-entity", type=str)
+    parser.add_argument("--wandb-project", type=str)
     args, unknown = parser.parse_known_args()
 
     # Verify that either dataset-alias or pretrain-alias is provided, but not both
@@ -75,8 +75,10 @@ def parse_args():
 def main():
     args, extra_args = parse_args()
     extra_args_str = " ".join(extra_args)
-    os.environ["WANDB_ENTITY"] = args.wandb_entity
-    os.environ["WANDB_PROJECT"] = args.wandb_project
+    if args.wandb_entity is not None:
+        os.environ["WANDB_ENTITY"] = args.wandb_entity
+    if args.wandb_project is not None:
+        os.environ["WANDB_PROJECT"] = args.wandb_project
 
     print("Starting training jobs...")
     time.sleep(1)

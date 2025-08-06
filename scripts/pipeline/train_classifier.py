@@ -42,16 +42,18 @@ def parse_args():
         default="tmp",
         help="The alias that the resulting pretrained model should have.",
     )
-    parser.add_argument("--wandb-entity", type=str, default="afa-team")
-    parser.add_argument("--wandb-project", type=str, default="afa-benchmark")
+    parser.add_argument("--wandb-entity", type=str)
+    parser.add_argument("--wandb-project", type=str)
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
 
-    os.environ["WANDB_ENTITY"] = args.wandb_entity
-    os.environ["WANDB_PROJECT"] = args.wandb_project
+    if args.wandb_entity is not None:
+        os.environ["WANDB_ENTITY"] = args.wandb_entity
+    if args.wandb_project is not None:
+        os.environ["WANDB_PROJECT"] = args.wandb_project
 
     extra_opts = f"device={args.device} hydra/launcher={args.launcher}"
 
