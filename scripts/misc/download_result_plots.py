@@ -40,8 +40,8 @@ def process_plot_artifact(cfg: PlotDownloadConfig, plot_run):
         for dataset_name, budgets, metric in zip(
             cfg.datasets, cfg.budgets, cfg.metrics
         ):
-            # If budgets is an empty string, accept any budget
-            if budgets.strip() == "":
+            # If budgets is a dot, accept any budget
+            if budgets.strip() == ".":
                 budget = None
                 if is_match(
                     figure_artifact.name,
@@ -53,7 +53,7 @@ def process_plot_artifact(cfg: PlotDownloadConfig, plot_run):
                     log.info(f"MATCH: {figure_artifact.name}")
                     process_figure_artifact(figure_artifact, files)
             else:
-                for budget in map(int, budgets.split(",")):
+                for budget in map(int, budgets.split(" ")):
                     if is_match(
                         figure_artifact.name,
                         dataset_name,
@@ -79,10 +79,10 @@ def is_match(
     #     f"checking if {artifact_name} matches figure-{dataset}_budget{budget}_{metric}-{file_type}:v?"
     # )
     if budget is None:
-        budget_pattern = r"budget\\d+"
+        budget_pattern = r"budget\d+"
     else:
         budget_pattern = f"budget{budget}"
-    pattern = rf"^figure-{re.escape(dataset)}_.*_{budget_pattern}_{re.escape(metric)}-{file_type}:v\\d+$"
+    pattern = rf"^figure-{re.escape(dataset)}_.*_{budget_pattern}_{re.escape(metric)}-{file_type}:v\d+$"
     return re.match(pattern, artifact_name) is not None
 
 

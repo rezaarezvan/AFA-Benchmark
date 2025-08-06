@@ -685,7 +685,7 @@ class PlotDownloadConfig:
     metrics: list[str]  # one metric per dataset
     budgets: list[
         str
-    ]  # one list of budgets per dataset. Empty strings mean that all budgets are accepted.
+    ]  # one list of budgets per dataset. A single '.' means that all budgets are accepted. Budgets are separated by whitespace.
     file_type: str  # e.g svg, png, pdf
     output_path: str  # where to store the downloaded figures
 
