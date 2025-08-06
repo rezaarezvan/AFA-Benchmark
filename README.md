@@ -122,11 +122,11 @@ saved to W&B and locally.
 |  **EDDI-GG**  |          [link](https://proceedings.mlr.press/v97/ma19c)          |   Generative estimation of CMI   |   Greedy   |
 |  **GDFS-DG**  |       [link](https://proceedings.mlr.press/v202/covert23a)        | Discriminative estimation of CMI |   Greedy   |
 |  **DIME-DG**  |             [link](https://arxiv.org/pdf/2306.03301)              | Discriminative estimation of CMI |   Greedy   |
-| **JAFA-MFRL** |                             [link]()                              |          Model-free RL           | Non-greedy |
-|  **OL-MFRL**  |                             [link]()                              |          Model-free RL           | Non-greedy |
-| **ODIN-MFRL** |                             [link]()                              |          Model-free RL           | Non-greedy |
-| **ODIN-MBRL** |                             [link]()                              |          Model-based RL          | Non-greedy |
-|   **AACO**    |                             [link]()                              |           Oracle-based           | Non-greedy |
+| **JAFA-MFRL** |                             [link](https://papers.nips.cc/paper_files/paper/2018/hash/e5841df2166dd424a57127423d276bbe-Abstract.html)                              |          Model-free RL           | Non-greedy |
+|  **OL-MFRL**  |                             [link](https://arxiv.org/pdf/1901.00243)                              |          Model-free RL           | Non-greedy |
+| **ODIN-MFRL** |                             [link](https://www.microsoft.com/en-us/research/publication/odin-optimal-discovery-of-high-value-information-using-model-based-deep-reinforcement-learning/)                              |          Model-free RL           | Non-greedy |
+| **ODIN-MBRL** |                             [link](https://www.microsoft.com/en-us/research/publication/odin-optimal-discovery-of-high-value-information-using-model-based-deep-reinforcement-learning/)                              |          Model-based RL          | Non-greedy |
+|   **AACO**    |                             [link](https://proceedings.mlr.press/v235/valancius24a.html)                              |           Oracle-based           | Non-greedy |
 |   **PT-S**    | [link](https://link.springer.com/article/10.1023/A:1010933404324) |    Global feature importance     |    N/A     |
 |   **CAE-S**   |      [link](https://proceedings.mlr.press/v97/balin19a.html)      |    Global feature importance     |    N/A     |
 
@@ -137,10 +137,10 @@ saved to W&B and locally.
 |     **CUBE**     | Synthetic  |              1000              |     20     |     8     |
 |  **AFAContext**  | Synthetic  |              1000              |     30     |     8     |
 |    **MNIST**     | Real World |             60 000             |    784     |    10     |
-| **FashionMNIST** | Real World |                                |            |           |
+| **FashionMNIST** | Real World |             60 000             |    784     |    10     |
 |   **Diabetes**   | Real World |             92 063             |     45     |     3     |
-|  **miniboone**   | Real World |                                |            |           |
-|  **Physionet**   | Real World |             12 000             |     41     |     2     |
+|  **PhysioNet**   | Real World |             12 000             |     41     |     2     |
+|  **MiniBooNE**   | Real World |            130 064             |     50     |     2     |
 
 ## Project structure
 
