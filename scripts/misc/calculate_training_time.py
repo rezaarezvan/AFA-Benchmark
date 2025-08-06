@@ -50,8 +50,10 @@ def process_all_eval_artifacts(plotting_runs, training_times, max_workers=8):
         futures = []
         for plotting_run in plotting_runs:
             futures.extend(
-                executor.submit(process_eval_artifact_sync, artifact, training_times)
-                for artifact in plotting_run.used_artifacts()
+                executor.submit(
+                    process_eval_artifact_sync, eval_artifact, training_times
+                )
+                for eval_artifact in plotting_run.used_artifacts()
             )
         for future in as_completed(futures):
             future.result()
