@@ -85,8 +85,8 @@ Train and evaluate a single AFA method on synthetic data:
 
 ```bash
 # 1. Generate synthetic dataset
-uv run scripts/data_generation/generate_data.py \
-  dataset_type=cube \
+uv run scripts/dataset_generation/generate_dataset.py \
+  +dataset_type=cube \
   +output_artifact_aliases=[demo]
 
 # 2. Train AACO method
@@ -95,15 +95,21 @@ uv run scripts/train_methods/train_aaco.py \
 
 # 3. Evaluate performance
 uv run scripts/evaluation/eval_afa_method.py \
-  trained_method_artifact_name="aaco-cube_split_1:latest"
+  trained_method_artifact_name="aaco-cube_split_1:latest" \
+  trained_classifier_artifact_name="null" \
+  +budget=10 \
+  dataset_split=testing \
+  output_artifact_aliases=["demo"]
 
-# 4. Generate plots
+# 4. Create list of eval artifacts to list
+echo -e "eval_artifact_names:\n  - aaco-cube_split_1-builtin:demo" > conf/plot/lists/demo.yaml
+
+# 5. Plot results
 uv run scripts/plotting/plot_results.py \
-  eval_artifact_names=["eval-aaco-cube_split_1:latest"]
+  eval_artifact_config_path="conf/plot/lists/demo.yaml"
 ```
 
-**Expected output**: Plots showing accuracy vs. number of features acquired,
-saved to W&B and locally.
+**Expected output**: Plots showing accuracy vs. number of features acquired, saved to W&B and locally.
 
 ## Implemented Methods
 
