@@ -17,8 +17,7 @@ from common.custom_types import (
 
 
 class ConcreteMask(nn.Module):
-    """For differentiable global feature selection.
-    """
+    """For differentiable global feature selection."""
 
     def __init__(
         self, num_features, num_select, group_matrix=None, append=False, gamma=0.2
@@ -73,8 +72,7 @@ class DifferentiableSelector(nn.Module):
         temp_steps=10,
         verbose=True,
     ):
-        """Train model to perform global feature selection.
-        """
+        """Train model to perform global feature selection."""
         # Verify arguments.
         if val_loss_fn is None:
             val_loss_fn = loss_fn

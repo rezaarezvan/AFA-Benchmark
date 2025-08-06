@@ -16,16 +16,14 @@ from common.custom_types import FeatureMask, Features, Label, MaskedFeatures
 def get_wrapped_batch(
     t: Shaped[Tensor, "batch *rem"], idx: int, numel: int
 ) -> Shaped[Tensor, "{num_elems} *rem"]:
-    """Get a batch of size num_elems from a tensor t, starting at index idx, wrapping around if necessary.
-    """
+    """Get a batch of size num_elems from a tensor t, starting at index idx, wrapping around if necessary."""
     n = len(t)
     repeated = t.repeat((numel // n) + 2, *[1] * (t.ndim - 1))
     return repeated[idx : idx + numel]
 
 
 def get_afa_dataset_fn(features: Features, labels: Label) -> AFADatasetFn:
-    """Given features and labels, return a function that can be used to get batches of AFA data.
-    """
+    """Given features and labels, return a function that can be used to get batches of AFA data."""
     idx = 0  # keep track of where in the dataset we are
 
     def afa_dataset_fn(

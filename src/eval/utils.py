@@ -8,8 +8,6 @@ import numpy as np
 from common.utils import get_folders_with_matching_params
 
 
-
-
 def get_eval_results_with_fixed_keys(
     fixed_params_mapping: dict[str, Any] = {}, results_path=Path("results")
 ) -> list[dict[str, Any]]:
@@ -34,8 +32,7 @@ def get_classifier_paths_trained_on_data(
     train_dataset_path: Path,
     classifier_folder=Path("models/classifiers"),
 ) -> list[Path]:
-    """Get Paths to all classifiers of a specific type trained on a specific dataset.
-    """
+    """Get Paths to all classifiers of a specific type trained on a specific dataset."""
     # Define the fixed parameters to match
     fixed_params_mapping = {"train_dataset_path": str(train_dataset_path)}
 

@@ -40,8 +40,7 @@ class classifier_mlp:
         return logits
 
     def __call__(self, X, idx):
-        """AACO interface for compatibility
-        """
+        """AACO interface for compatibility"""
         # Get logits and convert to probabilities for AACO compatibility
         logits = self.predict_logits(X)
         probs = torch.softmax(logits, dim=-1)

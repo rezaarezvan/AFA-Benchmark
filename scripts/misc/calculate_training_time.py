@@ -16,7 +16,6 @@ from common.config_classes import TrainingTimeCalculationConfig
 from omegaconf import OmegaConf
 
 
-
 def process_eval_artifact_sync(eval_artifact, training_times):
     eval_run = eval_artifact.logged_by()
     method_artifacts = [
@@ -42,8 +41,7 @@ def process_eval_artifact_sync(eval_artifact, training_times):
 
 
 def process_all_eval_artifacts(plotting_runs, training_times, max_workers=8):
-    """Accepts a list of plotting runs and processes all their eval artifacts concurrently.
-    """
+    """Accepts a list of plotting runs and processes all their eval artifacts concurrently."""
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = []
         for plotting_run in plotting_runs:

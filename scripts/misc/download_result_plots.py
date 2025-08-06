@@ -15,7 +15,6 @@ from common.config_classes import PlotDownloadConfig
 from omegaconf import OmegaConf
 
 
-
 def process_figure_artifact(figure_artifact, files):
     # extract the svg file saved in this artifact and save it to files
     artifact_dir = Path(figure_artifact.download())

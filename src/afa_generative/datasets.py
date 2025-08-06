@@ -23,8 +23,7 @@ def prepare_datasets(train_dataset, val_dataset, batch_size: int):
 
 
 class base_UCI_Dataset(Dataset):
-    """Most simple dataset by explicit giving train and test data
-    """
+    """Most simple dataset by explicit giving train and test data"""
 
     def __init__(self, data, transform=None, flag_GPU=True):
         self.Data = data

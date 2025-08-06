@@ -62,8 +62,7 @@ def load_classifier(dataset_name, split, device=None):
 
 
 def load_mask_generator(dataset_name, input_dim):
-    """Their exact mask generator loading logic
-    """
+    """Their exact mask generator loading logic"""
     dataset_name_lower = dataset_name.lower()
 
     if dataset_name_lower in [
@@ -82,8 +81,7 @@ def load_mask_generator(dataset_name, input_dim):
 
 
 def get_initial_feature(dataset_name, n_features):
-    """Their exact initial feature selection logic
-    """
+    """Their exact initial feature selection logic"""
     dataset_name = dataset_name.lower()
 
     if dataset_name == "cube":
@@ -118,8 +116,7 @@ class AACOOracle:
         self.class_weights = None
 
     def fit(self, X_train, y_train):
-        """Fit the oracle on training data
-        """
+        """Fit the oracle on training data"""
         self.X_train = X_train.to(self.device)
         self.y_train = y_train.to(self.device)
         train_class_probabilities = get_class_probabilities(self.y_train)

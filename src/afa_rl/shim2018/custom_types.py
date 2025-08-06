@@ -8,8 +8,7 @@ type Embedding = Float[Tensor, "*batch embedding_size"]
 
 
 class Embedder(nn.Module, ABC):
-    """An Embedder converts feature values and feature indices (1 if a feature is observed, 0 if not) to an embedding.
-    """
+    """An Embedder converts feature values and feature indices (1 if a feature is observed, 0 if not) to an embedding."""
 
     @abstractmethod
     def forward(

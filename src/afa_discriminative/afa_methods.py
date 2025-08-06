@@ -479,8 +479,7 @@ class Covert2023AFAMethod(AFAMethod):
 
 
 class CMIEstimator(nn.Module):
-    """Greedy CMI estimation module.
-    """
+    """Greedy CMI estimation module."""
 
     def __init__(self, value_network, predictor, mask_layer):
         super().__init__()

@@ -9,8 +9,7 @@ def setup_data():
 
 
 def bin_list_to_int(bin_list: list[int]):
-    """Convert a list of binary values to an integer.
-    """
+    """Convert a list of binary values to an integer."""
     return int("".join(str(x) for x in bin_list), 2)
 
 

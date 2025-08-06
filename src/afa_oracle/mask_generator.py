@@ -18,8 +18,7 @@ def powerset(iterable):
 
 
 def generate_all_masks(input_dim):
-    """Generate all possible masks for a given feature dimension.
-    """
+    """Generate all possible masks for a given feature dimension."""
     subsets = powerset(range(input_dim))
     all_masks = np.zeros((len(subsets), input_dim))
 
@@ -38,8 +37,7 @@ class all_mask_generator:
 
 
 def generate_ball(N, d1, d2):
-    """Generate random binary masks
-    """
+    """Generate random binary masks"""
     Ball = np.concatenate(
         [
             np.sum(
@@ -55,8 +53,7 @@ def generate_ball(N, d1, d2):
 
 
 class random_mask_generator:
-    """Their exact random mask generator implementation
-    """
+    """Their exact random mask generator implementation"""
 
     def __init__(self, num_samples, feature_dim, num_generated_masks):
         self.num_samples = num_samples

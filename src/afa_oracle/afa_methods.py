@@ -37,8 +37,7 @@ class AACOAFAMethod(AFAMethod):
         features,
         labels,
     ) -> AFASelection:
-        """Select next feature using AACO implementation with logging
-        """
+        """Select next feature using AACO implementation with logging"""
         # Store original device for return tensor
         original_device = masked_features.device
 
@@ -77,8 +76,7 @@ class AACOAFAMethod(AFAMethod):
         features,
         labels,
     ) -> Label:
-        """Make prediction using classifier approach with proper device handling
-        """
+        """Make prediction using classifier approach with proper device handling"""
         original_device = masked_features.device
 
         # Move inputs to working device
@@ -133,8 +131,7 @@ class AACOAFAMethod(AFAMethod):
 
     @override
     def save(self, path: Path) -> None:
-        """Save method state
-        """
+        """Save method state"""
         oracle_state = {
             "k_neighbors": self.aaco_oracle.k_neighbors,
             "acquisition_cost": self.aaco_oracle.acquisition_cost,
@@ -191,8 +188,7 @@ class AACOAFAMethod(AFAMethod):
 
     @override
     def to(self, device: torch.device) -> Self:
-        """Move method to device
-        """
+        """Move method to device"""
         self._device = device
         self.aaco_oracle = self.aaco_oracle.to(device)
         return self
@@ -200,8 +196,7 @@ class AACOAFAMethod(AFAMethod):
     @property
     @override
     def device(self) -> torch.device:
-        """Get device
-        """
+        """Get device"""
         return self._device
 
 
@@ -213,8 +208,7 @@ def create_aaco_method(
     split: str = "1",
     device: torch.device = None,
 ) -> AACOAFAMethod:
-    """Factory function to create AACO method with proper device handling
-    """
+    """Factory function to create AACO method with proper device handling"""
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

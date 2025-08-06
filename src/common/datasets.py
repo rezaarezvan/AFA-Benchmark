@@ -15,8 +15,7 @@ from common.custom_types import AFADataset, FeatureMask, MaskedFeatures, Feature
 
 @final
 class Shim2018CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
-    """The Cube dataset, as described in the paper "Minimizing data consumption with sequential online feature selection" (https://doi.org/10.1007/s13042-012-0092-x).
-    """
+    """The Cube dataset, as described in the paper "Minimizing data consumption with sequential online feature selection" (https://doi.org/10.1007/s13042-012-0092-x)."""
 
     n_classes = 8
     n_features = 20  # Fixed number of features

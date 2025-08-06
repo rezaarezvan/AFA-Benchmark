@@ -246,8 +246,7 @@ class MaskingPretrainer(nn.Module):
 
 
 class fc_Net(nn.Module):
-    """This class implements the base network structure for fully connected encoder/decoder/predictor.
-    """
+    """This class implements the base network structure for fully connected encoder/decoder/predictor."""
 
     def __init__(
         self,

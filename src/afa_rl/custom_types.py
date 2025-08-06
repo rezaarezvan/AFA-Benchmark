@@ -30,8 +30,7 @@ type FeatureSet = Float[
 
 
 class AFADatasetFn(Protocol):
-    """A dataset that returns new batched samples in the same format as AFADataset. move_on determines whether the dataset should return different samples next time the function is called.
-    """
+    """A dataset that returns new batched samples in the same format as AFADataset. move_on determines whether the dataset should return different samples next time the function is called."""
 
     def __call__(
         self, batch_size: torch.Size, move_on: bool = True

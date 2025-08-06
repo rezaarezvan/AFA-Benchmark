@@ -21,8 +21,7 @@ def get_network(d_in, d_out):
 
 
 class BaseModel(nn.Module):
-    """Base model, no missing features.
-    """
+    """Base model, no missing features."""
 
     def __init__(self, model):
         super().__init__()
@@ -43,8 +42,7 @@ class BaseModel(nn.Module):
         early_stopping_epochs=None,
         verbose=True,
     ):
-        """Train model.
-        """
+        """Train model."""
         # Verify arguments.
         if val_loss_fn is None:
             val_loss_fn = loss_fn
@@ -171,6 +169,5 @@ class BaseModel(nn.Module):
         return score
 
     def forward(self, x):
-        """Generate model prediction.
-        """
+        """Generate model prediction."""
         return self.model(x)
