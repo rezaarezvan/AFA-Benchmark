@@ -172,11 +172,11 @@ saved to W&B and locally.
 - `src`: Source code.
 - `tests`: Unit tests.
 
-## Full Pipeline Tutorial TODO CHECK IF THIS WORKS
+## Full Pipeline Tutorial
 
 This tutorial will show how to train and evaluate two separate methods. The
 first one, **ODIN**, is RL-based and has a pretraining stage. The second one,
-**TODO**, is TODO and does not require pretraining. This will hopefully give you
+**CAE**, is a static method based on global feature importance and does not require pretraining. This will hopefully give you
 a good idea of how the remaining methods are trained and evaluated as well.
 
 ### Dataset generation
@@ -207,7 +207,7 @@ everything locally in sequence) or the name of the configuration file (without
 suffix) that you created in `conf/global/hydra/launcher/` if you plan to run
 everything on a cluster using Slurm.
 
-The **TODO** method does not have to be pretrained.
+The **CAE** method does not have to be pretrained.
 
 ### Training
 
@@ -220,11 +220,11 @@ dataset. To train **ODIN** and use the budgets [5,10] on **cube** but [4,8] on
 uv run scripts/pipeline/train.py --method-name "zannone2019" --dataset cube AFAContext --budgets "5,10" "4,8" --split 1 2 --launcher <LAUNCHER> --device <DEVICE> --dataset cube AFAContext --pretrain-alias tutorial-pretrained --output-alias tutorial-trained
 ```
 
-Since **TODO** does not have a pretraining stage, we supply dataset artifact
+Since **CAE** does not have a pretraining stage, we supply dataset artifact
 aliases instead of pretrained model aliases:
 
 ```bash
-uv run scripts/pipeline/train.py --method-name "TODO" --dataset cube AFAContext --budgets "5,10" "4,8" --split 1 2 --launcher <LAUNCHER> --device <DEVICE> --dataset cube AFAContext --dataset-alias tutorial-data --output-alias tutorial-trained
+uv run scripts/pipeline/train.py --method-name "cae" --dataset cube AFAContext --budgets "5,10" "4,8" --split 1 2 --launcher <LAUNCHER> --device <DEVICE> --dataset cube AFAContext --dataset-alias tutorial-data --output-alias tutorial-trained
 ```
 
 ### Classifier training
@@ -254,8 +254,8 @@ cube:
     trained_method_artifact_names:
       - train_zannone2019-cube_split_1-budget_5-seed_42:tutorial-trained
       - train_zannone2019-cube_split_1-budget_10-seed_42:tutorial-trained
-      - train_todo-cube_split_1-budget_5-seed_42:tutorial-trained
-      - train_todo-cube_split_1-budget_10-seed_42:tutorial-trained
+      - train_cae-cube_split_1-budget_5-seed_42:tutorial-trained
+      - train_cae-cube_split_1-budget_10-seed_42:tutorial-trained
     trained_classifier_artifact_name: "masked_mlp_classifier-cube_split_1:trained-classifier"
   split2:
     trained_method_artifact_names:
@@ -267,8 +267,8 @@ AFAContext:
     trained_method_artifact_names:
       - train_zannone2019-AFAContext_split_1-budget_4-seed_42:tutorial-trained
       - train_zannone2019-AFAContext_split_1-budget_8-seed_42:tutorial-trained
-      - train_todo-AFAContext_split_1-budget_4-seed_42:tutorial-trained
-      - train_todo-AFAContext_split_1-budget_8-seed_42:tutorial-trained
+      - train_cae-AFAContext_split_1-budget_4-seed_42:tutorial-trained
+      - train_cae-AFAContext_split_1-budget_8-seed_42:tutorial-trained
     trained_classifier_artifact_name: "masked_mlp_classifier-AFAContext_split_1:trained-classifier"
   split2:
     trained_method_artifact_names:
