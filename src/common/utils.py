@@ -16,7 +16,6 @@ def set_seed(seed: int):
     import os
     import random
     import numpy as np
-    import torch
 
     os.environ["PYTHONHASHSEED"] = str(seed)
     random.seed(seed)
@@ -31,8 +30,7 @@ def set_seed(seed: int):
 def get_class_probabilities(
     labels: Bool[Tensor, "*batch n_classes"],
 ) -> Float[Tensor, "n_classes"]:
-    """
-    Returns the class probabilities for a given set of labels.
+    """Returns the class probabilities for a given set of labels.
     """
     class_counts = labels.float().sum(dim=0)
     class_probabilities = class_counts / class_counts.sum()
@@ -40,11 +38,9 @@ def get_class_probabilities(
 
 
 def yaml_file_matches_mapping(yaml_file_path: Path, mapping: dict[str, Any]) -> bool:
+    """Check if the keys in a YAML file match a given mapping (for the provided keys, other keys can have any value).
     """
-    Check if the keys in a YAML file match a given mapping (for the provided keys, other keys can have any value).
-    """
-
-    with open(yaml_file_path, "r") as file:
+    with open(yaml_file_path) as file:
         dictionary: dict = yaml.safe_load(file)
 
     # Check if the keys match
@@ -58,10 +54,8 @@ def yaml_file_matches_mapping(yaml_file_path: Path, mapping: dict[str, Any]) -> 
 def get_folders_with_matching_params(
     folder: Path, mapping: dict[str, Any]
 ) -> list[Path]:
+    """Get all folders in a given folder that have a matching params.yml file.
     """
-    Get all folders in a given folder that have a matching params.yml file.
-    """
-
     matching_folders = [
         f
         for f in folder.iterdir()
@@ -129,7 +123,7 @@ def eval_mode(*models: nn.Module):
             model.eval()
         yield
     finally:
-        for model, mode in zip(models, was_training):
+        for model, mode in zip(models, was_training, strict=False):
             model.train(mode)
 
 

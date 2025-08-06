@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from pathlib import Path
-from typing import Any, Literal, Optional, List
+from typing import Any
 from hydra.core.config_store import ConfigStore
 
 
@@ -600,14 +599,14 @@ class AACOConfig:
     acquisition_cost: float = 0.05
     hide_val: float = 10.0
     evaluate_final_performance: bool = True
-    eval_only_n_samples: Optional[int] = None
+    eval_only_n_samples: int | None = None
 
 
 @dataclass
 class AACOTrainConfig:
     aco: AACOConfig
     dataset_artifact_name: str
-    output_artifact_aliases: List[str]
+    output_artifact_aliases: list[str]
     seed: int = 42
     device: str = "cpu"
 

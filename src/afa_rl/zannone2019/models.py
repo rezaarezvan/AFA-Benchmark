@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from jaxtyping import Float
 from torch import Tensor, nn
 
-from afa_rl.utils import mask_data, weighted_cross_entropy
+from afa_rl.utils import mask_data
 from common.custom_types import (
     AFAClassifier,
     AFAPredictFn,
@@ -26,8 +26,7 @@ class PointNetType(Enum):
 
 @final
 class PointNet(nn.Module):
-    """
-    Implements the PointNet and PointNetPlus architectures for encoding sets of features, as described in
+    """Implements the PointNet and PointNetPlus architectures for encoding sets of features, as described in
     "EDDI: Efficient Dynamic Discovery of High-Value Information with Partial VAE".
 
     This module learns a per-feature identity embedding and combines it with observed feature values
@@ -40,6 +39,7 @@ class PointNet(nn.Module):
         feature_map_encoder (nn.Module): Module to encode per-feature representations.
         pointnet_type (PointNetType): Type of PointNet variant to use (POINTNET or POINTNETPLUS).
         max_embedding_norm (float | None, optional): Maximum norm for the identity embeddings.
+
     """
 
     def __init__(
@@ -50,8 +50,7 @@ class PointNet(nn.Module):
         pointnet_type: PointNetType,
         max_embedding_norm: float | None = None,
     ):
-        """
-        Initializes the PointNet module.
+        """Initializes the PointNet module.
 
         Args:
             identity_size (int): Size of the identity embedding for each feature.
@@ -59,6 +58,7 @@ class PointNet(nn.Module):
             feature_map_encoder (nn.Module): Module to encode per-feature representations.
             pointnet_type (PointNetType): Type of PointNet variant to use (POINTNET or POINTNETPLUS).
             max_embedding_norm (float | None, optional): Maximum norm for the identity embeddings.
+
         """
         super().__init__()
 
@@ -76,8 +76,7 @@ class PointNet(nn.Module):
     def forward(
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
     ) -> Float[Tensor, "*batch pointnet_size"]:
-        """
-        Encodes a batch of masked feature vectors using PointNet or PointNetPlus.
+        """Encodes a batch of masked feature vectors using PointNet or PointNetPlus.
 
         Args:
             masked_features (MaskedFeatures):
@@ -91,8 +90,8 @@ class PointNet(nn.Module):
             Float[Tensor, "*batch pointnet_size"]:
                 Encoded representation of the input features.
                 Shape: (batch_size, feature_map_size)
-        """
 
+        """
         assert masked_features.shape[1] == self.n_features, (
             f"{masked_features.shape[1]} != {self.n_features}"
         )
@@ -150,11 +149,11 @@ class PartialVAE(nn.Module):
         encoder: nn.Module,
         decoder: nn.Module,
     ):
-        """
-        Args:
-            pointnet: maps unordered sets of features to a single vector
-            encoder: a network that maps the output from the pointnet to input for mu_net and logvar_net
-            decoder: the network to use for the decoder
+        """Args:
+        pointnet: maps unordered sets of features to a single vector
+        encoder: a network that maps the output from the pointnet to input for mu_net and logvar_net
+        decoder: the network to use for the decoder
+
         """
         super().__init__()
 
@@ -516,8 +515,8 @@ class Zannone2019PretrainingModel(pl.LightningModule):
             - latent_size (int): the size of the latent space, needed for sampling
             - n_samples (int): how many samples to generate
             - device (int): where to place the sampled latent vectors before passing them to the model
-        """
 
+        """
         dist = torch.distributions.MultivariateNormal(
             loc=torch.zeros(latent_size), covariance_matrix=torch.eye(latent_size)
         )
@@ -557,7 +556,6 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         label: Label | None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Reconstruct a sample by providing masked features. Optionally provide the label as well"""
-
         if label is None:
             label = torch.zeros(
                 masked_features.shape[0],

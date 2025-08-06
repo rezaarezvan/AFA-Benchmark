@@ -1,7 +1,4 @@
-from pathlib import Path
-from torch.nn import functional as F
-from typing import Any, Callable, Self, cast, final, override
-from omegaconf import OmegaConf
+from typing import Any, final, override
 from tensordict import TensorDictBase
 from torch import nn, optim
 from jaxtyping import Bool
@@ -18,7 +15,6 @@ from torchrl.data import (
     TensorDictReplayBuffer,
     TensorSpec,
 )
-from torchrl.envs import ExplorationType, set_exploration_type
 from torchrl.modules import (
     MLP,
     ProbabilisticActor,

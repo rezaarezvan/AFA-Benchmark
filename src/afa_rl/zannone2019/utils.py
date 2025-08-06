@@ -2,18 +2,16 @@ from pathlib import Path
 from typing import Any
 from dacite import from_dict
 from jaxtyping import Float
-from torch import Tensor, nn
+from torch import Tensor
 import torch
 from torchrl.modules import MLP
 import wandb
 
 from afa_rl.utils import (
-    get_1D_identity,
     str_to_activation_class_mapping,
 )
 from afa_rl.zannone2019.models import (
     PartialVAE,
-    PartialVAELossType,
     PointNet,
     PointNetType,
     Zannone2019PretrainingModel,

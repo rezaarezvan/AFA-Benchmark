@@ -1,23 +1,15 @@
-from typing import Callable, final
-from jaxtyping import Bool
+from typing import final
 
 import torch
 from tensordict import TensorDict, TensorDictBase
-from torch import Tensor
 from torchrl.data import Binary, Categorical, Composite, Unbounded
 from torchrl.envs import EnvBase
 
 from afa_rl.custom_types import (
-    AFAReward,
     AFARewardFn,
     AFADatasetFn,
-    Logits,
 )
-from afa_rl.shim2018.models import Shim2018AFAPredictFn
-from afa_rl.utils import weighted_cross_entropy
 from common.custom_types import (
-    AFAPredictFn,
-    AFASelection,
     FeatureMask,
     Features,
     Label,
@@ -27,8 +19,7 @@ from common.custom_types import (
 
 @final
 class AFAEnv(EnvBase):
-    """
-    A fixed-length MDP for active feature acquisition (AFA).
+    """A fixed-length MDP for active feature acquisition (AFA).
 
     It assumes that the agent can choose to acquire features `hard_budget` times.
     """

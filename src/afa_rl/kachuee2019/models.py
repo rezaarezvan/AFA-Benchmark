@@ -1,7 +1,7 @@
 from pathlib import Path
 from jaxtyping import Float
 import torch
-import torch.nn as nn
+from torch import nn
 import torch.nn.functional as F
 import lightning as pl
 
@@ -53,7 +53,7 @@ class Kachuee2019PQModule(nn.Module):
                     self.cfg.n_hiddens[ind - 1] + self.n_hiddens_q[-1]
                 )
                 self.n_hiddens_q.append(n_h)
-        for n_h, n_h_q in zip(self.cfg.n_hiddens, self.n_hiddens_q):
+        for n_h, n_h_q in zip(self.cfg.n_hiddens, self.n_hiddens_q, strict=False):
             self.layers_q.append(nn.Linear(size_last, n_h_q))
             size_last = n_h + n_h_q
         # Output of Q-Net does not include the stop action, unlike the original implementation
@@ -74,7 +74,7 @@ class Kachuee2019PQModule(nn.Module):
         # Q-Net forward path, gradients are not backpropagated to P-Net
         act_last = masked_features
         act_last = F.relu(self.layers_q[0](act_last))
-        for f_layer, p_act in zip(self.layers_q[1:-1], acts_p[:-1]):
+        for f_layer, p_act in zip(self.layers_q[1:-1], acts_p[:-1], strict=False):
             p_act = p_act.detach()
             act_last = F.relu(f_layer(torch.cat([act_last, p_act], dim=1)))
         p_act = acts_p[-1].detach()
@@ -83,8 +83,7 @@ class Kachuee2019PQModule(nn.Module):
         return class_logits, qvalues
 
     def confidence(self, masked_features: MaskedFeatures, mcdrop_samples: int = 1):
-        """
-        calculate the confidence histogrram for each class given a sample.
+        """Calculate the confidence histogrram for each class given a sample.
         masked_features: input sample of shape (batch_size, n_features)
         mcdrop_samples: mc dropout samples to use
         """
@@ -106,8 +105,7 @@ class Kachuee2019PQModule(nn.Module):
         return class_probabilities.mean(dim=1)  # (batch_size, n_classes)
 
     def predict(self, x: torch.Tensor, mcdrop_samples: int = 1):
-        """
-        make class prediction for a sample.
+        """Make class prediction for a sample.
         x: input sample
         mcdrop_samples: mc dropout samples to use
         """

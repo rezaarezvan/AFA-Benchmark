@@ -81,7 +81,7 @@ def main():
 
     # Launch jobs with mprocs
     mprocs_cmd = ["mprocs"] + [" ".join(cmd) for cmd in jobs]
-    subprocess.run(mprocs_cmd)
+    subprocess.run(mprocs_cmd, check=False)
 
 
 if __name__ == "__main__":

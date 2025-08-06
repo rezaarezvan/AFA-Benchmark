@@ -1,7 +1,5 @@
-from pathlib import Path
 import torch.nn.functional as F
-from typing import Any, Self, cast, final, override
-from omegaconf import OmegaConf
+from typing import Any, final, override
 from tensordict import TensorDictBase
 from tensordict.nn import TensorDictModule, TensorDictModuleBase, TensorDictSequential
 from torch import Tensor, nn, optim
@@ -12,7 +10,7 @@ from torchrl.data import (
     TensorDictReplayBuffer,
     TensorSpec,
 )
-from torchrl.modules import MLP, EGreedyModule, QValueModule
+from torchrl.modules import EGreedyModule, QValueModule
 from torchrl.objectives import DQNLoss, SoftUpdate, ValueEstimators
 
 from afa_rl.agents import Agent

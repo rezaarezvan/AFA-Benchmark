@@ -29,7 +29,7 @@ def main():
     time.sleep(1)
 
     jobs = []
-    for dataset, budgets_str in zip(args.dataset, args.budgets):
+    for dataset, budgets_str in zip(args.dataset, args.budgets, strict=False):
         pretrained_model_artifact_names = [
             f"pretrain_zannone2019-{dataset}_split_{split}:{args.pretrain_alias}"
             for split in args.split
@@ -45,7 +45,7 @@ def main():
         )
         jobs.append(cmd)
 
-    subprocess.run(["mprocs"] + jobs)
+    subprocess.run(["mprocs"] + jobs, check=False)
 
 
 if __name__ == "__main__":

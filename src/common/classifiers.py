@@ -2,7 +2,7 @@
 
 from typing import Self, final, override
 import torch
-import torch.nn as nn
+from torch import nn
 from pathlib import Path
 from common.custom_types import (
     AFAClassifier,
@@ -17,8 +17,7 @@ from common.models import MaskedMLPClassifier
 
 @final
 class RandomDummyAFAClassifier(AFAClassifier):
-    """
-    A random dummy classifier that outputs random logits. It is used for testing purposes.
+    """A random dummy classifier that outputs random logits. It is used for testing purposes.
     """
 
     def __init__(self, n_classes: int):
@@ -40,16 +39,14 @@ class RandomDummyAFAClassifier(AFAClassifier):
 
     @override
     def save(self, path: Path) -> None:
-        """
-        Saves the classifier to a file. n_classes is all we need.
+        """Saves the classifier to a file. n_classes is all we need.
         """
         torch.save(self.n_classes, path)
 
     @classmethod
     @override
     def load(cls, path: Path, device: torch.device) -> "RandomDummyAFAClassifier":
-        """
-        Loads the classifier from a file, placing it on the given device.
+        """Loads the classifier from a file, placing it on the given device.
         """
         # Load the number of classes
         n_classes = torch.load(path, map_location=device)
@@ -59,8 +56,7 @@ class RandomDummyAFAClassifier(AFAClassifier):
 
 
 class UniformDummyAFAClassifier(AFAClassifier):
-    """
-    A uniform dummy classifier that outputs uniform logits. It is used for testing purposes.
+    """A uniform dummy classifier that outputs uniform logits. It is used for testing purposes.
     """
 
     def __init__(self, n_classes: int):
@@ -76,15 +72,13 @@ class UniformDummyAFAClassifier(AFAClassifier):
         return logits
 
     def save(self, path: Path) -> None:
-        """
-        Saves the classifier to a file. n_classes is all we need.
+        """Saves the classifier to a file. n_classes is all we need.
         """
         torch.save(self.n_classes, path)
 
     @staticmethod
     def load(path: str, device: torch.device) -> "UniformDummyAFAClassifier":
-        """
-        Loads the classifier from a file, placing it on the given device.
+        """Loads the classifier from a file, placing it on the given device.
         """
         # Load the number of classes
         n_classes = torch.load(path, map_location=device)
@@ -110,8 +104,7 @@ class Predictor(nn.Module):
 
 
 class NNClassifier(AFAClassifier):
-    """
-    A trainable classifier that uses a simple predictor
+    """A trainable classifier that uses a simple predictor
     and handles masked input.
     """
 

@@ -1,5 +1,4 @@
-from pathlib import Path
-from typing import Any, Protocol, Self
+from typing import Any, Protocol
 
 import torch
 from tensordict import TensorDictBase
@@ -57,7 +56,8 @@ class Agent(Protocol):
     def get_replay_buffer_device(self) -> torch.device | None:
         """Retrieve the device that the replay buffer (if any) is currently placed on.
 
-        Should return `None` if there is no replay buffer."""
+        Should return `None` if there is no replay buffer.
+        """
         ...
 
     def set_replay_buffer_device(self, device: torch.device) -> None:

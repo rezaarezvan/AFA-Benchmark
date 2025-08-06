@@ -1,17 +1,16 @@
-from abc import ABC, abstractmethod
 from jaxtyping import Bool
-from typing import Callable, Protocol
+from typing import Protocol
+from collections.abc import Callable
 
 import torch
 from jaxtyping import Float, Integer
-from torch import Tensor, nn
+from torch import Tensor
 
 from common.custom_types import (
     AFASelection,
     FeatureMask,
     Features,
     Label,
-    Logits,
     MaskedFeatures,
 )
 
@@ -31,8 +30,7 @@ type FeatureSet = Float[
 
 
 class AFADatasetFn(Protocol):
-    """
-    A dataset that returns new batched samples in the same format as AFADataset. move_on determines whether the dataset should return different samples next time the function is called.
+    """A dataset that returns new batched samples in the same format as AFADataset. move_on determines whether the dataset should return different samples next time the function is called.
     """
 
     def __call__(

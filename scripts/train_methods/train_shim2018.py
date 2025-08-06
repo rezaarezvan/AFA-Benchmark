@@ -30,7 +30,6 @@ from afa_rl.shim2018.utils import (
 )
 from afa_rl.shim2018.reward import get_shim2018_reward_fn
 from afa_rl.utils import (
-    cubeSimple_optimal_selection_wrapper,
     get_eval_metrics,
     module_norm,
 )

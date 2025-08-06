@@ -1,16 +1,14 @@
-import os
 import gc
 import wandb
 import hydra
 import logging
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
+from torch import nn
 from pathlib import Path
 from datetime import datetime
 from torchmetrics import Accuracy
 from tempfile import TemporaryDirectory
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 from afa_discriminative.utils import MaskLayer
 from afa_discriminative.models import MaskingPretrainer, fc_Net
 from afa_discriminative.datasets import prepare_datasets

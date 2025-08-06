@@ -17,8 +17,7 @@ from common.custom_types import FeatureMask, MaskedFeatures
 
 
 def get_dummy_data_fn() -> AFADatasetFn:
-    """
-    A very simple dataset for debugging
+    """A very simple dataset for debugging
     """
     features = torch.tensor(
         [

@@ -8,9 +8,7 @@ from afa_rl.custom_types import (
     AFAReward,
     AFARewardFn,
 )
-from afa_rl.utils import weighted_cross_entropy
 from afa_rl.zannone2019.models import (
-    Zannone2019AFAPredictFn,
     Zannone2019PretrainingModel,
 )
 from common.custom_types import (

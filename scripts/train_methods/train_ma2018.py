@@ -1,26 +1,20 @@
 import torch
 import gc
 import logging
-from dacite import from_dict
 from tempfile import TemporaryDirectory
-import torch.nn as nn
 from pathlib import Path
 from typing import Any, cast
 from afa_generative.afa_methods import Ma2018AFAMethod
 from common.config_classes import (
-    Ma2018PretrainingConfig,
     Ma2018TrainingConfig,
-    Zannone2019PretrainConfig,
 )
-from common.custom_types import AFADataset
-from common.utils import dict_to_namespace, set_seed
+from common.utils import set_seed
 from afa_rl.zannone2019.utils import (
     load_pretrained_model_artifacts,
 )
 import wandb
 import hydra
 from omegaconf import OmegaConf
-from common.utils import load_dataset_artifact
 
 
 log = logging.getLogger(__name__)

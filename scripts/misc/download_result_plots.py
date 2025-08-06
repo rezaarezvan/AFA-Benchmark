@@ -2,22 +2,18 @@
 
 import re
 
-from collections import defaultdict
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 from pathlib import Path
 import shutil
-from tempfile import NamedTemporaryFile
 
 import hydra
 import torch
 import wandb
 
-from common.config_classes import PlotDownloadConfig, TrainingTimeCalculationConfig
+from common.config_classes import PlotDownloadConfig
 from omegaconf import OmegaConf
 
-import asyncio
 
 
 def process_figure_artifact(figure_artifact, files):
@@ -38,7 +34,7 @@ def process_plot_artifact(cfg: PlotDownloadConfig, plot_run):
         log.debug(f"Processing {figure_artifact.name}")
         # Check if the artifact name matches something we want
         for dataset_name, budgets, metric in zip(
-            cfg.datasets, cfg.budgets, cfg.metrics
+            cfg.datasets, cfg.budgets, cfg.metrics, strict=False
         ):
             # If budgets is a dot, accept any budget
             if budgets.strip() == ".":
@@ -69,8 +65,7 @@ def process_plot_artifact(cfg: PlotDownloadConfig, plot_run):
 def is_match(
     artifact_name: str, dataset: str, budget: int | None, metric: str, file_type: str
 ):
-    """
-    Checks if the artifact_name matches the expected pattern for the given dataset, budget, and metric.
+    """Checks if the artifact_name matches the expected pattern for the given dataset, budget, and metric.
     Example artifact_name:
         figure-FashionMNIST_MaskedMLPClassifier_budget10_f1_all-svg:v0
     If budget is None, accept any budget value.

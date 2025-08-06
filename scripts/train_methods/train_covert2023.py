@@ -3,8 +3,7 @@ import logging
 import wandb
 import hydra
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
+from torch import nn
 from pathlib import Path
 from dacite import from_dict
 from typing import Any, cast

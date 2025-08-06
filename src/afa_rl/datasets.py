@@ -16,17 +16,15 @@ from common.custom_types import FeatureMask, Features, Label, MaskedFeatures
 def get_wrapped_batch(
     t: Shaped[Tensor, "batch *rem"], idx: int, numel: int
 ) -> Shaped[Tensor, "{num_elems} *rem"]:
-    """
-    Get a batch of size num_elems from a tensor t, starting at index idx, wrapping around if necessary.
+    """Get a batch of size num_elems from a tensor t, starting at index idx, wrapping around if necessary.
     """
     n = len(t)
     repeated = t.repeat((numel // n) + 2, *[1] * (t.ndim - 1))
-    return repeated[idx: idx + numel]
+    return repeated[idx : idx + numel]
 
 
 def get_afa_dataset_fn(features: Features, labels: Label) -> AFADatasetFn:
-    """
-    Given features and labels, return a function that can be used to get batches of AFA data.
+    """Given features and labels, return a function that can be used to get batches of AFA data.
     """
     idx = 0  # keep track of where in the dataset we are
 
@@ -45,10 +43,8 @@ def get_afa_dataset_fn(features: Features, labels: Label) -> AFADatasetFn:
                 perm = torch.randperm(len(features))
                 features = features[perm]
                 labels = labels[perm]
-        local_features = local_features.reshape(
-            *batch_size, local_features.shape[-1])
-        local_labels = local_labels.reshape(
-            *batch_size, local_labels.shape[-1])
+        local_features = local_features.reshape(*batch_size, local_features.shape[-1])
+        local_labels = local_labels.reshape(*batch_size, local_labels.shape[-1])
         return local_features, local_labels
 
     return afa_dataset_fn
@@ -103,8 +99,7 @@ class OneHotLabelWrapper(torch.utils.data.Dataset):
 
     def __getitem__(self, index):
         img, label = self.dataset[index]
-        one_hot_label = F.one_hot(torch.tensor(
-            label), num_classes=self.num_classes)
+        one_hot_label = F.one_hot(torch.tensor(label), num_classes=self.num_classes)
         return img, one_hot_label
 
     def __len__(self):
@@ -140,8 +135,7 @@ class MNISTDataModule(pl.LightningDataModule):
 
 
 class Zannone2019CubeDataset(Dataset):
-    """
-    The Cube dataset, as described in the paper "ODIN: Optimal Discovery of High-value INformation Using Model-based Deep Reinforcement Learning"
+    """The Cube dataset, as described in the paper "ODIN: Optimal Discovery of High-value INformation Using Model-based Deep Reinforcement Learning"
 
     Implements the AFADataset protocol.
     """
@@ -182,8 +176,7 @@ class Zannone2019CubeDataset(Dataset):
         # Coords have noise
         coords = coords.float()
         coords += (
-            torch.randn(self.data_points, 3,
-                        dtype=torch.float32, generator=rng)
+            torch.randn(self.data_points, 3, dtype=torch.float32, generator=rng)
             * self._informative_feature_std
         )
         # The final features are the coordinates offset according to the labels, and some noise added
@@ -192,7 +185,7 @@ class Zannone2019CubeDataset(Dataset):
         )
         for i in range(self.data_points):
             offset: int = labels[i].item()
-            self.features[i, offset: offset + 3] += coords[i]
+            self.features[i, offset : offset + 3] += coords[i]
             # All other features have mean 0.5 and variance 0.3
             self.features[i, :offset] = torch.normal(
                 mean=self.non_informative_feature_mean,
@@ -201,7 +194,7 @@ class Zannone2019CubeDataset(Dataset):
                 dtype=torch.float32,
                 generator=rng,
             )
-            self.features[i, offset + 3:] = torch.normal(
+            self.features[i, offset + 3 :] = torch.normal(
                 mean=self.non_informative_feature_mean,
                 std=self._non_informative_feature_std,
                 size=(1, self.n_features - offset - 3),

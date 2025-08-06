@@ -3,10 +3,10 @@ import logging
 import gc
 from pathlib import Path
 import hydra
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 from tempfile import TemporaryDirectory
 import torch
-import torch.nn as nn
+from torch import nn
 import wandb
 from torchrl.modules import MLP
 from afa_generative.afa_methods import EDDI_Training, Ma2018AFAMethod

@@ -8,8 +8,7 @@ from afa_rl.custom_types import (
     AFAReward,
     AFARewardFn,
 )
-from afa_rl.shim2018.models import LitShim2018EmbedderClassifier, Shim2018AFAPredictFn
-from afa_rl.utils import weighted_cross_entropy
+from afa_rl.shim2018.models import LitShim2018EmbedderClassifier
 from common.custom_types import (
     AFASelection,
     FeatureMask,

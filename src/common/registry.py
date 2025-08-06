@@ -23,8 +23,8 @@ AFA_METHOD_TYPES = {
 def get_afa_method_class(name: str) -> type[AFAMethod]:
     """Return the appropriate AFAMethod for a given method type.
 
-    Note that several method types can have the same AFAMethod class, like the RL methods. A dictionary is not used since it could lead to circular imports."""
-
+    Note that several method types can have the same AFAMethod class, like the RL methods. A dictionary is not used since it could lead to circular imports.
+    """
     if name in {"shim2018", "zannone2019", "kachuee2019"}:
         from afa_rl.afa_methods import RLAFAMethod
 

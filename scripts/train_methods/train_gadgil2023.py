@@ -3,20 +3,18 @@ import gc
 import wandb
 import hydra
 import logging
-import torch.nn as nn
-import torch.nn.functional as F
+from torch import nn
 from pathlib import Path
 from dacite import from_dict
 from typing import Any, cast
 from torchmetrics import Accuracy
 from tempfile import TemporaryDirectory
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 from afa_discriminative.utils import MaskLayer
 from afa_discriminative.models import fc_Net
 from afa_discriminative.datasets import prepare_datasets
 from afa_discriminative.afa_methods import CMIEstimator, Gadgil2023AFAMethod
 from common.utils import load_dataset_artifact, set_seed, get_class_probabilities
-from common.custom_types import AFADataset
 from common.config_classes import Gadgil2023PretrainingConfig, Gadgil2023TrainingConfig
 
 

@@ -6,11 +6,9 @@ from pathlib import Path
 from typing import Any, cast
 from omegaconf import OmegaConf
 import numpy as np
-from tqdm import tqdm
 from tempfile import TemporaryDirectory
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
+from torch import nn
 from torchrl.modules import MLP
 from torch.utils.data import DataLoader
 from static.models import BaseModel

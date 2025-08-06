@@ -6,8 +6,11 @@ from dataclasses import dataclass
 from afa_oracle.aaco_core import AACOOracle
 from typing import Self, final, override
 from common.custom_types import (
-    AFAMethod, AFAClassifier, AFASelection, FeatureMask,
-    Label, MaskedFeatures, AFADataset
+    AFAMethod,
+    AFASelection,
+    FeatureMask,
+    Label,
+    MaskedFeatures,
 )
 
 logger = logging.getLogger(__name__)
@@ -18,8 +21,9 @@ logger = logging.getLogger(__name__)
 class AACOAFAMethod(AFAMethod):
     aaco_oracle: AACOOracle
     dataset_name: str
-    _device: torch.device = torch.device(
-        "cuda") if torch.cuda.is_available() else torch.device("cpu")
+    _device: torch.device = (
+        torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    )
 
     def __post_init__(self):
         # Move oracle to device
@@ -27,10 +31,13 @@ class AACOAFAMethod(AFAMethod):
 
     @override
     def select(
-        self, masked_features: MaskedFeatures, feature_mask: FeatureMask, features, labels
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        features,
+        labels,
     ) -> AFASelection:
-        """
-        Select next feature using AACO implementation with logging
+        """Select next feature using AACO implementation with logging
         """
         # Store original device for return tensor
         original_device = masked_features.device
@@ -51,20 +58,26 @@ class AACOAFAMethod(AFAMethod):
             next_feature = self.aaco_oracle.select_next_feature(
                 x_obs, obs_mask, instance_idx=i
             )
-            assert next_feature is not None, "AACO oracle must return a valid feature index"
+            assert next_feature is not None, (
+                "AACO oracle must return a valid feature index"
+            )
             selections.append(next_feature)
 
         # Return selection tensor on original device
         selection_tensor = torch.tensor(
-            selections, dtype=torch.long, device=original_device)
+            selections, dtype=torch.long, device=original_device
+        )
         return selection_tensor
 
     @override
     def predict(
-        self, masked_features: MaskedFeatures, feature_mask: FeatureMask, features, labels
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        features,
+        labels,
     ) -> Label:
-        """
-        Make prediction using classifier approach with proper device handling
+        """Make prediction using classifier approach with proper device handling
         """
         original_device = masked_features.device
 
@@ -73,8 +86,11 @@ class AACOAFAMethod(AFAMethod):
         feature_mask = feature_mask.to(self._device)
 
         batch_size = masked_features.shape[0]
-        n_classes = self.aaco_oracle.y_train.shape[-1] if len(
-            self.aaco_oracle.y_train.shape) > 1 else self.aaco_oracle.y_train.max().item() + 1
+        n_classes = (
+            self.aaco_oracle.y_train.shape[-1]
+            if len(self.aaco_oracle.y_train.shape) > 1
+            else self.aaco_oracle.y_train.max().item() + 1
+        )
 
         predictions = torch.zeros(batch_size, n_classes, device=self._device)
 
@@ -82,12 +98,15 @@ class AACOAFAMethod(AFAMethod):
             x_obs = masked_features[i]
             obs_mask = feature_mask[i]
 
-            x_masked = x_obs * obs_mask.float() - (1 - obs_mask.float()) * \
-                self.aaco_oracle.hide_val
+            x_masked = (
+                x_obs * obs_mask.float()
+                - (1 - obs_mask.float()) * self.aaco_oracle.hide_val
+            )
             x_with_mask = torch.cat([x_masked, obs_mask.float()])
 
             pred = self.aaco_oracle.classifier(
-                x_with_mask.unsqueeze(0), torch.tensor([0], device=self._device))
+                x_with_mask.unsqueeze(0), torch.tensor([0], device=self._device)
+            )
             pred = pred.squeeze()
 
             # Handle different types of classifier outputs
@@ -114,16 +133,19 @@ class AACOAFAMethod(AFAMethod):
 
     @override
     def save(self, path: Path) -> None:
-        """
-        Save method state
+        """Save method state
         """
         oracle_state = {
-            'k_neighbors': self.aaco_oracle.k_neighbors,
-            'acquisition_cost': self.aaco_oracle.acquisition_cost,
-            'hide_val': self.aaco_oracle.hide_val,
-            'dataset_name': self.dataset_name,
-            'X_train': self.aaco_oracle.X_train.cpu() if self.aaco_oracle.X_train is not None else None,
-            'y_train': self.aaco_oracle.y_train.cpu() if self.aaco_oracle.y_train is not None else None,
+            "k_neighbors": self.aaco_oracle.k_neighbors,
+            "acquisition_cost": self.aaco_oracle.acquisition_cost,
+            "hide_val": self.aaco_oracle.hide_val,
+            "dataset_name": self.dataset_name,
+            "X_train": self.aaco_oracle.X_train.cpu()
+            if self.aaco_oracle.X_train is not None
+            else None,
+            "y_train": self.aaco_oracle.y_train.cpu()
+            if self.aaco_oracle.y_train is not None
+            else None,
         }
 
         torch.save(oracle_state, path / f"aaco_oracle_{self.dataset_name}.pt")
@@ -134,8 +156,7 @@ class AACOAFAMethod(AFAMethod):
     def load(cls, path: Path, device: torch.device = None) -> Self:
         """Load method from saved state"""
         if device is None:
-            device = torch.device(
-                "cuda" if torch.cuda.is_available() else "cpu")
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         # Find saved oracle file
         oracle_files = list(path.glob("aaco_oracle_*.pt"))
@@ -146,22 +167,23 @@ class AACOAFAMethod(AFAMethod):
 
         # Recreate oracle and method
         aaco_oracle = AACOOracle(
-            k_neighbors=oracle_state['k_neighbors'],
-            acquisition_cost=oracle_state['acquisition_cost'],
-            hide_val=oracle_state['hide_val'],
-            dataset_name=oracle_state['dataset_name'],
-            device=device
+            k_neighbors=oracle_state["k_neighbors"],
+            acquisition_cost=oracle_state["acquisition_cost"],
+            hide_val=oracle_state["hide_val"],
+            dataset_name=oracle_state["dataset_name"],
+            device=device,
         )
 
         # Restore fitted state
-        if oracle_state['X_train'] is not None and oracle_state['y_train'] is not None:
-            aaco_oracle.fit(oracle_state['X_train'].to(device),
-                            oracle_state['y_train'].to(device))
+        if oracle_state["X_train"] is not None and oracle_state["y_train"] is not None:
+            aaco_oracle.fit(
+                oracle_state["X_train"].to(device), oracle_state["y_train"].to(device)
+            )
 
         method = cls(
             aaco_oracle=aaco_oracle,
-            dataset_name=oracle_state['dataset_name'],
-            _device=device
+            dataset_name=oracle_state["dataset_name"],
+            _device=device,
         )
 
         logger.info(f"Loaded AACO method from {path}")
@@ -169,8 +191,7 @@ class AACOAFAMethod(AFAMethod):
 
     @override
     def to(self, device: torch.device) -> Self:
-        """
-        Move method to device
+        """Move method to device
         """
         self._device = device
         self.aaco_oracle = self.aaco_oracle.to(device)
@@ -179,8 +200,7 @@ class AACOAFAMethod(AFAMethod):
     @property
     @override
     def device(self) -> torch.device:
-        """
-        Get device
+        """Get device
         """
         return self._device
 
@@ -193,8 +213,7 @@ def create_aaco_method(
     split: str = "1",
     device: torch.device = None,
 ) -> AACOAFAMethod:
-    """
-    Factory function to create AACO method with proper device handling
+    """Factory function to create AACO method with proper device handling
     """
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -205,11 +224,9 @@ def create_aaco_method(
         hide_val=hide_val,
         dataset_name=dataset_name,
         split=split,
-        device=device  # Pass device parameter
+        device=device,  # Pass device parameter
     )
 
     return AACOAFAMethod(
-        aaco_oracle=aaco_oracle,
-        dataset_name=dataset_name,
-        _device=device
+        aaco_oracle=aaco_oracle, dataset_name=dataset_name, _device=device
     )

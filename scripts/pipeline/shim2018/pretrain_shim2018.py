@@ -39,7 +39,7 @@ def main():
         )
         jobs.append(cmd)
 
-    subprocess.run(["mprocs"] + jobs)
+    subprocess.run(["mprocs"] + jobs, check=False)
 
 
 if __name__ == "__main__":

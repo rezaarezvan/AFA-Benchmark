@@ -9,14 +9,12 @@ from afa_rl.custom_types import (
 )
 from afa_rl.kachuee2019.models import Kachuee2019PQModule
 from common.custom_types import (
-    AFAPredictFn,
     AFASelection,
     FeatureMask,
     Features,
     Label,
     MaskedFeatures,
 )
-from common.utils import eval_mode
 
 
 def calc_reward(conf_a: Tensor, conf_b: Tensor, method: str):
@@ -25,6 +23,7 @@ def calc_reward(conf_a: Tensor, conf_b: Tensor, method: str):
     Args:
         conf_a (Tensor of shape (batch_size, n_classes)): confidence for feature vector without new feature acquired
         conf_b (Tensor of shape (batch_size, n_classes)): confidence for feature vector with new feature acquired
+
     """
     if method == "softmax":
         reward = torch.abs(conf_a.max(dim=-1)[0] - conf_b.max(dim=-1)[0])
@@ -47,6 +46,7 @@ def get_kachuee2019_reward_fn(
     Args:
         - `method` is one of {"softmax", "Bayesian-L1", "Bayesian-L2"}
         - `mcdrop_samples` determines how many samples to average over to get class probabilities
+
     """
 
     def f(

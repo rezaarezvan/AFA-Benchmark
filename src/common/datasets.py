@@ -1,5 +1,6 @@
 from pathlib import Path
-from typing import Callable, Self, final, override
+from typing import Self, final, override
+from collections.abc import Callable
 import torch
 from torch import Tensor
 from torch.utils.data import Dataset
@@ -14,8 +15,7 @@ from common.custom_types import AFADataset, FeatureMask, MaskedFeatures, Feature
 
 @final
 class Shim2018CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
-    """
-    The Cube dataset, as described in the paper "Minimizing data consumption with sequential online feature selection" (https://doi.org/10.1007/s13042-012-0092-x).
+    """The Cube dataset, as described in the paper "Minimizing data consumption with sequential online feature selection" (https://doi.org/10.1007/s13042-012-0092-x).
     """
 
     n_classes = 8
@@ -112,8 +112,7 @@ class Shim2018CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
 @final
 class CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
-    """
-    The Cube dataset, as described in the paper "ODIN: Optimal Discovery of High-value INformation Using Model-based Deep Reinforcement Learning"
+    """The Cube dataset, as described in the paper "ODIN: Optimal Discovery of High-value INformation Using Model-based Deep Reinforcement Learning"
 
     Implements the AFADataset protocol.
     """
@@ -246,8 +245,7 @@ class CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
 @final
 class CubeSimpleDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
-    """
-    A simplified version of the cube dataset, made for debugging purposes. Three features contain label information and three others are noise.
+    """A simplified version of the cube dataset, made for debugging purposes. Three features contain label information and three others are noise.
 
     Implements the AFADataset protocol.
     """
@@ -364,8 +362,7 @@ class CubeSimpleDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
 @final
 class CubeOnlyInformativeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
-    """
-    A version of the cube dataset that only has the first 10 informative features.
+    """A version of the cube dataset that only has the first 10 informative features.
 
     Implements the AFADataset protocol.
     """
@@ -598,8 +595,7 @@ class CubeOnlyInformativeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
 @final
 class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
-    """
-    A hybrid dataset combining context-based feature selection and the Cube dataset.
+    """A hybrid dataset combining context-based feature selection and the Cube dataset.
 
     - Features:
         * First n_contexts features: one-hot context (0, 1, ..., n_contexts-1)
@@ -747,8 +743,7 @@ class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
 @final
 class AFAContextRandomInsertDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
-    """
-    A hybrid dataset with context-based feature selection and Cube-like structure.
+    """A hybrid dataset with context-based feature selection and Cube-like structure.
 
     - Features:
         * First n_contexts features: one-hot context
@@ -878,8 +873,7 @@ class AFAContextRandomInsertDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
 @final
 class ContextSelectiveXORDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
-    """
-    Each data point:
+    """Each data point:
       - context c ∈ {0, 1}
       - features: x1, x2, x3, x4 ∈ {0, 1}
 
@@ -1120,8 +1114,7 @@ class FashionMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
 @final
 class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
-    """
-    Diabetes dataset wrapped to follow the AFADataset protocol.
+    """Diabetes dataset wrapped to follow the AFADataset protocol.
 
     This dataset contains medical measurements and indicators for diabetes classification.
     The target variable has 3 classes (0, 1, 2) representing different diabetes outcomes.
@@ -1215,8 +1208,7 @@ class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
 @final
 class MiniBooNEDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
-    """
-    MiniBooNE dataset wrapped to follow the AFADataset protocol.
+    """MiniBooNE dataset wrapped to follow the AFADataset protocol.
 
     This dataset contains particle physics measurements from the MiniBooNE experiment.
     The target variable has 2 classes (signal and background).
@@ -1300,8 +1292,7 @@ class MiniBooNEDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
 @final
 class PhysionetDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
-    """
-    Physionet dataset wrapped to follow the AFADataset protocol.
+    """Physionet dataset wrapped to follow the AFADataset protocol.
 
     This dataset contains medical measurements from ICU patients.
     The target variable has 2 classes (0, 1) representing different outcomes.

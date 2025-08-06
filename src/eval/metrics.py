@@ -1,4 +1,4 @@
-from typing import Any, TypeVar
+from typing import Any
 
 import torch
 import logging
@@ -10,7 +10,6 @@ from common.custom_types import (
     AFASelectFn,
     AFAPredictFn,
     AFADataset,
-    FeatureMask,
     Label,
 )
 from sklearn.metrics import accuracy_score, f1_score
@@ -21,8 +20,7 @@ log = logging.getLogger(__name__)
 
 
 def aggregate_metrics(prediction_history, y_true) -> tuple[Tensor, Tensor, Tensor]:
-    """
-    Compute accuracy, F1 and BCE across feature-selection budgets.
+    """Compute accuracy, F1 and BCE across feature-selection budgets.
 
     If y_true contains exactly two unique classes   → average="binary"
     Otherwise                                       → average="weighted"
@@ -38,8 +36,8 @@ def aggregate_metrics(prediction_history, y_true) -> tuple[Tensor, Tensor, Tenso
     accuracy_all : Tensor[float, shape=(budget,)]
     f1_all       : Tensor[float, shape=(budget,)]
     bce_all      : Tensor[float, shape=(budget,)]
-    """
 
+    """
     B = prediction_history.shape[1]
     # if any(len(row) != B for row in prediction_history_all):
     #     raise ValueError("All inner lists must have the same length (budget B).")
@@ -224,8 +222,7 @@ def eval_afa_method(
     action_count = feature_mask_history_tensor[:, -1, :].sum(dim=0)
     action_distribution = action_count / action_count.sum()  # (n_classes,)
 
-    labels_tensor: Tensor = torch.cat(
-        labels_all)  # Tensor[n_samples,n_classes]
+    labels_tensor: Tensor = torch.cat(labels_all)  # Tensor[n_samples,n_classes]
 
     labels_tensor = torch.argmax(labels_tensor, dim=1)
 

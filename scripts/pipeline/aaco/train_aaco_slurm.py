@@ -1,8 +1,15 @@
 import itertools
 import subprocess
 
-DATASETS = ['cube', 'AFAContext', 'MNIST',
-            'FashionMNIST', 'diabetes', 'miniboone', 'physionet']
+DATASETS = [
+    "cube",
+    "AFAContext",
+    "MNIST",
+    "FashionMNIST",
+    "diabetes",
+    "miniboone",
+    "physionet",
+]
 SPLITS = [1, 2, 3, 4, 5]
 INPUT_ALIAS = "latest"
 OUTPUT_ALIAS = "KDD"
@@ -10,10 +17,11 @@ OUTPUT_ALIAS = "KDD"
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(
-        description="Launch AACO training jobs on SLURM")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="Print commands without running")
+
+    parser = argparse.ArgumentParser(description="Launch AACO training jobs on SLURM")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Print commands without running"
+    )
     args = parser.parse_args()
 
     print("=== Launching AACO Training Jobs ===")

@@ -26,7 +26,7 @@ def main():
     time.sleep(1)
 
     jobs = []
-    for dataset, budgets_str in zip(args.dataset, args.budgets):
+    for dataset, budgets_str in zip(args.dataset, args.budgets, strict=False):
         dataset_artifact_names = [
             f"{dataset}_split_{split}:{args.dataset_alias}" for split in args.split
         ]
@@ -39,7 +39,7 @@ def main():
         )
         jobs.append(cmd)
 
-    subprocess.run(["mprocs"] + jobs)
+    subprocess.run(["mprocs"] + jobs, check=False)
 
 
 if __name__ == "__main__":

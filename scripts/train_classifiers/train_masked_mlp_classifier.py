@@ -3,7 +3,7 @@ from tempfile import NamedTemporaryFile
 import hydra
 
 import lightning as pl
-from lightning.pytorch.callbacks import ModelCheckpoint, LearningRateMonitor
+from lightning.pytorch.callbacks import ModelCheckpoint
 import torch
 from lightning.pytorch.loggers import WandbLogger
 

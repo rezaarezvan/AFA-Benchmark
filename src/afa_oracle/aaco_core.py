@@ -1,8 +1,6 @@
 import torch
 import wandb
 import logging
-import numpy as np
-import torch.nn as nn
 import torch.nn.functional as F
 
 from pathlib import Path
@@ -14,25 +12,29 @@ from afa_oracle.mask_generator import random_mask_generator
 log = logging.getLogger(__name__)
 
 
-def get_knn(X_train, X_query, masks, num_neighbors, instance_idx=0, exclude_instance=True):
-    """
-    Their exact K-NN implementation
+def get_knn(
+    X_train, X_query, masks, num_neighbors, instance_idx=0, exclude_instance=True
+):
+    """Their exact K-NN implementation
 
     Args:
         X_train: N x d Train Instances
         X_query: 1 x d Query Instances
         masks: d x R binary masks to try
         num_neighbors: Number of neighbors (k)
+
     """
-    X_train_squared = X_train ** 2
-    X_query_squared = X_query ** 2
+    X_train_squared = X_train**2
+    X_query_squared = X_query**2
     X_train_X_query = X_train * X_query
-    dist_squared = torch.matmul(X_train_squared, masks) - 2.0 * torch.matmul(
-        X_train_X_query, masks) + torch.matmul(X_query_squared, masks)
+    dist_squared = (
+        torch.matmul(X_train_squared, masks)
+        - 2.0 * torch.matmul(X_train_X_query, masks)
+        + torch.matmul(X_query_squared, masks)
+    )
 
     if exclude_instance:
-        idx_topk = torch.topk(
-            dist_squared, num_neighbors + 1, dim=0, largest=False)[1]
+        idx_topk = torch.topk(dist_squared, num_neighbors + 1, dim=0, largest=False)[1]
         return idx_topk[idx_topk != instance_idx][:num_neighbors]
     else:
         return torch.topk(dist_squared, num_neighbors, dim=0, largest=False)[1]
@@ -47,28 +49,32 @@ def load_classifier(dataset_name, split, device=None):
         dataset_name = "FashionMNIST"
 
     log.info(f"Checking for existing MLP classifier for {dataset_name}...")
-    artifact_name = f"masked_mlp_classifier-{
-        dataset_name}_split_{split}:latest"
+    artifact_name = f"masked_mlp_classifier-{dataset_name}_split_{split}:latest"
     log.info(f"Found existing MLP classifier artifact: {artifact_name}")
     artifact = wandb.use_artifact(artifact_name)
     artifact_dir = artifact.download()
 
     classifier_path = Path(artifact_dir) / "classifier.pt"
-    wrapped_mlp = WrappedMaskedMLPClassifier.load(
-        classifier_path, device)
+    wrapped_mlp = WrappedMaskedMLPClassifier.load(classifier_path, device)
 
-    log.info(f"Successfully loaded MLP classifier from {
-             artifact_name}")
+    log.info(f"Successfully loaded MLP classifier from {artifact_name}")
     return classifier_mlp(wrapped_mlp, hide_val=10.0)
 
 
 def load_mask_generator(dataset_name, input_dim):
-    """
-    Their exact mask generator loading logic
+    """Their exact mask generator loading logic
     """
     dataset_name_lower = dataset_name.lower()
 
-    if dataset_name_lower in ["cube", "diabetes", "mnist", "fashionmnist", "physionet", "miniboone", "afacontext"]:
+    if dataset_name_lower in [
+        "cube",
+        "diabetes",
+        "mnist",
+        "fashionmnist",
+        "physionet",
+        "miniboone",
+        "afacontext",
+    ]:
         # Paper shows this works nearly as well as 10,000 (for MNIST)
         return random_mask_generator(100, input_dim, 100)
     else:
@@ -76,8 +82,7 @@ def load_mask_generator(dataset_name, input_dim):
 
 
 def get_initial_feature(dataset_name, n_features):
-    """
-    Their exact initial feature selection logic
+    """Their exact initial feature selection logic
     """
     dataset_name = dataset_name.lower()
 
@@ -91,14 +96,15 @@ def get_initial_feature(dataset_name, n_features):
 
 
 class AACOOracle:
-    def __init__(self,
-                 k_neighbors=5,
-                 acquisition_cost=0.05,
-                 hide_val=10.0,
-                 dataset_name="cube",
-                 split="1",
-                 device=None
-                 ):
+    def __init__(
+        self,
+        k_neighbors=5,
+        acquisition_cost=0.05,
+        hide_val=10.0,
+        dataset_name="cube",
+        split="1",
+        device=None,
+    ):
         self.k_neighbors = k_neighbors
         self.acquisition_cost = acquisition_cost
         self.hide_val = hide_val
@@ -112,19 +118,20 @@ class AACOOracle:
         self.class_weights = None
 
     def fit(self, X_train, y_train):
-        """
-        Fit the oracle on training data
+        """Fit the oracle on training data
         """
         self.X_train = X_train.to(self.device)
         self.y_train = y_train.to(self.device)
         train_class_probabilities = get_class_probabilities(self.y_train)
-        self.class_weights = len(train_class_probabilities) / \
-            (len(train_class_probabilities) * train_class_probabilities)
+        self.class_weights = len(train_class_probabilities) / (
+            len(train_class_probabilities) * train_class_probabilities
+        )
 
         # Load exact classifier - pass device parameter
         input_dim = X_train.shape[1]
         self.classifier = load_classifier(
-            self.dataset_name, self.split, device=self.device)
+            self.dataset_name, self.split, device=self.device
+        )
 
         # Load exact mask generator
         self.mask_generator = load_mask_generator(self.dataset_name, input_dim)
@@ -133,14 +140,15 @@ class AACOOracle:
         log.info(f"Training data: {X_train.shape}")
 
     def select_next_feature(self, x_observed, observed_mask, instance_idx=0):
-        """
-        Feature selection logic
+        """Feature selection logic
         Args:
             x_observed: 1D tensor of observed features
             observed_mask: 1D boolean tensor indicating which features are observed
             instance_idx: index of current instance (for KNN exclusion)
+
         Returns:
             next_feature: int index of next feature to acquire, or None if terminate
+
         """
         if self.classifier is None:
             raise ValueError("Oracle must be fitted first")
@@ -153,19 +161,18 @@ class AACOOracle:
         # Check if this is the first feature selection
         if not observed_mask.any():
             # Select initial feature deterministically (their approach)
-            initial_feature = get_initial_feature(
-                self.dataset_name, feature_count)
+            initial_feature = get_initial_feature(self.dataset_name, feature_count)
             return initial_feature
 
         # Get the nearest neighbors based on the observed feature mask
         x_query = x_observed.unsqueeze(0).to(self.device)  # 1 x d
-        idx_nn = get_knn(self.X_train, x_query, mask_curr.T,
-                         self.k_neighbors, instance_idx, True).squeeze()
+        idx_nn = get_knn(
+            self.X_train, x_query, mask_curr.T, self.k_neighbors, instance_idx, True
+        ).squeeze()
 
         # Generate random masks and get the next set of possible masks
         new_masks = self.mask_generator(mask_curr).to(self.device)  # R x d
-        mask = torch.maximum(
-            new_masks, mask_curr.repeat(new_masks.shape[0], 1))
+        mask = torch.maximum(new_masks, mask_curr.repeat(new_masks.shape[0], 1))
         mask[0] = mask_curr  # Ensure the current mask is included
 
         # Get only unique masks
@@ -181,8 +188,11 @@ class AACOOracle:
         x_masked = torch.mul(x_rep, mask_rep) - (1 - mask_rep) * self.hide_val
         x_with_mask = torch.cat([x_masked, mask_rep], -1)
 
-        y_pred = self.classifier.predict_logits(x_with_mask) if hasattr(self.classifier, 'predict_logits') else self.classifier(
-            x_with_mask, torch.tensor([0], device=self.device))
+        y_pred = (
+            self.classifier.predict_logits(x_with_mask)
+            if hasattr(self.classifier, "predict_logits")
+            else self.classifier(x_with_mask, torch.tensor([0], device=self.device))
+        )
 
         # Compute loss - ensure tensors are on same device
         y_true_rep = self.y_train[idx_nn_rep]
@@ -193,7 +203,7 @@ class AACOOracle:
             y_true_labels = y_true_rep
 
         # Ensure y_pred is on the correct device before loss computation
-        if hasattr(y_pred, 'to'):
+        if hasattr(y_pred, "to"):
             y_pred = y_pred.to(self.device)
         else:
             y_pred = torch.tensor(y_pred, device=self.device)
@@ -201,8 +211,9 @@ class AACOOracle:
         # Ensure y_true_labels is on the correct device
         y_true_labels = y_true_labels.to(self.device)
 
-        loss = F.cross_entropy(y_pred, y_true_labels,
-                               weight=self.class_weights, reduction='none')
+        loss = F.cross_entropy(
+            y_pred, y_true_labels, weight=self.class_weights, reduction="none"
+        )
 
         # Reshape loss to (n_masks, k_neighbors) and average over neighbors
         loss = loss.view(n_masks_updated, self.k_neighbors)
@@ -218,8 +229,7 @@ class AACOOracle:
 
         # REMOVED: termination check - always select best mask regardless of cost improvement
         # Find which new features to acquire
-        new_features = (best_mask - mask_curr.squeeze()
-                        ).nonzero(as_tuple=True)[0]
+        new_features = (best_mask - mask_curr.squeeze()).nonzero(as_tuple=True)[0]
 
         if len(new_features) == 0:
             # If best mask equals current mask, force selection of cheapest unobserved feature

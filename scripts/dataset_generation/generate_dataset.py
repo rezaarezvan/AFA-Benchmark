@@ -42,7 +42,6 @@ def generate_and_save_split(
     **dataset_kwargs,
 ):
     """Generate and save a single train/val/test split for a dataset with a specific seed. The seed affects both data generation and split."""
-
     # Create dataset with the specific seed
     dataset_kwargs["seed"] = seed
     dataset = dataset_class(**dataset_kwargs)

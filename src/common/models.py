@@ -1,10 +1,10 @@
-from typing import Tuple, final, override
+from typing import final, override
 
 import lightning as pl
 import torch
 import torch.nn.functional as F
-from jaxtyping import Float, Shaped
-from torch import Tensor, nn, optim
+from jaxtyping import Float
+from torch import Tensor, nn
 from torchrl.modules import MLP
 
 from afa_rl.custom_types import (
@@ -12,12 +12,10 @@ from afa_rl.custom_types import (
     Label,
     Logits,
 )
-from afa_rl.shim2018.custom_types import Embedder, Embedding, EmbeddingClassifier
 from afa_rl.utils import (
-    get_feature_set,
     mask_data,
 )
-from common.custom_types import AFAClassifier, FeatureMask, MaskedFeatures
+from common.custom_types import FeatureMask, MaskedFeatures
 
 
 @final

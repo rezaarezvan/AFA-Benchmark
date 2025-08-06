@@ -2,13 +2,13 @@ import itertools
 import subprocess
 
 BUDGETS = {
-    'cube': [3, 5, 10],
-    'AFAContext': [3, 5, 10],
-    'MNIST': [10, 20, 30],
-    'FashionMNIST': [10, 20, 30],
-    'diabetes': [5, 10, 15],
-    'miniboone': [5, 10, 15],
-    'physionet': [5, 10, 15]
+    "cube": [3, 5, 10],
+    "AFAContext": [3, 5, 10],
+    "MNIST": [10, 20, 30],
+    "FashionMNIST": [10, 20, 30],
+    "diabetes": [5, 10, 15],
+    "miniboone": [5, 10, 15],
+    "physionet": [5, 10, 15],
 }
 SPLITS = [1, 2, 3, 4, 5]
 ALIAS = "KDD"
@@ -16,10 +16,11 @@ ALIAS = "KDD"
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(
-        description="Launch AACO evaluation jobs on SLURM")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="Print commands without running")
+
+    parser = argparse.ArgumentParser(description="Launch AACO evaluation jobs on SLURM")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Print commands without running"
+    )
     args = parser.parse_args()
 
     print("=== Launching AACO Evaluation Jobs ===")

@@ -7,10 +7,8 @@ from common.registry import (
 
 
 def test_registry():
+    """Test the registry to ensure that all AFA methods and datasets are registered correctly.
     """
-    Test the registry to ensure that all AFA methods and datasets are registered correctly.
-    """
-
     # Check that each dataset path listed in AFA_DATASET_PATH_REGISTRY exists
     for dataset_name, paths in AFA_DATASET_PATH_REGISTRY.items():
         for path in paths:

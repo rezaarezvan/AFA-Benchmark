@@ -1,8 +1,7 @@
-import os
 import torch
 import argparse
 from tqdm import tqdm
-import torch.nn as nn
+from torch import nn
 import numpy as np
 from torch.utils.data import DataLoader, TensorDataset
 from torchmetrics import Accuracy, AUROC
@@ -14,22 +13,25 @@ from common.utils import set_seed
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--dataset_type", type=str, required=True, choices=AFA_DATASET_REGISTRY.keys())
+parser.add_argument(
+    "--dataset_type", type=str, required=True, choices=AFA_DATASET_REGISTRY.keys()
+)
 parser.add_argument("--dataset_train_path", type=str, required=True)
 parser.add_argument("--dataset_val_path", type=str, required=True)
 parser.add_argument("--dataset_test_path", type=str, required=True)
-parser.add_argument('--method', type=str, choices=['cae', 'permutation'], required=True)
-parser.add_argument('--num_restarts', default=1, type=int)
+parser.add_argument("--method", type=str, choices=["cae", "permutation"], required=True)
+parser.add_argument("--num_restarts", default=1, type=int)
 
 max_features_dict = {
-    'spam': 35,
-    'diabetes': 35,
-    'miniboone': 35,
-    'MNIST': 50,
-    'cube': 20,
-    'physionet': 41,
-    'AFAContext': 30,
+    "spam": 35,
+    "diabetes": 35,
+    "miniboone": 35,
+    "MNIST": 50,
+    "cube": 20,
+    "physionet": 41,
+    "AFAContext": 30,
 }
+
 
 def transform_dataset(dataset: AFADataset, selected_features):
     x = dataset.features
@@ -37,10 +39,11 @@ def transform_dataset(dataset: AFADataset, selected_features):
     x_selected = x[:, selected_features]
     return TensorDataset(x_selected, y)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     set_seed(42)
     args = parser.parse_args()
-    device = torch.device('cuda')
+    device = torch.device("cuda")
     train_dataset: AFADataset = AFA_DATASET_REGISTRY[args.dataset_type].load(
         args.dataset_train_path
     )
@@ -56,24 +59,20 @@ if __name__ == '__main__':
         ds.labels = ds.labels.argmax(dim=1).long()
 
     train_loader = DataLoader(
-        train_dataset, batch_size=128,
-        shuffle=True, pin_memory=True, drop_last=True)
-    val_loader = DataLoader(
-        val_dataset, batch_size=128, pin_memory=True)
-    test_loader = DataLoader(
-        test_dataset, batch_size=128, pin_memory=True
+        train_dataset, batch_size=128, shuffle=True, pin_memory=True, drop_last=True
     )
+    val_loader = DataLoader(val_dataset, batch_size=128, pin_memory=True)
+    test_loader = DataLoader(test_dataset, batch_size=128, pin_memory=True)
 
     d_in = train_dataset.features.shape[-1]
     d_out = train_dataset.labels.shape[-1]
 
-    results_dict = {
-        'acc': {},
-        'features': {}
-    }
-    
-    acc_metric = Accuracy(task='multiclass', num_classes=d_out)
-    auroc_metric = lambda pred, y: AUROC(task='multiclass', num_classes=d_out)(pred.softmax(dim=1), y)
+    results_dict = {"acc": {}, "features": {}}
+
+    acc_metric = Accuracy(task="multiclass", num_classes=d_out)
+    auroc_metric = lambda pred, y: AUROC(task="multiclass", num_classes=d_out)(
+        pred.softmax(dim=1), y
+    )
 
     num_features = list(range(1, d_in))
     if args.method == "cae":
@@ -89,26 +88,41 @@ if __name__ == '__main__':
                 nepochs=250,
                 loss_fn=nn.CrossEntropyLoss(),
                 patience=5,
-                verbose=False)
+                verbose=False,
+            )
 
             # Extract top features.
             logits = selector_layer.logits.cpu().data.numpy()
             selected_features = np.sort(logits.argmax(axis=1))
             if len(np.unique(selected_features)) != num:
-                print(f'{len(np.unique(selected_features))} selected instead of {num}, appending extras')
+                print(
+                    f"{len(np.unique(selected_features))} selected instead of {num}, appending extras"
+                )
                 num_extras = num - len(np.unique(selected_features))
                 remaining_features = np.setdiff1d(np.arange(d_in), selected_features)
-                selected_features = np.sort(np.concatenate([np.unique(selected_features), remaining_features[:num_extras]]))
+                selected_features = np.sort(
+                    np.concatenate(
+                        [np.unique(selected_features), remaining_features[:num_extras]]
+                    )
+                )
 
             train_subset = transform_dataset(train_dataset, selected_features)
             val_subset = transform_dataset(val_dataset, selected_features)
             test_subset = transform_dataset(test_dataset, selected_features)
-            
+
             # Prepare subset dataloaders.
-            train_subset_loader = DataLoader(train_subset, batch_size=128, shuffle=True, pin_memory=True, drop_last=True)
+            train_subset_loader = DataLoader(
+                train_subset,
+                batch_size=128,
+                shuffle=True,
+                pin_memory=True,
+                drop_last=True,
+            )
             val_subset_loader = DataLoader(val_subset, batch_size=1024, pin_memory=True)
-            test_subset_loader = DataLoader(test_subset, batch_size=1024, pin_memory=True)
-            
+            test_subset_loader = DataLoader(
+                test_subset, batch_size=1024, pin_memory=True
+            )
+
             best_loss = np.inf
             for _ in range(args.num_restarts):
                 # Train model.
@@ -120,8 +134,9 @@ if __name__ == '__main__':
                     lr=1e-3,
                     nepochs=250,
                     loss_fn=nn.CrossEntropyLoss(),
-                    verbose=False)
-                
+                    verbose=False,
+                )
+
                 # Check if best.
                 val_loss = basemodel.evaluate(val_subset_loader, nn.CrossEntropyLoss())
                 if val_loss < best_loss:
@@ -129,9 +144,9 @@ if __name__ == '__main__':
                     best_loss = val_loss
 
             acc = best_model.evaluate(test_subset_loader, (acc_metric))
-            results_dict['acc'][num] = acc
-            results_dict['features'][num] = selected_features
-            print(f'Num = {num}, Acc = {100*acc:.2f}')
+            results_dict["acc"][num] = acc
+            results_dict["features"][num] = selected_features
+            print(f"Num = {num}, Acc = {100 * acc:.2f}")
     elif args.method == "permutation":
         model = get_network(d_in, d_out)
         basemodel = BaseModel(model).to(device)
@@ -142,8 +157,9 @@ if __name__ == '__main__':
             nepochs=250,
             # loss_fn=nn.CrossEntropyLoss() ,
             loss_fn=nn.CrossEntropyLoss(),
-            verbose=False)
-        
+            verbose=False,
+        )
+
         # Calculate feature importance scores.
         permutation_importance = np.zeros(d_in)
         x_train = train_dataset.features
@@ -153,7 +169,7 @@ if __name__ == '__main__':
             x_val[:, i] = x_train[np.random.choice(len(x_train), size=len(x_val)), i]
             with torch.no_grad():
                 pred = model(x_val.to(device)).cpu()
-                permutation_importance[i] = - auroc_metric(pred, y_val)
+                permutation_importance[i] = -auroc_metric(pred, y_val)
         ranked_features = np.argsort(permutation_importance)[::-1]
 
         for num in num_features:
@@ -162,12 +178,20 @@ if __name__ == '__main__':
             train_subset = transform_dataset(train_dataset, selected_features.copy())
             val_subset = transform_dataset(val_dataset, selected_features.copy())
             test_subset = transform_dataset(test_dataset, selected_features.copy())
-            
+
             # Prepare subset dataloaders.
-            train_subset_loader = DataLoader(train_subset, batch_size=128, shuffle=True, pin_memory=True, drop_last=True)
+            train_subset_loader = DataLoader(
+                train_subset,
+                batch_size=128,
+                shuffle=True,
+                pin_memory=True,
+                drop_last=True,
+            )
             val_subset_loader = DataLoader(val_subset, batch_size=1024, pin_memory=True)
-            test_subset_loader = DataLoader(test_subset, batch_size=1024, pin_memory=True)
-        
+            test_subset_loader = DataLoader(
+                test_subset, batch_size=1024, pin_memory=True
+            )
+
             best_loss = np.inf
             for _ in range(args.num_restarts):
                 # Train model.
@@ -179,17 +203,17 @@ if __name__ == '__main__':
                     lr=1e-3,
                     nepochs=250,
                     loss_fn=nn.CrossEntropyLoss(),
-                    verbose=False)
-                
+                    verbose=False,
+                )
+
                 # Check if best.
                 val_loss = basemodel.evaluate(val_subset_loader, nn.CrossEntropyLoss())
                 if val_loss < best_loss:
                     best_model = basemodel
                     best_loss = val_loss
-            
+
             # Evaluate using best model.
             acc = best_model.evaluate(test_subset_loader, (acc_metric))
-            results_dict['acc'][num] = acc
-            results_dict['features'][num] = selected_features
-            print(f'Num = {num}, Acc = {100*acc:.2f}')
-
+            results_dict["acc"][num] = acc
+            results_dict["features"][num] = selected_features
+            print(f"Num = {num}, Acc = {100 * acc:.2f}")

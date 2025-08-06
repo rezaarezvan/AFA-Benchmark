@@ -1,8 +1,7 @@
 import torch
-import torch.nn as nn
+from torch import nn
 import numpy as np
-import torch.optim as optim
-from tqdm.auto import tqdm
+from torch import optim
 from copy import deepcopy
 import wandb
 import os
@@ -13,7 +12,6 @@ from afa_discriminative.utils import (
     get_entropy,
     ind_to_onehot,
     ConcreteSelector,
-    MaskLayer,
 )
 from afa_discriminative.models import fc_Net
 from common.custom_types import (
@@ -26,14 +24,14 @@ from common.custom_types import (
 
 
 class GreedyDynamicSelection(nn.Module):
-    """
-    Greedy adaptive feature selection.
+    """Greedy adaptive feature selection.
 
     Args:
       selector:
       predictor:
       mask_layer:
       selector_layer:
+
     """
 
     def __init__(self, selector, predictor, mask_layer):
@@ -67,8 +65,7 @@ class GreedyDynamicSelection(nn.Module):
         argmax=False,
         verbose=True,
     ):
-        """
-        Train model to perform greedy adaptive feature selection.
+        """Train model to perform greedy adaptive feature selection.
 
         Args:
           train_loader:
@@ -88,17 +85,17 @@ class GreedyDynamicSelection(nn.Module):
           temp_steps:
           argmax:
           verbose:
+
         """
         wandb.watch(self, log="all", log_freq=100)
         # Verify arguments.
         if val_loss_fn is None:
             val_loss_fn = loss_fn
             val_loss_mode = "min"
-        else:
-            if val_loss_mode is None:
-                raise ValueError(
-                    "must specify val_loss_mode (min or max) when validation_loss_fn is specified"
-                )
+        elif val_loss_mode is None:
+            raise ValueError(
+                "must specify val_loss_mode (min or max) when validation_loss_fn is specified"
+            )
         if early_stopping_epochs is None:
             early_stopping_epochs = patience + 1
 
@@ -295,13 +292,13 @@ class GreedyDynamicSelection(nn.Module):
         wandb.unwatch(self)
 
     def forward(self, x, max_features, argmax=True):
-        """
-        Make predictions using selected features.
+        """Make predictions using selected features.
 
         Args:
           x:
           max_features:
           argmax:
+
         """
         # Setup.
         selector = self.selector
@@ -337,14 +334,14 @@ class GreedyDynamicSelection(nn.Module):
         return pred, x_masked, m
 
     def evaluate(self, loader, max_features, metric, argmax=True):
-        """
-        Evaluate mean performance across a dataset.
+        """Evaluate mean performance across a dataset.
 
         Args:
           loader:
           max_features:
           metric:
           argmax:
+
         """
         # Setup.
         self.selector.eval()
@@ -388,14 +385,24 @@ class Covert2023AFAMethod(AFAMethod):
         self._device: torch.device = device
 
     def predict(
-        self, masked_features: MaskedFeatures, feature_mask: FeatureMask, features=None, label=None
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        features=None,
+        label=None,
     ) -> Label:
         x_masked = torch.cat([masked_features, feature_mask], dim=1)
         predictor = self.predictor
         pred = predictor(x_masked)
         return pred.softmax(dim=-1)
-    
-    def select(self, masked_features: MaskedFeatures, feature_mask: FeatureMask, features=None, label=None) -> AFASelection:
+
+    def select(
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        features=None,
+        label=None,
+    ) -> AFASelection:
         # mask_layer = self.mask_layer
         selector = self.selector
         # x_masked = mask_layer(feature, feature_mask)
@@ -407,14 +414,14 @@ class Covert2023AFAMethod(AFAMethod):
         return next_feature_idx
 
     @classmethod
-    def load(cls, path, device='cpu'):
+    def load(cls, path, device="cpu"):
         checkpoint = torch.load(path / "model.pt", map_location=device)
-        arch = checkpoint['architecture']
-        d_in = arch['d_in']
-        d_out = arch['d_out']
-        selector_hidden_layers = arch['selector_hidden_layers']
-        predictor_hidden_layers = arch['predictor_hidden_layers']
-        dropout = arch['dropout']
+        arch = checkpoint["architecture"]
+        d_in = arch["d_in"]
+        d_out = arch["d_out"]
+        selector_hidden_layers = arch["selector_hidden_layers"]
+        predictor_hidden_layers = arch["predictor_hidden_layers"]
+        dropout = arch["dropout"]
         predictor = fc_Net(
             input_dim=d_in * 2,
             output_dim=d_out,
@@ -437,8 +444,8 @@ class Covert2023AFAMethod(AFAMethod):
         )
 
         model = cls(selector, predictor, device)
-        model.selector.load_state_dict(checkpoint['selector_state_dict'])
-        model.predictor.load_state_dict(checkpoint['predictor_state_dict'])
+        model.selector.load_state_dict(checkpoint["selector_state_dict"])
+        model.predictor.load_state_dict(checkpoint["predictor_state_dict"])
         model.selector.eval()
         model.predictor.eval()
         return model.to(device)
@@ -457,7 +464,7 @@ class Covert2023AFAMethod(AFAMethod):
                     "dropout": 0.3,
                 },
             },
-            os.path.join(path, f"model.pt"),
+            os.path.join(path, "model.pt"),
         )
 
     def to(self, device):
@@ -472,8 +479,7 @@ class Covert2023AFAMethod(AFAMethod):
 
 
 class CMIEstimator(nn.Module):
-    """
-    Greedy CMI estimation module.
+    """Greedy CMI estimation module.
     """
 
     def __init__(self, value_network, predictor, mask_layer):
@@ -523,11 +529,10 @@ class CMIEstimator(nn.Module):
         if val_loss_fn is None:
             val_loss_fn = loss_fn
             val_loss_mode = "min"
-        else:
-            if val_loss_mode is None:
-                raise ValueError(
-                    "must specify val_loss_mode (min or max) when validation_loss_fn is specified"
-                )
+        elif val_loss_mode is None:
+            raise ValueError(
+                "must specify val_loss_mode (min or max) when validation_loss_fn is specified"
+            )
         if early_stopping_epochs is None:
             early_stopping_epochs = patience + 1
 
@@ -759,14 +764,24 @@ class Gadgil2023AFAMethod(AFAMethod):
         self._device: torch.device = device
 
     def predict(
-        self, masked_features: MaskedFeatures, feature_mask: FeatureMask, features=None, label=None
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        features=None,
+        label=None,
     ) -> Label:
         x_masked = torch.cat([masked_features, feature_mask], dim=1)
         predictor = self.predictor
         pred = predictor(x_masked)
         return pred.softmax(dim=-1)
-    
-    def select(self, masked_features: MaskedFeatures, feature_mask: FeatureMask, features=None, label=None) -> AFASelection:
+
+    def select(
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        features=None,
+        label=None,
+    ) -> AFASelection:
         x_masked = torch.cat([masked_features, feature_mask], dim=1)
         pred = self.predict(masked_features, feature_mask)
         entropy = get_entropy(pred).unsqueeze(1)
@@ -783,14 +798,14 @@ class Gadgil2023AFAMethod(AFAMethod):
         return next_feature_idx
 
     @classmethod
-    def load(cls, path, device='cpu'):
+    def load(cls, path, device="cpu"):
         checkpoint = torch.load(path / "model.pt", map_location=device)
-        arch = checkpoint['architecture']
-        d_in = arch['d_in']
-        d_out = arch['d_out']
-        value_network_hidden_layers = arch['value_network_hidden_layers']
-        predictor_hidden_layers = arch['predictor_hidden_layers']
-        dropout = arch['dropout']
+        arch = checkpoint["architecture"]
+        d_in = arch["d_in"]
+        d_out = arch["d_out"]
+        value_network_hidden_layers = arch["value_network_hidden_layers"]
+        predictor_hidden_layers = arch["predictor_hidden_layers"]
+        dropout = arch["dropout"]
         predictor = fc_Net(
             input_dim=d_in * 2,
             output_dim=d_out,
@@ -816,12 +831,12 @@ class Gadgil2023AFAMethod(AFAMethod):
         value_network.hidden[1] = predictor.hidden[1]
 
         model = cls(value_network, predictor, device)
-        model.value_network.load_state_dict(checkpoint['value_network_state_dict'])
-        model.predictor.load_state_dict(checkpoint['predictor_state_dict'])
+        model.value_network.load_state_dict(checkpoint["value_network_state_dict"])
+        model.predictor.load_state_dict(checkpoint["predictor_state_dict"])
         model.value_network.eval()
         model.predictor.eval()
         return model.to(device)
-    
+
     def save(self, path: Path):
         os.makedirs(path, exist_ok=True)
         torch.save(
@@ -836,7 +851,7 @@ class Gadgil2023AFAMethod(AFAMethod):
                     "dropout": 0.3,
                 },
             },
-            os.path.join(path, f"model.pt"),
+            os.path.join(path, "model.pt"),
         )
 
     def to(self, device):

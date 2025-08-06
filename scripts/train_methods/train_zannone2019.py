@@ -14,7 +14,6 @@ from torchrl.collectors import SyncDataCollector
 from torchrl.envs import ExplorationType, check_env_specs, set_exploration_type
 from afa_rl.agents import Agent
 from tqdm import tqdm
-from dacite import from_dict
 
 import wandb
 from afa_rl.afa_env import AFAEnv
@@ -28,23 +27,19 @@ from afa_rl.zannone2019.models import (
     Zannone2019AFAPredictFn,
 )
 from afa_rl.zannone2019.utils import (
-    get_zannone2019_model_from_config,
     load_pretrained_model_artifacts,
 )
 from afa_rl.utils import (
-    cubeSimple_optimal_selection_wrapper,
-    cubeSimple_worst_selection_wrapper,
     get_eval_metrics,
 )
 from common.afa_methods import RandomDummyAFAMethod
-from common.config_classes import Zannone2019PretrainConfig, Zannone2019TrainConfig
+from common.config_classes import Zannone2019TrainConfig
 from common.custom_types import (
     AFADataset,
 )
 from common.utils import (
     dict_with_prefix,
     get_class_probabilities,
-    load_dataset_artifact,
     set_seed,
 )
 

@@ -1,5 +1,4 @@
 import hydra
-from wandb.wandb_run import Run
 import yaml
 import torch
 import wandb
@@ -233,7 +232,7 @@ def load_single_artifact(
 def load_eval_results(
     config_path: Path, max_workers: int = 8
 ) -> list[tuple[dict[str, Any], dict[str, Any]]]:
-    with open(config_path, "r") as f:
+    with open(config_path) as f:
         config = yaml.safe_load(f)
     artifact_names = config.get("eval_artifact_names", [])
 

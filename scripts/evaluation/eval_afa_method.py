@@ -33,7 +33,6 @@ def load_trained_method_artifacts(
     AFADataset, AFADataset, AFADataset, AFAMethod, dict[str, Any]  # method metadata
 ]:
     """Load a trained afa method and the dataset it was trained on, from a WandB artifact."""
-
     if device is None:
         device = torch.device("cpu")
     trained_method_artifact = wandb.use_artifact(artifact_name, type="trained_method")
@@ -62,7 +61,6 @@ def load_trained_classifier_artifact(
     artifact_name: str, device: torch.device | None = None
 ) -> tuple[AFAClassifier, dict[str, Any]]:  # classifier metadata
     """Load a trained masked classifier from a WandB artifact."""
-
     if device is None:
         device = torch.device("cpu")
 

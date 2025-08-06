@@ -1,11 +1,9 @@
 from pathlib import Path
-from typing import ClassVar, Protocol, Self, override
-from collections.abc import Callable
+from typing import ClassVar, Protocol, Self
 
 from jaxtyping import Bool, Float, Integer
 from torch import Tensor
 import torch
-from torch.utils.data import Dataset
 
 
 # AFA datasets return features and labels

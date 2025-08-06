@@ -16,7 +16,6 @@ import wandb
 from common.config_classes import EvaluationTimeCalculationConfig
 from omegaconf import OmegaConf
 
-import asyncio
 
 
 def process_eval_artifact_sync(eval_artifact, evaluation_times):
@@ -27,8 +26,7 @@ def process_eval_artifact_sync(eval_artifact, evaluation_times):
 
 
 def process_all_eval_artifacts(plotting_runs, evaluation_times, max_workers=8):
-    """
-    Accepts a list of plotting runs and processes all their eval artifacts concurrently.
+    """Accepts a list of plotting runs and processes all their eval artifacts concurrently.
     """
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = []

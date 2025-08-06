@@ -2,7 +2,7 @@ from collections import defaultdict
 from collections.abc import Callable
 from typing import Any
 
-from tensordict import TensorDict, TensorDictBase
+from tensordict import TensorDictBase
 import torch
 from jaxtyping import Integer
 from torch import Tensor, nn
@@ -478,8 +478,7 @@ def weighted_cross_entropy(
     eps: float = 1e-8,
     reduction: str = "none",  # or 'none', 'sum'
 ) -> torch.Tensor:
-    """
-    Computes weighted cross-entropy between predicted and target distributions.
+    """Computes weighted cross-entropy between predicted and target distributions.
 
     Args:
         input_probs: (batch_size, num_classes), predicted class probabilities.
@@ -491,6 +490,7 @@ def weighted_cross_entropy(
     Returns:
         Tensor of shape (batch_size,) if reduction='none',
         else scalar loss.
+
     """
     # assert input_probs.ndim == 2
     # assert target_probs.ndim == 2

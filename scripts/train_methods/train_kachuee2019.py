@@ -8,8 +8,6 @@ from dacite import from_dict
 import hydra
 from omegaconf import OmegaConf
 import torch
-from torch import optim
-from torch.nn import functional as F
 from torchrl.collectors import SyncDataCollector
 from torchrl.envs import ExplorationType, check_env_specs, set_exploration_type
 from afa_rl.agents import Agent
@@ -22,7 +20,6 @@ from afa_rl.kachuee2019.agents import Kachuee2019Agent
 from afa_rl.kachuee2019.models import (
     Kachuee2019AFAClassifier,
     Kachuee2019AFAPredictFn,
-    Kachuee2019PQModule,
     LitKachuee2019PQModule,
 )
 from afa_rl.kachuee2019.reward import get_kachuee2019_reward_fn
@@ -30,7 +27,6 @@ from afa_rl.datasets import get_afa_dataset_fn
 from afa_rl.kachuee2019.utils import get_kachuee2019_model_from_config
 from afa_rl.utils import (
     get_eval_metrics,
-    module_norm,
 )
 from common.afa_methods import RandomDummyAFAMethod
 from common.config_classes import (
