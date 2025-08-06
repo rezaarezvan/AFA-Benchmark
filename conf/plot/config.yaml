@@ -1,4 +1,4 @@
-eval_artifact_config_path: "conf/plot/lists/tmp.yaml"
+eval_artifact_yaml_list: "conf/plot/lists/tmp.yaml"
 metric_keys_and_descriptions:
   - key: accuracy_all
     description: Accuracy

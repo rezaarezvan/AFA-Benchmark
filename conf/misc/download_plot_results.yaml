@@ -1,4 +1,4 @@
-plotting_run_name: "9zsjrqn8"
+plotting_run_name: "tmp"
 datasets:
   - cube
   - AFAContext
@@ -23,5 +23,5 @@ budgets:
   - "5,10,15"
   - "5,10,15"
   - "5,10,15"
-file_type: svg
+file_type: "pdf"
 output_path: "plots/"

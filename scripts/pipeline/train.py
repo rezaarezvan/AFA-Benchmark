@@ -41,7 +41,7 @@ def parse_args():
     )
     parser.add_argument(
         "--launcher",
-        default="custom_slurm",
+        default="basic",
         help='Train locally in sequence or in parallel using Slurm. Value should be "basic" or one of the files (without suffix) defined in conf/global/hydra/launcher/',
     )
     parser.add_argument("--device", choices=["cuda", "cpu"], default="cuda")

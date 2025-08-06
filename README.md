@@ -187,8 +187,20 @@ require pretraining. This will hopefully give you a good idea of how the
 remaining methods are trained and evaluated as well.
 
 We will only test run each script in the pipeline. We do this by adding
-arguments such as `epochs=1`. You can remove these arguments if you want to
-train and evaluate everything completely.
+arguments such as `epochs=<SMALL_VALUE>`. You can remove these arguments if you
+want to train and evaluate everything completely.
+
+We will store all the runs and artifacts in a wandb project called
+`afa-tutorial`. Set the environment variable `WANDB_PROJECT` equal to
+`afa-tutorial` in the shell that you will use for the subsequent commands. In
+bash and zsh (the most common shells on Unix), run
+`export WANDB_PROJECT=afa-tutorial`.
+
+Similarly, set `DEVICE` either to `cpu` or `cuda`, and `LAUNCHER` either to
+`basic` (if you run everything locally in sequence) or the name of the
+configuration file (without suffix) that you have created in
+`conf/global/hydra/launcher/` if you plan to run everything on a cluster using
+Slurm.
 
 ### Dataset generation
 
@@ -198,7 +210,7 @@ to generate two noiseless versions of the **cube** and **AFAContext** datasets.
 Then run
 
 ```bash
-uv run scripts/dataset_generation/generate_dataset.py -m hydra/launcher=submitit_basic dataset=AFAContext_without_noise,cube_without_noise split_idx=1,2 output_artifact_aliases=["tutorial-data"]
+uv run scripts/dataset_generation/generate_dataset.py -m hydra/launcher=basic dataset=AFAContext_without_noise,cube_without_noise split_idx=1,2 output_artifact_aliases=["tutorial-data"]
 ```
 
 Note how the chosen alias `"tutorial-data"` will be used by subsequent scripts
@@ -210,13 +222,8 @@ that use these datasets.
 is trained. To pretrain on the recently generated datasets, run
 
 ```bash
-uv run scripts/pipeline/pretrain.py --method-name "zannone2019" --dataset cube AFAContext --split 1 2 --launcher <LAUNCHER> --device <DEVICE> --dataset cube AFAContext --dataset-alias tutorial-data --output-alias tutorial-pretrained epochs=1
+uv run scripts/pipeline/pretrain.py --method-name "zannone2019" --dataset cube AFAContext --split 1 2 --launcher $LAUNCHER --device $DEVICE --dataset cube AFAContext --dataset-alias tutorial-data --output-alias tutorial-pretrained epochs=10
 ```
-
-where `<LAUNCHER>` should be replaced by either `submitit_basic` (if you run
-everything locally in sequence) or the name of the configuration file (without
-suffix) that you created in `conf/global/hydra/launcher/` if you plan to run
-everything on a cluster using Slurm.
 
 The **CAE** method does not have to be pretrained.
 
@@ -228,15 +235,18 @@ dataset. To train **ODIN** and use the budgets [5,10] on **cube** but [4,8] on
 **AFAContext**, you would run
 
 ```bash
-uv run scripts/pipeline/train.py --method-name "zannone2019" --dataset cube AFAContext --budgets "5,10" "4,8" --split 1 2 --launcher <LAUNCHER> --device <DEVICE> --dataset cube AFAContext --pretrain-alias tutorial-pretrained --output-alias tutorial-trained n_batches=1
+uv run scripts/pipeline/train.py --method-name "zannone2019" --dataset cube AFAContext --budgets "5,10" "4,8" --split 1 2 --launcher $LAUNCHER --device $DEVICE --dataset cube AFAContext --pretrain-alias tutorial-pretrained --output-alias tutorial-trained n_batches=10 eval_only_n_samples=0
 ```
 
 Since **CAE** does not have a pretraining stage, we supply dataset artifact
 aliases instead of pretrained model aliases:
 
 ```bash
-uv run scripts/pipeline/train.py --method-name "cae" --dataset cube AFAContext --budgets "5,10" "4,8" --split 1 2 --launcher <LAUNCHER> --device <DEVICE> --dataset cube AFAContext --dataset-alias tutorial-data --output-alias tutorial-trained selector.nepochs=1 classifier.nepochs=1
+uv run scripts/pipeline/train.py --method-name "cae" --dataset cube AFAContext --budgets "5,10" "4,8" --split 1 2 --launcher $LAUNCHER --device $DEVICE --dataset cube AFAContext --dataset-alias tutorial-data --output-alias tutorial-trained
 ```
+
+Note that training this static method is sufficiently fast, so there's no need
+to limit the number of epochs.
 
 ### Classifier training
 
@@ -248,68 +258,38 @@ evaluation can make comparisons between methods difficult.
 To train classifiers on our generated datasets, run:
 
 ```bash
-uv run scripts/pipeline/train_classifier.py --dataset cube AFAContext --split 1 2 --launcher <LAUNCHER> --device <DEVICE> --dataset-alias tutorial-data --output-alias tutorial-classifier epochs=1
+uv run scripts/pipeline/train_classifier.py --dataset cube AFAContext --split 1 2 --launcher $LAUNCHER --device $DEVICE --dataset-alias tutorial-data --output-alias tutorial-classifier epochs=10
 ```
 
 ### Evaluation
 
-One of the main feature of **AFABench** is the consistent evaluation. The same
-evaluation script is used for all methods. To evaluate your method, either add
-the name of your method artifact to one of the files in `conf/eval/lists/` or
-create a new file. To evaluate the two methods we just trained, we can create
-the file
-
-```yaml
-cube:
-  split1:
-    trained_method_artifact_names:
-      - train_zannone2019-cube_split_1-budget_5-seed_42:tutorial-trained
-      - train_zannone2019-cube_split_1-budget_10-seed_42:tutorial-trained
-      - train_cae-cube_split_1-budget_5-seed_42:tutorial-trained
-      - train_cae-cube_split_1-budget_10-seed_42:tutorial-trained
-    trained_classifier_artifact_name: "masked_mlp_classifier-cube_split_1:trained-classifier"
-  split2:
-    trained_method_artifact_names:
-      - train_zannone2019-cube_split_2-budget_5-seed_42:tutorial-trained
-      - train_zannone2019-cube_split_2-budget_10-seed_42:tutorial-trained
-    trained_classifier_artifact_name: "masked_mlp_classifier-cube_split_2:trained-classifier"
-AFAContext:
-  split1:
-    trained_method_artifact_names:
-      - train_zannone2019-AFAContext_split_1-budget_4-seed_42:tutorial-trained
-      - train_zannone2019-AFAContext_split_1-budget_8-seed_42:tutorial-trained
-      - train_cae-AFAContext_split_1-budget_4-seed_42:tutorial-trained
-      - train_cae-AFAContext_split_1-budget_8-seed_42:tutorial-trained
-    trained_classifier_artifact_name: "masked_mlp_classifier-AFAContext_split_1:trained-classifier"
-  split2:
-    trained_method_artifact_names:
-      - train_zannone2019-AFAContext_split_2-budget_4-seed_42:tutorial-trained
-      - train_zannone2019-AFAContext_split_2-budget_8-seed_42:tutorial-trained
-    trained_classifier_artifact_name: "masked_mlp_classifier-AFAContext_split_2:trained-classifier"
-```
-
-at `conf/eval/lists/tutorial.yaml` and run the evaluation script:
+One of the main features of **AFABench** is the consistent evaluation. The same
+evaluation script is used for all methods. To evaluate the two methods we just
+trained, we use the configuration file `conf/eval/lists/tutorial.yaml` in the
+evaluation script:
 
 ```bash
-uv run scripts/pipeline/evaluate.py --launcher <LAUNCHER> --device <DEVICE> --yaml conf/eval/lists/tutorial.yaml --output-alias tutorial-eval eval_only_n_samples=10
+uv run scripts/pipeline/evaluate.py --launcher $LAUNCHER --device $DEVICE --yaml conf/eval/lists/tutorial.yaml --output-alias tutorial-eval
 ```
 
 ### Plotting
 
-Now we are ready to produce some plots:
+Now we are ready to produce some plots. We need tell the plotting script which
+evaluation results it should plot, so we create the file
+`conf/plot/lists/tutorial.yaml`.
+
+Now use it in the plotting script:
 
 ```bash
-uv run scripts/plotting/plot_results.py --eval-artifact-yaml-list conf/eval/lists/tutorial.yaml
+uv run scripts/plotting/plot_results.py eval_artifact_yaml_list=conf/plot/lists/tutorial.yaml
 ```
 
-This will allow you to view the plots within the WandB run. They are also stored
+This will allow you to view the plots within the wandb run. They are also stored
 as artifacts within the run, but can be burdensome to download by hand. Hence,
-there is a script that downloads all the figures for you. If the preceding
-plotting run has the id "9zsjrqn8" and you only want to download the plots
-showing accuracy, run:
+there is a script that downloads all the figures for you.
 
 ```bash
-uv run scripts/misc/download_plot_results.py --plotting-run-name <PLOTTING_RUN_ID> --datasets cube AFAContext --metrics accuracy_all accuracy_all --budgets "" "" --output-path plots
+uv run scripts/misc/download_result_plots.py plotting_run_name=<PLOTTING_RUN_ID> datasets=["cube","AFAContext"] metrics=["accuracy_all","accuracy_all"] budgets=['.','.'] output_path=plot
 ```
 
 where `<PLOTTING_RUN_ID>` is the ID of the plotting run ("9zsjrqn8" for
@@ -317,7 +297,8 @@ example).
 
 This will download the figures to a local `plots/` directory.
 
-The empty strings for budgets mean that we accept any budget.
+The singular `'.'` instead of a list for budgets means that we accept any
+budget.
 
 ### Miscellaneous
 
@@ -330,12 +311,16 @@ Since some methods train a lot longer on some datasets, the standard deviation
 can be quite large.
 
 ```bash
-uv run scripts/misc/calculate_training_time.py --plotting-run-names ["<PLOTTING_RUN_ID>"] --output-artifact-aliases ["tutorial-training-time"]
+uv run scripts/misc/calculate_training_time.py plotting_run_names=["<PLOTTING_RUN_ID>"] output_artifact_aliases=["tutorial-training-time"]
 ```
 
 ```bash
-uv run scripts/misc/calculate_evaluation_time.py --plotting-run-names ["<PLOTTING_RUN_ID>"] --output-artifact-aliases ["tutorial-evaluation-time"]
+uv run scripts/misc/calculate_evaluation_time.py plotting_run_names=["<PLOTTING_RUN_ID>"] output_artifact_aliases=["tutorial-evaluation-time"]
 ```
+
+These runs will create artifacts with dictionaries containing the running times.
+It will look like this:
+![a screenshot of dictionaries containing training times](docs/tutorial-calc-times.png)
 
 ## Adding New Components
 

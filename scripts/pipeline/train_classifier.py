@@ -26,7 +26,7 @@ def parse_args():
     parser.add_argument(
         "--launcher",
         type=str,
-        default="custom_slurm",
+        default="basic",
         help='Train locally in sequence or in parallel using Slurm. Value should be "basic" or one of the files (without suffix) defined in conf/global/hydra/launcher/',
     )
     parser.add_argument("--device", type=str, default="cuda")
@@ -44,18 +44,20 @@ def parse_args():
     )
     parser.add_argument("--wandb-entity", type=str)
     parser.add_argument("--wandb-project", type=str)
-    return parser.parse_args()
+
+    args, unknown = parser.parse_known_args()
+
+    return args, unknown
 
 
 def main():
-    args = parse_args()
+    args, extra_args = parse_args()
+    extra_args_str = " ".join(extra_args)
 
     if args.wandb_entity is not None:
         os.environ["WANDB_ENTITY"] = args.wandb_entity
     if args.wandb_project is not None:
         os.environ["WANDB_PROJECT"] = args.wandb_project
-
-    extra_opts = f"device={args.device} hydra/launcher={args.launcher}"
 
     print("Starting classifier training jobs...")
     time.sleep(1)
@@ -70,7 +72,9 @@ def main():
             f'output_artifact_aliases=["{args.output_alias}"] '
             f"dataset@_global_={dataset} "
             f"dataset_artifact_name={','.join(dataset_artifact_names)} "
-            f"{extra_opts}"
+            f"device={args.device} "
+            f"hydra/launcher={args.launcher} "
+            f"{extra_args_str}"
         )
         jobs.append(cmd)
 
