@@ -34,23 +34,7 @@ class MaskingPretrainer(nn.Module):
         max_mask=0.9,
         tag="eval_loss",
     ):
-        """Train model.
-
-        Args:
-          train_loader:
-          val_loader:
-          lr:
-          nepochs:
-          loss_fn:
-          val_loss_fn:
-          val_loss_mode:
-          factor:
-          patience:
-          min_lr:
-          early_stopping_epochs:
-          verbose:
-
-        """
+        """Train model."""
         wandb.watch(self, log="all", log_freq=100)
         # Verify arguments.
         if val_loss_fn is None:
@@ -96,7 +80,6 @@ class MaskingPretrainer(nn.Module):
 
                 # Generate missingness.
                 p = min_mask + torch.rand(1).item() * (max_mask - min_mask)
-                # m = generate_uniform_mask(len(x), mask_size).to(device)
                 _, m, _ = mask_data(x, p)
 
                 # Calculate loss.

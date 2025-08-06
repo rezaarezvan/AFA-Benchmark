@@ -5,21 +5,6 @@ from static.utils import restore_parameters
 from copy import deepcopy
 
 
-def get_network(d_in, d_out):
-    hidden = 128
-    dropout = 0.3
-    model = nn.Sequential(
-        nn.Linear(d_in, hidden),
-        nn.ReLU(),
-        nn.Dropout(dropout),
-        nn.Linear(hidden, hidden),
-        nn.ReLU(),
-        nn.Dropout(dropout),
-        nn.Linear(hidden, d_out),
-    )
-    return model
-
-
 class BaseModel(nn.Module):
     """Base model, no missing features."""
 

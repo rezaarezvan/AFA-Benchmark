@@ -11,13 +11,6 @@ def restore_parameters(model, best_model):
         param.data = best_param
 
 
-def generate_uniform_mask(batch_size, num_features):
-    """Generate binary masks with cardinality chosen uniformly at random."""
-    unif = torch.rand(batch_size, num_features)
-    ref = torch.rand(batch_size, 1)
-    return (unif > ref).float()
-
-
 def make_onehot(x):
     """Make an approximately one-hot vector one-hot."""
     argmax = torch.argmax(x, dim=1)

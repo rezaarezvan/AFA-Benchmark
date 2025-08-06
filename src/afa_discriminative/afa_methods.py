@@ -65,28 +65,7 @@ class GreedyDynamicSelection(nn.Module):
         argmax=False,
         verbose=True,
     ):
-        """Train model to perform greedy adaptive feature selection.
-
-        Args:
-          train_loader:
-          val_loader:
-          lr:
-          nepochs:
-          max_features:
-          loss_fn:
-          val_loss_fn:
-          val_loss_mode:
-          factor:
-          patience:
-          min_lr:
-          early_stopping_epochs:
-          start_temp:
-          end_temp:
-          temp_steps:
-          argmax:
-          verbose:
-
-        """
+        """Train model to perform greedy adaptive feature selection."""
         wandb.watch(self, log="all", log_freq=100)
         # Verify arguments.
         if val_loss_fn is None:
@@ -292,14 +271,7 @@ class GreedyDynamicSelection(nn.Module):
         wandb.unwatch(self)
 
     def forward(self, x, max_features, argmax=True):
-        """Make predictions using selected features.
-
-        Args:
-          x:
-          max_features:
-          argmax:
-
-        """
+        """Make predictions using selected features."""
         # Setup.
         selector = self.selector
         predictor = self.predictor
@@ -334,15 +306,7 @@ class GreedyDynamicSelection(nn.Module):
         return pred, x_masked, m
 
     def evaluate(self, loader, max_features, metric, argmax=True):
-        """Evaluate mean performance across a dataset.
-
-        Args:
-          loader:
-          max_features:
-          metric:
-          argmax:
-
-        """
+        """Evaluate mean performance across a dataset."""
         # Setup.
         self.selector.eval()
         self.predictor.eval()
@@ -403,13 +367,10 @@ class Covert2023AFAMethod(AFAMethod):
         features=None,
         label=None,
     ) -> AFASelection:
-        # mask_layer = self.mask_layer
         selector = self.selector
-        # x_masked = mask_layer(feature, feature_mask)
         x_masked = torch.cat([masked_features, feature_mask], dim=1)
         logits = selector(x_masked).flatten(1)
         logits = logits - 1e6 * feature_mask
-        # TODO Do we need +1 here?
         next_feature_idx = logits.argmax(dim=1)
         return next_feature_idx
 
@@ -786,13 +747,8 @@ class Gadgil2023AFAMethod(AFAMethod):
         entropy = get_entropy(pred).unsqueeze(1)
         value_network = self.value_network
         pred_cmi = value_network(x_masked).sigmoid() * entropy
-        # check_pos_pred_cmi = pred_cmi.max(dim=1).values >= 0
         pred_cmi -= 1e6 * feature_mask
         next_feature_idx = torch.argmax(pred_cmi, dim=1)
-        # selection = ind_to_onehot(next_feature_idx, masked_features.shape[-1])
-
-        # if sum(check_pos_pred_cmi) == 0:
-        #     return 0
 
         return next_feature_idx
 
