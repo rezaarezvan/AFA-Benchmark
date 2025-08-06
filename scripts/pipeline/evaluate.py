@@ -11,8 +11,8 @@ def parse_args():
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--launcher", default="custom_slurm")
     parser.add_argument("--output-alias", default="tmp")
-    parser.add_argument("--wandb-entity", default="afa-team")
-    parser.add_argument("--wandb-project", default="afa-benchmark")
+    parser.add_argument("--wandb-entity", default="")
+    parser.add_argument("--wandb-project", default="")
     parser.add_argument("--yaml", required=True, help="YAML file with artifact names")
     return parser.parse_args()
 

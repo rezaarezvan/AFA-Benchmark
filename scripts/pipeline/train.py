@@ -57,8 +57,8 @@ def parse_args():
         required=True,
         help="The alias that the resulting trained method should have.",
     )
-    parser.add_argument("--wandb-entity", type=str, default="afa-team")
-    parser.add_argument("--wandb-project", type=str, default="afa-benchmark")
+    parser.add_argument("--wandb-entity", type=str, default="")
+    parser.add_argument("--wandb-project", type=str, default="")
     args, unknown = parser.parse_known_args()
 
     # Verify that either dataset-alias or pretrain-alias is provided, but not both

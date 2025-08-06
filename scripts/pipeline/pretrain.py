@@ -44,8 +44,8 @@ def parse_args():
         required=True,
         help="The alias that the resulting pretrained model should have.",
     )
-    parser.add_argument("--wandb-entity", type=str, default="afa-team")
-    parser.add_argument("--wandb-project", type=str, default="afa-benchmark")
+    parser.add_argument("--wandb-entity", type=str, default="")
+    parser.add_argument("--wandb-project", type=str, default="")
     args, unknown = parser.parse_known_args()
     return args, unknown
 
