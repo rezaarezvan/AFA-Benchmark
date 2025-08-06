@@ -19,6 +19,11 @@ TODO
 - modular. Rerun specific parts of the pipeline when needed.
 - extensible. Implement the correct `Protocol` and you're good to go!
 
+## Limitations
+
+- Only evaluation of _hard budget_ methods
+- Only classification, no regression tasks
+
 ## Quick Start
 
 ```bash
@@ -117,18 +122,18 @@ saved to W&B and locally.
 
 ## Implemented Methods
 
-|    Method     |                               Paper                               |             Strategy             |  Greedy?   |
-| :-----------: | :---------------------------------------------------------------: | :------------------------------: | :--------: |
-|  **EDDI-GG**  |          [link](https://proceedings.mlr.press/v97/ma19c)          |   Generative estimation of CMI   |   Greedy   |
-|  **GDFS-DG**  |       [link](https://proceedings.mlr.press/v202/covert23a)        | Discriminative estimation of CMI |   Greedy   |
-|  **DIME-DG**  |             [link](https://arxiv.org/pdf/2306.03301)              | Discriminative estimation of CMI |   Greedy   |
-| **JAFA-MFRL** |                             [link](https://papers.nips.cc/paper_files/paper/2018/hash/e5841df2166dd424a57127423d276bbe-Abstract.html)                              |          Model-free RL           | Non-greedy |
-|  **OL-MFRL**  |                             [link](https://arxiv.org/pdf/1901.00243)                              |          Model-free RL           | Non-greedy |
-| **ODIN-MFRL** |                             [link](https://www.microsoft.com/en-us/research/publication/odin-optimal-discovery-of-high-value-information-using-model-based-deep-reinforcement-learning/)                              |          Model-free RL           | Non-greedy |
-| **ODIN-MBRL** |                             [link](https://www.microsoft.com/en-us/research/publication/odin-optimal-discovery-of-high-value-information-using-model-based-deep-reinforcement-learning/)                              |          Model-based RL          | Non-greedy |
-|   **AACO**    |                             [link](https://proceedings.mlr.press/v235/valancius24a.html)                              |           Oracle-based           | Non-greedy |
-|   **PT-S**    | [link](https://link.springer.com/article/10.1023/A:1010933404324) |    Global feature importance     |    N/A     |
-|   **CAE-S**   |      [link](https://proceedings.mlr.press/v97/balin19a.html)      |    Global feature importance     |    N/A     |
+|    Method     |                                                                            Paper                                                                             |             Strategy             |  Greedy?   |
+| :-----------: | :----------------------------------------------------------------------------------------------------------------------------------------------------------: | :------------------------------: | :--------: |
+|  **EDDI-GG**  |                                                       [link](https://proceedings.mlr.press/v97/ma19c)                                                        |   Generative estimation of CMI   |   Greedy   |
+|  **GDFS-DG**  |                                                     [link](https://proceedings.mlr.press/v202/covert23a)                                                     | Discriminative estimation of CMI |   Greedy   |
+|  **DIME-DG**  |                                                           [link](https://arxiv.org/pdf/2306.03301)                                                           | Discriminative estimation of CMI |   Greedy   |
+| **JAFA-MFRL** |                          [link](https://papers.nips.cc/paper_files/paper/2018/hash/e5841df2166dd424a57127423d276bbe-Abstract.html)                           |          Model-free RL           | Non-greedy |
+|  **OL-MFRL**  |                                                           [link](https://arxiv.org/pdf/1901.00243)                                                           |          Model-free RL           | Non-greedy |
+| **ODIN-MFRL** | [link](https://www.microsoft.com/en-us/research/publication/odin-optimal-discovery-of-high-value-information-using-model-based-deep-reinforcement-learning/) |          Model-free RL           | Non-greedy |
+| **ODIN-MBRL** | [link](https://www.microsoft.com/en-us/research/publication/odin-optimal-discovery-of-high-value-information-using-model-based-deep-reinforcement-learning/) |          Model-based RL          | Non-greedy |
+|   **AACO**    |                                                 [link](https://proceedings.mlr.press/v235/valancius24a.html)                                                 |           Oracle-based           | Non-greedy |
+|   **PT-S**    |                                              [link](https://link.springer.com/article/10.1023/A:1010933404324)                                               |    Global feature importance     |    N/A     |
+|   **CAE-S**   |                                                   [link](https://proceedings.mlr.press/v97/balin19a.html)                                                    |    Global feature importance     |    N/A     |
 
 ## Datasets
 
@@ -159,7 +164,8 @@ saved to W&B and locally.
   - `misc/download_results_plot.py`: Downloads plots locally to your computer.
     Takes a plotting run as input.
   - `pipeline/`: Contains scripts that simplify batch training, i.e training a
-    method on several datasets at the same time.
+    method on several datasets at the same time. You will need
+    [mprocs](https://github.com/pvolok/mprocs) for these scripts.
     - `pretrain.py`: Batch pretrain a model.
     - `train.py`: Batch train a method.
     - `train_classifier.py`: Batch train a classifier.
@@ -176,8 +182,13 @@ saved to W&B and locally.
 
 This tutorial will show how to train and evaluate two separate methods. The
 first one, **ODIN**, is RL-based and has a pretraining stage. The second one,
-**CAE**, is a static method based on global feature importance and does not require pretraining. This will hopefully give you
-a good idea of how the remaining methods are trained and evaluated as well.
+**CAE**, is a static method based on global feature importance and does not
+require pretraining. This will hopefully give you a good idea of how the
+remaining methods are trained and evaluated as well.
+
+We will only test run each script in the pipeline. We do this by adding
+arguments such as `epochs=1`. You can remove these arguments if you want to
+train and evaluate everything completely.
 
 ### Dataset generation
 
@@ -199,7 +210,7 @@ that use these datasets.
 is trained. To pretrain on the recently generated datasets, run
 
 ```bash
-uv run scripts/pipeline/pretrain.py --method-name "zannone2019" --dataset cube AFAContext --split 1 2 --launcher <LAUNCHER> --device <DEVICE> --dataset cube AFAContext --dataset-alias tutorial-data --output-alias tutorial-pretrained
+uv run scripts/pipeline/pretrain.py --method-name "zannone2019" --dataset cube AFAContext --split 1 2 --launcher <LAUNCHER> --device <DEVICE> --dataset cube AFAContext --dataset-alias tutorial-data --output-alias tutorial-pretrained epochs=1
 ```
 
 where `<LAUNCHER>` should be replaced by either `submitit_basic` (if you run
@@ -217,14 +228,14 @@ dataset. To train **ODIN** and use the budgets [5,10] on **cube** but [4,8] on
 **AFAContext**, you would run
 
 ```bash
-uv run scripts/pipeline/train.py --method-name "zannone2019" --dataset cube AFAContext --budgets "5,10" "4,8" --split 1 2 --launcher <LAUNCHER> --device <DEVICE> --dataset cube AFAContext --pretrain-alias tutorial-pretrained --output-alias tutorial-trained
+uv run scripts/pipeline/train.py --method-name "zannone2019" --dataset cube AFAContext --budgets "5,10" "4,8" --split 1 2 --launcher <LAUNCHER> --device <DEVICE> --dataset cube AFAContext --pretrain-alias tutorial-pretrained --output-alias tutorial-trained n_batches=1
 ```
 
 Since **CAE** does not have a pretraining stage, we supply dataset artifact
 aliases instead of pretrained model aliases:
 
 ```bash
-uv run scripts/pipeline/train.py --method-name "cae" --dataset cube AFAContext --budgets "5,10" "4,8" --split 1 2 --launcher <LAUNCHER> --device <DEVICE> --dataset cube AFAContext --dataset-alias tutorial-data --output-alias tutorial-trained
+uv run scripts/pipeline/train.py --method-name "cae" --dataset cube AFAContext --budgets "5,10" "4,8" --split 1 2 --launcher <LAUNCHER> --device <DEVICE> --dataset cube AFAContext --dataset-alias tutorial-data --output-alias tutorial-trained selector.nepochs=1 classifier.nepochs=1
 ```
 
 ### Classifier training
@@ -237,7 +248,7 @@ evaluation can make comparisons between methods difficult.
 To train classifiers on our generated datasets, run:
 
 ```bash
-uv run scripts/pipeline/train_classifier.py --dataset cube AFAContext --split 1 2 --launcher <LAUNCHER> --device <DEVICE> --dataset-alias tutorial-data --output-alias tutorial-classifier
+uv run scripts/pipeline/train_classifier.py --dataset cube AFAContext --split 1 2 --launcher <LAUNCHER> --device <DEVICE> --dataset-alias tutorial-data --output-alias tutorial-classifier epochs=1
 ```
 
 ### Evaluation
@@ -280,7 +291,7 @@ AFAContext:
 at `conf/eval/lists/tutorial.yaml` and run the evaluation script:
 
 ```bash
-uv run scripts/pipeline/evaluate.py --launcher <LAUNCHER> --device <DEVICE> --yaml conf/eval/lists/tutorial.yaml --output-alias tutorial-eval
+uv run scripts/pipeline/evaluate.py --launcher <LAUNCHER> --device <DEVICE> --yaml conf/eval/lists/tutorial.yaml --output-alias tutorial-eval eval_only_n_samples=10
 ```
 
 ### Plotting
@@ -292,14 +303,17 @@ uv run scripts/plotting/plot_results.py --eval-artifact-yaml-list conf/eval/list
 ```
 
 This will allow you to view the plots within the WandB run. They are also stored
-as artifacts within the run, but can be annoying to download by hand. Hence,
-there is a script that downloads all the figures for you. If the preceeding
+as artifacts within the run, but can be burdensome to download by hand. Hence,
+there is a script that downloads all the figures for you. If the preceding
 plotting run has the id "9zsjrqn8" and you only want to download the plots
-displaying accuracy, run:
+showing accuracy, run:
 
 ```bash
-uv run scripts/misc/download_plot_results.py --plotting-run-name 9zsjrqn8 --datasets cube AFAContext --metrics accuracy_all accuracy_all --budgets "" "" --output-path plots
+uv run scripts/misc/download_plot_results.py --plotting-run-name <PLOTTING_RUN_ID> --datasets cube AFAContext --metrics accuracy_all accuracy_all --budgets "" "" --output-path plots
 ```
+
+where `<PLOTTING_RUN_ID>` is the ID of the plotting run ("9zsjrqn8" for
+example).
 
 This will download the figures to a local `plots/` directory.
 
@@ -313,14 +327,14 @@ main AFA results.
 There is a script for calculating the mean and standard deviation of both
 training and evaluation time, for each method that a plotting run depends on.
 Since some methods train a lot longer on some datasets, the standard deviation
-can be quite large. If the plotting run has the id "9zsjrqn8", you can run:
+can be quite large.
 
 ```bash
-uv run scripts/misc/calculate_training_time.py --plotting-run-names ["9zsjrqn8"] --output-artifact-aliases ["tutorial-training-time"]
+uv run scripts/misc/calculate_training_time.py --plotting-run-names ["<PLOTTING_RUN_ID>"] --output-artifact-aliases ["tutorial-training-time"]
 ```
 
 ```bash
-uv run scripts/misc/calculate_evaluation_time.py --plotting-run-names ["9zsjrqn8"] --output-artifact-aliases ["tutorial-evaluation-time"]
+uv run scripts/misc/calculate_evaluation_time.py --plotting-run-names ["<PLOTTING_RUN_ID>"] --output-artifact-aliases ["tutorial-evaluation-time"]
 ```
 
 ## Adding New Components
@@ -352,7 +366,7 @@ instantiations in `conf/`.
 ### New AFA Method
 
 1. **Implement the method**: You are free to place the source code for your
-   method whereever you want. If you implement a new RL-based method, you could
+   method wherever you want. If you implement a new RL-based method, you could
    create the folder `src/afa_rl/new_rl_method/` for example. AFA methods are
    required to implement the `AFAMethod` protocol, which includes the `select`
    method for feature selection logic, and `predict` for classification logic.
