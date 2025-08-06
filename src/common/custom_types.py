@@ -63,10 +63,7 @@ type AFASelection = Integer[Tensor, "*batch 1"]
 
 
 class AFAMethod(Protocol):
-    """An AFA method is an object that can decide which features to collect next and also do predictions with the features it has seen so far.
-
-    The `load` method should be called on it after loading it from a pickle.
-    """
+    """An AFA method is an object that can decide which features to collect next and also do predictions with the features it has seen so far."""
 
     def select(
         self,
@@ -75,10 +72,7 @@ class AFAMethod(Protocol):
         features: Features | None,
         label: Label | None,
     ) -> AFASelection:
-        """Return the 1-based index of the feature to be collected next or 0 if no more features should be collected.
-
-        The output tensor should be placed on the same device as the input tensors.
-        """
+        """Return the 0-based index of the feature to be collected."""
         ...
 
     def predict(
@@ -88,14 +82,11 @@ class AFAMethod(Protocol):
         features: Features | None,
         label: Label | None,
     ) -> Label:
-        """Return the predicted label for the features that have been observed so far.
-
-        The output tensor should be placed on the same device as the input tensors.
-        """
+        """Return the predicted label for the features that have been observed so far."""
         ...
 
     def save(self, path: Path) -> None:
-        """Save the method to . The folder should be in a format that can be loaded by the method."""
+        """Save the method to disk. The folder should be in a format that can be loaded by the method."""
         ...
 
     @classmethod
@@ -126,10 +117,7 @@ class AFAClassifier(Protocol):
         features: Features | None,
         label: Label | None,
     ) -> Label:
-        """Return the predicted label for the features that have been observed so far.
-
-        The output tensor should be placed on the same device as the input tensors.
-        """
+        """Return the predicted label for the features that have been observed so far."""
         ...
 
     def save(self, path: Path) -> None:
