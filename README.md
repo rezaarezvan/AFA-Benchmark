@@ -13,29 +13,16 @@ multiple AFA methods, standardized datasets, and automated evaluation pipelines.
 
 ## Features
 
-TODO
-
-- readable and reproducible configuration using [hydra](https://hydra.cc/)
-- modular. Rerun specific parts of the pipeline when needed.
-- extensible. Implement the correct `Protocol` and you're good to go!
+- Easily readable and reproducible configuration using
+  [hydra](https://hydra.cc/).
+- Modular design: rerun specific parts of the pipeline as needed.
+- Extensible framework: add custom datasets and AFA methods.
 
 ## Limitations
 
-- Only evaluation of _hard budget_ methods
-- Only classification, no regression tasks
-
-## Quick Start
-
-```bash
-# Install dependencies
-pip install uv && uv sync
-
-# Run a simple comparison
-uv run scripts/examples/quick_demo.py --dataset cube --methods aaco,EDDI
-
-# View results
-open results/demo_plot.html
-```
+- Currently supports only evaluation of _hard budget_ methods (methods with a
+  fixed resource constraint).
+- Supports only classification tasks; regression tasks are not yet implemented.
 
 ## What is Active Feature Acquisition?
 
@@ -44,8 +31,6 @@ open results/demo_plot.html
 - **Features are expensive** to obtain (medical tests, surveys, sensors),
 - **Real-time decisions** must be made with partial information,
 - **Budget constraints** limit which features you can acquire.
-
-TODO, give a better example
 
 **Example**: Medical diagnosis where each test costs money and time. AFA methods
 intelligently decide which tests to order next based on previous results, aiming
