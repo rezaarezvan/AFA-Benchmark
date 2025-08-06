@@ -1,4 +1,5 @@
 import hydra
+from wandb.wandb_run import Run
 import yaml
 import torch
 import wandb
@@ -201,54 +202,11 @@ def save_figures(fig, filename_base):
         wandb.log({f"{filename_base}_publication": wandb.Image(fig)})
 
 
-# def load_eval_results(config_path: Path) -> list[tuple[dict[str, Any], dict[str, Any]]]:
-#     """Load eval results from wandb artifacts.
-#
-#     The results are returned as a list of tuples, where each tuple contains:
-#     1. Info describing the evaluation (dataset type, method type, split, seed, classifier type)
-#     2. The actual metrics dictionary.
-#     Skips missing artifacts.
-#     """
-#     # Read artifact_names from the config file
-#
-#     with open(config_path, "r") as f:
-#         config = yaml.safe_load(f)
-#     artifact_names = config.get("eval_artifact_names", [])
-#
-#     eval_results = []
-#     wandb_api = wandb.Api()
-#     for artifact_name in artifact_names:
-#         # Check if the artifact exists before using it
-#         try:
-#             eval_artifact = wandb_api.artifact(artifact_name, type="eval_results")
-#             # Optionally, check if artifact is actually logged
-#             if eval_artifact is None:
-#                 log.warning(f"Artifact {artifact_name} does not exist. Skipping.")
-#                 continue
-#         except Exception as e:
-#             log.warning(f"Could not find artifact {artifact_name}: {e}. Skipping.")
-#             continue
-#         log.info(f"Downloading evaluation artifact {artifact_name}")
-#         eval_artifact_dir = Path(eval_artifact.download())
-#         metrics = torch.load(
-#             eval_artifact_dir / "metrics.pt", map_location=torch.device("cpu")
-#         )
-#         info = {
-#             "dataset_type": eval_artifact.metadata["dataset_type"],
-#             "method_type": eval_artifact.metadata["method_type"],
-#             "budget": eval_artifact.metadata["budget"],
-#             "seed": eval_artifact.metadata["seed"],
-#             "classifier_type": eval_artifact.metadata["classifier_type"],
-#         }
-#         eval_results.append((info, metrics))
-#     return eval_results
-
-
 def load_single_artifact(
-    api: wandb.Api, artifact_name: str
+    artifact_name: str,
 ) -> tuple[dict[str, Any], Any] | None:
     try:
-        eval_artifact = api.artifact(artifact_name, type="eval_results")
+        eval_artifact = wandb.use_artifact(artifact_name, type="eval_results")
         artifact_dir = Path(eval_artifact.download())
         metrics = torch.load(artifact_dir / "metrics.pt", map_location="cpu")
         # HACK: we have a model-based and model-free zannone2019 variant
@@ -283,8 +241,7 @@ def load_eval_results(
     eval_results = []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
-            executor.submit(load_single_artifact, api, name): name
-            for name in artifact_names
+            executor.submit(load_single_artifact, name): name for name in artifact_names
         }
         for future in as_completed(futures):
             result = future.result()
