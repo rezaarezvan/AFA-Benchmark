@@ -11,7 +11,12 @@ def parse_args():
     )
     parser.add_argument("--dataset", type=str, required=True, nargs="+")
     parser.add_argument("--split", type=int, nargs="+", default=[1, 2])
-    parser.add_argument("--launcher", type=str, default="custom_slurm")
+    parser.add_argument(
+        "--launcher",
+        type=str,
+        default="custom_slurm",
+        help='Train locally in sequence or in parallel using Slurm. Value should be "basic" or one of the files (without suffix) defined in conf/global/hydra/launcher/',
+    )
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--dataset-alias", type=str, default="tmp")
     parser.add_argument("--output-alias", type=str, default="tmp")
