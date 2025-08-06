@@ -9,8 +9,20 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Train classifier with specified datasets and splits."
     )
-    parser.add_argument("--dataset", type=str, required=True, nargs="+")
-    parser.add_argument("--split", type=int, nargs="+", default=[1, 2])
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        required=True,
+        nargs="+",
+        help='Which dataset(s) the classifier gets trained on. Example: "cube AFAContext"',
+    )
+    parser.add_argument(
+        "--split",
+        type=int,
+        nargs="+",
+        default=[1, 2],
+        help='Which dataset splits to use. Example: "1 2 3"',
+    )
     parser.add_argument(
         "--launcher",
         type=str,
@@ -18,8 +30,18 @@ def parse_args():
         help='Train locally in sequence or in parallel using Slurm. Value should be "basic" or one of the files (without suffix) defined in conf/global/hydra/launcher/',
     )
     parser.add_argument("--device", type=str, default="cuda")
-    parser.add_argument("--dataset-alias", type=str, default="tmp")
-    parser.add_argument("--output-alias", type=str, default="tmp")
+    parser.add_argument(
+        "--dataset-alias",
+        type=str,
+        default="tmp",
+        help="The alias that was specified when generating data (generate_dataset.py)",
+    )
+    parser.add_argument(
+        "--output-alias",
+        type=str,
+        default="tmp",
+        help="The alias that the resulting pretrained model should have.",
+    )
     parser.add_argument("--wandb-entity", type=str, default="afa-team")
     parser.add_argument("--wandb-project", type=str, default="afa-benchmark")
     return parser.parse_args()
