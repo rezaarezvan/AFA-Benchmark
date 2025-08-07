@@ -51,7 +51,6 @@ Patient arrives → Blood test → More tests needed?
 
 ### Prerequisites
 
-- Python 3.12
 - [uv](https://docs.astral.sh/uv/)
 - [Weights & Biases](https://wandb.ai) account (for experiment tracking)
 - [mprocs](https://github.com/pvolok/mprocs) (optional, for batch training)
