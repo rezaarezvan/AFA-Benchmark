@@ -8,8 +8,14 @@ from jaxtyping import Integer
 from torch import Tensor, nn
 import wandb
 
-from afa_rl.custom_types import FeatureMask, FeatureSet
-from common.custom_types import AFAPredictFn, AFASelection, Features, MaskedFeatures
+from afa_rl.custom_types import FeatureSet
+from common.custom_types import (
+    AFAPredictFn,
+    AFASelection,
+    Features,
+    MaskedFeatures,
+    FeatureMask,
+)
 
 
 from jaxtyping import Float
