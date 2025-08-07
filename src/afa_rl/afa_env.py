@@ -1,4 +1,4 @@
-from typing import final
+from typing import final, override
 
 import torch
 from tensordict import TensorDict, TensorDictBase
@@ -46,6 +46,7 @@ class AFAEnv(EnvBase):
         self.feature_size = feature_size
         self.n_classes = n_classes
         self.hard_budget = hard_budget
+        self.rng: torch.Generator = torch.manual_seed(42)
 
         self._make_spec()
 
@@ -87,7 +88,8 @@ class AFAEnv(EnvBase):
             shape=self.batch_size + torch.Size((1,)), dtype=torch.bool
         )
 
-    def _reset(self, tensordict: TensorDictBase, **_):
+    @override
+    def _reset(self, tensordict: TensorDictBase | None, **_):
         if tensordict is None:
             tensordict = TensorDict({}, batch_size=self.batch_size, device=self.device)
 
@@ -121,6 +123,7 @@ class AFAEnv(EnvBase):
         )
         return td
 
+    @override
     def _step(self, tensordict: TensorDictBase) -> TensorDictBase:
         new_feature_mask: FeatureMask = tensordict["feature_mask"].clone()
         new_masked_features: MaskedFeatures = tensordict["masked_features"].clone()
@@ -167,6 +170,7 @@ class AFAEnv(EnvBase):
             batch_size=tensordict.batch_size,
         )
 
+    @override
     def _set_seed(self, seed: int | None):
         rng = torch.manual_seed(seed)  # type: ignore
         self.rng = rng
