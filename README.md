@@ -85,11 +85,16 @@ uv run scripts/dataset_generation/generate_dataset.py \
   +dataset_type=cube \
   +output_artifact_aliases=[demo]
 
-# 2. Train AACO method
+# 2. Train the MLP classifier
+uv run scripts/train_classifiers/train_masked_mlp_classifier.py \
+    dataset_artifact_name="cube_split_1:demo" \
+    output_artifact_aliases=["latest"]
+
+# 3. Train AACO method
 uv run scripts/train_methods/train_aaco.py \
   dataset_artifact_name="cube_split_1:demo"
 
-# 3. Evaluate performance
+# 4. Evaluate performance
 uv run scripts/evaluation/eval_afa_method.py \
   trained_method_artifact_name="aaco-cube_split_1:latest" \
   trained_classifier_artifact_name="null" \
@@ -97,12 +102,12 @@ uv run scripts/evaluation/eval_afa_method.py \
   dataset_split=testing \
   output_artifact_aliases=["demo"]
 
-# 4. Create list of eval artifacts to list
+# 5. Create list of eval artifacts to list
 echo -e "eval_artifact_names:\n  - aaco-cube_split_1-builtin:demo" > conf/plot/lists/demo.yaml
 
-# 5. Plot results
+# 6. Plot results
 uv run scripts/plotting/plot_results.py \
-  eval_artifact_config_path="conf/plot/lists/demo.yaml"
+  eval_artifact_yaml_list="conf/plot/lists/demo.yaml"
 ```
 
 **Expected output**: Plots showing accuracy vs. number of features acquired,
