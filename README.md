@@ -52,7 +52,7 @@ Patient arrives → Blood test → More tests needed?
 ### Prerequisites
 
 - Python 3.12
-- [uv](https://docs.astral.sh/uv/) (recommended) or pip
+- [uv](https://docs.astral.sh/uv/)
 - [Weights & Biases](https://wandb.ai) account (for experiment tracking)
 - [mprocs](https://github.com/pvolok/mprocs) (optional, for batch training)
 
@@ -66,11 +66,8 @@ cd AFA-Benchmark
 # Install dependencies with uv (recommended)
 uv sync
 
-# Or with pip
-pip install -e .
-
 # Setup W&B (optional but recommended)
-wandb login
+uv run wandb login
 ```
 
 Additionally, if you have access to a cluster running
@@ -109,7 +106,8 @@ uv run scripts/plotting/plot_results.py \
   eval_artifact_config_path="conf/plot/lists/demo.yaml"
 ```
 
-**Expected output**: Plots showing accuracy vs. number of features acquired, saved to W&B and locally.
+**Expected output**: Plots showing accuracy vs. number of features acquired,
+saved to W&B and locally.
 
 ## Implemented Methods
 
