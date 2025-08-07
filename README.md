@@ -62,10 +62,10 @@ Patient arrives → Blood test → More tests needed?
 git clone https://github.com/Linusaronsson/AFA-Benchmark.git
 cd AFA-Benchmark
 
-# Install dependencies with uv (recommended)
+# Install dependencies with uv
 uv sync
 
-# Setup W&B (optional but recommended)
+# Setup W&B
 uv run wandb login
 ```
 
