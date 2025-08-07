@@ -7,15 +7,10 @@ from jaxtyping import Float
 from torch import Tensor, nn
 from torchrl.modules import MLP
 
-from afa_rl.custom_types import (
-    Features,
-    Label,
-    Logits,
-)
 from afa_rl.utils import (
     mask_data,
 )
-from common.custom_types import FeatureMask, MaskedFeatures
+from common.custom_types import FeatureMask, MaskedFeatures, Features, Label, Logits
 
 
 @final
