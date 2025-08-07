@@ -190,6 +190,9 @@ configuration file (without suffix) that you have created in
 `conf/global/hydra/launcher/` if you plan to run everything on a cluster using
 Slurm.
 
+If you use the `zsh` shell, first run `setopt NO_NOMATCH` in your terminal so
+that square brackets do not have to be escaped in all commands.
+
 ### Dataset generation
 
 First, generate some data. You can choose hyperparameters by creating new
