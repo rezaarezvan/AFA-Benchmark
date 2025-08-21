@@ -2,8 +2,8 @@
 
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![License:](https://img.shields.io/badge/License-XYZ-yellow.svg)]()
-[![Paper](https://img.shields.io/badge/KDD%202025-Paper-red.svg)]()
-[![arXiv](https://img.shields.io/badge/arXiv-xxxx.xxxxx-b31b1b.svg)]()
+[![Paper](https://img.shields.io/badge/KDD%202026-Paper-red.svg)]()
+[![arXiv](https://img.shields.io/badge/arXiv-2508.14734-b31b1b.svg)](https://arxiv.org/abs/2508.14734)
 
 **A comprehensive benchmark for Active Feature Acquisition (AFA) methods**
 
