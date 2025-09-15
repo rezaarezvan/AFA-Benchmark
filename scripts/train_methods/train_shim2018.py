@@ -2,7 +2,7 @@ import gc
 import logging
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import hydra
 import torch
@@ -17,7 +17,6 @@ from tqdm import tqdm
 import wandb
 from afa_rl.afa_env import AFAEnv
 from afa_rl.afa_methods import RLAFAMethod
-from afa_rl.agents import Agent
 from afa_rl.datasets import get_afa_dataset_fn
 from afa_rl.shim2018.agents import Shim2018Agent
 from afa_rl.shim2018.models import (
@@ -46,6 +45,11 @@ from common.utils import (
 )
 from eval.metrics import eval_afa_method
 from eval.utils import plot_metrics
+
+if TYPE_CHECKING:
+    from afa_rl.agents import Agent
+if TYPE_CHECKING:
+    from afa_rl.agents import Agent
 
 
 def load_pretrained_model_artifacts(
@@ -125,7 +129,7 @@ log = logging.getLogger(__name__)
     config_path="../../conf/train/shim2018",
     config_name="config",
 )
-def main(cfg: Shim2018TrainConfig):  # noqa: PLR0915
+def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
     log.debug(cfg)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
@@ -278,7 +282,7 @@ def main(cfg: Shim2018TrainConfig):  # noqa: PLR0915
                     set_exploration_type(ExplorationType.DETERMINISTIC),
                 ):
                     # HACK: Set the action spec of the agent to the eval env action spec
-                    agent.egreedy_tdmodule._spec = eval_env.action_spec  # pyright: ignore
+                    agent.egreedy_tdmodule._spec = eval_env.action_spec  # noqa: SLF001
                     td_evals = [
                         eval_env.rollout(
                             cfg.eval_max_steps, agent.get_exploitative_policy()
@@ -296,7 +300,7 @@ def main(cfg: Shim2018TrainConfig):  # noqa: PLR0915
                     #     )
                     # ]
                     # Reset the action spec of the agent to the train env action spec
-                    agent.egreedy_tdmodule._spec = train_env.action_spec  # pyright: ignore
+                    agent.egreedy_tdmodule._spec = train_env.action_spec  # noqa: SLF001
                 metrics_eval = get_eval_metrics(
                     td_evals, Shim2018AFAPredictFn(pretrained_model)
                 )
@@ -377,6 +381,9 @@ def main(cfg: Shim2018TrainConfig):  # noqa: PLR0915
 
             # Save the model as a WandB artifact
             # Save the name of the afa method class as metadata
+            print(
+                f"dataset name {pretrained_model_config.dataset_artifact_name}"
+            )
             afa_method_artifact = wandb.Artifact(
                 name=f"train_shim2018-{pretrained_model_config.dataset_artifact_name.split(':')[0]}-budget_{cfg.hard_budget}-seed_{cfg.seed}",
                 type="trained_method",

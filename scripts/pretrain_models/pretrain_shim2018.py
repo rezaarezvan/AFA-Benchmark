@@ -37,7 +37,7 @@ def main(cfg: Shim2018PretrainConfig) -> None:
     run = wandb.init(
         group="pretrain_shim2018",
         job_type="pretraining",
-        config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore
+        config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore[reportArgumentType]
         tags=["shim2018"],
         dir="wandb",
     )
@@ -91,7 +91,7 @@ def main(cfg: Shim2018PretrainConfig) -> None:
         pass
     finally:
         # Save best model as wandb artifact
-        best_checkpoint = trainer.checkpoint_callback.best_model_path  # pyright: ignore
+        best_checkpoint = trainer.checkpoint_callback.best_model_path  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
         pretrained_model_artifact = wandb.Artifact(
             name=f"pretrain_shim2018-{cfg.dataset_artifact_name.split(':')[0]}",
             type="pretrained_model",

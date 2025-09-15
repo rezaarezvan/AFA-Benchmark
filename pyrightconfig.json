@@ -29,6 +29,7 @@
     "reportUnusedParameter": false,
     "reportUndefinedVariable": false,
     "reportMissingTypeStubs": false,
+    "reportPrivateUsage": false,
 
     "reportUnknownParameterType": false,
     "reportUnknownMemberType": false,

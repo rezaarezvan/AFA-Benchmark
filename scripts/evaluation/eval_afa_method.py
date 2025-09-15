@@ -1,6 +1,7 @@
 """Evaluate a single AFA method on a dataset, using a trained classifier if specified."""
 
 import logging
+from collections import Counter
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any
@@ -216,33 +217,32 @@ def main(cfg: EvalConfig) -> None:  # noqa: PLR0915
 
     fig = plot_metrics(metrics)
 
-    # Create action distribution plot
+    # Create action distribution plot - simplified for Plotly compatibility
     action_fig, action_ax = plt.subplots()
-    action_ax.plot(
-        torch.arange(metrics["action_distribution"].shape[-1]),
-        metrics["action_distribution"].cpu(),
-    )
+    action_data = metrics["action_distribution"].cpu().numpy()
+    feature_indices = list(range(len(action_data)))
+    action_ax.plot(feature_indices, action_data)
     action_ax.set_xlabel("Feature index")
     action_ax.set_ylabel("Action probability")
+    action_ax.set_title("Action Distribution")
 
-    # Create steps distribution plot
+    # Create steps distribution plot - ultra-simplified for Plotly
     steps_fig, steps_ax = plt.subplots()
-    steps_ax.hist(
-        metrics["actual_steps"].cpu().numpy(),
-        bins=20,
-        alpha=0.7,
-        edgecolor="black",
-    )
+    actual_steps = metrics["actual_steps"].cpu().numpy()
+
+    # Use Counter to get step distribution
+
+    step_counts = Counter(actual_steps)
+    steps = sorted(step_counts.keys())
+    counts = [step_counts[step] for step in steps]
+
+    # Simple bar plot without any fancy features
+    steps_ax.bar(steps, counts)
     steps_ax.set_xlabel("Number of steps taken")
     steps_ax.set_ylabel("Number of samples")
-    steps_ax.set_title("Distribution of steps taken by samples")
-    steps_ax.axvline(
-        metrics["average_steps"],
-        color="red",
-        linestyle="--",
-        label=f"Mean: {metrics['average_steps']:.1f}",
+    steps_ax.set_title(
+        f"Steps Distribution (Mean: {float(metrics['average_steps']):.1f})"
     )
-    steps_ax.legend()
 
     run.log(
         {

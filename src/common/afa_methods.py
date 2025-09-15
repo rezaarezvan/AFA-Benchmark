@@ -265,14 +265,14 @@ class RandomClassificationAFAMethod(AFAMethod):
         """Save the method to a folder."""
         self.afa_classifier.save(path / "classifier.pt")
         # Write the classifier class name to a file
-        with open(path / "classifier_class_name.txt", "w") as f:
+        with (path / "classifier_class_name.txt").open("w") as f:
             f.write(self.afa_classifier.__class__.__name__)
 
     @classmethod
     @override
     def load(cls, path: Path, device: torch.device) -> Self:
         """Load the method from a file."""
-        with open(path / "classifier_class_name.txt") as f:
+        with (path / "classifier_class_name.txt").open("r") as f:
             classifier_class_name = f.read()
 
         afa_classifier = get_afa_classifier_class(classifier_class_name).load(
@@ -355,14 +355,14 @@ class SequentialClassificationAFAMethod(AFAMethod):
         """Save the method to a folder."""
         self.afa_classifier.save(path / "classifier.pt")
         # Write the classifier class name to a file
-        with open(path / "classifier_class_name.txt", "w") as f:
+        with (path / "classifier_class_name.txt").open("w") as f:
             f.write(self.afa_classifier.__class__.__name__)
 
     @classmethod
     @override
     def load(cls, path: Path, device: torch.device) -> Self:
         """Load the method from a file."""
-        with open(path / "classifier_class_name.txt") as f:
+        with (path / "classifier_class_name.txt").open("r") as f:
             classifier_class_name = f.read()
 
         afa_classifier = get_afa_classifier_class(classifier_class_name).load(

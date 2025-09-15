@@ -76,7 +76,9 @@ def aggregate_metrics(
             continue
 
         valid_predictions = torch.stack(valid_predictions)
-        valid_labels = torch.tensor(valid_labels)
+        valid_labels = torch.tensor(
+            valid_labels, device=valid_predictions.device
+        )
 
         # Compute metrics for this step
         preds_i = torch.argmax(valid_predictions, dim=1)
@@ -300,6 +302,10 @@ def _evaluate_batch(
             active_features,
             active_labels,
         ).squeeze(-1)
+
+        # Ensure selections is at least 1-dimensional to avoid iteration errors
+        if selections.dim() == 0:
+            selections = selections.unsqueeze(0)
 
         # Process selections and get samples to deactivate
         samples_to_deactivate = _process_selections(

@@ -23,7 +23,7 @@ log = logging.getLogger(__name__)
     config_path="../../conf/train/randomdummy",
     config_name="config",
 )
-def main(cfg: RandomDummyTrainConfig):
+def main(cfg: RandomDummyTrainConfig) -> None:
     log.debug(cfg)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")

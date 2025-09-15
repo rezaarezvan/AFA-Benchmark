@@ -1,28 +1,8 @@
-from pathlib import Path
 from typing import Any
 
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
-
-from common.utils import get_folders_with_matching_params
-
-
-def get_classifier_paths_trained_on_data(
-    classifier_type: str,
-    train_dataset_path: Path,
-    classifier_folder: Path = Path("models/classifiers"),
-) -> list[Path]:
-    """Get Paths to all classifiers of a specific type trained on a specific dataset."""
-    # Define the fixed parameters to match
-    fixed_params_mapping = {"train_dataset_path": str(train_dataset_path)}
-
-    # Get all matching folders
-    matching_folders = get_folders_with_matching_params(
-        classifier_folder / classifier_type, fixed_params_mapping
-    )
-
-    return matching_folders
 
 
 def plot_metrics(metrics: dict[str, Any]) -> Figure:
@@ -45,29 +25,22 @@ def plot_metrics(metrics: dict[str, Any]) -> Figure:
     valid_f1 = ~np.isnan(f1_all)
     valid_bce = ~np.isnan(bce_all)
 
-    axs[0].plot(
-        budgets[valid_acc],
-        accuracy_all[valid_acc],
-        label="Accuracy",
-        marker="o",
-    )
-    axs[0].plot(
-        budgets[valid_f1],
-        f1_all[valid_f1],
-        label="F1 Score",
-        marker="o",
-    )
-    axs[0].set_xlabel("Number of Selected Features (Budget)")
-    axs[0].legend()
-    axs[0].set_title("Classification Metrics")
+    # Convert to regular Python lists for better Plotly compatibility
+    acc_x = budgets[valid_acc].tolist()
+    acc_y = accuracy_all[valid_acc].tolist()
+    f1_x = budgets[valid_f1].tolist()
+    f1_y = f1_all[valid_f1].tolist()
+    bce_x = budgets[valid_bce].tolist()
+    bce_y = bce_all[valid_bce].tolist()
 
-    axs[1].plot(
-        budgets[valid_bce],
-        bce_all[valid_bce],
-        label="Binary Cross-Entropy",
-        marker="o",
-        color="red",
-    )
+    axs[0].plot(acc_x, acc_y, label="Accuracy")
+    axs[0].plot(f1_x, f1_y, label="F1 Score")
+    axs[0].set_xlabel("Number of Selected Features (Budget)")
+    axs[0].set_ylabel("Score")
+    axs[0].set_title("Classification Metrics")
+    axs[0].legend()
+
+    axs[1].plot(bce_x, bce_y, color="red")
     axs[1].set_xlabel("Number of Selected Features (Budget)")
     axs[1].set_ylabel("Binary Cross-Entropy")
     axs[1].set_title("Loss Metric")
