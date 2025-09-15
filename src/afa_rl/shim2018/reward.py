@@ -1,8 +1,7 @@
-from jaxtyping import Bool
-from torch.nn import functional as F
-
 import torch
+from jaxtyping import Bool
 from torch import Tensor
+from torch.nn import functional as F
 
 from afa_rl.custom_types import (
     AFAReward,
@@ -21,7 +20,8 @@ from common.custom_types import (
 def get_shim2018_reward_fn(
     pretrained_model: LitShim2018EmbedderClassifier, weights: Tensor
 ) -> AFARewardFn:
-    """The reward function for shim2018.
+    """
+    The reward function for shim2018.
 
     The agent only receives a reward at the end of the episode, equal to the negative classification loss.
     """

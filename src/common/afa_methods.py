@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Self, final, override
+
 import torch
 
 from afa_rl.utils import afacontext_optimal_selection
@@ -460,7 +461,9 @@ class OptimalCubeAFAMethod(AFAMethod):
         """Chooses to observe an optimal feature for the cube dataset, or a random unobserved feature if all optimal ones are chosen."""
         original_device = masked_features.device
 
-        assert label is not None, "OptimalCubeAFAMethod assumes that label is available"
+        assert label is not None, (
+            "OptimalCubeAFAMethod assumes that label is available"
+        )
 
         masked_features = masked_features.to(self._device)
         feature_mask = feature_mask.to(self._device)
@@ -469,11 +472,15 @@ class OptimalCubeAFAMethod(AFAMethod):
         batch_size, _num_features = feature_mask.shape
         label_int = label.argmax(dim=-1)  # (B,)
 
-        selection = torch.zeros(batch_size, dtype=torch.long, device=self._device)
+        selection = torch.zeros(
+            batch_size, dtype=torch.long, device=self._device
+        )
 
         for i in range(batch_size):
             optimal_idxs = torch.arange(
-                label_int[i].item(), label_int[i].item() + 3, device=feature_mask.device
+                label_int[i].item(),
+                label_int[i].item() + 3,
+                device=feature_mask.device,
             )
             unobserved = (~feature_mask[i])[optimal_idxs]
             if unobserved.any():

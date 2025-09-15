@@ -1,0 +1,37 @@
+{
+    "include": ["src", "scripts"],
+
+    "exclude": ["**/node_modules", "**/__pycache__"],
+
+    "strict": [],
+
+    "ignore": [],
+
+    "defineConstant": {
+        "DEBUG": true
+    },
+
+    "stubPath": "src/stubs",
+
+    "verboseOutput": false,
+
+    "extraPaths": [],
+
+    "useLibraryCodeForTypes": true,
+
+    "typeCheckingMode": "recommended",
+
+    "reportAny": false,
+    "reportUnusedCallResult": false,
+    "reportExplicitAny": false,
+    "reportMissingParameterType": false,
+    "reportUnusedVariable": false,
+    "reportUnusedParameter": false,
+    "reportUndefinedVariable": false,
+    "reportMissingTypeStubs": false,
+
+    "reportUnknownParameterType": false,
+    "reportUnknownMemberType": false,
+    "reportUnknownVariableType": false,
+    "reportUnknownArgumentType": false
+}

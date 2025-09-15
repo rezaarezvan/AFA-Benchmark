@@ -7,7 +7,12 @@ import torch.nn.functional as F
 from jaxtyping import Float
 from torch import Tensor, nn
 from torchrl.modules import MLP
-from afa_rl.shim2018.custom_types import Embedder, Embedding, EmbeddingClassifier
+
+from afa_rl.shim2018.custom_types import (
+    Embedder,
+    Embedding,
+    EmbeddingClassifier,
+)
 from afa_rl.utils import (
     get_feature_set,
     mask_data,
@@ -17,10 +22,10 @@ from common.custom_types import (
     AFAClassifier,
     AFAPredictFn,
     FeatureMask,
-    MaskedFeatures,
     Features,
     Label,
     Logits,
+    MaskedFeatures,
 )
 
 
@@ -72,7 +77,8 @@ class ReadProcessEncoder(nn.Module):
 
     @override
     def forward(self, input_set: Tensor, lengths: Tensor) -> Tensor:
-        """Forward pass.
+        """
+        Forward pass.
 
         Args:
             input_set: a tensor of shape (batch_size, set_size, element_size). The valid elements have to be first in the sequence.
@@ -92,13 +98,21 @@ class ReadProcessEncoder(nn.Module):
         batch_size, set_size, _ = input_set.shape
 
         # Read: Map each set elements to a memory vector
-        memories = self.reading_block(input_set)  # (batch_size, set_size, memory_size)
+        memories = self.reading_block(
+            input_set
+        )  # (batch_size, set_size, memory_size)
 
         # Initialize lstm state
-        q_t = torch.zeros(batch_size, self.memory_size, device=input_set.device)
-        c_t = torch.zeros(batch_size, self.memory_size, device=input_set.device)
+        q_t = torch.zeros(
+            batch_size, self.memory_size, device=input_set.device
+        )
+        c_t = torch.zeros(
+            batch_size, self.memory_size, device=input_set.device
+        )
         # Initial input
-        r_t = torch.zeros(batch_size, self.memory_size, device=input_set.device)
+        r_t = torch.zeros(
+            batch_size, self.memory_size, device=input_set.device
+        )
 
         # Process: Iteratively refine state with attention over memories
         for _ in range(self.processing_steps):
@@ -132,7 +146,9 @@ class ReadProcessEncoder(nn.Module):
         )  # (batch_size, output_size)
 
         # Empty sets are represented by a learnable vector
-        complete_output = self.empty_set_vector.expand(original_batch_size, -1).clone()
+        complete_output = self.empty_set_vector.expand(
+            original_batch_size, -1
+        ).clone()
         complete_output[nonempty_set_mask] = output
 
         return complete_output
@@ -162,14 +178,19 @@ class Shim2018Embedder(Embedder):
 
 @final
 class Shim2018MLPClassifier(EmbeddingClassifier):
-    def __init__(self, input_size: int, num_classes: int, num_cells: tuple[int, ...]):
+    def __init__(
+        self, input_size: int, num_classes: int, num_cells: tuple[int, ...]
+    ):
         super().__init__()
         self.input_size = input_size
         self.num_classes = num_classes
         self.num_cells = num_cells
 
         self.mlp = MLP(
-            input_size, num_classes, num_cells=num_cells, activation_class=nn.ReLU
+            input_size,
+            num_classes,
+            num_cells=num_cells,
+            activation_class=nn.ReLU,
         )
 
     @override
@@ -203,7 +224,8 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
     def forward(
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
     ) -> tuple[Embedding, Logits]:
-        """Forward pass.
+        """
+        Forward pass.
 
         Args:
             masked_features: currently observed features, with zeros for missing features
@@ -223,12 +245,16 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
         features: Features = batch[0]
         label: Label = batch[1]
 
-        masking_probability = self.min_masking_probability + torch.rand(1).item() * (
+        masking_probability = self.min_masking_probability + torch.rand(
+            1
+        ).item() * (
             self.max_masking_probability - self.min_masking_probability
         )
         self.log("masking_probability", masking_probability, sync_dist=True)
 
-        masked_features, feature_mask, _ = mask_data(features, p=masking_probability)
+        masked_features, feature_mask, _ = mask_data(
+            features, p=masking_probability
+        )
         _, logits = self(masked_features, feature_mask)
         loss = F.cross_entropy(
             logits, label, weight=self.class_weight.to(logits.device)
@@ -237,10 +263,15 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
         return loss
 
     def _get_loss_and_acc(
-        self, masked_features: MaskedFeatures, feature_mask: FeatureMask, y: Tensor
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        y: Tensor,
     ) -> tuple[Tensor, Tensor]:
         _, logits = self(masked_features, feature_mask)
-        loss = F.cross_entropy(logits, y, weight=self.class_weight.to(logits.device))
+        loss = F.cross_entropy(
+            logits, y, weight=self.class_weight.to(logits.device)
+        )
         predicted_class = torch.argmax(logits, dim=1)
         true_class = torch.argmax(y, dim=1)
         acc = (predicted_class == true_class).float().mean()
@@ -256,7 +287,9 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
             > self.min_masking_probability
         )
         feature_values_many_observations = feature_values.clone()
-        feature_values_many_observations[feature_mask_many_observations == 0] = 0
+        feature_values_many_observations[
+            feature_mask_many_observations == 0
+        ] = 0
         loss_many_observations, acc_many_observations = self._get_loss_and_acc(
             feature_values_many_observations, feature_mask_many_observations, y
         )

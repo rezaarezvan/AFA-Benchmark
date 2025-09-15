@@ -1,8 +1,13 @@
 from typing import Any, final, override
-from tensordict import TensorDictBase
-from tensordict.nn import TensorDictModule, TensorDictModuleBase, TensorDictSequential
-from torch import Tensor, nn, optim
+
 import torch
+from tensordict import TensorDictBase
+from tensordict.nn import (
+    TensorDictModule,
+    TensorDictModuleBase,
+    TensorDictSequential,
+)
+from torch import Tensor, nn, optim
 from torchrl.data import (
     TensorSpec,
 )
@@ -128,7 +133,9 @@ class Shim2018Agent(Agent):
         ).to(self.module_device)
 
         self.loss_tdmodule.make_value_estimator(
-            ValueEstimators.TDLambda, gamma=self.cfg.gamma, lmbda=self.cfg.lmbda
+            ValueEstimators.TDLambda,
+            gamma=self.cfg.gamma,
+            lmbda=self.cfg.lmbda,
         )
 
         if self.cfg.delay_value:
@@ -138,7 +145,9 @@ class Shim2018Agent(Agent):
         else:
             self.target_net_updater = None
 
-        self.optimizer = optim.Adam(self.loss_tdmodule.parameters(), lr=self.cfg.lr)
+        self.optimizer = optim.Adam(
+            self.loss_tdmodule.parameters(), lr=self.cfg.lr
+        )
 
         # The shim2018 method does not use a replay buffer
 
@@ -166,7 +175,9 @@ class Shim2018Agent(Agent):
 
     @override
     def process_batch(self, td: TensorDictBase) -> dict[str, Any]:
-        assert td.batch_size == torch.Size((self.batch_size,)), "Batch size mismatch"
+        assert td.batch_size == torch.Size((self.batch_size,)), (
+            "Batch size mismatch"
+        )
 
         # Initialize total loss dictionary
         total_loss_dict = {"loss": 0.0}
@@ -179,7 +190,8 @@ class Shim2018Agent(Agent):
             loss_tensor: Tensor = loss_td["loss"]
             loss_tensor.backward()
             nn.utils.clip_grad_norm_(
-                self.loss_tdmodule.parameters(), max_norm=self.cfg.max_grad_norm
+                self.loss_tdmodule.parameters(),
+                max_norm=self.cfg.max_grad_norm,
             )
             self.optimizer.step()
             # Update target network
@@ -212,7 +224,9 @@ class Shim2018Agent(Agent):
         self.module_device = device
 
         # Send modules to device
-        self.action_value_module = self.action_value_module.to(self.module_device)
+        self.action_value_module = self.action_value_module.to(
+            self.module_device
+        )
         self.greedy_tdmodule = self.greedy_tdmodule.to(self.module_device)
         self.egreedy_tdmodule = self.egreedy_tdmodule.to(self.module_device)
 
@@ -222,7 +236,9 @@ class Shim2018Agent(Agent):
 
     @override
     def set_replay_buffer_device(self, device: torch.device) -> None:
-        raise ValueError("set_replay_buffer_device not yet supported for Shim2018Agent")
+        raise ValueError(
+            "set_replay_buffer_device not yet supported for Shim2018Agent"
+        )
 
     # @override
     # def save(self, path: Path) -> None:

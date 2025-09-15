@@ -1,11 +1,12 @@
-import torch
-from torch import nn
-import torch.nn.functional as F
-from torch import optim
-from afa_rl.utils import mask_data
-from afa_discriminative.utils import restore_parameters
 from copy import deepcopy
+
+import torch
+import torch.nn.functional as F
+from torch import nn, optim
+
 import wandb
+from afa_discriminative.utils import restore_parameters
+from afa_rl.utils import mask_data
 
 
 class MaskingPretrainer(nn.Module):
@@ -51,11 +52,17 @@ class MaskingPretrainer(nn.Module):
         device = next(model.parameters()).device
         opt = optim.Adam(model.parameters(), lr=lr)
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-            opt, mode=val_loss_mode, factor=factor, patience=patience, min_lr=min_lr
+            opt,
+            mode=val_loss_mode,
+            factor=factor,
+            patience=patience,
+            min_lr=min_lr,
         )
 
         # Determine mask size.
-        if hasattr(mask_layer, "mask_size") and (mask_layer.mask_size is not None):
+        if hasattr(mask_layer, "mask_size") and (
+            mask_layer.mask_size is not None
+        ):
             mask_size = mask_layer.mask_size
         else:
             # Must be tabular (1d data).
@@ -167,7 +174,8 @@ class MaskingPretrainer(nn.Module):
         wandb.unwatch(self)
 
     def evaluate(self, loader, metric):
-        """Evaluate mean performance across a dataset.
+        """
+        Evaluate mean performance across a dataset.
 
         Args:
           loader:
@@ -217,7 +225,8 @@ class MaskingPretrainer(nn.Module):
         return score
 
     def forward(self, x, mask):
-        """Generate model prediction.
+        """
+        Generate model prediction.
 
         Args:
           x:
@@ -246,7 +255,8 @@ class fc_Net(nn.Module):
         output_const=1.0,
         add_const=0.0,
     ):
-        """Init method
+        """
+        Init method
         :param input_dim: The input dimensions
         :type input_dim: int
         :param output_dim: The output dimension of the network
@@ -328,7 +338,8 @@ class fc_Net(nn.Module):
                 else:
                     self.hidden.append(
                         nn.Linear(
-                            self.hidden_unit[layer_ind - 1], self.hidden_unit[layer_ind]
+                            self.hidden_unit[layer_ind - 1],
+                            self.hidden_unit[layer_ind],
                         )
                     )
 
@@ -343,7 +354,8 @@ class fc_Net(nn.Module):
                 self.out_LV = nn.Linear(self.hidden_unit[-1], self.LV_dim)
 
     def forward(self, x):
-        """The forward pass
+        """
+        The forward pass
         :param x: Input Tensor
         :type x: Tensor
         :return: output from the network

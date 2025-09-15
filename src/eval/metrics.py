@@ -1,64 +1,114 @@
+import logging
 from typing import Any
 
+import numpy as np
 import torch
-import logging
-from torch.utils.data import DataLoader
+import torch.nn.functional as F
+from sklearn.metrics import accuracy_score, f1_score
 from torch import Tensor
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from common.custom_types import (
-    AFASelectFn,
-    AFAPredictFn,
     AFADataset,
-    Label,
+    AFAPredictFn,
+    AFASelectFn,
 )
-from sklearn.metrics import accuracy_score, f1_score
-import numpy as np
-import torch.nn.functional as F
 
 log = logging.getLogger(__name__)
 
 
-def aggregate_metrics(prediction_history, y_true) -> tuple[Tensor, Tensor, Tensor]:
-    """Compute accuracy, F1 and BCE across feature-selection budgets.
+def aggregate_metrics(
+    prediction_history: list[list[Tensor]],
+    y_true: Tensor,
+    actual_steps: Tensor,
+) -> tuple[Tensor, Tensor, Tensor]:
+    """
+    Compute accuracy, F1 and BCE across feature-selection budgets.
 
     If y_true contains exactly two unique classes   → average="binary"
     Otherwise                                       → average="weighted"
 
     Parameters
     ----------
-    prediction_history : Tensor[float, shape=(n_samples, budget, n_classes)]
+    prediction_history : list[list[Tensor[float, shape=(n_classes,)]]]
+        Variable-length prediction history for each sample
     y_true : Tensor[int, shape=(n_samples,)]
         Ground-truth labels, same order as prediction_history.
+    actual_steps : Tensor[int, shape=(n_samples,)]
+        Number of actual steps taken for each sample
 
     Returns
     -------
-    accuracy_all : Tensor[float, shape=(budget,)]
-    f1_all       : Tensor[float, shape=(budget,)]
-    bce_all      : Tensor[float, shape=(budget,)]
+    accuracy_all : Tensor[float, shape=(max_steps,)]
+    f1_all       : Tensor[float, shape=(max_steps,)]
+    bce_all      : Tensor[float, shape=(max_steps,)]
 
     """
-    B = prediction_history.shape[1]
-    # if any(len(row) != B for row in prediction_history_all):
-    #     raise ValueError("All inner lists must have the same length (budget B).")
+    max_steps = int(actual_steps.max())
 
     # Decide the F1 averaging mode
-    classes = np.unique(y_true)
+    classes = np.unique(y_true.cpu().numpy())
     if len(classes) == 2:
-        f1_kwargs = {"average": "binary"}  # treat the larger label as positive
+        f1_average = "binary"
+        f1_pos_label = int(classes.max())
     else:
-        f1_kwargs = {"average": "weighted"}
+        f1_average = "weighted"
+        f1_pos_label = None
 
     accuracy_all, f1_all, bce_all = [], [], []
-    for i in range(B):
-        preds_i = [torch.argmax(row) for row in prediction_history[:, i]]
-        accuracy_all.append(accuracy_score(y_true, preds_i))
-        f1_all.append(f1_score(y_true, preds_i, **f1_kwargs))
-        probs_i = torch.stack([row for row in prediction_history[:, i]])
+
+    for step in range(max_steps):
+        # Collect predictions for samples that have this step
+        valid_predictions = []
+        valid_labels = []
+
+        for sample_idx, sample_steps in enumerate(actual_steps):
+            if step < sample_steps:
+                valid_predictions.append(prediction_history[sample_idx][step])
+                valid_labels.append(y_true[sample_idx])
+
+        if not valid_predictions:
+            # No samples have this step, use NaN
+            accuracy_all.append(float("nan"))
+            f1_all.append(float("nan"))
+            bce_all.append(float("nan"))
+            continue
+
+        valid_predictions = torch.stack(valid_predictions)
+        valid_labels = torch.tensor(valid_labels)
+
+        # Compute metrics for this step
+        preds_i = torch.argmax(valid_predictions, dim=1)
+        accuracy_all.append(
+            accuracy_score(valid_labels.cpu().numpy(), preds_i.cpu().numpy())
+        )
+        if f1_pos_label is not None:
+            f1_all.append(
+                f1_score(
+                    valid_labels.cpu().numpy(),
+                    preds_i.cpu().numpy(),
+                    average=f1_average,
+                    pos_label=f1_pos_label,
+                )
+            )
+        else:
+            f1_all.append(
+                f1_score(
+                    valid_labels.cpu().numpy(),
+                    preds_i.cpu().numpy(),
+                    average=f1_average,
+                )
+            )
+
+        # BCE requires one-hot encoding
         bce_all.append(
             F.binary_cross_entropy(
-                probs_i, F.one_hot(y_true, num_classes=probs_i.shape[-1]).float()
-            )
+                valid_predictions,
+                F.one_hot(
+                    valid_labels, num_classes=valid_predictions.shape[-1]
+                ).float(),
+            ).item()
         )
 
     return (
@@ -94,6 +144,197 @@ def aggregate_metrics(prediction_history, y_true) -> tuple[Tensor, Tensor, Tenso
 #     }
 
 
+def _initialize_batch_state(
+    features: Tensor, device: torch.device
+) -> tuple[Tensor, Tensor, Tensor]:
+    """Initialize the feature mask and masked features for a batch."""
+    feature_mask = torch.zeros_like(features, dtype=torch.bool, device=device)
+    masked_features = features.clone()
+    masked_features[~feature_mask] = 0.0
+    current_batch_size = features.shape[0]
+    active_samples = torch.ones(
+        current_batch_size, dtype=torch.bool, device=device
+    )
+    return feature_mask, masked_features, active_samples
+
+
+def _process_selections(
+    selections: Tensor,
+    active_samples: Tensor,
+    feature_mask: Tensor,
+    masked_features: Tensor,
+    features: Tensor,
+    batch_feature_mask_histories: list[list[Tensor]],
+) -> list[int]:
+    """Process feature selections and update masks. Returns indices of samples to deactivate."""
+    active_indices = torch.where(active_samples)[0]
+    samples_to_deactivate = []
+
+    for i, selection in enumerate(selections):
+        original_idx = active_indices[i].item()
+
+        if selection.item() == 0:
+            # Sample wants to stop
+            samples_to_deactivate.append(original_idx)
+        elif selection.item() > 0:  # Valid feature selection
+            # Convert from 1-based to 0-based indexing
+            feature_idx = int(selection.item()) - 1
+            orig_idx = int(original_idx)
+
+            # Update feature mask and masked features
+            feature_mask[orig_idx, feature_idx] = True
+            masked_features[orig_idx, feature_idx] = features[
+                orig_idx, feature_idx
+            ]
+
+            # Store feature mask state for this sample
+            batch_feature_mask_histories[orig_idx].append(
+                feature_mask[orig_idx].clone()
+            )
+
+    return samples_to_deactivate
+
+
+def _get_active_batch_data(
+    features: Tensor,
+    labels: Tensor,
+    feature_mask: Tensor,
+    masked_features: Tensor,
+    active_samples: Tensor,
+) -> tuple[Tensor, Tensor, Tensor, Tensor]:
+    """Extract data for only the active samples in the batch."""
+    active_masked_features = masked_features[active_samples]
+    active_feature_mask = feature_mask[active_samples]
+    active_features = features[active_samples]
+    active_labels = labels[active_samples]
+    return (
+        active_masked_features,
+        active_feature_mask,
+        active_features,
+        active_labels,
+    )
+
+
+def _update_prediction_histories(
+    predictions: Tensor,
+    batch_prediction_histories: list[list[Tensor]],
+    batch_feature_mask_histories: list[list[Tensor]],
+    current_batch_size: int,
+) -> None:
+    """Update prediction histories for samples that have taken a step."""
+    for i in range(current_batch_size):
+        if len(batch_feature_mask_histories[i]) > len(
+            batch_prediction_histories[i]
+        ):
+            batch_prediction_histories[i].append(predictions[i])
+
+
+def _compute_action_distribution(
+    all_feature_mask_histories: list[list[Tensor]], n_features: int
+) -> Tensor:
+    """Compute the distribution of features selected across all samples."""
+    action_count = torch.zeros(n_features)
+
+    for sample_history in all_feature_mask_histories:
+        if sample_history:  # If sample took at least one step
+            final_mask = sample_history[-1]
+            action_count += final_mask.float().cpu()
+
+    return (
+        action_count / action_count.sum()
+        if action_count.sum() > 0
+        else action_count
+    )
+
+
+def _evaluate_batch(
+    features: Tensor,
+    labels: Tensor,
+    afa_select_fn: AFASelectFn,
+    afa_predict_fn: AFAPredictFn,
+    budget: int,
+    device: torch.device,
+) -> tuple[list[list[Tensor]], list[list[Tensor]], int]:
+    """
+    Evaluate a single batch of samples.
+
+    Returns:
+        batch_prediction_histories: Prediction history for each sample
+        batch_feature_mask_histories: Feature mask history for each sample
+        current_batch_size: Number of samples in batch
+
+    """
+    current_batch_size = features.shape[0]
+
+    # Initialize batch state
+    feature_mask, masked_features, active_samples = _initialize_batch_state(
+        features, device
+    )
+
+    # Store histories for each sample in batch
+    batch_prediction_histories = [[] for _ in range(current_batch_size)]
+    batch_feature_mask_histories = [[] for _ in range(current_batch_size)]
+
+    # Process steps until all samples stop or budget reached
+    for _ in range(budget):
+        if not active_samples.any():
+            break  # All samples have stopped
+
+        # Get data for active samples only
+        (
+            active_masked_features,
+            active_feature_mask,
+            active_features,
+            active_labels,
+        ) = _get_active_batch_data(
+            features, labels, feature_mask, masked_features, active_samples
+        )
+
+        if active_masked_features.shape[0] == 0:
+            break  # No active samples
+
+        # Get selections from method
+        selections = afa_select_fn(
+            active_masked_features,
+            active_feature_mask,
+            active_features,
+            active_labels,
+        ).squeeze(-1)
+
+        # Process selections and get samples to deactivate
+        samples_to_deactivate = _process_selections(
+            selections,
+            active_samples,
+            feature_mask,
+            masked_features,
+            features,
+            batch_feature_mask_histories,
+        )
+
+        # Deactivate samples that want to stop
+        for idx in samples_to_deactivate:
+            active_samples[idx] = False
+
+        # Get predictions for all samples
+        predictions = afa_predict_fn(
+            masked_features, feature_mask, features, labels
+        )
+
+        # Update prediction histories
+        _update_prediction_histories(
+            predictions,
+            batch_prediction_histories,
+            batch_feature_mask_histories,
+            current_batch_size,
+        )
+
+    return (
+        batch_prediction_histories,
+        batch_feature_mask_histories,
+        current_batch_size,
+    )
+
+
 def eval_afa_method(
     afa_select_fn: AFASelectFn,
     dataset: AFADataset,  # NOTE: should also be annotated with torch.utils.data.Dataset
@@ -103,12 +344,13 @@ def eval_afa_method(
     batch_size: int = 1,
     device: torch.device | None = None,
 ) -> dict[str, Any]:
-    """Evaluate an AFA method.
+    """
+    Evaluate an AFA method with support for early stopping and batched processing.
 
     Args:
-        afa_select_fn (AFASelectFn): How to select new features.
+        afa_select_fn (AFASelectFn): How to select new features. Should return 0 to stop.
         dataset (AFADataset): The dataset to evaluate on. Additionally assumed to be a torch dataset.
-        budget (int): The number of features to select.
+        budget (int): The maximum number of features to select.
         afa_predict_fn (AFAPredictFn): The label prediction function to use for evaluation.
         only_n_samples (int|None, optional): If specified, only evaluate on this many samples from the dataset. Defaults to None.
         device (torch.device|None): Device to place data on. Defaults to "cpu".
@@ -118,20 +360,22 @@ def eval_afa_method(
         dict[str, float]: A dictionary containing the evaluation results.
 
     """
-    # TODO: make this an argument
     if device is None:
         device = torch.device("cpu")
 
-    # Store feature mask history, label prediction history, and true label for each sample in the dataset
-    # list[Tensor[budget,batch_size,n_features]] (n_batches)
-    feature_mask_history_all = []
-    # list[Tensor[budget,batch_size,n_classes]]] (n_batches)
-    prediction_history_all = []
-    labels_all: list[Label] = []  # (n_batches)
+    # Store results for all samples
+    all_prediction_histories = []  # list[list[Tensor[n_classes]]] - one per sample
+    all_feature_mask_histories = []  # list[list[Tensor[n_features]]] - one per sample
+    all_labels = []  # list[Tensor[n_classes]] - to be stacked into tensor
+    all_actual_steps = []  # list[int] - number of steps taken per sample
 
+    # Type ignore needed because AFADataset protocol doesn't inherit from Dataset
+    # but implements the required methods
     dataloader = DataLoader(
-        dataset, batch_size=batch_size, shuffle=False
-    )  # basedpyright: ignore
+        dataset,  # pyright: ignore[reportArgumentType]
+        batch_size=batch_size,
+        shuffle=False,
+    )
 
     # Loop over the dataset
     n_evaluated_samples = 0
@@ -147,97 +391,52 @@ def eval_afa_method(
         features = features.to(device)
         labels = labels.to(device)
 
-        # Immediately store the true labels for this batch
-        labels_all.append(labels)
+        # Store true labels for this batch
+        all_labels.append(labels)
 
-        # We will keep a history of which features have been observed, in case its relevant for evaluation
-        feature_mask_history = torch.zeros(
-            budget,
-            features.shape[0],
-            features.shape[1],
-            dtype=torch.bool,
-            device=device,
-        )  # budget, batch_size, n_features
+        # Evaluate this batch
+        (
+            batch_prediction_histories,
+            batch_feature_mask_histories,
+            current_batch_size,
+        ) = _evaluate_batch(
+            features, labels, afa_select_fn, afa_predict_fn, budget, device
+        )
 
-        # And also a history of predictions
-        prediction_history = torch.zeros(
-            budget,
-            features.shape[0],
-            labels.shape[1],
-            dtype=torch.float32,
-            device=device,
-        )  # budget, batch_size, n_classes
+        # Store results for this batch
+        for i in range(current_batch_size):
+            all_prediction_histories.append(batch_prediction_histories[i])
+            all_feature_mask_histories.append(batch_feature_mask_histories[i])
+            all_actual_steps.append(len(batch_prediction_histories[i]))
 
-        # Start with all features unobserved
-        feature_mask = torch.zeros_like(features, dtype=torch.bool, device=device)
-        masked_features = features.clone()
-        masked_features[~feature_mask] = 0.0
-
-        # Let AFA method select features for a fixed number of steps
-        for i in range(budget):
-            # Select new features
-            selections = afa_select_fn(
-                masked_features, feature_mask, features, labels
-            ).squeeze(-1)
-
-            # Update the feature mask and masked features
-            feature_mask[
-                torch.arange(feature_mask.shape[0], device=device), selections
-            ] = True
-            masked_features[
-                torch.arange(feature_mask.shape[0], device=device), selections
-            ] = features[torch.arange(feature_mask.shape[0], device=device), selections]
-            # Store a copy of the feature mask in history
-            feature_mask_history[i] = feature_mask.clone()
-
-            # Always calculate a prediction
-            predictions = afa_predict_fn(
-                masked_features, feature_mask, features, labels
-            )
-
-            prediction_history[i] = predictions
-
-        # Add the feature mask history and prediction history of this batch to the overall history
-        feature_mask_history_all.append(feature_mask_history)
-        prediction_history_all.append(prediction_history)
-
-        n_evaluated_samples += features.shape[0]
-        if only_n_samples is not None and n_evaluated_samples >= only_n_samples:
+        n_evaluated_samples += current_batch_size
+        if (
+            only_n_samples is not None
+            and n_evaluated_samples >= only_n_samples
+        ):
             break
 
-    temp = [
-        t.permute(1, 0, 2) for t in prediction_history_all
-    ]  # list[Tensor[batch_size,budget,n_classes]] (n_batches)
-    prediction_history_tensor: Tensor = torch.cat(
-        temp
-    )  # Tensor[n_samples,budget,n_classes] (n_batches)
-
-    temp = [
-        t.permute(1, 0, 2) for t in feature_mask_history_all
-    ]  # list[Tensor[batch_size,budget,n_classes]] (n_batches)
-    feature_mask_history_tensor: Tensor = torch.cat(
-        temp
-    )  # Tensor[n_samples,budget,n_classes] (n_batches)
-    # (n_classes,)
-    action_count = feature_mask_history_tensor[:, -1, :].sum(dim=0)
-    action_distribution = action_count / action_count.sum()  # (n_classes,)
-
-    labels_tensor: Tensor = torch.cat(labels_all)  # Tensor[n_samples,n_classes]
-
+    # Convert to tensors for metrics computation
+    labels_tensor = torch.cat(all_labels)
     labels_tensor = torch.argmax(labels_tensor, dim=1)
+    actual_steps_tensor = torch.tensor(all_actual_steps)
+
+    # Compute action distribution from final feature masks
+    action_distribution = _compute_action_distribution(
+        all_feature_mask_histories, dataset.n_features
+    )
 
     log.info("Aggregating metrics...")
     accuracy_all, f1_all, bce_all = aggregate_metrics(
-        prediction_history_tensor.cpu(), labels_tensor.cpu()
+        all_prediction_histories, labels_tensor.cpu(), actual_steps_tensor
     )
     log.info("Finished aggregating metrics")
 
     return {
-        "accuracy_all": accuracy_all.detach().cpu(),
-        "f1_all": f1_all.detach().cpu(),
-        "bce_all": bce_all.detach().cpu(),
+        "accuracy_all": accuracy_all,
+        "f1_all": f1_all,
+        "bce_all": bce_all,
         "action_distribution": action_distribution,
-        # "feature_mask_history_all": feature_mask_history_tensor,
-        #     [t.detach().cpu() for t in sublist] for sublist in feature_mask_history_tensor
-        # ],
+        "actual_steps": actual_steps_tensor,
+        "average_steps": actual_steps_tensor.float().mean(),
     }

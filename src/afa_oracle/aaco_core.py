@@ -1,21 +1,28 @@
-import torch
-import wandb
 import logging
+from pathlib import Path
+
+import torch
 import torch.nn.functional as F
 
-from pathlib import Path
+import wandb
 from afa_oracle.classifiers import classifier_mlp
+from afa_oracle.mask_generator import random_mask_generator
 from common.classifiers import WrappedMaskedMLPClassifier
 from common.utils import get_class_probabilities
-from afa_oracle.mask_generator import random_mask_generator
 
 log = logging.getLogger(__name__)
 
 
 def get_knn(
-    X_train, X_query, masks, num_neighbors, instance_idx=0, exclude_instance=True
+    X_train,
+    X_query,
+    masks,
+    num_neighbors,
+    instance_idx=0,
+    exclude_instance=True,
 ):
-    """Their exact K-NN implementation
+    """
+    Their exact K-NN implementation
 
     Args:
         X_train: N x d Train Instances
@@ -34,10 +41,11 @@ def get_knn(
     )
 
     if exclude_instance:
-        idx_topk = torch.topk(dist_squared, num_neighbors + 1, dim=0, largest=False)[1]
+        idx_topk = torch.topk(
+            dist_squared, num_neighbors + 1, dim=0, largest=False
+        )[1]
         return idx_topk[idx_topk != instance_idx][:num_neighbors]
-    else:
-        return torch.topk(dist_squared, num_neighbors, dim=0, largest=False)[1]
+    return torch.topk(dist_squared, num_neighbors, dim=0, largest=False)[1]
 
 
 def load_classifier(dataset_name, split, device=None):
@@ -49,7 +57,9 @@ def load_classifier(dataset_name, split, device=None):
         dataset_name = "FashionMNIST"
 
     log.info(f"Checking for existing MLP classifier for {dataset_name}...")
-    artifact_name = f"masked_mlp_classifier-{dataset_name}_split_{split}:latest"
+    artifact_name = (
+        f"masked_mlp_classifier-{dataset_name}_split_{split}:latest"
+    )
     log.info(f"Found existing MLP classifier artifact: {artifact_name}")
     artifact = wandb.use_artifact(artifact_name)
     artifact_dir = artifact.download()
@@ -76,8 +86,7 @@ def load_mask_generator(dataset_name, input_dim):
     ]:
         # Paper shows this works nearly as well as 10,000 (for MNIST)
         return random_mask_generator(100, input_dim, 100)
-    else:
-        raise ValueError("Unsupported dataset for mask generation")
+    raise ValueError("Unsupported dataset for mask generation")
 
 
 def get_initial_feature(dataset_name, n_features):
@@ -86,11 +95,10 @@ def get_initial_feature(dataset_name, n_features):
 
     if dataset_name == "cube":
         return 6
-    elif dataset_name in ["mnist", "fashionmnist"]:
+    if dataset_name in ["mnist", "fashionmnist"]:
         return 100
-    else:
-        # Default: select middle feature
-        return n_features // 2
+    # Default: select middle feature
+    return n_features // 2
 
 
 class AACOOracle:
@@ -137,7 +145,8 @@ class AACOOracle:
         log.info(f"Training data: {X_train.shape}")
 
     def select_next_feature(self, x_observed, observed_mask, instance_idx=0):
-        """Feature selection logic
+        """
+        Feature selection logic
         Args:
             x_observed: 1D tensor of observed features
             observed_mask: 1D boolean tensor indicating which features are observed
@@ -158,18 +167,27 @@ class AACOOracle:
         # Check if this is the first feature selection
         if not observed_mask.any():
             # Select initial feature deterministically (their approach)
-            initial_feature = get_initial_feature(self.dataset_name, feature_count)
+            initial_feature = get_initial_feature(
+                self.dataset_name, feature_count
+            )
             return initial_feature
 
         # Get the nearest neighbors based on the observed feature mask
         x_query = x_observed.unsqueeze(0).to(self.device)  # 1 x d
         idx_nn = get_knn(
-            self.X_train, x_query, mask_curr.T, self.k_neighbors, instance_idx, True
+            self.X_train,
+            x_query,
+            mask_curr.T,
+            self.k_neighbors,
+            instance_idx,
+            True,
         ).squeeze()
 
         # Generate random masks and get the next set of possible masks
         new_masks = self.mask_generator(mask_curr).to(self.device)  # R x d
-        mask = torch.maximum(new_masks, mask_curr.repeat(new_masks.shape[0], 1))
+        mask = torch.maximum(
+            new_masks, mask_curr.repeat(new_masks.shape[0], 1)
+        )
         mask[0] = mask_curr  # Ensure the current mask is included
 
         # Get only unique masks
@@ -188,7 +206,9 @@ class AACOOracle:
         y_pred = (
             self.classifier.predict_logits(x_with_mask)
             if hasattr(self.classifier, "predict_logits")
-            else self.classifier(x_with_mask, torch.tensor([0], device=self.device))
+            else self.classifier(
+                x_with_mask, torch.tensor([0], device=self.device)
+            )
         )
 
         # Compute loss - ensure tensors are on same device
@@ -226,25 +246,26 @@ class AACOOracle:
 
         # REMOVED: termination check - always select best mask regardless of cost improvement
         # Find which new features to acquire
-        new_features = (best_mask - mask_curr.squeeze()).nonzero(as_tuple=True)[0]
+        new_features = (best_mask - mask_curr.squeeze()).nonzero(
+            as_tuple=True
+        )[0]
 
         if len(new_features) == 0:
             # If best mask equals current mask, force selection of cheapest unobserved feature
             unobserved = (~observed_mask).nonzero(as_tuple=True)[0]
             return unobserved[0].item() if len(unobserved) > 0 else None
-        elif len(new_features) == 1:
+        if len(new_features) == 1:
             return new_features[0].item()
-        else:
-            # If multiple features, select the one with lowest individual loss
-            individual_losses = []
-            for feat in new_features:
-                temp_mask = mask_curr.clone()
-                temp_mask[0, feat] = 1
-                # Quick loss computation for this feature
-                individual_losses.append(avg_loss[best_mask_idx])  # Simplified
+        # If multiple features, select the one with lowest individual loss
+        individual_losses = []
+        for feat in new_features:
+            temp_mask = mask_curr.clone()
+            temp_mask[0, feat] = 1
+            # Quick loss computation for this feature
+            individual_losses.append(avg_loss[best_mask_idx])  # Simplified
 
-            best_feat_idx = torch.tensor(individual_losses).argmin()
-            return new_features[best_feat_idx].item()
+        best_feat_idx = torch.tensor(individual_losses).argmin()
+        return new_features[best_feat_idx].item()
 
     def to(self, device):
         """Move oracle to device"""

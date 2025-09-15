@@ -1,26 +1,32 @@
 import os
-import torch
-from torch import nn
-from torch import optim
-from torch.distributions import RelaxedOneHotCategorical
-import numpy as np
-from static.utils import restore_parameters
 from copy import deepcopy
 from pathlib import Path
+
+import numpy as np
+import torch
+from torch import nn, optim
+from torch.distributions import RelaxedOneHotCategorical
+
 from common.custom_types import (
     AFAMethod,
-    MaskedFeatures,
+    AFASelection,
     FeatureMask,
     Label,
-    AFASelection,
+    MaskedFeatures,
 )
+from static.utils import restore_parameters
 
 
 class ConcreteMask(nn.Module):
     """For differentiable global feature selection."""
 
     def __init__(
-        self, num_features, num_select, group_matrix=None, append=False, gamma=0.2
+        self,
+        num_features,
+        num_select,
+        group_matrix=None,
+        append=False,
+        gamma=0.2,
     ):
         super().__init__()
         self.logits = nn.Parameter(
@@ -98,10 +104,15 @@ class DifferentiableSelector(nn.Module):
 
             # Set up optimizer and lr scheduler.
             opt = optim.Adam(
-                list(model.parameters()) + list(selector_layer.parameters()), lr=lr
+                list(model.parameters()) + list(selector_layer.parameters()),
+                lr=lr,
             )
             scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-                opt, mode=val_loss_mode, factor=factor, patience=patience, min_lr=min_lr
+                opt,
+                mode=val_loss_mode,
+                factor=factor,
+                patience=patience,
+                min_lr=min_lr,
             )
 
             # For tracking best models and early stopping.
@@ -278,18 +289,24 @@ class StaticBaseMethod(AFAMethod):
 
     def save(self, path: Path):
         os.makedirs(path, exist_ok=True)
-        torch.save({"selected_history": self.selected_history}, path / "selected.pt")
+        torch.save(
+            {"selected_history": self.selected_history}, path / "selected.pt"
+        )
         for b, mdl in self.predictors.items():
             torch.save(mdl, path / f"predictor_b{b}.pt")
 
     @classmethod
     def load(cls, path: Path, device="cpu"):
-        data = torch.load(path / "selected.pt", weights_only=False, map_location="cpu")
+        data = torch.load(
+            path / "selected.pt", weights_only=False, map_location="cpu"
+        )
         hist = data["selected_history"]
         preds = {}
         for b in hist.keys():
             model = torch.load(
-                path / f"predictor_b{b}.pt", weights_only=False, map_location=device
+                path / f"predictor_b{b}.pt",
+                weights_only=False,
+                map_location=device,
             )
             preds[b] = model.to(device)
 

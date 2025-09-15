@@ -1,6 +1,7 @@
 """Tests whether the ReadProcessEncoder class behaves as expected."""
 
 import torch
+
 from afa_rl.shim2018.models import ReadProcessEncoder
 
 

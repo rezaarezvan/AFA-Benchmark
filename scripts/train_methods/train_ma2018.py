@@ -1,33 +1,38 @@
-import torch
 import gc
 import logging
-from tempfile import TemporaryDirectory
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any, cast
+
+import hydra
+import torch
+from omegaconf import OmegaConf
+
+import wandb
 from afa_generative.afa_methods import Ma2018AFAMethod
+from afa_rl.zannone2019.utils import (
+    load_pretrained_model_artifacts,
+)
 from common.config_classes import (
     Ma2018TrainingConfig,
 )
 from common.utils import set_seed
-from afa_rl.zannone2019.utils import (
-    load_pretrained_model_artifacts,
-)
-import wandb
-import hydra
-from omegaconf import OmegaConf
-
 
 log = logging.getLogger(__name__)
 
 
 @hydra.main(
-    version_base=None, config_path="../../conf/train/ma2018", config_name="config"
+    version_base=None,
+    config_path="../../conf/train/ma2018",
+    config_name="config",
 )
 def main(cfg: Ma2018TrainingConfig):
     log.debug(cfg)
     print(OmegaConf.to_yaml(cfg))
     run = wandb.init(
-        config=cast(dict[str, Any], OmegaConf.to_container(cfg, resolve=True)),
+        config=cast(
+            "dict[str, Any]", OmegaConf.to_container(cfg, resolve=True)
+        ),
         job_type="training",
         tags=["EDDI"],
         dir="wandb",
@@ -66,7 +71,9 @@ def main(cfg: Ma2018TrainingConfig):
             },
         )
         afa_method_artifact.add_file(str(tmp_path / "model.pt"))
-        run.log_artifact(afa_method_artifact, aliases=cfg.output_artifact_aliases)
+        run.log_artifact(
+            afa_method_artifact, aliases=cfg.output_artifact_aliases
+        )
     run.finish()
 
     gc.collect()  # Force Python GC

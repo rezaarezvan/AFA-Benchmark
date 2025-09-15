@@ -28,7 +28,8 @@ def main():
     jobs = []
     for dataset, budgets_str in zip(args.dataset, args.budgets, strict=False):
         dataset_artifact_names = [
-            f"{dataset}_split_{split}:{args.dataset_alias}" for split in args.split
+            f"{dataset}_split_{split}:{args.dataset_alias}"
+            for split in args.split
         ]
         cmd = (
             f"uv run scripts/train_methods/train_optimalcube.py -m "

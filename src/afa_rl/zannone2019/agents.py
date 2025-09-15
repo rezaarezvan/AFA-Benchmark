@@ -1,13 +1,13 @@
 from typing import Any, final, override
-from tensordict import TensorDictBase
-from torch import nn, optim
+
+import torch
 from jaxtyping import Bool
+from tensordict import TensorDictBase
 from tensordict.nn import (
     TensorDictModule,
     TensorDictSequential,
 )
-from torch import Tensor
-import torch
+from torch import Tensor, nn, optim
 from torch.distributions import Categorical
 from torchrl.data import (
     LazyTensorStorage,
@@ -21,8 +21,8 @@ from torchrl.modules import (
 )
 from torchrl.objectives import ClipPPOLoss
 from torchrl.objectives.value import GAE
-from afa_rl.agents import Agent
 
+from afa_rl.agents import Agent
 from afa_rl.utils import module_norm
 from afa_rl.zannone2019.models import PointNet
 from common.config_classes import Zannone2019AgentConfig
@@ -31,7 +31,9 @@ from common.custom_types import FeatureMask, MaskedFeatures
 
 @final
 class Zannone2019ValueModule(nn.Module):
-    def __init__(self, latent_size: int, num_cells: tuple[int, ...], dropout: float):
+    def __init__(
+        self, latent_size: int, num_cells: tuple[int, ...], dropout: float
+    ):
         super().__init__()
         self.latent_size = latent_size
         self.num_cells = num_cells
@@ -91,7 +93,9 @@ class Zannone2019CommonModule(nn.Module):
         self.encoder = encoder
 
     @override
-    def forward(self, masked_features: MaskedFeatures, feature_mask: FeatureMask):
+    def forward(
+        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+    ):
         # The pointnet is trained to accept labels appended to the features
         # Since we don't know the label, simple append a vector of zeros
         device = masked_features.device
@@ -99,11 +103,18 @@ class Zannone2019CommonModule(nn.Module):
         n_normal_features = masked_features.shape[1]
         n_classes = self.pointnet.n_features - n_normal_features
         augmented_masked_features = torch.cat(
-            [masked_features, torch.zeros((batch_size, n_classes), device=device)],
+            [
+                masked_features,
+                torch.zeros((batch_size, n_classes), device=device),
+            ],
             dim=-1,
         )
         augmented_feature_mask = torch.cat(
-            [feature_mask, torch.zeros((batch_size, n_classes), device=device)], dim=-1
+            [
+                feature_mask,
+                torch.zeros((batch_size, n_classes), device=device),
+            ],
+            dim=-1,
         )
         pointnet_output = self.pointnet(
             augmented_masked_features, augmented_feature_mask
@@ -119,7 +130,9 @@ class Zannone2019DummyCommonModule(nn.Module):
         super().__init__()
 
     @override
-    def forward(self, masked_features: MaskedFeatures, feature_mask: FeatureMask):
+    def forward(
+        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+    ):
         return torch.cat([masked_features, feature_mask], dim=-1)
 
 
@@ -218,7 +231,9 @@ class Zannone2019Agent(Agent):
         self.loss_keys = ["loss_objective", "loss_critic"] + (
             ["loss_entropy"] if self.cfg.entropy_bonus else []
         )
-        self.optimizer = optim.Adam(self.loss_tdmodule.parameters(), lr=self.cfg.lr)
+        self.optimizer = optim.Adam(
+            self.loss_tdmodule.parameters(), lr=self.cfg.lr
+        )
         self.replay_buffer = TensorDictReplayBuffer(
             storage=LazyTensorStorage(
                 max_size=self.batch_size,
@@ -246,10 +261,12 @@ class Zannone2019Agent(Agent):
 
     @override
     def process_batch(self, td: TensorDictBase) -> dict[str, Any]:
-        assert td.batch_size == torch.Size((self.batch_size,)), "Batch size mismatch"
+        assert td.batch_size == torch.Size((self.batch_size,)), (
+            "Batch size mismatch"
+        )
 
         # Initialize total loss dictionary
-        total_loss_dict = {k: 0.0 for k in self.loss_keys}
+        total_loss_dict = dict.fromkeys(self.loss_keys, 0.0)
 
         # Perform multiple epochs of training
         for _ in range(self.cfg.num_epochs):
@@ -259,7 +276,9 @@ class Zannone2019Agent(Agent):
             # Reset replay buffer each epoch
             self.replay_buffer.extend(td)
 
-            for _ in range(self.batch_size // self.cfg.replay_buffer_batch_size):
+            for _ in range(
+                self.batch_size // self.cfg.replay_buffer_batch_size
+            ):
                 sampled_td = self.replay_buffer.sample()
                 sampled_td = sampled_td.to(self.module_device)
 
@@ -271,7 +290,8 @@ class Zannone2019Agent(Agent):
                 )
                 loss_tensor.backward()
                 nn.utils.clip_grad_norm_(
-                    self.loss_tdmodule.parameters(), max_norm=self.cfg.max_grad_norm
+                    self.loss_tdmodule.parameters(),
+                    max_norm=self.cfg.max_grad_norm,
                 )
                 self.optimizer.step()
 

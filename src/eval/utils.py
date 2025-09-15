@@ -1,36 +1,17 @@
 from pathlib import Path
 from typing import Any
-from matplotlib.figure import Figure
-import torch
-from matplotlib import pyplot as plt
+
 import numpy as np
+from matplotlib import pyplot as plt
+from matplotlib.figure import Figure
 
 from common.utils import get_folders_with_matching_params
-
-
-def get_eval_results_with_fixed_keys(
-    fixed_params_mapping: dict[str, Any] = {}, results_path=Path("results")
-) -> list[dict[str, Any]]:
-    """Return all evaluation results (as dictionaries) that have specific params values.
-    The remaining keys are allowed to take any value.
-
-    Args:
-        fixed_params_mapping (dict[str, Any]): A dictionary mapping parameter names to their fixed values. Applies to the `params.yml` file in the results folder.
-        results_path (Path): The path to the results folder. Defaults to "results".
-
-    """
-    return [
-        torch.load(folder / "results.pt")
-        for folder in get_folders_with_matching_params(
-            results_path, fixed_params_mapping
-        )
-    ]
 
 
 def get_classifier_paths_trained_on_data(
     classifier_type: str,
     train_dataset_path: Path,
-    classifier_folder=Path("models/classifiers"),
+    classifier_folder: Path = Path("models/classifiers"),
 ) -> list[Path]:
     """Get Paths to all classifiers of a specific type trained on a specific dataset."""
     # Define the fixed parameters to match
@@ -53,24 +34,43 @@ def plot_metrics(metrics: dict[str, Any]) -> Figure:
     budget = len(metrics["accuracy_all"])
     fig, axs = plt.subplots(1, 2)
     budgets = np.arange(1, budget + 1, 1)
+
+    # Convert to numpy arrays and handle NaN values
+    accuracy_all = np.array(metrics["accuracy_all"])
+    f1_all = np.array(metrics["f1_all"])
+    bce_all = np.array(metrics["bce_all"])
+
+    # Find valid (non-NaN) indices
+    valid_acc = ~np.isnan(accuracy_all)
+    valid_f1 = ~np.isnan(f1_all)
+    valid_bce = ~np.isnan(bce_all)
+
     axs[0].plot(
-        budgets,
-        metrics["accuracy_all"],
+        budgets[valid_acc],
+        accuracy_all[valid_acc],
         label="Accuracy",
         marker="o",
     )
     axs[0].plot(
-        budgets,
-        metrics["f1_all"],
+        budgets[valid_f1],
+        f1_all[valid_f1],
         label="F1 Score",
         marker="o",
     )
     axs[0].set_xlabel("Number of Selected Features (Budget)")
+    axs[0].legend()
+    axs[0].set_title("Classification Metrics")
+
     axs[1].plot(
-        budgets,
-        metrics["bce_all"],
+        budgets[valid_bce],
+        bce_all[valid_bce],
         label="Binary Cross-Entropy",
         marker="o",
+        color="red",
     )
     axs[1].set_xlabel("Number of Selected Features (Budget)")
+    axs[1].set_ylabel("Binary Cross-Entropy")
+    axs[1].set_title("Loss Metric")
+
+    plt.tight_layout()
     return fig

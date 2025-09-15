@@ -16,6 +16,8 @@ def prepare_datasets(train_dataset, val_dataset, batch_size: int):
         pin_memory=True,
         drop_last=True,
     )
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, pin_memory=True)
+    val_loader = DataLoader(
+        val_dataset, batch_size=batch_size, pin_memory=True
+    )
 
     return train_loader, val_loader, d_in, d_out

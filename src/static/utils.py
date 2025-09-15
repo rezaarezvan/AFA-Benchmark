@@ -2,6 +2,7 @@ import torch
 from torch import nn
 from torch.distributions import RelaxedOneHotCategorical
 from torch.utils.data import TensorDataset
+
 from common.custom_types import AFADataset
 
 
@@ -21,7 +22,8 @@ def restore_parameters(model, best_model):
 
 
 class ConcreteMask(nn.Module):
-    """For differentiable global feature selection.
+    """
+    For differentiable global feature selection.
 
     Args:
       num_features:
@@ -33,7 +35,12 @@ class ConcreteMask(nn.Module):
     """
 
     def __init__(
-        self, num_features, num_select, group_matrix=None, append=False, gamma=0.2
+        self,
+        num_features,
+        num_select,
+        group_matrix=None,
+        append=False,
+        gamma=0.2,
     ):
         super().__init__()
         self.logits = nn.Parameter(

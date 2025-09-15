@@ -1,7 +1,7 @@
 from common.custom_types import (
-    AFAMethod,
-    AFADataset,
     AFAClassifier,
+    AFADataset,
+    AFAMethod,
 )
 
 AFA_METHOD_TYPES = {
@@ -20,51 +20,58 @@ AFA_METHOD_TYPES = {
 }
 
 
-def get_afa_method_class(name: str) -> type[AFAMethod]:
-    """Return the appropriate AFAMethod for a given method type.
+def get_afa_method_class(name: str) -> type[AFAMethod]:  # noqa: PLR0911
+    """
+    Return the appropriate AFAMethod for a given method type.
 
     Note that several method types can have the same AFAMethod class, like the RL methods. A dictionary is not used since it could lead to circular imports.
     """
     if name in {"shim2018", "zannone2019", "kachuee2019"}:
-        from afa_rl.afa_methods import RLAFAMethod
+        from afa_rl.afa_methods import RLAFAMethod  # noqa: PLC0415
 
         return RLAFAMethod
-    elif name == "covert2023":
-        from afa_discriminative.afa_methods import Covert2023AFAMethod
+    if name == "covert2023":
+        from afa_discriminative.afa_methods import (  # noqa: PLC0415
+            Covert2023AFAMethod,
+        )
 
         return Covert2023AFAMethod
-    elif name == "gadgil2023":
-        from afa_discriminative.afa_methods import Gadgil2023AFAMethod
+    if name == "gadgil2023":
+        from afa_discriminative.afa_methods import (  # noqa: PLC0415
+            Gadgil2023AFAMethod,
+        )
 
         return Gadgil2023AFAMethod
-    elif name == "ma2018":
-        from afa_generative.afa_methods import Ma2018AFAMethod
+    if name == "ma2018":
+        from afa_generative.afa_methods import Ma2018AFAMethod  # noqa: PLC0415
 
         return Ma2018AFAMethod
 
-    elif name == "aaco":
-        from afa_oracle.afa_methods import AACOAFAMethod
+    if name == "aaco":
+        from afa_oracle.afa_methods import AACOAFAMethod  # noqa: PLC0415
 
         return AACOAFAMethod
 
-    elif name in {"cae", "permutation"}:
-        from static.static_methods import StaticBaseMethod
+    if name in {"cae", "permutation"}:
+        from static.static_methods import StaticBaseMethod  # noqa: PLC0415
 
         return StaticBaseMethod
-    elif name == "sequentialdummy":
-        from common.afa_methods import SequentialDummyAFAMethod
+    if name == "sequentialdummy":
+        from common.afa_methods import (  # noqa: PLC0415
+            SequentialDummyAFAMethod,
+        )
 
         return SequentialDummyAFAMethod
-    elif name == "randomdummy":
-        from common.afa_methods import RandomDummyAFAMethod
+    if name == "randomdummy":
+        from common.afa_methods import RandomDummyAFAMethod  # noqa: PLC0415
 
         return RandomDummyAFAMethod
-    elif name == "optimalcube":
-        from common.afa_methods import OptimalCubeAFAMethod
+    if name == "optimalcube":
+        from common.afa_methods import OptimalCubeAFAMethod  # noqa: PLC0415
 
         return OptimalCubeAFAMethod
-    else:
-        raise ValueError(f"Unknown AFA method: {name}")
+    msg = f"Unknown AFA method: {name}"
+    raise ValueError(msg)
 
 
 AFA_DATASET_TYPES = {
@@ -83,57 +90,59 @@ AFA_DATASET_TYPES = {
 }
 
 
-def get_afa_dataset_class(name: str) -> type[AFADataset]:
+def get_afa_dataset_class(name: str) -> type[AFADataset]:  # noqa: C901, PLR0911
     if name == "cube":
-        from common.datasets import CubeDataset
+        from common.datasets import CubeDataset  # noqa: PLC0415
 
         return CubeDataset
-    elif name == "cubeSimple":
-        from common.datasets import CubeSimpleDataset
+    if name == "cubeSimple":
+        from common.datasets import CubeSimpleDataset  # noqa: PLC0415
 
         return CubeSimpleDataset
-    elif name == "cubeOnlyInformative":
-        from common.datasets import CubeOnlyInformativeDataset
+    if name == "cubeOnlyInformative":
+        from common.datasets import CubeOnlyInformativeDataset  # noqa: PLC0415
 
         return CubeOnlyInformativeDataset
-    elif name == "shim2018cube":
-        from common.datasets import Shim2018CubeDataset
+    if name == "shim2018cube":
+        from common.datasets import Shim2018CubeDataset  # noqa: PLC0415
 
         return Shim2018CubeDataset
-    elif name == "AFAContext":
-        from common.datasets import AFAContextDataset
+    if name == "AFAContext":
+        from common.datasets import AFAContextDataset  # noqa: PLC0415
 
         return AFAContextDataset
-    elif name == "AFAContextRandomInsert":
-        from common.datasets import AFAContextRandomInsertDataset
+    if name == "AFAContextRandomInsert":
+        from common.datasets import (  # noqa: PLC0415
+            AFAContextRandomInsertDataset,
+        )
 
         return AFAContextRandomInsertDataset
-    elif name == "ContextSelectiveXOR":
-        from common.datasets import ContextSelectiveXORDataset
+    if name == "ContextSelectiveXOR":
+        from common.datasets import ContextSelectiveXORDataset  # noqa: PLC0415
 
         return ContextSelectiveXORDataset
-    elif name == "MNIST":
-        from common.datasets import MNISTDataset
+    if name == "MNIST":
+        from common.datasets import MNISTDataset  # noqa: PLC0415
 
         return MNISTDataset
-    elif name == "diabetes":
-        from common.datasets import DiabetesDataset
+    if name == "diabetes":
+        from common.datasets import DiabetesDataset  # noqa: PLC0415
 
         return DiabetesDataset
-    elif name == "physionet":
-        from common.datasets import PhysionetDataset
+    if name == "physionet":
+        from common.datasets import PhysionetDataset  # noqa: PLC0415
 
         return PhysionetDataset
-    elif name == "miniboone":
-        from common.datasets import MiniBooNEDataset
+    if name == "miniboone":
+        from common.datasets import MiniBooNEDataset  # noqa: PLC0415
 
         return MiniBooNEDataset
-    elif name == "FashionMNIST":
-        from common.datasets import FashionMNISTDataset
+    if name == "FashionMNIST":
+        from common.datasets import FashionMNISTDataset  # noqa: PLC0415
 
         return FashionMNISTDataset
-    else:
-        raise ValueError(f"Unknown AFA dataset: {name}")
+    msg = f"Unknown AFA dataset: {name}"
+    raise ValueError(msg)
 
 
 AFA_CLASSIFIER_TYPES = {
@@ -146,28 +155,40 @@ AFA_CLASSIFIER_TYPES = {
 
 def get_afa_classifier_class(name: str) -> type[AFAClassifier]:
     if name == "randomdummy":
-        from common.classifiers import RandomDummyAFAClassifier
+        from common.classifiers import (  # noqa: PLC0415
+            RandomDummyAFAClassifier,
+        )
 
         return RandomDummyAFAClassifier
-    elif name == "uniformdummy":
-        from common.classifiers import UniformDummyAFAClassifier
+    if name == "uniformdummy":
+        from common.classifiers import (  # noqa: PLC0415
+            UniformDummyAFAClassifier,
+        )
 
         return UniformDummyAFAClassifier
-    elif name == "WrappedMaskedMLPClassifier":
-        from common.classifiers import WrappedMaskedMLPClassifier
+    if name == "WrappedMaskedMLPClassifier":
+        from common.classifiers import (  # noqa: PLC0415
+            WrappedMaskedMLPClassifier,
+        )
 
         return WrappedMaskedMLPClassifier
-    elif name == "Shim2018AFAClassifier":
-        from afa_rl.shim2018.models import Shim2018AFAClassifier
+    if name == "Shim2018AFAClassifier":
+        from afa_rl.shim2018.models import (  # noqa: PLC0415
+            Shim2018AFAClassifier,
+        )
 
         return Shim2018AFAClassifier
-    elif name == "Zannone2019AFAClassifier":
-        from afa_rl.zannone2019.models import Zannone2019AFAClassifier
+    if name == "Zannone2019AFAClassifier":
+        from afa_rl.zannone2019.models import (  # noqa: PLC0415
+            Zannone2019AFAClassifier,
+        )
 
         return Zannone2019AFAClassifier
-    elif name == "Kachuee2019AFAClassifier":
-        from afa_rl.kachuee2019.models import Kachuee2019AFAClassifier
+    if name == "Kachuee2019AFAClassifier":
+        from afa_rl.kachuee2019.models import (  # noqa: PLC0415
+            Kachuee2019AFAClassifier,
+        )
 
         return Kachuee2019AFAClassifier
-    else:
-        raise ValueError(f"Unknown AFA classifier: {name}")
+    msg = f"Unknown AFA classifier: {name}"
+    raise ValueError(msg)

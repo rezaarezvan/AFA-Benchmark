@@ -1,34 +1,34 @@
 import gc
 import logging
 from pathlib import Path
-from typing import Any, cast
 from tempfile import TemporaryDirectory
+from typing import Any, cast
 
 import hydra
-from omegaconf import OmegaConf
 import torch
+from dacite import from_dict
+from omegaconf import OmegaConf
 from torch import optim
 from torch.nn import functional as F
 from torchrl.collectors import SyncDataCollector
 from torchrl.envs import ExplorationType, check_env_specs, set_exploration_type
-from afa_rl.agents import Agent
 from tqdm import tqdm
-from dacite import from_dict
 
 import wandb
 from afa_rl.afa_env import AFAEnv
 from afa_rl.afa_methods import RLAFAMethod
-from afa_rl.shim2018.agents import Shim2018Agent
+from afa_rl.agents import Agent
 from afa_rl.datasets import get_afa_dataset_fn
+from afa_rl.shim2018.agents import Shim2018Agent
 from afa_rl.shim2018.models import (
     LitShim2018EmbedderClassifier,
     Shim2018AFAClassifier,
     Shim2018AFAPredictFn,
 )
+from afa_rl.shim2018.reward import get_shim2018_reward_fn
 from afa_rl.shim2018.utils import (
     get_shim2018_model_from_config,
 )
-from afa_rl.shim2018.reward import get_shim2018_reward_fn
 from afa_rl.utils import (
     get_eval_metrics,
     module_norm,
@@ -44,7 +44,6 @@ from common.utils import (
     load_dataset_artifact,
     set_seed,
 )
-
 from eval.metrics import eval_afa_method
 from eval.utils import plot_metrics
 
@@ -65,7 +64,9 @@ def load_pretrained_model_artifacts(
     )
     pretrained_model_artifact_dir = Path(pretrained_model_artifact.download())
     # The dataset dir should contain a file called model.pt
-    artifact_filenames = [f.name for f in pretrained_model_artifact_dir.iterdir()]
+    artifact_filenames = [
+        f.name for f in pretrained_model_artifact_dir.iterdir()
+    ]
     assert {"model.pt"}.issubset(artifact_filenames), (
         f"Dataset artifact must contain a model.pt file. Instead found: {artifact_filenames}"
     )
@@ -81,15 +82,17 @@ def load_pretrained_model_artifacts(
     )
 
     # Load the dataset that the pretrained model was trained on
-    train_dataset, val_dataset, test_dataset, dataset_metadata = load_dataset_artifact(
-        pretrained_model_config.dataset_artifact_name
+    train_dataset, val_dataset, test_dataset, dataset_metadata = (
+        load_dataset_artifact(pretrained_model_config.dataset_artifact_name)
     )
 
     # Get the number of features and classes from the dataset
     n_features = train_dataset.features.shape[-1]
     n_classes = train_dataset.labels.shape[-1]
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
-    log.debug(f"Class probabilities in training set: {train_class_probabilities}")
+    log.debug(
+        f"Class probabilities in training set: {train_class_probabilities}"
+    )
 
     pretrained_model = get_shim2018_model_from_config(
         pretrained_model_config,
@@ -118,16 +121,20 @@ log = logging.getLogger(__name__)
 
 
 @hydra.main(
-    version_base=None, config_path="../../conf/train/shim2018", config_name="config"
+    version_base=None,
+    config_path="../../conf/train/shim2018",
+    config_name="config",
 )
-def main(cfg: Shim2018TrainConfig):
+def main(cfg: Shim2018TrainConfig):  # noqa: PLR0915
     log.debug(cfg)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
 
     run = wandb.init(
-        config=cast(dict[str, Any], OmegaConf.to_container(cfg, resolve=True)),
+        config=cast(
+            "dict[str, Any]", OmegaConf.to_container(cfg, resolve=True)
+        ),
         job_type="training",
         tags=["shim2018"],
         dir="wandb",
@@ -147,7 +154,9 @@ def main(cfg: Shim2018TrainConfig):
         pretrained_model_config,
     ) = load_pretrained_model_artifacts(cfg.pretrained_model_artifact_name)
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
-    log.debug(f"Class probabilities in training set: {train_class_probabilities}")
+    log.debug(
+        f"Class probabilities in training set: {train_class_probabilities}"
+    )
     class_weights = 1 / train_class_probabilities
     class_weights = (class_weights / class_weights.sum()).to(device)
     n_features = train_dataset.features.shape[-1]
@@ -165,8 +174,12 @@ def main(cfg: Shim2018TrainConfig):
     )
 
     # MDP expects special dataset functions
-    train_dataset_fn = get_afa_dataset_fn(train_dataset.features, train_dataset.labels)
-    val_dataset_fn = get_afa_dataset_fn(val_dataset.features, val_dataset.labels)
+    train_dataset_fn = get_afa_dataset_fn(
+        train_dataset.features, train_dataset.labels
+    )
+    val_dataset_fn = get_afa_dataset_fn(
+        val_dataset.features, val_dataset.labels
+    )
 
     train_env = AFAEnv(
         dataset_fn=train_dataset_fn,
@@ -233,7 +246,9 @@ def main(cfg: Shim2018TrainConfig):
                 pretrained_model_optim.step()
                 pretrained_model.eval()
             else:
-                class_loss_next = torch.zeros((1,), device=device, dtype=torch.float32)
+                class_loss_next = torch.zeros(
+                    (1,), device=device, dtype=torch.float32
+                )
 
             # Log training info
             run.log(
@@ -244,7 +259,9 @@ def main(cfg: Shim2018TrainConfig):
                     | {
                         "reward": td["next", "reward"].mean().item(),
                         # "action value": td["action_value"].mean().item(),
-                        "chosen action value": td["chosen_action_value"].mean().item(),
+                        "chosen action value": td["chosen_action_value"]
+                        .mean()
+                        .item(),
                         # "actions": wandb.Histogram(
                         #     td["action"].tolist(), num_bins=20
                         # ),
@@ -266,7 +283,9 @@ def main(cfg: Shim2018TrainConfig):
                         eval_env.rollout(
                             cfg.eval_max_steps, agent.get_exploitative_policy()
                         ).squeeze(0)
-                        for _ in tqdm(range(cfg.n_eval_episodes), desc="Evaluating")
+                        for _ in tqdm(
+                            range(cfg.n_eval_episodes), desc="Evaluating"
+                        )
                     ]
                     # optimal_td_evals = [
                     #     eval_env.rollout(
@@ -293,8 +312,12 @@ def main(cfg: Shim2018TrainConfig):
                             "expensive_info.", agent.get_expensive_info()
                         )
                         | {
-                            "classifier_norm": module_norm(pretrained_model.classifier),
-                            "embedder_norm": module_norm(pretrained_model.embedder),
+                            "classifier_norm": module_norm(
+                                pretrained_model.classifier
+                            ),
+                            "embedder_norm": module_norm(
+                                pretrained_model.embedder
+                            ),
                         },
                     )
                 )
@@ -306,7 +329,9 @@ def main(cfg: Shim2018TrainConfig):
         pretrained_model = pretrained_model.to(torch.device("cpu"))
         afa_method = RLAFAMethod(
             agent.get_exploitative_policy().to("cpu"),
-            Shim2018AFAClassifier(pretrained_model, device=torch.device("cpu")),
+            Shim2018AFAClassifier(
+                pretrained_model, device=torch.device("cpu")
+            ),
         )
         # Save the method to a temporary directory and load it again to ensure it is saved correctly
         with TemporaryDirectory(delete=False) as tmp_path_str:
@@ -365,7 +390,9 @@ def main(cfg: Shim2018TrainConfig):
             )
 
             afa_method_artifact.add_dir(str(tmp_path))
-            run.log_artifact(afa_method_artifact, aliases=cfg.output_artifact_aliases)
+            run.log_artifact(
+                afa_method_artifact, aliases=cfg.output_artifact_aliases
+            )
 
         run.finish()
 

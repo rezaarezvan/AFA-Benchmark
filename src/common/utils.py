@@ -1,25 +1,25 @@
-from pathlib import Path
-from types import SimpleNamespace
-from typing import Any
-from jaxtyping import Float, Bool
-from torch import Tensor, nn
-import torch
-import wandb
-import yaml
 from contextlib import contextmanager
+from pathlib import Path
+from typing import Any
 
+import torch
+from jaxtyping import Bool, Float
+from torch import Tensor, nn
+
+import wandb
 from common.custom_types import AFADataset
 from common.registry import get_afa_dataset_class
 
 
-def set_seed(seed: int):
-    import os
-    import random
-    import numpy as np
+def set_seed(seed: int) -> None:
+    import os  # noqa: PLC0415
+    import random  # noqa: PLC0415
+
+    import numpy as np  # noqa: PLC0415
 
     os.environ["PYTHONHASHSEED"] = str(seed)
     random.seed(seed)
-    np.random.seed(seed)
+    np.random.seed(seed)  # noqa: NPY002
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)  # For multi-GPU setups
@@ -30,23 +30,10 @@ def set_seed(seed: int):
 def get_class_probabilities(
     labels: Bool[Tensor, "*batch n_classes"],
 ) -> Float[Tensor, "n_classes"]:
-    """Returns the class probabilities for a given set of labels."""
+    """Return the class probabilities for a given set of labels."""
     class_counts = labels.float().sum(dim=0)
     class_probabilities = class_counts / class_counts.sum()
     return class_probabilities
-
-
-def yaml_file_matches_mapping(yaml_file_path: Path, mapping: dict[str, Any]) -> bool:
-    """Check if the keys in a YAML file match a given mapping (for the provided keys, other keys can have any value)."""
-    with open(yaml_file_path) as file:
-        dictionary: dict = yaml.safe_load(file)
-
-    # Check if the keys match
-    for key, value in mapping.items():
-        if key not in dictionary or dictionary[key] != value:
-            return False
-
-    return True
 
 
 def get_folders_with_matching_params(
@@ -62,36 +49,6 @@ def get_folders_with_matching_params(
     return matching_folders
 
 
-def dict_to_namespace(d: Any) -> SimpleNamespace:
-    """Convert a dict to a SimpleNamespace recursively."""
-    if not isinstance(d, dict):
-        return d
-
-    # Create a namespace for this level
-    ns = SimpleNamespace()
-
-    # Convert each key-value pair
-    for key, value in d.items():
-        if isinstance(value, dict):
-            # Recursively convert nested dictionaries
-            setattr(ns, key, dict_to_namespace(value))
-        elif isinstance(value, list):
-            # Convert lists with potential nested dictionaries
-            setattr(
-                ns,
-                key,
-                [
-                    dict_to_namespace(item) if isinstance(item, dict) else item
-                    for item in value
-                ],
-            )
-        else:
-            # Set the attribute directly for primitive types
-            setattr(ns, key, value)
-
-    return ns
-
-
 def load_dataset_artifact(
     artifact_name: str,
 ) -> tuple[AFADataset, AFADataset, AFADataset, dict[str, Any]]:
@@ -104,16 +61,24 @@ def load_dataset_artifact(
         f"Dataset artifact must contain train.pt, val.pt and test.pt files. Instead found: {artifact_filenames}"
     )
 
-    dataset_class = get_afa_dataset_class(dataset_artifact.metadata["dataset_type"])
-    train_dataset: AFADataset = dataset_class.load(dataset_artifact_dir / "train.pt")
-    val_dataset: AFADataset = dataset_class.load(dataset_artifact_dir / "val.pt")
-    test_dataset: AFADataset = dataset_class.load(dataset_artifact_dir / "test.pt")
+    dataset_class = get_afa_dataset_class(
+        dataset_artifact.metadata["dataset_type"]
+    )
+    train_dataset: AFADataset = dataset_class.load(
+        dataset_artifact_dir / "train.pt"
+    )
+    val_dataset: AFADataset = dataset_class.load(
+        dataset_artifact_dir / "val.pt"
+    )
+    test_dataset: AFADataset = dataset_class.load(
+        dataset_artifact_dir / "test.pt"
+    )
 
     return train_dataset, val_dataset, test_dataset, dataset_artifact.metadata
 
 
 @contextmanager
-def eval_mode(*models: nn.Module):
+def eval_mode(*models: nn.Module) -> Generator[None, None, None]:
     was_training = [model.training for model in models]
     try:
         for model in models:

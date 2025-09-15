@@ -1,19 +1,20 @@
-import torch
-from torch import nn
-import numpy as np
-from torch import optim
-from copy import deepcopy
-import wandb
 import os
+from copy import deepcopy
 from pathlib import Path
+
+import numpy as np
+import torch
+from torch import nn, optim
+
+import wandb
+from afa_discriminative.models import fc_Net
 from afa_discriminative.utils import (
-    restore_parameters,
-    make_onehot,
+    ConcreteSelector,
     get_entropy,
     ind_to_onehot,
-    ConcreteSelector,
+    make_onehot,
+    restore_parameters,
 )
-from afa_discriminative.models import fc_Net
 from common.custom_types import (
     AFAMethod,
     AFASelection,
@@ -24,7 +25,8 @@ from common.custom_types import (
 
 
 class GreedyDynamicSelection(nn.Module):
-    """Greedy adaptive feature selection.
+    """
+    Greedy adaptive feature selection.
 
     Args:
       selector:
@@ -87,7 +89,9 @@ class GreedyDynamicSelection(nn.Module):
         val_loss_fn.to(device)
 
         # Determine mask size.
-        if hasattr(mask_layer, "mask_size") and (mask_layer.mask_size is not None):
+        if hasattr(mask_layer, "mask_size") and (
+            mask_layer.mask_size is not None
+        ):
             mask_size = mask_layer.mask_size
         else:
             # Must be tabular (1d data).
@@ -108,10 +112,17 @@ class GreedyDynamicSelection(nn.Module):
 
             # Set up optimizer and lr scheduler.
             opt = optim.Adam(
-                set(list(predictor.parameters()) + list(selector.parameters())), lr=lr
+                set(
+                    list(predictor.parameters()) + list(selector.parameters())
+                ),
+                lr=lr,
             )
             scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-                opt, mode=val_loss_mode, factor=factor, patience=patience, min_lr=min_lr
+                opt,
+                mode=val_loss_mode,
+                factor=factor,
+                patience=patience,
+                min_lr=min_lr,
             )
 
             # For tracking best models and early stopping.
@@ -130,7 +141,9 @@ class GreedyDynamicSelection(nn.Module):
                     y = y.to(device)
 
                     # Setup.
-                    m = torch.zeros(len(x), mask_size, dtype=x.dtype, device=device)
+                    m = torch.zeros(
+                        len(x), mask_size, dtype=x.dtype, device=device
+                    )
                     selector.zero_grad()
                     predictor.zero_grad()
 
@@ -154,7 +167,10 @@ class GreedyDynamicSelection(nn.Module):
 
                         # Update mask, ensure no repeats.
                         m = torch.max(
-                            m, make_onehot(selector_layer(logits - 1e6 * m, 1e-6))
+                            m,
+                            make_onehot(
+                                selector_layer(logits - 1e6 * m, 1e-6)
+                            ),
                         )
 
                     # Take gradient step.
@@ -177,7 +193,9 @@ class GreedyDynamicSelection(nn.Module):
                         y = y.to(device)
 
                         # Setup.
-                        m = torch.zeros(len(x), mask_size, dtype=x.dtype, device=device)
+                        m = torch.zeros(
+                            len(x), mask_size, dtype=x.dtype, device=device
+                        )
 
                         for _ in range(max_features):
                             # Evaluate selector model.
@@ -187,7 +205,9 @@ class GreedyDynamicSelection(nn.Module):
                             # Get selections, ensure no repeats.
                             logits = logits - 1e6 * m
                             if argmax:
-                                soft = selector_layer(logits, temp, deterministic=True)
+                                soft = selector_layer(
+                                    logits, temp, deterministic=True
+                                )
                             else:
                                 soft = selector_layer(logits, temp)
                             m_soft = torch.max(m, soft)
@@ -280,7 +300,9 @@ class GreedyDynamicSelection(nn.Module):
         device = next(predictor.parameters()).device
 
         # Determine mask size.
-        if hasattr(mask_layer, "mask_size") and (mask_layer.mask_size is not None):
+        if hasattr(mask_layer, "mask_size") and (
+            mask_layer.mask_size is not None
+        ):
             mask_size = self.mask_layer.mask_size
         else:
             # Must be tabular (1d data).
@@ -453,7 +475,9 @@ class CMIEstimator(nn.Module):
     def set_stopping_criterion(self, budget=None, lam=None, confidence=None):
         """Set parameters for stopping criterion."""
         if sum([budget is None, lam is None, confidence is None]) != 2:
-            raise ValueError("Must specify exactly one of budget, lam, and confidence")
+            raise ValueError(
+                "Must specify exactly one of budget, lam, and confidence"
+            )
         if budget is not None:
             self.budget = budget
             self.mode = "budget"
@@ -504,7 +528,9 @@ class CMIEstimator(nn.Module):
         val_loss_fn = val_loss_fn.to(device)
         value_network = value_network.to(device)
 
-        if hasattr(mask_layer, "mask_size") and (mask_layer.mask_size is not None):
+        if hasattr(mask_layer, "mask_size") and (
+            mask_layer.mask_size is not None
+        ):
             mask_size = mask_layer.mask_size
         else:
             # Must be tabular (1d data).
@@ -518,10 +544,17 @@ class CMIEstimator(nn.Module):
             feature_costs = torch.tensor(feature_costs).to(device)
 
         opt = optim.Adam(
-            set(list(value_network.parameters()) + list(predictor.parameters())), lr=lr
+            set(
+                list(value_network.parameters()) + list(predictor.parameters())
+            ),
+            lr=lr,
         )
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-            opt, mode=val_loss_mode, factor=factor, patience=patience, min_lr=min_lr
+            opt,
+            mode=val_loss_mode,
+            factor=factor,
+            patience=patience,
+            min_lr=min_lr,
         )
 
         # For tracking best models and early stopping.
@@ -544,7 +577,9 @@ class CMIEstimator(nn.Module):
                 y = y.to(device)
 
                 # Setup.
-                m = torch.zeros(len(x), mask_size, dtype=x.dtype, device=device)
+                m = torch.zeros(
+                    len(x), mask_size, dtype=x.dtype, device=device
+                )
                 value_network.zero_grad()
                 predictor.zero_grad()
                 value_network_loss_total = 0
@@ -553,7 +588,9 @@ class CMIEstimator(nn.Module):
                 # Predictor loss with no features.
                 x_masked = self.mask_layer(x, m)
                 pred_without_next_feature = predictor(x_masked)
-                loss_without_next_feature = loss_fn(pred_without_next_feature, y)
+                loss_without_next_feature = loss_fn(
+                    pred_without_next_feature, y
+                )
                 pred_loss = loss_without_next_feature.mean()
                 pred_loss_total += pred_loss.detach()
 
@@ -565,16 +602,21 @@ class CMIEstimator(nn.Module):
                     # Estimate CMI using value network.
                     x_masked = mask_layer(x, m)
                     if cmi_scaling == "bounded":
-                        entropy = get_entropy(pred_without_next_feature).unsqueeze(1)
+                        entropy = get_entropy(
+                            pred_without_next_feature
+                        ).unsqueeze(1)
                         pred_cmi = value_network(x_masked).sigmoid() * entropy
                     elif cmi_scaling == "positive":
-                        pred_cmi = torch.nn.functional.softplus(value_network(x_masked))
+                        pred_cmi = torch.nn.functional.softplus(
+                            value_network(x_masked)
+                        )
                     else:
                         pred_cmi = value_network(x_masked)
 
                     best = torch.argmax(pred_cmi / feature_costs, dim=1)
                     random = torch.tensor(
-                        np.random.choice(mask_size, size=len(x)), device=x.device
+                        np.random.choice(mask_size, size=len(x)),
+                        device=x.device,
                     )
                     exploit = (torch.rand(len(x), device=x.device) > eps).int()
                     actions = exploit * best + (1 - exploit) * random
@@ -586,7 +628,10 @@ class CMIEstimator(nn.Module):
                     loss_with_next_feature = loss_fn(pred_with_next_feature, y)
 
                     # Value network loss.
-                    delta = loss_without_next_feature - loss_with_next_feature.detach()
+                    delta = (
+                        loss_without_next_feature
+                        - loss_with_next_feature.detach()
+                    )
                     value_network_loss = nn.functional.mse_loss(
                         pred_cmi[torch.arange(len(x)), actions], delta
                     )
@@ -623,7 +668,9 @@ class CMIEstimator(nn.Module):
                     y = y.to(device)
 
                     # Setup.
-                    m = torch.zeros(len(x), mask_size, dtype=x.dtype, device=device)
+                    m = torch.zeros(
+                        len(x), mask_size, dtype=x.dtype, device=device
+                    )
                     x_masked = self.mask_layer(x, m)
                     pred = predictor(x_masked)
                     val_preds[0].append(pred)
@@ -633,7 +680,9 @@ class CMIEstimator(nn.Module):
                         x_masked = mask_layer(x, m)
                         if cmi_scaling == "bounded":
                             entropy = get_entropy(pred).unsqueeze(1)
-                            pred_cmi = value_network(x_masked).sigmoid() * entropy
+                            pred_cmi = (
+                                value_network(x_masked).sigmoid() * entropy
+                            )
                         elif cmi_scaling == "positive":
                             pred_cmi = torch.nn.functional.softplus(
                                 value_network(x_masked)
@@ -646,7 +695,9 @@ class CMIEstimator(nn.Module):
                         best_feature_index = torch.argmax(
                             pred_cmi / feature_costs, dim=1
                         )
-                        m = torch.max(m, ind_to_onehot(best_feature_index, mask_size))
+                        m = torch.max(
+                            m, ind_to_onehot(best_feature_index, mask_size)
+                        )
 
                         # Make prediction.
                         x_masked = self.mask_layer(x, m)
@@ -667,7 +718,8 @@ class CMIEstimator(nn.Module):
 
             wandb.log(
                 {
-                    "cmi_estimator/train_loss": total_loss / (max_features + 1),
+                    "cmi_estimator/train_loss": total_loss
+                    / (max_features + 1),
                     "cmi_estimator/val_loss": val_loss_mean,
                     "cmi_estimator/val_accuracy": val_perf_mean,
                 }
@@ -786,7 +838,9 @@ class Gadgil2023AFAMethod(AFAMethod):
         value_network.hidden[1] = predictor.hidden[1]
 
         model = cls(value_network, predictor, device)
-        model.value_network.load_state_dict(checkpoint["value_network_state_dict"])
+        model.value_network.load_state_dict(
+            checkpoint["value_network_state_dict"]
+        )
         model.predictor.load_state_dict(checkpoint["predictor_state_dict"])
         model.value_network.eval()
         model.predictor.eval()

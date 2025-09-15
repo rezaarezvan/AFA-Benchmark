@@ -6,8 +6,8 @@ from torchrl.data import Binary, Categorical, Composite, Unbounded
 from torchrl.envs import EnvBase
 
 from afa_rl.custom_types import (
-    AFARewardFn,
     AFADatasetFn,
+    AFARewardFn,
 )
 from common.custom_types import (
     FeatureMask,
@@ -19,7 +19,8 @@ from common.custom_types import (
 
 @final
 class AFAEnv(EnvBase):
-    """A fixed-length MDP for active feature acquisition (AFA).
+    """
+    A fixed-length MDP for active feature acquisition (AFA).
 
     It assumes that the agent can choose to acquire features `hard_budget` times.
     """
@@ -91,7 +92,9 @@ class AFAEnv(EnvBase):
     @override
     def _reset(self, tensordict: TensorDictBase | None, **_):
         if tensordict is None:
-            tensordict = TensorDict({}, batch_size=self.batch_size, device=self.device)
+            tensordict = TensorDict(
+                {}, batch_size=self.batch_size, device=self.device
+            )
 
         # Get a sample from the dataset
         features, label = self.dataset_fn(tensordict.batch_size)
@@ -126,7 +129,9 @@ class AFAEnv(EnvBase):
     @override
     def _step(self, tensordict: TensorDictBase) -> TensorDictBase:
         new_feature_mask: FeatureMask = tensordict["feature_mask"].clone()
-        new_masked_features: MaskedFeatures = tensordict["masked_features"].clone()
+        new_masked_features: MaskedFeatures = tensordict[
+            "masked_features"
+        ].clone()
         new_action_mask = tensordict["action_mask"].clone()
 
         batch_numel = tensordict.batch_size.numel()
@@ -134,9 +139,9 @@ class AFAEnv(EnvBase):
 
         # Acquire new features
         new_feature_mask[batch_idx, tensordict["action"]] = True
-        new_masked_features[batch_idx, tensordict["action"]] = tensordict["features"][
-            batch_idx, tensordict["action"]
-        ].clone()
+        new_masked_features[batch_idx, tensordict["action"]] = tensordict[
+            "features"
+        ][batch_idx, tensordict["action"]].clone()
 
         # Update action_mask
         new_action_mask[batch_idx, tensordict["action"]] = False

@@ -1,10 +1,9 @@
 from pathlib import Path
 from typing import ClassVar, Protocol, Self
 
+import torch
 from jaxtyping import Bool, Float, Integer
 from torch import Tensor
-import torch
-
 
 # AFA datasets return features and labels
 type Features = Float[Tensor, "*batch n_features"]
@@ -15,7 +14,8 @@ type Logits = Float[Tensor, "*batch model_output_size"]
 
 
 class AFADataset(Protocol):
-    """Datasets that can be used for evaluating AFA methods.
+    """
+    Datasets that can be used for evaluating AFA methods.
 
     Notably, the __init__ constructor should *not* generate data. Instead, generate_data() should be called. This makes it possible to call load if deterministic data is desired.
     """
@@ -55,13 +55,12 @@ class AFADataset(Protocol):
 type MaskedFeatures = Integer[Tensor, "*batch n_features"]
 type FeatureMask = Bool[Tensor, "*batch n_features"]
 
-# Outputs of AFA methods, representing which feature to collect next.
-# It is not possible to choose to stop collecting features, since we use a hard budget.
+# Outputs of AFA methods, representing which feature to collect next, or to stop acquiring features (0)
 type AFASelection = Integer[Tensor, "*batch 1"]
 
 
 class AFAMethod(Protocol):
-    """An AFA method is an object that can decide which features to collect next and also do predictions with the features it has seen so far."""
+    """An AFA method is an object that can decide which features to collect next (or stop collecting features) and also do predictions with the features it has seen so far."""
 
     def select(
         self,
@@ -103,7 +102,8 @@ class AFAMethod(Protocol):
 
 
 class AFAClassifier(Protocol):
-    """An AFA classifier is an object that can perform classification on masked features.
+    """
+    An AFA classifier is an object that can perform classification on masked features.
 
     Classifiers saved as artifacts should follow this protocol to ensure compatibility with the evaluation scripts.
     """
