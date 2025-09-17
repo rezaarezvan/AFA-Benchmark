@@ -1,4 +1,4 @@
-from typing import final, override
+from typing import TYPE_CHECKING, Any, final, override
 
 import torch
 from tensordict import TensorDict, TensorDictBase
@@ -9,12 +9,14 @@ from afa_rl.custom_types import (
     AFADatasetFn,
     AFARewardFn,
 )
-from common.custom_types import (
-    FeatureMask,
-    Features,
-    Label,
-    MaskedFeatures,
-)
+
+if TYPE_CHECKING:
+    from common.custom_types import (
+        FeatureMask,
+        Features,
+        Label,
+        MaskedFeatures,
+    )
 
 
 @final
@@ -58,7 +60,7 @@ class AFAEnv(EnvBase):
                 dtype=torch.bool,
             ),
             action_mask=Binary(
-                shape=self.batch_size + torch.Size((self.feature_size,)),
+                shape=self.batch_size + torch.Size((self.feature_size + 1,)),
                 dtype=torch.bool,
             ),
             masked_features=Unbounded(
@@ -102,7 +104,7 @@ class AFAEnv(EnvBase):
         features, label = self.dataset_fn(tensordict.batch_size)
         features: Features = features.to(tensordict.device)
         label: Label = label.to(tensordict.device)
-        # The indices of chosen features so far, start with no features
+        # Mask of chosen features so far, start with no features
         feature_mask: FeatureMask = torch.zeros_like(
             features, dtype=torch.bool, device=tensordict.device
         )
@@ -114,7 +116,7 @@ class AFAEnv(EnvBase):
         td = TensorDict(
             {
                 "action_mask": torch.ones(
-                    tensordict.batch_size + (self.feature_size,),
+                    tensordict.batch_size + (self.feature_size + 1,),
                     dtype=torch.bool,
                     device=tensordict.device,
                 ),
@@ -140,10 +142,21 @@ class AFAEnv(EnvBase):
         batch_idx = torch.arange(batch_numel, device=tensordict.device)
 
         # Acquire new features (featue-acquiring actions are 1..feature_size)
-        new_feature_mask[batch_idx, tensordict["action"] - 1] = True
-        new_masked_features[batch_idx, tensordict["action"] - 1] = tensordict[
-            "features"
-        ][batch_idx, tensordict["action"] - 1].clone()
+        new_feature_selected_mask = tensordict["action"] > 0
+        # print(f"{new_feature_selected_mask.shape=}")
+        # print(f"{tensordict['action'].shape=}")
+        # print(f"{new_feature_mask.shape=}")
+        new_feature_mask[
+            batch_idx[new_feature_selected_mask],
+            tensordict[new_feature_selected_mask]["action"] - 1,
+        ] = True
+        new_masked_features[
+            batch_idx[new_feature_selected_mask],
+            tensordict[new_feature_selected_mask]["action"] - 1,
+        ] = tensordict["features"][
+            batch_idx[new_feature_selected_mask],
+            tensordict[new_feature_selected_mask]["action"] - 1,
+        ].clone()
 
         # Update action_mask
         new_action_mask[batch_idx, tensordict["action"]] = False

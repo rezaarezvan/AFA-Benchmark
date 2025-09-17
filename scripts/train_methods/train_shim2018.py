@@ -174,7 +174,9 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
     )
 
     reward_fn = get_shim2018_reward_fn(
-        pretrained_model=pretrained_model, weights=class_weights
+        pretrained_model=pretrained_model,
+        weights=class_weights,
+        acquisition_cost=cfg.acquisition_cost,
     )
 
     # MDP expects special dataset functions
@@ -266,10 +268,11 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
                         "chosen action value": td["chosen_action_value"]
                         .mean()
                         .item(),
-                        # "actions": wandb.Histogram(
-                        #     td["action"].tolist(), num_bins=20
-                        # ),
-                        # "actions": wandb.Histogram(td["action"].cpu()),
+                        # Average number of features selected when we stop
+                        "avg stop time": td[td["action"] == 0]["feature_mask"]
+                        .sum(-1)
+                        .float()
+                        .mean(),
                         "batch_idx": batch_idx,
                     }
                     | {"class_loss": class_loss_next.mean().cpu().item()},

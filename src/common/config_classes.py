@@ -223,6 +223,7 @@ class Shim2018TrainConfig:
     pretrained_model_artifact_name: str
     n_agents: int
     hard_budget: int
+    acquisition_cost: float  # how much each feature costs
     agent: Shim2018AgentConfig
     n_batches: int  # how many batches to train the agent
     batch_size: int  # batch size for collector

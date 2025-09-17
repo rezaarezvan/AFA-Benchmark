@@ -39,6 +39,7 @@ ignore = [
   "F722", # forward-annotation-syntax-error
   "G004", # logging-f-string
   "F821", # undefined-name
+  "FIX002", # line-contains-todo
   "FIX004", # line-contains-hack
 
 ]
