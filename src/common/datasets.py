@@ -1,16 +1,17 @@
 import os
-from collections.abc import Callable
-from pathlib import Path
-from typing import Self, final, override
-
-import pandas as pd
 import torch
+import zipfile
+import pandas as pd
+import urllib.request
+
+from pathlib import Path
 from torch import Tensor
+from ucimlrepo import fetch_ucirepo
 from torch.nn import functional as F
 from torch.utils.data import Dataset
+from collections.abc import Callable
+from typing import Self, final, override
 from torchvision import datasets, transforms
-import urllib.request
-import zipfile
 from sklearn.preprocessing import LabelEncoder
 
 from common.custom_types import (
@@ -1454,7 +1455,9 @@ class BankMarketingDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     n_features = 16
 
     def __init__(
-        self, data_path: str = "data/bank_marketing/bank-marketing.csv", seed: int = 123
+        self,
+        data_path: str = "data/bank_marketing/bank-marketing.csv",
+        seed: int = 123,
     ):
         super().__init__()
         self.data_path = data_path
@@ -1479,7 +1482,9 @@ class BankMarketingDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         for col in features_df.columns:
             if features_df[col].dtype == "object":
                 le = LabelEncoder()
-                features_df[col] = le.fit_transform(features_df[col].astype(str))
+                features_df[col] = le.fit_transform(
+                    features_df[col].astype(str)
+                )
 
         features_df = features_df.fillna(features_df.mean())
 
@@ -1507,9 +1512,255 @@ class BankMarketingDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             )
             zip_ref.extract(csv_file, os.path.dirname(self.data_path))
             os.rename(
-                os.path.join(os.path.dirname(self.data_path), csv_file), self.data_path
+                os.path.join(os.path.dirname(self.data_path), csv_file),
+                self.data_path,
             )
         os.remove(zip_path)
+
+    @override
+    def __getitem__(self, idx: int):
+        return self.features[idx], self.labels[idx]
+
+    @override
+    def __len__(self):
+        return len(self.features)
+
+    @override
+    def get_all_data(self):
+        return self.features, self.labels
+
+    @override
+    def save(self, path: Path):
+        torch.save(
+            {
+                "features": self.features,
+                "labels": self.labels,
+                "feature_names": self.feature_names,
+                "config": {"data_path": self.data_path, "seed": self.seed},
+            },
+            path,
+        )
+
+    @classmethod
+    @override
+    def load(cls, path: Path):
+        data = torch.load(path)
+        dataset = cls(**data["config"])
+        dataset.features = data["features"]
+        dataset.labels = data["labels"]
+        dataset.feature_names = data["feature_names"]
+        return dataset
+
+
+@final
+class CKDDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
+    """
+    Chronic Kidney Disease dataset from UCI Machine Learning Repository.
+
+    Binary classification task to predict CKD (chronic kidney disease) vs non-CKD.
+    Dataset contains 400 patient records with 24 clinical features.
+    """
+
+    n_classes = 2
+    n_features = 24  # Will be updated after preprocessing
+
+    def __init__(
+        self,
+        # Not used, kept for API consistency
+        data_path: str = "data/ckd/chronic_kidney_disease.csv",
+        seed: int = 123,
+    ):
+        super().__init__()
+        self.data_path = data_path
+        self.seed = seed
+        self.feature_names = None
+
+    @override
+    def generate_data(self) -> None:
+        torch.manual_seed(self.seed)
+
+        # Fetch dataset (ID 336 is Chronic Kidney Disease)
+        ckd_data = fetch_ucirepo(id=336)
+
+        # Get features and targets as pandas DataFrames
+        # Make copies to avoid SettingWithCopyWarning
+        features_df = ckd_data.data.features.copy()
+        target_df = ckd_data.data.targets.copy()
+
+        # Process target - convert 'ckd'/'notckd' to 1/0
+        # Handle potential whitespace and different capitalizations
+        target_series = (
+            target_df.iloc[:, 0].astype(str).str.strip().str.lower()
+        )
+        target_series = target_series.map({"ckd": 1, "notckd": 0})
+
+        # Handle any NaN values in target (shouldn't happen, but just in case)
+        if target_series.isna().any():
+            unique_vals = target_df.iloc[:, 0].unique()
+            raise ValueError(
+                f"Found NaN values in target after mapping. "
+                f"Unique values in original target: {unique_vals}"
+            )
+
+        # Handle missing values and encode categorical columns
+        for col in features_df.columns:
+            if features_df[col].dtype == "object":
+                # Use label encoding for categorical variables
+                le = LabelEncoder()
+                # Handle NaN values before label encoding
+                mask = features_df[col].notna()
+                if mask.any():
+                    features_df.loc[mask, col] = le.fit_transform(
+                        features_df.loc[mask, col].astype(str)
+                    )
+
+        # Convert all columns to numeric
+        for col in features_df.columns:
+            features_df[col] = pd.to_numeric(features_df[col], errors="coerce")
+
+        # Fill missing values with mean
+        features_df = features_df.fillna(features_df.mean())
+
+        # Convert to tensors
+        self.features = torch.tensor(features_df.values, dtype=torch.float32)
+        self.labels = torch.nn.functional.one_hot(
+            torch.tensor(target_series.values, dtype=torch.long),
+            num_classes=self.n_classes,
+        ).float()
+
+        # Update n_features based on actual data
+        CKDDataset.n_features = self.features.shape[1]
+        self.feature_names = features_df.columns.tolist()
+
+    @override
+    def __getitem__(self, idx: int):
+        return self.features[idx], self.labels[idx]
+
+    @override
+    def __len__(self):
+        return len(self.features)
+
+    @override
+    def get_all_data(self):
+        return self.features, self.labels
+
+    @override
+    def save(self, path: Path):
+        torch.save(
+            {
+                "features": self.features,
+                "labels": self.labels,
+                "feature_names": self.feature_names,
+                "config": {"data_path": self.data_path, "seed": self.seed},
+            },
+            path,
+        )
+
+    @classmethod
+    @override
+    def load(cls, path: Path):
+        data = torch.load(path)
+        dataset = cls(**data["config"])
+        dataset.features = data["features"]
+        dataset.labels = data["labels"]
+        dataset.feature_names = data["feature_names"]
+        return dataset
+
+
+@final
+class ACTG175Dataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
+    """
+    AIDS Clinical Trials Group Study 175 dataset from UCI Machine Learning Repository.
+
+    Binary classification task to predict death within a certain time window.
+    Dataset contains 2,139 HIV-infected patients with 23 clinical features.
+
+    From the famous ACTG 175 clinical trial comparing different HIV treatments.
+    """
+
+    n_classes = 2
+    n_features = 23  # Will be updated after preprocessing
+
+    def __init__(
+        self,
+        # Not used, kept for API consistency
+        data_path: str = "data/actg175/actg175.csv",
+        seed: int = 123,
+    ):
+        super().__init__()
+        self.data_path = data_path
+        self.seed = seed
+        self.feature_names = None
+
+    @override
+    def generate_data(self) -> None:
+        torch.manual_seed(self.seed)
+
+        # Fetch dataset (ID 890 is AIDS Clinical Trials Group Study 175)
+        actg_data = fetch_ucirepo(id=890)
+
+        # Get features and targets as pandas DataFrames
+        # Make copies to avoid SettingWithCopyWarning
+        features_df = actg_data.data.features.copy()
+        target_df = actg_data.data.targets.copy()
+
+        # Process target - binary classification for death
+        # The target variable in ACTG175 is typically 'cid' (censor indicator for death)
+        # or we may need to check what column name is used
+        # Get the first (and likely only) target column
+        target_col = target_df.columns[0]
+        target_series = target_df[target_col]
+
+        # Convert to binary (0/1) if not already
+        if target_series.dtype == "object":
+            # Map string values to binary
+            unique_vals = target_series.unique()
+            if len(unique_vals) == 2:
+                # Create mapping for binary classification
+                target_series = target_series.map(
+                    {unique_vals[0]: 0, unique_vals[1]: 1}
+                )
+        else:
+            # Ensure it's 0/1
+            target_series = target_series.astype(int)
+
+        # Handle any NaN values in target
+        if target_series.isna().any():
+            raise ValueError(
+                f"Found NaN values in target. "
+                f"Target column: {target_col}, "
+                f"Unique values: {target_df[target_col].unique()}"
+            )
+
+        # Handle missing values and encode categorical columns
+        for col in features_df.columns:
+            if features_df[col].dtype == "object":
+                # Use label encoding for categorical variables
+                le = LabelEncoder()
+                # Handle NaN values before label encoding
+                mask = features_df[col].notna()
+                if mask.any():
+                    features_df.loc[mask, col] = le.fit_transform(
+                        features_df.loc[mask, col].astype(str)
+                    )
+
+        # Convert all columns to numeric
+        for col in features_df.columns:
+            features_df[col] = pd.to_numeric(features_df[col], errors="coerce")
+
+        # Fill missing values with mean
+        features_df = features_df.fillna(features_df.mean())
+
+        # Convert to tensors
+        self.features = torch.tensor(features_df.values, dtype=torch.float32)
+        self.labels = torch.nn.functional.one_hot(
+            torch.tensor(target_series.values, dtype=torch.long),
+            num_classes=self.n_classes,
+        ).float()
+
+        # Update n_features based on actual data
+        ACTG175Dataset.n_features = self.features.shape[1]
+        self.feature_names = features_df.columns.tolist()
 
     @override
     def __getitem__(self, idx: int):

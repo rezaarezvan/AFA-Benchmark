@@ -57,13 +57,24 @@ class AACOAFAMethod(AFAMethod):
             obs_mask = feature_mask[i]
 
             # Get next feature from AACO oracle
+            # next_feature = self.aaco_oracle.select_next_feature(
+            #     x_obs, obs_mask, instance_idx=i
+            # )
+            # assert next_feature is not None, (
+            #     "AACO oracle must return a valid feature index"
+            # )
+            # selections.append(next_feature)
+
+            # Get next feature from AACO oracle
             next_feature = self.aaco_oracle.select_next_feature(
                 x_obs, obs_mask, instance_idx=i
             )
-            assert next_feature is not None, (
-                "AACO oracle must return a valid feature index"
-            )
-            selections.append(next_feature)
+            # Handle stop action when ACO returns None (u(x_o, o) = ∅)
+            if next_feature is None:
+                # Return stop action
+                selections.append(0)
+            else:
+                selections.append(next_feature)
 
         # Return selection tensor on original device
         selection_tensor = torch.tensor(

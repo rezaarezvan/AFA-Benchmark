@@ -362,13 +362,17 @@ class GreedyDynamicSelection(nn.Module):
 
 
 class Covert2023AFAMethod(AFAMethod):
-    def __init__(self, selector, predictor, device=torch.device("cpu")):
+    def __init__(self, selector, predictor, device=torch.device("cpu"),
+                 lambda_threshold: float = -float("inf"),
+                 feature_costs: torch.Tensor | None = None):
         super().__init__()
 
         # Set up models and mask layer.
         self.selector = selector
         self.predictor = predictor
         self._device: torch.device = device
+        self.lambda_threshold = lambda_threshold
+        self._feature_costs = feature_costs
 
     def predict(
         self,
@@ -393,8 +397,25 @@ class Covert2023AFAMethod(AFAMethod):
         x_masked = torch.cat([masked_features, feature_mask], dim=1)
         logits = selector(x_masked).flatten(1)
         logits = logits - 1e6 * feature_mask
-        next_feature_idx = logits.argmax(dim=1)
-        return next_feature_idx
+
+        if self._feature_costs is not None:
+            costs = self._feature_costs.to(self._device)
+            costs = torch.clamp(costs, min=1e-12)
+            scores = logits / costs.unsqueeze(0)
+        else:
+            scores = logits
+        best_scores, best_idx = scores.max(dim=1)
+        lam = self.lambda_threshold
+        stop_mask = best_scores < lam
+        # all masked
+        stop_mask = stop_mask | (best_scores < -1e5)
+
+        selections = (best_idx + 1).to(dtype=torch.long)
+        # 0 = stop
+        selections = selections.masked_fill(stop_mask, 0)
+        return selections
+        # next_feature_idx = logits.argmax(dim=1)
+        # return next_feature_idx
 
     @classmethod
     def load(cls, path, device="cpu"):
@@ -767,13 +788,17 @@ class CMIEstimator(nn.Module):
 
 
 class Gadgil2023AFAMethod(AFAMethod):
-    def __init__(self, value_network, predictor, device=torch.device("cpu")):
+    def __init__(self, value_network, predictor, device=torch.device("cpu"),
+                 lambda_threshold: float = -float("inf"),
+                 feature_costs: torch.Tensor | None = None):
         super().__init__()
 
         # Save network modules.
         self.value_network = value_network
         self.predictor = predictor
         self._device: torch.device = device
+        self.lambda_threshold = lambda_threshold
+        self._feature_costs = feature_costs
 
     def predict(
         self,
@@ -800,9 +825,23 @@ class Gadgil2023AFAMethod(AFAMethod):
         value_network = self.value_network
         pred_cmi = value_network(x_masked).sigmoid() * entropy
         pred_cmi -= 1e6 * feature_mask
-        next_feature_idx = torch.argmax(pred_cmi, dim=1)
 
-        return next_feature_idx
+        if self._feature_costs is not None:
+            costs = self._feature_costs.to(self._device)
+            costs = torch.clamp(costs, min=1e-12)
+            scores = pred_cmi / costs.unsqueeze(0)
+        else:
+            scores = pred_cmi
+        best_scores, best_idx = scores.max(dim=1)
+        lam = self.lambda_threshold
+        stop_mask = best_scores < lam
+        stop_mask = stop_mask | (best_scores < -1e5)
+
+        selections = (best_idx + 1).to(torch.long)
+        selections = selections.masked_fill(stop_mask, 0)
+        return selections
+        # next_feature_idx = torch.argmax(pred_cmi, dim=1)
+        # return next_feature_idx
 
     @classmethod
     def load(cls, path, device="cpu"):
