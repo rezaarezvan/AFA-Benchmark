@@ -1,9 +1,10 @@
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Self, final, override
-from tensordict.nn import TensorDictModuleBase
+
 import torch
 from tensordict import TensorDict
+from tensordict.nn import TensorDictModuleBase
 from torchrl.envs import ExplorationType, set_exploration_type
 from torchrl.modules import ProbabilisticActor
 
@@ -23,7 +24,8 @@ def get_td_from_masked_features(
     masked_features: MaskedFeatures,
     feature_mask: FeatureMask,
 ) -> TensorDict:
-    """Create a TensorDict suitable as input to AFA RL agents.
+    """
+    Create a TensorDict suitable as input to AFA RL agents.
 
     The keys are:
     - "action_mask"
@@ -82,7 +84,10 @@ class RLAFAMethod(AFAMethod):
         td = get_td_from_masked_features(masked_features, feature_mask)
 
         # Apply the agent's policy to the tensordict
-        with torch.no_grad(), set_exploration_type(ExplorationType.DETERMINISTIC):
+        with (
+            torch.no_grad(),
+            set_exploration_type(ExplorationType.DETERMINISTIC),
+        ):
             td = self.policy_tdmodule(td)
 
         # Get the action from the tensordict
@@ -104,7 +109,9 @@ class RLAFAMethod(AFAMethod):
         feature_mask = feature_mask.to(self._device)
 
         with torch.no_grad():
-            probs = self.afa_classifier(masked_features, feature_mask, features, label)
+            probs = self.afa_classifier(
+                masked_features, feature_mask, features, label
+            )
         return probs.to(original_device)
 
     @override
@@ -118,7 +125,9 @@ class RLAFAMethod(AFAMethod):
     @override
     def load(cls, path: Path, device: torch.device) -> Self:
         policy_tdmodule = torch.load(
-            path / "policy_tdmodule.pt", weights_only=False, map_location=device
+            path / "policy_tdmodule.pt",
+            weights_only=False,
+            map_location=device,
         )
 
         with open(path / "classifier_class_name.txt") as f:

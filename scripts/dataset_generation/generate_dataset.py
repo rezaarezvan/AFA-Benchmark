@@ -1,17 +1,19 @@
+import copy
 import logging
 import os
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from time import strftime
+
 import hydra
 import torch
-import copy
 from torch.utils.data import random_split
 from wandb.sdk.wandb_run import Run
+
+import wandb
 from common.config_classes import DatasetGenerationConfig, SplitRatioConfig
 from common.custom_types import AFADataset
 from common.registry import get_afa_dataset_class
-import wandb
 
 
 def create_split_dataset(original_dataset, subset):

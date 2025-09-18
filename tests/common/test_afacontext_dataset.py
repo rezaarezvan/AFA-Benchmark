@@ -1,4 +1,5 @@
 import pytest
+
 from common.datasets import AFAContextDataset
 
 
@@ -22,6 +23,8 @@ def test_afa(setup_data):
         # assert bin_list_to_int(features[range_start:range_end].int().tolist()) == cls_idx
         # Reversed apparently
         assert (
-            bin_list_to_int(reversed(features[range_start:range_end].int().tolist()))
+            bin_list_to_int(
+                reversed(features[range_start:range_end].int().tolist())
+            )
             == cls_idx
         )

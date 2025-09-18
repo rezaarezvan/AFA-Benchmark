@@ -1,12 +1,13 @@
-import torch
-import hydra
-import wandb
 import logging
-
 from pathlib import Path
-from typing import Any, cast
-from omegaconf import OmegaConf
 from tempfile import TemporaryDirectory
+from typing import Any, cast
+
+import hydra
+import torch
+from omegaconf import OmegaConf
+
+import wandb
 from afa_oracle import create_aaco_method
 from common.config_classes import AACOTrainConfig
 from common.utils import load_dataset_artifact, set_seed
@@ -14,7 +15,9 @@ from common.utils import load_dataset_artifact, set_seed
 log = logging.getLogger(__name__)
 
 
-@hydra.main(version_base=None, config_path="../../conf/train/aco", config_name="config")
+@hydra.main(
+    version_base=None, config_path="../../conf/train/aco", config_name="config"
+)
 def main(cfg: AACOTrainConfig):
     log.debug(cfg)
     set_seed(cfg.seed)
@@ -22,7 +25,9 @@ def main(cfg: AACOTrainConfig):
     device = torch.device(cfg.device)
 
     run = wandb.init(
-        config=cast(dict[str, Any], OmegaConf.to_container(cfg, resolve=True)),
+        config=cast(
+            "dict[str, Any]", OmegaConf.to_container(cfg, resolve=True)
+        ),
         job_type="training",
         tags=["aaco"],
         dir="wandb",
@@ -64,7 +69,9 @@ def main(cfg: AACOTrainConfig):
         temp_path = Path(temp_dir)
         aaco_method.save(temp_path)
 
-        split_idx = cfg.dataset_artifact_name.split("_split_")[-1].split(":")[0]
+        split_idx = cfg.dataset_artifact_name.split("_split_")[-1].split(":")[
+            0
+        ]
 
         trained_method_artifact = wandb.Artifact(
             name=f"aaco-{dataset_type}_split_{split_idx}",
@@ -78,7 +85,9 @@ def main(cfg: AACOTrainConfig):
             },
         )
         trained_method_artifact.add_dir(str(temp_path))
-        run.log_artifact(trained_method_artifact, aliases=cfg.output_artifact_aliases)
+        run.log_artifact(
+            trained_method_artifact, aliases=cfg.output_artifact_aliases
+        )
 
     log.info("AACO method saved as artifact")
     run.finish()

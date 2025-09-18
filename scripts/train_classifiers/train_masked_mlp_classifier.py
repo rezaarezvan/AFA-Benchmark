@@ -1,26 +1,25 @@
 import logging
+from pathlib import Path
 from tempfile import NamedTemporaryFile
-import hydra
 
+import hydra
 import lightning as pl
-from lightning.pytorch.callbacks import ModelCheckpoint
 import torch
+from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import WandbLogger
+from omegaconf import OmegaConf
 
 import wandb
+from afa_rl.datasets import DataModuleFromDatasets
 from common.afa_methods import RandomClassificationAFAMethod
 from common.classifiers import WrappedMaskedMLPClassifier
 from common.config_classes import TrainMaskedMLPClassifierConfig
-from afa_rl.datasets import DataModuleFromDatasets
 from common.models import LitMaskedMLPClassifier
 from common.utils import (
     get_class_probabilities,
     load_dataset_artifact,
     set_seed,
 )
-from pathlib import Path
-from omegaconf import OmegaConf
-
 from eval.metrics import eval_afa_method
 from eval.utils import plot_metrics
 
@@ -40,7 +39,7 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
     run = wandb.init(
         group="train_masked_mlp_classifier",
         job_type="train_classifier",
-        config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore
+        config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore[reportArgumentType]
         dir="wandb",
     )
 
@@ -61,7 +60,9 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
     n_classes = train_dataset.labels.shape[-1]
 
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
-    log.debug(f"Class probabilities in training set: {train_class_probabilities}")
+    log.debug(
+        f"Class probabilities in training set: {train_class_probabilities}"
+    )
     lit_model = LitMaskedMLPClassifier(
         n_features=n_features,
         n_classes=n_classes,
@@ -96,7 +97,7 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
         pass
     finally:
         # Convert lightning model to a classifier that implements the AFAClassifier interface
-        best_checkpoint = trainer.checkpoint_callback.best_model_path  # pyright: ignore
+        best_checkpoint = trainer.checkpoint_callback.best_model_path  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
         best_lit_model = LitMaskedMLPClassifier.load_from_checkpoint(
             best_checkpoint,
             n_features=n_features,
@@ -140,7 +141,9 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
                 "classifier_type": "MaskedMLPClassifier",
             },
         )
-        trained_classifier_artifact.add_file(str(save_path), name="classifier.pt")
+        trained_classifier_artifact.add_file(
+            str(save_path), name="classifier.pt"
+        )
         run.log_artifact(
             trained_classifier_artifact, aliases=cfg.output_artifact_aliases
         )

@@ -10,7 +10,13 @@ from torchrl.modules import MLP
 from afa_rl.utils import (
     mask_data,
 )
-from common.custom_types import FeatureMask, MaskedFeatures, Features, Label, Logits
+from common.custom_types import (
+    FeatureMask,
+    Features,
+    Label,
+    Logits,
+    MaskedFeatures,
+)
 
 
 @final
@@ -59,7 +65,8 @@ class LitMaskedMLPClassifier(pl.LightningModule):
     def forward(
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
     ) -> Logits:
-        """Forward.
+        """
+        Forward.
 
         Args:
             masked_features: currently observed features, with zeros for missing features
@@ -72,16 +79,22 @@ class LitMaskedMLPClassifier(pl.LightningModule):
         return self.classifier(masked_features, feature_mask)
 
     @override
-    def training_step(self, batch: tuple[Tensor, Tensor], batch_idx: int):
+    def training_step(
+        self, batch: tuple[Tensor, Tensor], batch_idx: int
+    ) -> torch.Tensor:
         features: Features = batch[0]
         label: Label = batch[1]
 
-        masking_probability = self.min_masking_probability + torch.rand(1).item() * (
+        masking_probability = self.min_masking_probability + torch.rand(
+            1
+        ).item() * (
             self.max_masking_probability - self.min_masking_probability
         )
         self.log("masking_probability", masking_probability, sync_dist=True)
 
-        masked_features, feature_mask, _ = mask_data(features, p=masking_probability)
+        masked_features, feature_mask, _ = mask_data(
+            features, p=masking_probability
+        )
 
         logits = self(masked_features, feature_mask)
         loss = F.cross_entropy(
@@ -91,17 +104,24 @@ class LitMaskedMLPClassifier(pl.LightningModule):
         return loss
 
     def _get_loss_and_acc(
-        self, masked_features: MaskedFeatures, feature_mask: FeatureMask, y: Tensor
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        y: Tensor,
     ) -> tuple[Tensor, Tensor]:
         logits = self(masked_features, feature_mask)
-        loss = F.cross_entropy(logits, y, weight=self.class_weight.to(logits.device))
+        loss = F.cross_entropy(
+            logits, y, weight=self.class_weight.to(logits.device)
+        )
         predicted_class = torch.argmax(logits, dim=1)
         true_class = torch.argmax(y, dim=1)
         acc = (predicted_class == true_class).float().mean()
         return loss, acc
 
     @override
-    def validation_step(self, batch: tuple[Tensor, Tensor], batch_idx: int):
+    def validation_step(
+        self, batch: tuple[Tensor, Tensor], batch_idx: int
+    ) -> None:
         feature_values, y = batch
 
         # Mask features with minimum probability -> see many features (observations)
@@ -110,7 +130,9 @@ class LitMaskedMLPClassifier(pl.LightningModule):
             > self.min_masking_probability
         )
         feature_values_many_observations = feature_values.clone()
-        feature_values_many_observations[feature_mask_many_observations == 0] = 0
+        feature_values_many_observations[
+            feature_mask_many_observations == 0
+        ] = 0
         loss_many_observations, acc_many_observations = self._get_loss_and_acc(
             feature_values_many_observations, feature_mask_many_observations, y
         )
@@ -131,7 +153,7 @@ class LitMaskedMLPClassifier(pl.LightningModule):
         self.log("val_acc_few_observations", acc_few_observations)
 
     @override
-    def configure_optimizers(self):
+    def configure_optimizers(self) -> torch.optim.Optimizer:
         return torch.optim.Adam(self.parameters(), lr=self.lr)
 
 

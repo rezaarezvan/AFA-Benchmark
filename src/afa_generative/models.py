@@ -1,11 +1,13 @@
 import torch
 from torch import nn
-from common.custom_types import FeatureMask, MaskedFeatures
+
 from afa_rl.zannone2019.models import PointNet
+from common.custom_types import FeatureMask, MaskedFeatures
 
 
 class PartialVAE(nn.Module):
-    """A partial VAE for masked data, as described in "EDDI: Efficient Dynamic Discovery of High-Value Information with Partial VAE"
+    """
+    A partial VAE for masked data, as described in "EDDI: Efficient Dynamic Discovery of High-Value Information with Partial VAE"
 
     To make the model work with different shapes of data, change the pointnet.
     """
@@ -16,7 +18,8 @@ class PartialVAE(nn.Module):
         encoder: nn.Module,
         decoder: nn.Module,
     ):
-        """Args:
+        """
+        Args:
         pointnet: maps unordered sets of features to a single vector
         encoder: a network that maps the output from the pointnet to input for mu_net and logvar_net
         decoder: the network to use for the decoder
@@ -44,7 +47,9 @@ class PartialVAE(nn.Module):
 
         return encoding, mu, logvar, z
 
-    def forward(self, masked_features: MaskedFeatures, feature_mask: FeatureMask):
+    def forward(
+        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+    ):
         # Encode the masked features
         encoding, mu, logvar, z = self.encode(masked_features, feature_mask)
 

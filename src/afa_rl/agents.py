@@ -30,7 +30,8 @@ class Agent(Protocol):
     def get_exploitative_policy(
         self,
     ) -> TensorDictModuleBase | ProbabilisticActor:
-        """Return the agent's exploitative policy (if applicable).
+        """
+        Return the agent's exploitative policy (if applicable).
 
         The caller is responsible for setting the ExplorationType.
         """
@@ -39,7 +40,8 @@ class Agent(Protocol):
     def get_exploratory_policy(
         self,
     ) -> TensorDictModuleBase | ProbabilisticActor:
-        """Return the agent's exploratory policy (if applicable).
+        """
+        Return the agent's exploratory policy (if applicable).
 
         The caller is responsible for setting the ExplorationType.
         """
@@ -54,14 +56,16 @@ class Agent(Protocol):
         ...
 
     def get_replay_buffer_device(self) -> torch.device | None:
-        """Retrieve the device that the replay buffer (if any) is currently placed on.
+        """
+        Retrieve the device that the replay buffer (if any) is currently placed on.
 
         Should return `None` if there is no replay buffer.
         """
         ...
 
     def set_replay_buffer_device(self, device: torch.device) -> None:
-        """Move replay buffer (if any) to a specific device.
+        """
+        Move replay buffer (if any) to a specific device.
 
         For agents without a replay buffer, this should be a no-op.
         """

@@ -1,12 +1,12 @@
 import gc
 import logging
-from omegaconf import OmegaConf
 
 import hydra
 import lightning as pl
 import torch
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import WandbLogger
+from omegaconf import OmegaConf
 
 import wandb
 from afa_rl.datasets import (
@@ -47,7 +47,9 @@ def main(cfg: Zannone2019PretrainConfig) -> None:
     log.info(f"W&B run URL: {run.url}")
 
     # Load dataset artifact
-    train_dataset, val_dataset, _, _ = load_dataset_artifact(cfg.dataset_artifact_name)
+    train_dataset, val_dataset, _, _ = load_dataset_artifact(
+        cfg.dataset_artifact_name
+    )
     datamodule = DataModuleFromDatasets(
         train_dataset, val_dataset, batch_size=cfg.batch_size
     )
@@ -57,7 +59,9 @@ def main(cfg: Zannone2019PretrainConfig) -> None:
     n_classes = train_dataset.labels.shape[-1]
 
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
-    log.debug(f"Class probabilities in training set: {train_class_probabilities}")
+    log.debug(
+        f"Class probabilities in training set: {train_class_probabilities}"
+    )
     lit_model = get_zannone2019_model_from_config(
         cfg, n_features, n_classes, train_class_probabilities
     )
@@ -92,8 +96,12 @@ def main(cfg: Zannone2019PretrainConfig) -> None:
             name=f"pretrain_zannone2019-{cfg.dataset_artifact_name.split(':')[0]}",
             type="pretrained_model",
         )
-        pretrained_model_artifact.add_file(local_path=best_checkpoint, name="model.pt")
-        run.log_artifact(pretrained_model_artifact, aliases=cfg.output_artifact_aliases)
+        pretrained_model_artifact.add_file(
+            local_path=best_checkpoint, name="model.pt"
+        )
+        run.log_artifact(
+            pretrained_model_artifact, aliases=cfg.output_artifact_aliases
+        )
         run.finish()
 
         gc.collect()  # Force Python GC

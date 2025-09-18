@@ -2,6 +2,7 @@ import argparse
 import os
 import subprocess
 from collections.abc import Sequence
+
 import yaml
 
 
@@ -24,7 +25,10 @@ def parse_args():
     parser.add_argument("--wandb-entity", type=str)
     parser.add_argument("--wandb-project", type=str)
     parser.add_argument(
-        "--yaml", type=str, required=True, help="Path to YAML file with artifact names"
+        "--yaml",
+        type=str,
+        required=True,
+        help="Path to YAML file with artifact names",
     )
     args, unknown = parser.parse_known_args()
     return args, unknown

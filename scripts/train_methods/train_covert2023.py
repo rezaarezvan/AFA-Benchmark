@@ -1,33 +1,48 @@
 import gc
 import logging
-import wandb
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from typing import Any, cast
+
 import hydra
 import torch
-from torch import nn
-from pathlib import Path
 from dacite import from_dict
-from typing import Any, cast
 from omegaconf import OmegaConf
-from tempfile import TemporaryDirectory
-from afa_discriminative.utils import MaskLayer
-from afa_discriminative.models import fc_Net
-from afa_discriminative.datasets import prepare_datasets
-from afa_discriminative.afa_methods import GreedyDynamicSelection, Covert2023AFAMethod
-from common.utils import load_dataset_artifact, set_seed, get_class_probabilities
-from common.config_classes import Covert2023PretrainingConfig, Covert2023TrainingConfig
+from torch import nn
 
+import wandb
+from afa_discriminative.afa_methods import (
+    Covert2023AFAMethod,
+    GreedyDynamicSelection,
+)
+from afa_discriminative.datasets import prepare_datasets
+from afa_discriminative.models import fc_Net
+from afa_discriminative.utils import MaskLayer
+from common.config_classes import (
+    Covert2023PretrainingConfig,
+    Covert2023TrainingConfig,
+)
+from common.utils import (
+    get_class_probabilities,
+    load_dataset_artifact,
+    set_seed,
+)
 
 log = logging.getLogger(__name__)
 
 
 @hydra.main(
-    version_base=None, config_path="../../conf/train/covert2023", config_name="config"
+    version_base=None,
+    config_path="../../conf/train/covert2023",
+    config_name="config",
 )
 def main(cfg: Covert2023TrainingConfig):
     log.debug(cfg)
     print(OmegaConf.to_yaml(cfg))
     run = wandb.init(
-        config=cast(dict[str, Any], OmegaConf.to_container(cfg, resolve=True)),
+        config=cast(
+            "dict[str, Any]", OmegaConf.to_container(cfg, resolve=True)
+        ),
         job_type="training",
         tags=["GDFS"],
         dir="wandb",
@@ -39,7 +54,9 @@ def main(cfg: Covert2023TrainingConfig):
         cfg.pretrained_model_artifact_name, type="pretrained_model"
     )
     pretrained_model_artifact_dir = Path(pretrained_model_artifact.download())
-    artifact_filenames = [f.name for f in pretrained_model_artifact_dir.iterdir()]
+    artifact_filenames = [
+        f.name for f in pretrained_model_artifact_dir.iterdir()
+    ]
     assert {"model.pt"}.issubset(artifact_filenames), (
         f"Dataset artifact must contain a model.pt file. Instead found: {artifact_filenames}"
     )
@@ -49,10 +66,11 @@ def main(cfg: Covert2023TrainingConfig):
     )
     pretrained_model_config_dict = pretraining_run.config
     pretrained_model_config: Covert2023PretrainingConfig = from_dict(
-        data_class=Covert2023PretrainingConfig, data=pretrained_model_config_dict
+        data_class=Covert2023PretrainingConfig,
+        data=pretrained_model_config_dict,
     )
-    train_dataset, val_dataset, test_dataset, dataset_metadata = load_dataset_artifact(
-        pretrained_model_config.dataset_artifact_name
+    train_dataset, val_dataset, test_dataset, dataset_metadata = (
+        load_dataset_artifact(pretrained_model_config.dataset_artifact_name)
     )
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
     class_weights = len(train_class_probabilities) / (
@@ -124,7 +142,9 @@ def main(cfg: Covert2023TrainingConfig):
             },
         )
         afa_method_artifact.add_file(str(tmp_path / "model.pt"))
-        run.log_artifact(afa_method_artifact, aliases=cfg.output_artifact_aliases)
+        run.log_artifact(
+            afa_method_artifact, aliases=cfg.output_artifact_aliases
+        )
 
     run.finish()
 

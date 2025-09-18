@@ -1,12 +1,11 @@
 from pathlib import Path
-from jaxtyping import Float
-import torch
-from torch import nn
-import torch.nn.functional as F
-import lightning as pl
-
-
 from typing import Self, final, override
+
+import lightning as pl
+import torch
+import torch.nn.functional as F
+from jaxtyping import Float
+from torch import nn
 
 from afa_rl.utils import mask_data
 from common.config_classes import Kachuee2019PQModuleConfig
@@ -24,7 +23,9 @@ from common.custom_types import (
 class Kachuee2019PQModule(nn.Module):
     """The architecture proposed in the paper "Opportunistic Learning: Budgeted Cost-Sensitive Learning from Data Streams", slightly simplified from the implementation found at https://github.com/mkachuee/Opportunistic/blob/master/Demo_OL_DQN.ipynb"""
 
-    def __init__(self, n_features: int, n_classes: int, cfg: Kachuee2019PQModuleConfig):
+    def __init__(
+        self, n_features: int, n_classes: int, cfg: Kachuee2019PQModuleConfig
+    ):
         super().__init__()
 
         self.n_features = n_features
@@ -49,11 +50,13 @@ class Kachuee2019PQModule(nn.Module):
             if ind == 0:
                 self.n_hiddens_q.append(self.cfg.n_hiddens[ind])
             else:
-                n_h = (self.cfg.n_hiddens[ind - 1] * self.cfg.n_hiddens[ind]) // (
-                    self.cfg.n_hiddens[ind - 1] + self.n_hiddens_q[-1]
-                )
+                n_h = (
+                    self.cfg.n_hiddens[ind - 1] * self.cfg.n_hiddens[ind]
+                ) // (self.cfg.n_hiddens[ind - 1] + self.n_hiddens_q[-1])
                 self.n_hiddens_q.append(n_h)
-        for n_h, n_h_q in zip(self.cfg.n_hiddens, self.n_hiddens_q, strict=False):
+        for n_h, n_h_q in zip(
+            self.cfg.n_hiddens, self.n_hiddens_q, strict=False
+        ):
             self.layers_q.append(nn.Linear(size_last, n_h_q))
             size_last = n_h + n_h_q
         # Output of Q-Net does not include the stop action, unlike the original implementation
@@ -67,14 +70,18 @@ class Kachuee2019PQModule(nn.Module):
         act_last = masked_features
         acts_p = []
         for f_layer in self.layers_p[:-1]:
-            act_last = F.dropout(F.relu(f_layer(act_last)), p=self.cfg.p_dropout)
+            act_last = F.dropout(
+                F.relu(f_layer(act_last)), p=self.cfg.p_dropout
+            )
             acts_p.append(act_last)
         class_logits = self.layers_p[-1](act_last)
 
         # Q-Net forward path, gradients are not backpropagated to P-Net
         act_last = masked_features
         act_last = F.relu(self.layers_q[0](act_last))
-        for f_layer, p_act in zip(self.layers_q[1:-1], acts_p[:-1], strict=False):
+        for f_layer, p_act in zip(
+            self.layers_q[1:-1], acts_p[:-1], strict=False
+        ):
             p_act = p_act.detach()
             act_last = F.relu(f_layer(torch.cat([act_last, p_act], dim=1)))
         p_act = acts_p[-1].detach()
@@ -82,8 +89,11 @@ class Kachuee2019PQModule(nn.Module):
 
         return class_logits, qvalues
 
-    def confidence(self, masked_features: MaskedFeatures, mcdrop_samples: int = 1):
-        """Calculate the confidence histogrram for each class given a sample.
+    def confidence(
+        self, masked_features: MaskedFeatures, mcdrop_samples: int = 1
+    ):
+        """
+        Calculate the confidence histogrram for each class given a sample.
         masked_features: input sample of shape (batch_size, n_features)
         mcdrop_samples: mc dropout samples to use
         """
@@ -105,7 +115,8 @@ class Kachuee2019PQModule(nn.Module):
         return class_probabilities.mean(dim=1)  # (batch_size, n_classes)
 
     def predict(self, x: torch.Tensor, mcdrop_samples: int = 1):
-        """Make class prediction for a sample.
+        """
+        Make class prediction for a sample.
         x: input sample
         mcdrop_samples: mc dropout samples to use
         """
@@ -136,7 +147,8 @@ class LitKachuee2019PQModule(pl.LightningModule):
     def forward(
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Forward pass.
+        """
+        Forward pass.
 
         Args:
             masked_features: currently observed features, with zeros for missing features
@@ -151,19 +163,27 @@ class LitKachuee2019PQModule(pl.LightningModule):
         return class_logits, qvalues
 
     @override
-    def training_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
+    def training_step(
+        self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int
+    ):
         features: Features = batch[0]
         label: Label = batch[1]
 
-        masking_probability = self.min_masking_probability + torch.rand(1).item() * (
+        masking_probability = self.min_masking_probability + torch.rand(
+            1
+        ).item() * (
             self.max_masking_probability - self.min_masking_probability
         )
         self.log("masking_probability", masking_probability, sync_dist=True)
 
-        masked_features, feature_mask, _ = mask_data(features, p=masking_probability)
+        masked_features, feature_mask, _ = mask_data(
+            features, p=masking_probability
+        )
         class_logits, _ = self(masked_features, feature_mask)
         loss = F.cross_entropy(
-            class_logits, label, weight=self.class_weight.to(class_logits.device)
+            class_logits,
+            label,
+            weight=self.class_weight.to(class_logits.device),
         )
         self.log("train_loss", loss)
         return loss
@@ -184,7 +204,9 @@ class LitKachuee2019PQModule(pl.LightningModule):
         return loss, acc
 
     @override
-    def validation_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
+    def validation_step(
+        self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int
+    ):
         feature_values, y = batch
 
         # Mask features with minimum probability -> see many features (observations)
@@ -193,7 +215,9 @@ class LitKachuee2019PQModule(pl.LightningModule):
             > self.min_masking_probability
         )
         feature_values_many_observations = feature_values.clone()
-        feature_values_many_observations[feature_mask_many_observations == 0] = 0
+        feature_values_many_observations[
+            feature_mask_many_observations == 0
+        ] = 0
         loss_many_observations, acc_many_observations = self._get_loss_and_acc(
             feature_values_many_observations, feature_mask_many_observations, y
         )

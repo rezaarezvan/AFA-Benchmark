@@ -1,4 +1,4 @@
-from typing import final, override
+from typing import TYPE_CHECKING, Any, final, override
 
 import torch
 from tensordict import TensorDict, TensorDictBase
@@ -6,22 +6,25 @@ from torchrl.data import Binary, Categorical, Composite, Unbounded
 from torchrl.envs import EnvBase
 
 from afa_rl.custom_types import (
-    AFARewardFn,
     AFADatasetFn,
+    AFARewardFn,
 )
-from common.custom_types import (
-    FeatureMask,
-    Features,
-    Label,
-    MaskedFeatures,
-)
+
+if TYPE_CHECKING:
+    from common.custom_types import (
+        FeatureMask,
+        Features,
+        Label,
+        MaskedFeatures,
+    )
 
 
 @final
 class AFAEnv(EnvBase):
-    """A fixed-length MDP for active feature acquisition (AFA).
+    """
+    A dynamic-length MDP for active feature acquisition (AFA).
 
-    It assumes that the agent can choose to acquire features `hard_budget` times.
+    The episode length is at most `hard_budget`, and the agent can choose to stop earlier.
     """
 
     batch_locked = False
@@ -50,14 +53,14 @@ class AFAEnv(EnvBase):
 
         self._make_spec()
 
-    def _make_spec(self):
+    def _make_spec(self) -> None:
         self.observation_spec = Composite(
             feature_mask=Binary(
                 shape=self.batch_size + torch.Size((self.feature_size,)),
                 dtype=torch.bool,
             ),
             action_mask=Binary(
-                shape=self.batch_size + torch.Size((self.feature_size,)),
+                shape=self.batch_size + torch.Size((self.feature_size + 1,)),
                 dtype=torch.bool,
             ),
             masked_features=Unbounded(
@@ -75,9 +78,9 @@ class AFAEnv(EnvBase):
             ),
             batch_size=self.batch_size,
         )
-        # One action per feature
+        # One action per feature + stop action
         self.action_spec = Categorical(
-            n=self.feature_size,
+            n=self.feature_size + 1,
             shape=self.batch_size + torch.Size(()),
             dtype=torch.int64,
         )
@@ -89,15 +92,19 @@ class AFAEnv(EnvBase):
         )
 
     @override
-    def _reset(self, tensordict: TensorDictBase | None, **_):
+    def _reset(
+        self, tensordict: TensorDictBase | None, **_: dict[str, Any]
+    ) -> TensorDict:
         if tensordict is None:
-            tensordict = TensorDict({}, batch_size=self.batch_size, device=self.device)
+            tensordict = TensorDict(
+                {}, batch_size=self.batch_size, device=self.device
+            )
 
         # Get a sample from the dataset
         features, label = self.dataset_fn(tensordict.batch_size)
         features: Features = features.to(tensordict.device)
         label: Label = label.to(tensordict.device)
-        # The indices of chosen features so far, start with no features
+        # Mask of chosen features so far, start with no features
         feature_mask: FeatureMask = torch.zeros_like(
             features, dtype=torch.bool, device=tensordict.device
         )
@@ -109,7 +116,7 @@ class AFAEnv(EnvBase):
         td = TensorDict(
             {
                 "action_mask": torch.ones(
-                    tensordict.batch_size + (self.feature_size,),
+                    tensordict.batch_size + (self.feature_size + 1,),
                     dtype=torch.bool,
                     device=tensordict.device,
                 ),
@@ -126,23 +133,38 @@ class AFAEnv(EnvBase):
     @override
     def _step(self, tensordict: TensorDictBase) -> TensorDictBase:
         new_feature_mask: FeatureMask = tensordict["feature_mask"].clone()
-        new_masked_features: MaskedFeatures = tensordict["masked_features"].clone()
+        new_masked_features: MaskedFeatures = tensordict[
+            "masked_features"
+        ].clone()
         new_action_mask = tensordict["action_mask"].clone()
 
         batch_numel = tensordict.batch_size.numel()
         batch_idx = torch.arange(batch_numel, device=tensordict.device)
 
-        # Acquire new features
-        new_feature_mask[batch_idx, tensordict["action"]] = True
-        new_masked_features[batch_idx, tensordict["action"]] = tensordict["features"][
-            batch_idx, tensordict["action"]
+        # Acquire new features (featue-acquiring actions are 1..feature_size)
+        new_feature_selected_mask = tensordict["action"] > 0
+        # print(f"{new_feature_selected_mask.shape=}")
+        # print(f"{tensordict['action'].shape=}")
+        # print(f"{new_feature_mask.shape=}")
+        new_feature_mask[
+            batch_idx[new_feature_selected_mask],
+            tensordict[new_feature_selected_mask]["action"] - 1,
+        ] = True
+        new_masked_features[
+            batch_idx[new_feature_selected_mask],
+            tensordict[new_feature_selected_mask]["action"] - 1,
+        ] = tensordict["features"][
+            batch_idx[new_feature_selected_mask],
+            tensordict[new_feature_selected_mask]["action"] - 1,
         ].clone()
 
         # Update action_mask
         new_action_mask[batch_idx, tensordict["action"]] = False
 
-        # Done if we exceed the hard budget
-        done = (new_feature_mask.sum(-1) >= self.hard_budget).unsqueeze(-1)
+        # Done if we exceed the hard budget or choose to stop (action 0)
+        done = (
+            (new_feature_mask.sum(-1) >= self.hard_budget).unsqueeze(-1)
+        ) | (tensordict["action"].unsqueeze(-1) == 0)
 
         # Always calculate a possible reward
         reward = self.reward_fn(
@@ -171,8 +193,8 @@ class AFAEnv(EnvBase):
         )
 
     @override
-    def _set_seed(self, seed: int | None):
-        rng = torch.manual_seed(seed)  # type: ignore
+    def _set_seed(self, seed: int | None) -> None:
+        rng = torch.manual_seed(seed)
         self.rng = rng
 
 

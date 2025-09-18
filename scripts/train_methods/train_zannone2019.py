@@ -1,36 +1,36 @@
-import matplotlib
-from matplotlib import pyplot as plt
 import gc
 import logging
 from pathlib import Path
-from typing import Any, cast
 from tempfile import TemporaryDirectory
+from typing import Any, cast
 
 import hydra
-from omegaconf import OmegaConf
+import matplotlib
 import torch
+from matplotlib import pyplot as plt
+from omegaconf import OmegaConf
 from torch.nn import functional as F
 from torchrl.collectors import SyncDataCollector
 from torchrl.envs import ExplorationType, check_env_specs, set_exploration_type
-from afa_rl.agents import Agent
 from tqdm import tqdm
 
 import wandb
 from afa_rl.afa_env import AFAEnv
 from afa_rl.afa_methods import RLAFAMethod
-from afa_rl.zannone2019.agents import Zannone2019Agent
-from afa_rl.zannone2019.reward import get_zannone2019_reward_fn
+from afa_rl.agents import Agent
 from afa_rl.datasets import get_afa_dataset_fn
-from afa_rl.zannone2019.models import (
-    Zannone2019PretrainingModel,
-    Zannone2019AFAClassifier,
-    Zannone2019AFAPredictFn,
-)
-from afa_rl.zannone2019.utils import (
-    load_pretrained_model_artifacts,
-)
 from afa_rl.utils import (
     get_eval_metrics,
+)
+from afa_rl.zannone2019.agents import Zannone2019Agent
+from afa_rl.zannone2019.models import (
+    Zannone2019AFAClassifier,
+    Zannone2019AFAPredictFn,
+    Zannone2019PretrainingModel,
+)
+from afa_rl.zannone2019.reward import get_zannone2019_reward_fn
+from afa_rl.zannone2019.utils import (
+    load_pretrained_model_artifacts,
 )
 from common.afa_methods import RandomDummyAFAMethod
 from common.config_classes import Zannone2019TrainConfig
@@ -42,7 +42,6 @@ from common.utils import (
     get_class_probabilities,
     set_seed,
 )
-
 from eval.metrics import eval_afa_method
 from eval.utils import plot_metrics
 
@@ -92,13 +91,17 @@ def visualize_pretrained_model(
         )
     )
     without_label_z = without_label_z.cpu()
-    without_label_reconstructed_features = without_label_reconstructed_features.cpu()
+    without_label_reconstructed_features = (
+        without_label_reconstructed_features.cpu()
+    )
 
     features = features.cpu()
 
     # Plot everything
     def _plot(
-        _features: torch.Tensor, _z: torch.Tensor, _reconstructed_features: torch.Tensor
+        _features: torch.Tensor,
+        _z: torch.Tensor,
+        _reconstructed_features: torch.Tensor,
     ):
         fig, axs = plt.subplots(5, 3)
         for i in range(5):
@@ -174,7 +177,9 @@ log = logging.getLogger(__name__)
 
 
 @hydra.main(
-    version_base=None, config_path="../../conf/train/zannone2019", config_name="config"
+    version_base=None,
+    config_path="../../conf/train/zannone2019",
+    config_name="config",
 )
 def main(cfg: Zannone2019TrainConfig):
     log.debug(cfg)
@@ -183,7 +188,9 @@ def main(cfg: Zannone2019TrainConfig):
     device = torch.device(cfg.device)
 
     run = wandb.init(
-        config=cast(dict[str, Any], OmegaConf.to_container(cfg, resolve=True)),
+        config=cast(
+            "dict[str, Any]", OmegaConf.to_container(cfg, resolve=True)
+        ),
         job_type="training",
         tags=["zannone2019"],
         dir="wandb",
@@ -204,7 +211,9 @@ def main(cfg: Zannone2019TrainConfig):
     ) = load_pretrained_model_artifacts(cfg.pretrained_model_artifact_name)
     pretrained_model = pretrained_model.to(device)
     pretrained_model.eval()
-    pretrained_model.requires_grad_(False)  # zannone2019 does not train jointly
+    pretrained_model.requires_grad_(
+        False
+    )  # zannone2019 does not train jointly
 
     if cfg.visualize:
         matplotlib.use("WebAgg")
@@ -216,7 +225,9 @@ def main(cfg: Zannone2019TrainConfig):
             device=device,
         )
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
-    log.debug(f"Class probabilities in training set: {train_class_probabilities}")
+    log.debug(
+        f"Class probabilities in training set: {train_class_probabilities}"
+    )
     class_weights = 1 / train_class_probabilities
     class_weights = (class_weights / class_weights.sum()).to(device)
     n_features = train_dataset.features.shape[-1]
@@ -230,7 +241,9 @@ def main(cfg: Zannone2019TrainConfig):
         # Use the pretrained model to generate new artificial data
         generated_features = torch.zeros(cfg.n_generated_samples, n_features)
         generated_labels = torch.zeros(cfg.n_generated_samples, n_classes)
-        n_generation_batches = cfg.n_generated_samples // cfg.generation_batch_size
+        n_generation_batches = (
+            cfg.n_generated_samples // cfg.generation_batch_size
+        )
         for batch_idx in tqdm(
             range(n_generation_batches), desc="Generating artificial samples"
         ):
@@ -264,7 +277,9 @@ def main(cfg: Zannone2019TrainConfig):
 
     # MDP expects special dataset functions
     train_dataset_fn = get_afa_dataset_fn(train_features, train_labels)
-    val_dataset_fn = get_afa_dataset_fn(val_dataset.features, val_dataset.labels)
+    val_dataset_fn = get_afa_dataset_fn(
+        val_dataset.features, val_dataset.labels
+    )
 
     train_env = AFAEnv(
         dataset_fn=train_dataset_fn,
@@ -341,7 +356,9 @@ def main(cfg: Zannone2019TrainConfig):
                         eval_env.rollout(
                             cfg.eval_max_steps, agent.get_exploitative_policy()
                         ).squeeze(0)
-                        for _ in tqdm(range(cfg.n_eval_episodes), desc="Evaluating")
+                        for _ in tqdm(
+                            range(cfg.n_eval_episodes), desc="Evaluating"
+                        )
                     ]
                 metrics_eval = get_eval_metrics(
                     td_evals, Zannone2019AFAPredictFn(pretrained_model)
@@ -364,7 +381,9 @@ def main(cfg: Zannone2019TrainConfig):
         pretrained_model = pretrained_model.to(torch.device("cpu"))
         afa_method = RLAFAMethod(
             agent.get_exploitative_policy().to("cpu"),
-            Zannone2019AFAClassifier(pretrained_model, device=torch.device("cpu")),
+            Zannone2019AFAClassifier(
+                pretrained_model, device=torch.device("cpu")
+            ),
         )
         # Save the method to a temporary directory and load it again to ensure it is saved correctly
         with TemporaryDirectory(delete=False) as tmp_path_str:
@@ -423,7 +442,9 @@ def main(cfg: Zannone2019TrainConfig):
             )
 
             afa_method_artifact.add_dir(str(tmp_path))
-            run.log_artifact(afa_method_artifact, aliases=cfg.output_artifact_aliases)
+            run.log_artifact(
+                afa_method_artifact, aliases=cfg.output_artifact_aliases
+            )
 
         run.finish()
 

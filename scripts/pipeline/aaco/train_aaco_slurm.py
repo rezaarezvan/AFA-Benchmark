@@ -18,7 +18,9 @@ OUTPUT_ALIAS = "KDD"
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(description="Launch AACO training jobs on SLURM")
+    parser = argparse.ArgumentParser(
+        description="Launch AACO training jobs on SLURM"
+    )
     parser.add_argument(
         "--dry-run", action="store_true", help="Print commands without running"
     )

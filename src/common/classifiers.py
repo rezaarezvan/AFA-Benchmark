@@ -1,9 +1,11 @@
 """Various AFAClassifier implementations."""
 
+from pathlib import Path
 from typing import Self, final, override
+
 import torch
 from torch import nn
-from pathlib import Path
+
 from common.custom_types import (
     AFAClassifier,
     FeatureMask,
@@ -43,7 +45,9 @@ class RandomDummyAFAClassifier(AFAClassifier):
 
     @classmethod
     @override
-    def load(cls, path: Path, device: torch.device) -> "RandomDummyAFAClassifier":
+    def load(
+        cls, path: Path, device: torch.device
+    ) -> "RandomDummyAFAClassifier":
         """Loads the classifier from a file, placing it on the given device."""
         # Load the number of classes
         n_classes = torch.load(path, map_location=device)
@@ -98,7 +102,8 @@ class Predictor(nn.Module):
 
 
 class NNClassifier(AFAClassifier):
-    """A trainable classifier that uses a simple predictor
+    """
+    A trainable classifier that uses a simple predictor
     and handles masked input.
     """
 
@@ -128,7 +133,9 @@ class NNClassifier(AFAClassifier):
     @classmethod
     def load(cls, path: Path, device: torch.device) -> "NNClassifier":
         checkpoint = torch.load(path, map_location=device)
-        classifier = cls(checkpoint["input_dim"], checkpoint["output_dim"], device)
+        classifier = cls(
+            checkpoint["input_dim"], checkpoint["output_dim"], device
+        )
         classifier.predictor.load_state_dict(checkpoint["model_state_dict"])
         return classifier
 

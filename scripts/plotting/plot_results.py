@@ -1,20 +1,21 @@
-import hydra
-import yaml
-import torch
-import wandb
 import logging
 import tempfile
-import numpy as np
-import matplotlib as mpl
-
-from typing import Any
-from pathlib import Path
-from omegaconf import OmegaConf
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
+from typing import Any
+
+import hydra
+import matplotlib as mpl
+import numpy as np
+import torch
+import yaml
 from matplotlib import pyplot as plt
 from matplotlib.ticker import MaxNLocator
+from omegaconf import OmegaConf
+
+import wandb
 from common.config_classes import PlotConfig
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 log = logging.getLogger(__name__)
 
@@ -160,7 +161,9 @@ def create_figure(x, grouped_metrics, metric_cfg):
             markeredgewidth=1.5,
         )
 
-        ax.fill_between(x, mean - std, mean + std, alpha=0.2, color=style["color"])
+        ax.fill_between(
+            x, mean - std, mean + std, alpha=0.2, color=style["color"]
+        )
 
     ax.set_xlabel("Number of Features Selected")
     ax.set_ylabel(metric_cfg.description)
@@ -193,7 +196,8 @@ def save_figures(fig, filename_base):
             ("png", png_path),
         ]:
             artifact = wandb.Artifact(
-                name=f"figure-{filename_base}-{format_ext}", type="publication_figure"
+                name=f"figure-{filename_base}-{format_ext}",
+                type="publication_figure",
             )
             artifact.add_file(str(file_path))
             wandb.log_artifact(artifact)
@@ -221,7 +225,9 @@ def load_single_artifact(
             "method_type": method_type,
             "budget": eval_artifact.metadata.get("budget", None),
             "seed": eval_artifact.metadata.get("seed", None),
-            "classifier_type": eval_artifact.metadata.get("classifier_type", None),
+            "classifier_type": eval_artifact.metadata.get(
+                "classifier_type", None
+            ),
         }
         return (info, metrics)
     except Exception as e:
@@ -240,7 +246,8 @@ def load_eval_results(
     eval_results = []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
-            executor.submit(load_single_artifact, name): name for name in artifact_names
+            executor.submit(load_single_artifact, name): name
+            for name in artifact_names
         }
         for future in as_completed(futures):
             result = future.result()
@@ -249,7 +256,9 @@ def load_eval_results(
     return eval_results
 
 
-@hydra.main(version_base=None, config_path="../../conf/plot", config_name="config")
+@hydra.main(
+    version_base=None, config_path="../../conf/plot", config_name="config"
+)
 def main(cfg: PlotConfig):
     log.debug(cfg)
     torch.set_float32_matmul_precision("medium")
@@ -275,7 +284,9 @@ def main(cfg: PlotConfig):
             if info["dataset_type"] == dataset_type
         )
         for classifier_type in classifier_types:
-            log.info(f"  Plotting results for classifier type: {classifier_type}")
+            log.info(
+                f"  Plotting results for classifier type: {classifier_type}"
+            )
             budgets = set(
                 info["budget"]
                 for (info, _) in eval_results
@@ -287,8 +298,8 @@ def main(cfg: PlotConfig):
                 # x-axis will be [1, budget]
                 x = np.arange(1, budget + 1)
                 # Organize by method_type
-                grouped_metrics: dict[str, list[dict[str, torch.Tensor]]] = defaultdict(
-                    list
+                grouped_metrics: dict[str, list[dict[str, torch.Tensor]]] = (
+                    defaultdict(list)
                 )
 
                 for info, metrics in eval_results:
@@ -305,9 +316,9 @@ def main(cfg: PlotConfig):
 
                 for metric_cfg in cfg.metric_keys_and_descriptions:
                     fig = create_figure(x, grouped_metrics, metric_cfg)
-                    filename_base = f"{dataset_type}_{classifier_type}_budget{budget}_{
-                        metric_cfg.key
-                    }"
+                    filename_base = f"{dataset_type}_{classifier_type}_budget{
+                        budget
+                    }_{metric_cfg.key}"
                     save_figures(fig, filename_base)
 
                     plt.close(fig)

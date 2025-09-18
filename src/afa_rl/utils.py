@@ -2,27 +2,21 @@ from collections import defaultdict
 from collections.abc import Callable
 from typing import Any
 
-from tensordict import TensorDictBase
 import torch
-from jaxtyping import Integer
+from jaxtyping import Float, Integer
+from tensordict import TensorDictBase
 from torch import Tensor, nn
-import wandb
-
-from afa_rl.custom_types import FeatureSet
-from common.custom_types import (
-    AFAPredictFn,
-    AFASelection,
-    Features,
-    MaskedFeatures,
-    FeatureMask,
-)
-
-
-from jaxtyping import Float
 from torch.nn import functional as F
 
+import wandb
+from afa_rl.custom_types import FeatureSet
 from common.custom_types import (
     AFADataset,
+    AFAPredictFn,
+    AFASelection,
+    FeatureMask,
+    Features,
+    MaskedFeatures,
 )
 
 
@@ -53,7 +47,9 @@ def get_feature_set(
         lengths[i] = len(observed_feature_indices)
 
         # Create a mask for the observed features
-        mask = torch.zeros(n_features, dtype=torch.bool, device=masked_features.device)
+        mask = torch.zeros(
+            n_features, dtype=torch.bool, device=masked_features.device
+        )
         mask[observed_feature_indices] = 1
 
         # Update feature_set: first column with masked feature values
@@ -71,10 +67,13 @@ def get_feature_set(
 
 def shuffle_feature_set(feature_set: FeatureSet, lengths: Tensor):
     """Shuffle a feature set."""
-    shuffled_feature_set = torch.zeros_like(feature_set, device=feature_set.device)
+    shuffled_feature_set = torch.zeros_like(
+        feature_set, device=feature_set.device
+    )
     for i in range(feature_set.shape[0]):
         shuffled_feature_set[i, : lengths[i]] = feature_set[
-            i, torch.randperm(int(lengths[i].item()), device=feature_set.device)
+            i,
+            torch.randperm(int(lengths[i].item()), device=feature_set.device),
         ]
 
     return shuffled_feature_set
@@ -85,7 +84,8 @@ def get_image_feature_set(
     feature_mask: FeatureMask,
     image_shape: tuple[int, int],
 ) -> FeatureSet:
-    """Convert a partially observed image and the indices to a feature set.
+    """
+    Convert a partially observed image and the indices to a feature set.
 
     The output has shape (batch, HxW, 3), where each row in the third dimension is
     [value, row, col] for observed pixels in each batch. Unobserved pixels are
@@ -113,7 +113,8 @@ def get_image_feature_set(
 
         # Stack [value, row, col] for observed pixels
         feature_set = torch.stack(
-            [values, obs_indices[:, 0].float(), obs_indices[:, 1].float()], dim=1
+            [values, obs_indices[:, 0].float(), obs_indices[:, 1].float()],
+            dim=1,
         )
 
         # Create a tensor of size (H×W, 3) by padding unobserved pixels with zeros
@@ -243,7 +244,9 @@ def resample_invalid_actions(actions, action_mask, action_values):
 
     # Select the highest-value valid action for each invalid case
     valid_action_values = action_values.clone()
-    valid_action_values[~action_mask] = float("-inf")  # Mask out invalid actions
+    valid_action_values[~action_mask] = float(
+        "-inf"
+    )  # Mask out invalid actions
     best_valid_actions = valid_action_values.argmax(dim=-1)
 
     resampled_actions[invalid_mask] = best_valid_actions[invalid_mask]
@@ -262,7 +265,8 @@ def get_sequential_module_norm(module: nn.Sequential):
 def mask_data(
     features: Features, p: float
 ) -> tuple[MaskedFeatures, FeatureMask, Tensor]:
-    """Given features, mask them with probability p.
+    """
+    Given features, mask them with probability p.
 
     Returns the masked features, feature mask, and which rows have at least one feature.
 
@@ -331,9 +335,13 @@ def check_masked_classifier_performance(
             feature_mask_optimal[i, context * 3 + 1 : context * 3 + 4] = 1
         masked_features_optimal = features.clone()
         masked_features_optimal[feature_mask_optimal == 0] = 0
-        probs_optimal = afa_predict_fn(masked_features_optimal, feature_mask_optimal)
+        probs_optimal = afa_predict_fn(
+            masked_features_optimal, feature_mask_optimal
+        )
         accuracy_optimal = (
-            (probs_optimal.argmax(dim=-1) == labels.argmax(dim=-1)).float().mean()
+            (probs_optimal.argmax(dim=-1) == labels.argmax(dim=-1))
+            .float()
+            .mean()
         )
 
         # Calculate the loss for the 50% feature case. Useful for setting acquisition costs
@@ -366,7 +374,9 @@ def afacontext_optimal_selection(
     selection[case1_mask] = 0
 
     # Case 2: between 1 and 3 features are selected, select the next feature based on the context
-    case2_mask = (feature_mask.sum(dim=-1) > 0) & (feature_mask.sum(dim=-1) < 4)
+    case2_mask = (feature_mask.sum(dim=-1) > 0) & (
+        feature_mask.sum(dim=-1) < 4
+    )
     case2_start_idx = masked_features[:, 0].int() * 3 + 1
     case2_end_idx = case2_start_idx + 3
     for i in range(masked_features.size(0)):
@@ -439,7 +449,9 @@ def cubeSimple_worst_selection(
 
 
 def cubeSimple_worst_selection_wrapper(td: TensorDictBase) -> TensorDictBase:
-    td["action"] = cubeSimple_worst_selection(td["masked_features"], td["feature_mask"])
+    td["action"] = cubeSimple_worst_selection(
+        td["masked_features"], td["feature_mask"]
+    )
     return td
 
 
@@ -472,7 +484,9 @@ def get_eval_metrics(
         if probs.argmax(dim=-1) == td_end["label"].argmax(dim=-1):
             n_correct_samples += 1
     eval_metrics["reward_sum"] /= len(eval_tds)
-    eval_metrics["actions"] = wandb.Histogram(eval_metrics["actions"], num_bins=20)
+    eval_metrics["actions"] = wandb.Histogram(
+        eval_metrics["actions"], num_bins=20
+    )
     eval_metrics["accuracy"] = n_correct_samples / len(eval_tds)
     return eval_metrics
 
@@ -484,7 +498,8 @@ def weighted_cross_entropy(
     eps: float = 1e-8,
     reduction: str = "none",  # or 'none', 'sum'
 ) -> torch.Tensor:
-    """Computes weighted cross-entropy between predicted and target distributions.
+    """
+    Computes weighted cross-entropy between predicted and target distributions.
 
     Args:
         input_probs: (batch_size, num_classes), predicted class probabilities.
@@ -509,12 +524,11 @@ def weighted_cross_entropy(
 
     if reduction == "mean":
         return loss_per_sample.mean()
-    elif reduction == "sum":
+    if reduction == "sum":
         return loss_per_sample.sum()
-    elif reduction == "none":
+    if reduction == "none":
         return loss_per_sample
-    else:
-        raise ValueError(f"Invalid reduction: {reduction}")
+    raise ValueError(f"Invalid reduction: {reduction}")
 
 
 str_to_activation_class_mapping: dict[str, type[nn.Module]] = {

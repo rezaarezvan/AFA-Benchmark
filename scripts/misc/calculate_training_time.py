@@ -1,19 +1,18 @@
 """Calculate the average time required to train each method presented in a plotting run."""
 
-from collections import defaultdict
-import numpy as np
-
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
+from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 import hydra
+import numpy as np
 import torch
-import wandb
-
-from common.config_classes import TrainingTimeCalculationConfig
 from omegaconf import OmegaConf
+
+import wandb
+from common.config_classes import TrainingTimeCalculationConfig
 
 
 def process_eval_artifact_sync(eval_artifact, training_times):
@@ -80,7 +79,9 @@ def main(cfg: TrainingTimeCalculationConfig) -> None:
     # In seconds
     training_times: defaultdict[str, list[int]] = defaultdict(list)
 
-    plotting_runs = [wandb.Api().run(run_name) for run_name in cfg.plotting_run_names]
+    plotting_runs = [
+        wandb.Api().run(run_name) for run_name in cfg.plotting_run_names
+    ]
 
     process_all_eval_artifacts(
         plotting_runs, training_times, max_workers=cfg.max_workers
@@ -105,7 +106,9 @@ def main(cfg: TrainingTimeCalculationConfig) -> None:
         metrics_save_path = Path(f.name)
         torch.save(processed_training_times, metrics_save_path)
     training_time_artifact.add_file(str(metrics_save_path), name="metrics.pt")
-    run.log_artifact(training_time_artifact, aliases=cfg.output_artifact_aliases)
+    run.log_artifact(
+        training_time_artifact, aliases=cfg.output_artifact_aliases
+    )
     run.finish()
 
 

@@ -28,7 +28,8 @@ def main():
     jobs = []
     for dataset in args.dataset:
         dataset_artifact_names = [
-            f"{dataset}_split_{split}:{args.dataset_alias}" for split in args.split
+            f"{dataset}_split_{split}:{args.dataset_alias}"
+            for split in args.split
         ]
         cmd = (
             f"uv run scripts/pretrain_models/pretrain_shim2018.py -m "

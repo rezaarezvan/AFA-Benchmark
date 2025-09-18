@@ -1,7 +1,6 @@
-from jaxtyping import Bool
-
 import torch
 import torch.nn.functional as F
+from jaxtyping import Bool
 from torch import Tensor
 
 from afa_rl.custom_types import (
@@ -23,7 +22,8 @@ from common.custom_types import (
 def get_zannone2019_reward_fn(
     pretrained_model: Zannone2019PretrainingModel, weights: Tensor
 ) -> AFARewardFn:
-    """The reward function for zannone2019.
+    """
+    The reward function for zannone2019.
 
     The agent receives a reward at each step of the episode, equal to the negative classification loss.
     """
@@ -49,7 +49,9 @@ def get_zannone2019_reward_fn(
             new_augmented_masked_features, new_augmented_feature_mask
         )
         logits = pretrained_model.classifier(mu)
-        reward = -F.cross_entropy(logits, label, weight=weights, reduction="none")
+        reward = -F.cross_entropy(
+            logits, label, weight=weights, reduction="none"
+        )
 
         return reward
 

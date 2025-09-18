@@ -1,9 +1,8 @@
-from jaxtyping import Bool
-from typing import Protocol
 from collections.abc import Callable
+from typing import Protocol
 
 import torch
-from jaxtyping import Float, Integer
+from jaxtyping import Bool, Float, Integer
 from torch import Tensor
 
 from common.custom_types import (

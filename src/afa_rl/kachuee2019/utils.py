@@ -1,6 +1,10 @@
 from jaxtyping import Float
 from torch import Tensor
-from afa_rl.kachuee2019.models import Kachuee2019PQModule, LitKachuee2019PQModule
+
+from afa_rl.kachuee2019.models import (
+    Kachuee2019PQModule,
+    LitKachuee2019PQModule,
+)
 from common.config_classes import Kachuee2019PretrainConfig
 
 

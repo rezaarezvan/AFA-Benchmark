@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-from torch.distributions import RelaxedOneHotCategorical, Categorical
+from torch.distributions import Categorical, RelaxedOneHotCategorical
 
 
 def restore_parameters(model, best_model):
@@ -32,7 +32,8 @@ def ind_to_onehot(inds, n):
 
 
 class MaskLayer(nn.Module):
-    """Mask layer for tabular data.
+    """
+    Mask layer for tabular data.
 
     Args:
       append:
@@ -63,6 +64,5 @@ class ConcreteSelector(nn.Module):
         if deterministic:
             # TODO this is somewhat untested, but seems like best way to preserve argmax
             return torch.softmax(logits / (self.gamma * temp), dim=-1)
-        else:
-            dist = RelaxedOneHotCategorical(temp, logits=logits / self.gamma)
-            return dist.rsample()
+        dist = RelaxedOneHotCategorical(temp, logits=logits / self.gamma)
+        return dist.rsample()

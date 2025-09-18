@@ -1,0 +1,48 @@
+line-length = 79
+
+exclude = []
+
+[lint]
+select = [
+    "ALL"
+]
+ignore = [
+  "D100", # undocumented-public-module
+  "COM812", # missing-trailing-comma
+  "D212", # multi-line-summary-first-line
+  "D203", # incorrect-blank-line-before-class
+  "RET504", # unnecessary-assign
+  "D100", # undocumented-public-module
+  "D101", # undocumented-public-class
+  "D102", # undocumented-public-method
+  "D103", # undocumented-public-function
+  "D104", # undocumented-public-package
+  "D105", # undocumented-magic-method
+  "D106", # undocumented-public-nested-class
+  "D107", # undocumented-public-init
+  "ERA001", # commented-out-code
+  "ANN204", # missing-return-type-special-method. I don't want to annotate __init__
+  "T201", # print,
+  "T203", # pprint
+  "E501", # line-too-long. `ruff format` already fixes this.
+  "D400", # missing-trailing-period. D415 already covers this.
+  "PLR0913", # too-many-arguments
+  "INP001", # implicit-namespace-package
+  "S101", # assert. Useful in unit tests
+  "RUF005", # collection-literal-concatenation. torch.Size cannot be unpacked
+  "FBT003", # boolean-positional-value-in-call
+  "N812", # lowercase-imported-as-non-lowercase
+  "D413", # missing-blank-line-after-last-section
+  "PLR2004", # magic-value-comparison
+  "FBT001", # boolean-type-hint-positional-argument
+  "S311", # suspicious-non-cryptographic-random-usage
+  "F722", # forward-annotation-syntax-error
+  "G004", # logging-f-string
+  "F821", # undefined-name
+  "FIX002", # line-contains-todo
+  "FIX004", # line-contains-hack
+
+]
+
+[format]
+docstring-code-format = true

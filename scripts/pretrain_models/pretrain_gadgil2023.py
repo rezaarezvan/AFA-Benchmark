@@ -1,20 +1,25 @@
 import gc
-import wandb
-import hydra
 import logging
-import torch
-from torch import nn
-from pathlib import Path
 from datetime import datetime
-from torchmetrics import Accuracy
+from pathlib import Path
 from tempfile import TemporaryDirectory
-from omegaconf import OmegaConf
-from afa_discriminative.utils import MaskLayer
-from afa_discriminative.models import MaskingPretrainer, fc_Net
-from afa_discriminative.datasets import prepare_datasets
-from common.utils import load_dataset_artifact, set_seed, get_class_probabilities
-from common.config_classes import Gadgil2023PretrainingConfig
 
+import hydra
+import torch
+from omegaconf import OmegaConf
+from torch import nn
+from torchmetrics import Accuracy
+
+import wandb
+from afa_discriminative.datasets import prepare_datasets
+from afa_discriminative.models import MaskingPretrainer, fc_Net
+from afa_discriminative.utils import MaskLayer
+from common.config_classes import Gadgil2023PretrainingConfig
+from common.utils import (
+    get_class_probabilities,
+    load_dataset_artifact,
+    set_seed,
+)
 
 log = logging.getLogger(__name__)
 
@@ -37,7 +42,9 @@ def main(cfg: Gadgil2023PretrainingConfig):
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
 
-    train_dataset, val_dataset, _, _ = load_dataset_artifact(cfg.dataset_artifact_name)
+    train_dataset, val_dataset, _, _ = load_dataset_artifact(
+        cfg.dataset_artifact_name
+    )
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
     class_weights = len(train_class_probabilities) / (
         len(train_class_probabilities) * train_class_probabilities
@@ -100,7 +107,10 @@ def main(cfg: Gadgil2023PretrainingConfig):
 
     run.log_artifact(
         pretrained_model_artifact,
-        aliases=[*cfg.output_artifact_aliases, datetime.now().strftime("%b%d")],
+        aliases=[
+            *cfg.output_artifact_aliases,
+            datetime.now().strftime("%b%d"),
+        ],
     )
     run.finish()
 
