@@ -87,6 +87,7 @@ AFA_DATASET_TYPES = {
     "physionet",
     "miniboone",
     "FashionMNIST",
+    "bank_marketing",
 }
 
 
@@ -141,6 +142,11 @@ def get_afa_dataset_class(name: str) -> type[AFADataset]:  # noqa: C901, PLR0911
         from common.datasets import FashionMNISTDataset  # noqa: PLC0415
 
         return FashionMNISTDataset
+    if name == "bank_marketing":
+        from common.datasets import BankMarketingDataset
+
+        return BankMarketingDataset
+
     msg = f"Unknown AFA dataset: {name}"
     raise ValueError(msg)
 

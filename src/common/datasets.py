@@ -9,6 +9,9 @@ from torch import Tensor
 from torch.nn import functional as F
 from torch.utils.data import Dataset
 from torchvision import datasets, transforms
+import urllib.request
+import zipfile
+from sklearn.preprocessing import LabelEncoder
 
 from common.custom_types import (
     AFADataset,
@@ -1437,6 +1440,104 @@ class PhysionetDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     @classmethod
     @override
     def load(cls, path: Path) -> Self:
+        data = torch.load(path)
+        dataset = cls(**data["config"])
+        dataset.features = data["features"]
+        dataset.labels = data["labels"]
+        dataset.feature_names = data["feature_names"]
+        return dataset
+
+
+@final
+class BankMarketingDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
+    n_classes = 2
+    n_features = 16
+
+    def __init__(
+        self, data_path: str = "data/bank_marketing/bank-marketing.csv", seed: int = 123
+    ):
+        super().__init__()
+        self.data_path = data_path
+        self.seed = seed
+        self.feature_names = None
+
+    @override
+    def generate_data(self) -> None:
+        torch.manual_seed(self.seed)
+
+        if not os.path.exists(self.data_path):
+            self._download_dataset()
+
+        df = pd.read_csv(self.data_path, sep=";")
+
+        # Process data
+        target_col = "y" if "y" in df.columns else "deposit"
+        features_df = df.drop(columns=[target_col])
+        target_series = df[target_col].map({"yes": 1, "no": 0})
+
+        # Encode categoricals
+        for col in features_df.columns:
+            if features_df[col].dtype == "object":
+                le = LabelEncoder()
+                features_df[col] = le.fit_transform(features_df[col].astype(str))
+
+        features_df = features_df.fillna(features_df.mean())
+
+        self.features = torch.tensor(features_df.values, dtype=torch.float32)
+        self.labels = torch.nn.functional.one_hot(
+            torch.tensor(target_series.values, dtype=torch.long),
+            num_classes=self.n_classes,
+        ).float()
+
+        BankMarketingDataset.n_features = self.features.shape[1]
+        self.feature_names = features_df.columns.tolist()
+
+        # Clean up raw CSV
+        os.remove(self.data_path)
+
+    def _download_dataset(self):
+        os.makedirs(os.path.dirname(self.data_path), exist_ok=True)
+        url = "https://archive.ics.uci.edu/ml/machine-learning-databases/00222/bank.zip"
+        zip_path = os.path.join(os.path.dirname(self.data_path), "bank.zip")
+
+        urllib.request.urlretrieve(url, zip_path)
+        with zipfile.ZipFile(zip_path, "r") as zip_ref:
+            csv_file = next(
+                f for f in zip_ref.namelist() if f.endswith("bank-full.csv")
+            )
+            zip_ref.extract(csv_file, os.path.dirname(self.data_path))
+            os.rename(
+                os.path.join(os.path.dirname(self.data_path), csv_file), self.data_path
+            )
+        os.remove(zip_path)
+
+    @override
+    def __getitem__(self, idx: int):
+        return self.features[idx], self.labels[idx]
+
+    @override
+    def __len__(self):
+        return len(self.features)
+
+    @override
+    def get_all_data(self):
+        return self.features, self.labels
+
+    @override
+    def save(self, path: Path):
+        torch.save(
+            {
+                "features": self.features,
+                "labels": self.labels,
+                "feature_names": self.feature_names,
+                "config": {"data_path": self.data_path, "seed": self.seed},
+            },
+            path,
+        )
+
+    @classmethod
+    @override
+    def load(cls, path: Path):
         data = torch.load(path)
         dataset = cls(**data["config"])
         dataset.features = data["features"]
