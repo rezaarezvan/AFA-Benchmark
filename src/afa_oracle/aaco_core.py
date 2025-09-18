@@ -83,6 +83,7 @@ def load_mask_generator(dataset_name, input_dim):
         "physionet",
         "miniboone",
         "afacontext",
+        "bank_marketing",
     ]:
         # Paper shows this works nearly as well as 10,000 (for MNIST)
         return random_mask_generator(100, input_dim, 100)
@@ -251,10 +252,14 @@ class AACOOracle:
         )[0]
 
         if len(new_features) == 0:
-            # If best mask equals current mask, force selection of cheapest unobserved feature
-            unobserved = (~observed_mask).nonzero(as_tuple=True)[0]
-            return unobserved[0].item() if len(unobserved) > 0 else None
-        if len(new_features) == 1:
+            # # If best mask equals current mask, force selection of cheapest unobserved feature
+            # unobserved = (~observed_mask).nonzero(as_tuple=True)[0]
+            # return unobserved[0].item() if len(unobserved) > 0 else None
+
+            # ACO optimization returned u(x_o, o) = ∅ - no acquisitions worth the cost
+            return None  # Stop action - let method terminate
+
+        elif len(new_features) == 1:
             return new_features[0].item()
         # If multiple features, select the one with lowest individual loss
         individual_losses = []
