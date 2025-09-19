@@ -234,7 +234,7 @@ class Shim2018TrainConfig:
     n_eval_episodes: int  # how many episodes to average over in evaluation
 
     device: str
-    seed: int
+    seed: int | None
     pretrained_model_lr: float
     activate_joint_training_after_n_batches: int
     output_artifact_aliases: list[str]

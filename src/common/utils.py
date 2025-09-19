@@ -12,11 +12,15 @@ from common.custom_types import AFADataset
 from common.registry import get_afa_dataset_class
 
 
-def set_seed(seed: int) -> None:
+def set_seed(seed: int | None) -> int:
     import os  # noqa: PLC0415
     import random  # noqa: PLC0415
 
     import numpy as np  # noqa: PLC0415
+
+    # If seed is None, generate a random seed
+    if seed is None:
+        seed = random.randint(0, 2**32 - 1)
 
     os.environ["PYTHONHASHSEED"] = str(seed)
     random.seed(seed)
@@ -26,6 +30,8 @@ def set_seed(seed: int) -> None:
     torch.cuda.manual_seed_all(seed)  # For multi-GPU setups
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
+
+    return seed
 
 
 def get_class_probabilities(

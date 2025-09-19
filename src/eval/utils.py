@@ -1,18 +1,20 @@
 from typing import Any
 
 import numpy as np
+import wandb
 from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
 
 
-def plot_metrics(metrics: dict[str, Any]) -> Figure:
+def plot_metrics(metrics: dict[str, Any]) -> wandb.Image:
     """Return a figure containing metrics."""
     assert "accuracy_all" in metrics, "Metrics must contain 'accuracy_all'."
     assert "f1_all" in metrics, "Metrics must contain 'f1_all'."
     assert "bce_all" in metrics, "Metrics must contain 'bce_all'."
 
     budget = len(metrics["accuracy_all"])
-    fig, axs = plt.subplots(1, 2)
+    fig, axs = plt.subplots(1, 2, figsize=(15, 6))
+    fig.subplots_adjust(wspace=0.6)
     budgets = np.arange(1, budget + 1, 1)
 
     # Convert to numpy arrays and handle NaN values
@@ -38,12 +40,18 @@ def plot_metrics(metrics: dict[str, Any]) -> Figure:
     axs[0].set_xlabel("Number of Selected Features (Budget)")
     axs[0].set_ylabel("Score")
     axs[0].set_title("Classification Metrics")
-    axs[0].legend()
+    axs[0].legend(loc="upper left")
+    axs[0].grid(True, alpha=0.3)
 
     axs[1].plot(bce_x, bce_y, color="red")
     axs[1].set_xlabel("Number of Selected Features (Budget)")
     axs[1].set_ylabel("Binary Cross-Entropy")
     axs[1].set_title("Loss Metric")
+    axs[1].grid(True, alpha=0.3)
 
     plt.tight_layout()
-    return fig
+
+    # Convert to WandB Image to prevent automatic Plotly conversion
+    wandb_image = wandb.Image(fig)
+    plt.close(fig)  # Close the figure to free memory
+    return wandb_image

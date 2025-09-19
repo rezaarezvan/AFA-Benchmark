@@ -32,14 +32,19 @@ def get_td_from_masked_features(
     - "masked_features"
     - "feature_mask"
     """
-    # The action mask is almost the same as the negated feature mask but with one extra element
-    action_mask = torch.ones(
-        masked_features.shape[0],
-        masked_features.shape[1],
-        dtype=torch.bool,
-        device=masked_features.device,
+    # The action mask is almost the same as the negated feature mask but with one extra element (the stop action)
+    action_mask = torch.cat(
+        [
+            torch.ones(
+                feature_mask.shape[0],
+                1,
+                dtype=feature_mask.dtype,
+                device=feature_mask.device,
+            ),
+            ~feature_mask,
+        ],
+        dim=-1,
     )
-    action_mask = ~feature_mask
 
     td = TensorDict(
         {

@@ -52,7 +52,7 @@ class Shim2018ActionValueModule(nn.Module):
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
         action_mask: Tensor,
-    ):
+    ) -> Tensor:
         # We do not want to update the embedder weights using the Q-values, this is done separately in the training loop
         # FIX:
         with torch.no_grad():
@@ -165,7 +165,7 @@ class Shim2018Agent(Agent):
 
     @override
     def get_cheap_info(self) -> dict[str, Any]:
-        return {"eps": self.egreedy_tdmodule.eps.item()}  # pyright: ignore
+        return {"eps": self.egreedy_tdmodule.eps.item()}  # pyright: ignore[reportCallIssue]
 
     @override
     def get_expensive_info(self) -> dict[str, Any]:
@@ -236,9 +236,10 @@ class Shim2018Agent(Agent):
 
     @override
     def set_replay_buffer_device(self, device: torch.device) -> None:
-        raise ValueError(
+        error_msg = (
             "set_replay_buffer_device not yet supported for Shim2018Agent"
         )
+        raise ValueError(error_msg)
 
     # @override
     # def save(self, path: Path) -> None:

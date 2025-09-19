@@ -130,11 +130,19 @@ log = logging.getLogger(__name__)
     config_name="config",
 )
 def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
+    log.info("Starting Shim2018 training script")
     log.debug(cfg)
-    set_seed(cfg.seed)
+    if cfg.seed is None:
+        log.info("No seed specified, using random seed")
+    else:
+        log.info(f"Setting seed to {cfg.seed}")
+    actual_seed = set_seed(cfg.seed)
+    log.info(f"Using seed: {actual_seed}")
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
+    log.info(f"Using device: {device}")
 
+    log.info("Initializing Weights & Biases run")
     run = wandb.init(
         config=cast(
             "dict[str, Any]", OmegaConf.to_container(cfg, resolve=True)
@@ -149,6 +157,9 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
     log.info(f"W&B run URL: {run.url}")
 
     # Load pretrained model and dataset from artifacts
+    log.info(
+        f"Loading pretrained model from artifact: {cfg.pretrained_model_artifact_name}"
+    )
     (
         train_dataset,
         val_dataset,
@@ -157,6 +168,7 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
         pretrained_model,
         pretrained_model_config,
     ) = load_pretrained_model_artifacts(cfg.pretrained_model_artifact_name)
+    log.info("Successfully loaded pretrained model and datasets")
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
     log.debug(
         f"Class probabilities in training set: {train_class_probabilities}"
@@ -166,27 +178,34 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
     n_features = train_dataset.features.shape[-1]
     n_classes = train_dataset.labels.shape[-1]
 
+    log.info("Setting up pretrained model")
     pretrained_model.eval()
     pretrained_model = pretrained_model.to(device)
 
     pretrained_model_optim = optim.Adam(
         pretrained_model.parameters(), lr=cfg.pretrained_model_lr
     )
+    log.info("Pretrained model setup complete")
 
+    log.info("Creating reward function")
     reward_fn = get_shim2018_reward_fn(
         pretrained_model=pretrained_model,
         weights=class_weights,
         acquisition_cost=cfg.acquisition_cost,
     )
+    log.info("Reward function created")
 
     # MDP expects special dataset functions
+    log.info("Creating dataset functions for environments")
     train_dataset_fn = get_afa_dataset_fn(
         train_dataset.features, train_dataset.labels
     )
     val_dataset_fn = get_afa_dataset_fn(
         val_dataset.features, val_dataset.labels
     )
+    log.info("Dataset functions created")
 
+    log.info("Creating training environment")
     train_env = AFAEnv(
         dataset_fn=train_dataset_fn,
         reward_fn=reward_fn,
@@ -197,7 +216,9 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
         hard_budget=cfg.hard_budget,
     )
     check_env_specs(train_env)
+    log.info("Training environment created and validated")
 
+    log.info("Creating evaluation environment")
     eval_env = AFAEnv(
         dataset_fn=val_dataset_fn,
         reward_fn=reward_fn,
@@ -207,7 +228,9 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
         n_classes=n_classes,
         hard_budget=cfg.hard_budget,
     )
+    log.info("Evaluation environment created")
 
+    log.info("Creating Shim2018 agent")
     agent: Agent = Shim2018Agent(
         cfg=cfg.agent,
         embedder=pretrained_model.embedder,
@@ -217,7 +240,9 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
         batch_size=cfg.batch_size,
         module_device=torch.device(cfg.device),
     )
+    log.info("Agent created successfully")
 
+    log.info("Creating data collector")
     collector = SyncDataCollector(
         train_env,
         agent.get_exploratory_policy(),
@@ -225,11 +250,15 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
         total_frames=cfg.n_batches * cfg.batch_size,
         # device=device,
     )
+    log.info("Data collector created")
     # Training loop
+    log.info(f"Starting training loop for {cfg.n_batches} batches")
     try:
         for batch_idx, tds in tqdm(
             enumerate(collector), total=cfg.n_batches, desc="Training agent..."
         ):
+            if batch_idx % 100 == 0:
+                log.info(f"Processing batch {batch_idx}/{cfg.n_batches}")
             collector.update_policy_weights_()
 
             # Collapse agent and batch dimensions
@@ -238,6 +267,10 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
 
             # Train classifier and embedder jointly if we have reached the correct batch
             if batch_idx >= cfg.activate_joint_training_after_n_batches:
+                if batch_idx == cfg.activate_joint_training_after_n_batches:
+                    log.info(
+                        "Activating joint training of classifier and embedder"
+                    )
                 pretrained_model.train()
                 pretrained_model_optim.zero_grad()
 
@@ -280,6 +313,7 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
             )
 
             if batch_idx != 0 and batch_idx % cfg.eval_every_n_batches == 0:
+                log.info(f"Running evaluation at batch {batch_idx}")
                 with (
                     torch.no_grad(),
                     set_exploration_type(ExplorationType.DETERMINISTIC),
@@ -328,11 +362,14 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
                         },
                     )
                 )
+                log.info(f"Evaluation completed at batch {batch_idx}")
 
     except KeyboardInterrupt:
-        pass
+        log.info("Training interrupted by user")
     finally:
+        log.info("Training completed, starting cleanup and model saving")
         # Convert the embedder+agent to an AFAMethod and save it as a temporary file
+        log.info("Converting model to CPU and creating AFA method")
         pretrained_model = pretrained_model.to(torch.device("cpu"))
         afa_method = RLAFAMethod(
             agent.get_exploitative_policy().to("cpu"),
@@ -340,7 +377,9 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
                 pretrained_model, device=torch.device("cpu")
             ),
         )
+        log.info("AFA method created")
         # Save the method to a temporary directory and load it again to ensure it is saved correctly
+        log.info("Saving method to temporary directory")
         with TemporaryDirectory(delete=False) as tmp_path_str:
             tmp_path = Path(tmp_path_str)
             afa_method.save(tmp_path)
@@ -349,7 +388,9 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
                 tmp_path,
                 device=torch.device("cpu"),
             )
+            log.info("Method saved and reloaded successfully")
             if cfg.evaluate_final_performance:
+                log.info("Starting final performance evaluation")
                 with (
                     torch.no_grad(),
                     set_exploration_type(ExplorationType.DETERMINISTIC),
@@ -362,8 +403,10 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
                         afa_method.predict,
                         only_n_samples=cfg.eval_only_n_samples,
                     )
+                    log.info("Final performance evaluation completed")
                 fig_metrics = plot_metrics(metrics)
                 # Also check performance of dummy method for comparison
+                log.info("Evaluating dummy method for comparison")
                 dummy_afa_method = RandomDummyAFAMethod(
                     device=torch.device("cpu"), n_classes=n_classes
                 )
@@ -375,6 +418,7 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
                     only_n_samples=cfg.eval_only_n_samples,
                 )
                 fig_dummy_metrics = plot_metrics(dummy_metrics)
+                log.info("Dummy method evaluation completed")
                 run.log(
                     {
                         "final_performance_plot": fig_metrics,
@@ -384,6 +428,7 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
 
             # Save the model as a WandB artifact
             # Save the name of the afa method class as metadata
+            log.info("Creating WandB artifact for trained method")
             print(
                 f"dataset name {pretrained_model_config.dataset_artifact_name}"
             )
@@ -400,16 +445,21 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
             )
 
             afa_method_artifact.add_dir(str(tmp_path))
+            log.info("Logging artifact to WandB")
             run.log_artifact(
                 afa_method_artifact, aliases=cfg.output_artifact_aliases
             )
+            log.info("Artifact logged successfully")
 
+        log.info("Finishing WandB run")
         run.finish()
 
+        log.info("Running garbage collection and clearing CUDA cache")
         gc.collect()  # Force Python GC
         if torch.cuda.is_available():
             torch.cuda.empty_cache()  # Release cached memory held by PyTorch CUDA allocator
             torch.cuda.synchronize()  # Optional, wait for CUDA ops to finish
+        log.info("Script completed successfully")
 
 
 if __name__ == "__main__":

@@ -27,7 +27,15 @@ class AFAEnv(EnvBase):
     The episode length is at most `hard_budget`, and the agent can choose to stop earlier.
     """
 
-    batch_locked = False
+    @property
+    @override
+    def batch_locked(self) -> bool:
+        return False
+
+    @batch_locked.setter
+    def batch_locked(self, value: bool) -> None:
+        # AFAEnv doesn't support batch locking, so we ignore the setter
+        pass
 
     def __init__(
         self,
@@ -231,7 +239,7 @@ class AFAEnv(EnvBase):
 #                 probs.argmax(-1) == label[done_mask].argmax(-1)
 #             ).float()
 #
-#         # TODO: debugging. Give reward for the last 4 features, punish the rest
+# Debugging code: Give reward for the last 4 features, punish the rest
 #         # reward[done_mask] += new_feature_mask[done_mask, -5:].sum(dim=-1).float()
 #         # reward[done_mask] -= new_feature_mask[done_mask, :-5].sum(dim=-1).float()
 #
