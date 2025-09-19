@@ -72,7 +72,7 @@ class AACOAFAMethod(AFAMethod):
             # Handle stop action when ACO returns None (u(x_o, o) = ∅)
             if next_feature is None:
                 # Return stop action
-                selections.append(-1)
+                selections.append(0)
             else:
                 selections.append(next_feature)
 
