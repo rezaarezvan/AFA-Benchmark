@@ -1,4 +1,6 @@
-from dataclasses import dataclass
+from dataclasses import (
+    dataclass,
+)
 from pathlib import Path
 from typing import Self, final, override
 
@@ -66,7 +68,7 @@ class RLAFAMethod(AFAMethod):
 
     policy_tdmodule: TensorDictModuleBase | ProbabilisticActor
     afa_classifier: AFAClassifier
-    _device: torch.device = torch.device("cpu")
+    _device: torch.device = torch.device("cpu")  # noqa: RUF009
 
     def __post_init__(self):
         # Move policy and classifier to the specified device
@@ -120,10 +122,10 @@ class RLAFAMethod(AFAMethod):
         return probs.to(original_device)
 
     @override
-    def save(self, path: Path):
+    def save(self, path: Path) -> None:
         torch.save(self.policy_tdmodule, path / "policy_tdmodule.pt")
         self.afa_classifier.save(path / "classifier.pt")
-        with open(path / "classifier_class_name.txt", "w") as f:
+        with (path / "classifier_class_name.txt").open("w") as f:
             f.write(self.afa_classifier.__class__.__name__)
 
     @classmethod
@@ -135,7 +137,7 @@ class RLAFAMethod(AFAMethod):
             map_location=device,
         )
 
-        with open(path / "classifier_class_name.txt") as f:
+        with (path / "classifier_class_name.txt").open() as f:
             classifier_class_name = f.read()
         afa_classifier = get_afa_classifier_class(classifier_class_name).load(
             path / "classifier.pt", device=device

@@ -30,7 +30,7 @@ def get_shim2018_reward_fn(
     """
 
     def f(
-        masked_features: MaskedFeatures,  # noqa: ARG001
+        masked_features: MaskedFeatures,
         feature_mask: FeatureMask,  # noqa: ARG001
         new_masked_features: MaskedFeatures,
         new_feature_mask: FeatureMask,
@@ -41,7 +41,7 @@ def get_shim2018_reward_fn(
     ) -> AFAReward:
         # Always a constant negative reward to encourage fewer feature selections
         reward = -acquisition_cost * torch.ones_like(
-            afa_selection, dtype=torch.float32
+            afa_selection, dtype=torch.float32, device=masked_features.device
         )
 
         done_mask = done.squeeze(-1)

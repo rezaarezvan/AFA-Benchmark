@@ -198,10 +198,10 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
     # MDP expects special dataset functions
     log.info("Creating dataset functions for environments")
     train_dataset_fn = get_afa_dataset_fn(
-        train_dataset.features, train_dataset.labels
+        train_dataset.features, train_dataset.labels, device=device
     )
     val_dataset_fn = get_afa_dataset_fn(
-        val_dataset.features, val_dataset.labels
+        val_dataset.features, val_dataset.labels, device=device
     )
     log.info("Dataset functions created")
 
@@ -248,7 +248,7 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
         agent.get_exploratory_policy(),
         frames_per_batch=cfg.batch_size,
         total_frames=cfg.n_batches * cfg.batch_size,
-        # device=device,
+        device=device,
     )
     log.info("Data collector created")
     # Training loop

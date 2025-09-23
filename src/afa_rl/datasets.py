@@ -22,12 +22,15 @@ def get_wrapped_batch(
     return repeated[idx : idx + numel]
 
 
-def get_afa_dataset_fn(features: Features, labels: Label) -> AFADatasetFn:
+def get_afa_dataset_fn(
+    features: Features, labels: Label, device: torch.device | None = None
+) -> AFADatasetFn:
     """Given features and labels, return a function that can be used to get batches of AFA data."""
     idx = 0  # keep track of where in the dataset we are
 
     def afa_dataset_fn(
-        batch_size: torch.Size, move_on: bool = True
+        batch_size: torch.Size,
+        move_on: bool = True,  # noqa: FBT002
     ) -> tuple[Features, Label]:
         nonlocal idx, features, labels
         local_features = get_wrapped_batch(features, idx, batch_size.numel())
@@ -47,6 +50,12 @@ def get_afa_dataset_fn(features: Features, labels: Label) -> AFADatasetFn:
         local_labels = local_labels.reshape(
             *batch_size, local_labels.shape[-1]
         )
+
+        # Move to specified device if provided
+        if device is not None:
+            local_features = local_features.to(device)
+            local_labels = local_labels.to(device)
+
         return local_features, local_labels
 
     return afa_dataset_fn

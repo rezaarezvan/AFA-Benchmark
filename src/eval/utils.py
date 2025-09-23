@@ -1,9 +1,9 @@
 from typing import Any
 
 import numpy as np
-import wandb
 from matplotlib import pyplot as plt
-from matplotlib.figure import Figure
+
+import wandb
 
 
 def plot_metrics(metrics: dict[str, Any]) -> wandb.Image:
