@@ -433,7 +433,7 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
                 f"dataset name {pretrained_model_config.dataset_artifact_name}"
             )
             afa_method_artifact = wandb.Artifact(
-                name=f"train_shim2018-{pretrained_model_config.dataset_artifact_name.split(':')[0]}-budget_{cfg.hard_budget}-seed_{cfg.seed}",
+                name=f"train_shim2018-{pretrained_model_config.dataset_artifact_name.split(':')[0]}-budget_{cfg.hard_budget}-cost{cfg.acquisition_cost}-seed_{cfg.seed}",
                 type="trained_method",
                 metadata={
                     "method_type": "shim2018",
