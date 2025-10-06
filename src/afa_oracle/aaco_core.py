@@ -84,6 +84,8 @@ def load_mask_generator(dataset_name, input_dim):
         "miniboone",
         "afacontext",
         "bank_marketing",
+        "ckd",
+        "actg",
     ]:
         # Paper shows this works nearly as well as 10,000 (for MNIST)
         return random_mask_generator(100, input_dim, 100)
