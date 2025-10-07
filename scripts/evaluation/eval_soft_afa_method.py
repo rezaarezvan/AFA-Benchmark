@@ -1,18 +1,17 @@
 """Evaluate a single AFA method with soft budget on a dataset, using a trained classifier if specified."""
 
 import logging
-from collections import Counter
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any
 
+from common.config_classes import SoftEvalConfig
+from eval.metrics import eval_soft_budget_afa_method
 import hydra
 import torch
-from matplotlib import pyplot as plt
 from omegaconf import OmegaConf
 
 import wandb
-from common.config_classes import EvalConfig
 from common.custom_types import (
     AFAClassifier,
     AFADataset,
@@ -21,8 +20,6 @@ from common.custom_types import (
 )
 from common.registry import get_afa_classifier_class, get_afa_method_class
 from common.utils import load_dataset_artifact, set_seed
-from eval.metrics import eval_afa_method
-from eval.utils import plot_metrics
 
 
 def load_trained_method_artifacts(
@@ -126,9 +123,9 @@ log = logging.getLogger(__name__)
 
 
 @hydra.main(
-    version_base=None, config_path="../../conf/eval", config_name="config"
+    version_base=None, config_path="../../conf/soft_eval", config_name="config"
 )
-def main(cfg: EvalConfig) -> None:  # noqa: PLR0915
+def main(cfg: SoftEvalConfig) -> None:
     log.debug(cfg)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
@@ -195,84 +192,41 @@ def main(cfg: EvalConfig) -> None:  # noqa: PLR0915
 
     # Do the evaluation
     log.info(f"Starting evaluation with budget {eval_budget}")
-    metrics = eval_afa_method(
-        afa_method.select,
-        dataset,
-        eval_budget,
-        afa_predict_fn,
+    df = eval_soft_budget_afa_method(
+        afa_select_fn=afa_method.select,
+        dataset=dataset,
+        budget=eval_budget,
+        external_afa_predict_fn=afa_predict_fn,
+        builtin_afa_predict_fn=afa_method.predict,
         only_n_samples=cfg.eval_only_n_samples,
-        batch_size=cfg.batch_size,
         device=torch.device(cfg.device),
     )
-
-    # Log early stopping statistics
-    log.info(f"Average steps taken: {metrics['average_steps']:.2f}")
-    log.info(f"Maximum steps taken: {metrics['actual_steps'].max()}")
-    log.info(f"Minimum steps taken: {metrics['actual_steps'].min()}")
-    stopped_early = (metrics["actual_steps"] < eval_budget).sum()
-    total_samples = len(metrics["actual_steps"])
-    log.info(
-        f"Samples that stopped early: {stopped_early}/{total_samples} ({100 * stopped_early / total_samples:.1f}%)"
+    # Add columns to conform to expected format
+    df["Method"] = method_metadata["method_type"]
+    df["Training seed"] = method_metadata["seed"]
+    df["Cost parameter"] = float(
+        method_metadata.get("cost_param", float("nan"))
     )
+    df["Dataset"] = method_metadata["dataset_type"]
 
-    fig = plot_metrics(metrics)
-
-    # Create action distribution plot - simplified for Plotly compatibility
-    action_fig, action_ax = plt.subplots()
-    action_data = metrics["action_distribution"].cpu().numpy()
-    feature_indices = list(range(len(action_data)))
-    action_ax.plot(feature_indices, action_data)
-    action_ax.set_xlabel("Feature index")
-    action_ax.set_ylabel("Action probability")
-    action_ax.set_title("Action Distribution")
-
-    # Create steps distribution plot - ultra-simplified for Plotly
-    steps_fig, steps_ax = plt.subplots()
-    actual_steps = metrics["actual_steps"].cpu().numpy()
-
-    # Use Counter to get step distribution
-
-    step_counts = Counter(actual_steps)
-    steps = sorted(step_counts.keys())
-    counts = [step_counts[step] for step in steps]
-
-    # Simple bar plot without any fancy features
-    steps_ax.bar(steps, counts)
-    steps_ax.set_xlabel("Number of steps taken")
-    steps_ax.set_ylabel("Number of samples")
-    steps_ax.set_title(
-        f"Steps Distribution (Mean: {float(metrics['average_steps']):.1f})"
-    )
-
-    run.log(
-        {
-            "metrics_plot": fig,
-            "action_plot": action_fig,
-            "steps_distribution_plot": steps_fig,
-            "average_steps": metrics["average_steps"],
-            "early_stopping_rate": float(stopped_early) / total_samples,
-        }
-    )
+    # Log to wandb for debugging purposes
+    run.log({"soft_eval_df": wandb.Table(dataframe=df)})
 
     # Save results as wandb artifact
     eval_results_artifact = wandb.Artifact(
-        name=f"{cfg.trained_method_artifact_name.split(':')[0]}-{cfg.trained_classifier_artifact_name.split(':')[0] if cfg.trained_classifier_artifact_name else 'builtin'}",
-        type="eval_results",
+        name=f"{cfg.trained_method_artifact_name.split(':')[0]}-soft-{cfg.trained_classifier_artifact_name.split(':')[0] if cfg.trained_classifier_artifact_name else 'builtin'}",
+        type="soft_eval_results",
         metadata={
             "dataset_type": method_metadata["dataset_type"],
             "method_type": method_metadata["method_type"],
-            "budget": eval_budget,
             "seed": method_metadata["seed"],
             "classifier_type": classifier_type,
-            "average_steps": float(metrics["average_steps"]),
-            "early_stopping_rate": float(stopped_early) / total_samples,
-            "supports_early_stopping": True,
         },
     )
     with NamedTemporaryFile("w", delete=False) as f:
-        metrics_save_path = Path(f.name)
-        torch.save(metrics, metrics_save_path)
-    eval_results_artifact.add_file(str(metrics_save_path), name="metrics.pt")
+        df_save_path = Path(f.name)
+        df.to_csv(df_save_path, index=False)
+    eval_results_artifact.add_file(str(df_save_path), name="soft_eval.csv")
     run.log_artifact(
         eval_results_artifact, aliases=cfg.output_artifact_aliases
     )

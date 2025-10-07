@@ -50,7 +50,9 @@ def main(cfg: RandomDummyTrainConfig) -> None:
     n_classes = train_dataset.labels.shape[-1]
 
     afa_method = RandomDummyAFAMethod(
-        device=torch.device("cpu"), n_classes=n_classes
+        device=torch.device("cpu"),
+        n_classes=n_classes,
+        prob_select_0=cfg.prob_select_0,
     )
     # Save the method to a temporary directory and load it again to ensure it is saved correctly
     with TemporaryDirectory(delete=False) as tmp_path_str:

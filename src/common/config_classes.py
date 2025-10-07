@@ -486,6 +486,7 @@ class RandomDummyTrainConfig:
     hard_budget: int  # not used, but pretend that it is
     seed: int
     output_artifact_aliases: list[str]
+    prob_select_0: float
 
 
 cs.store(name="train_randomdummy", node=RandomDummyTrainConfig)
@@ -693,6 +694,26 @@ class EvalConfig:
 
 
 cs.store(name="eval", node=EvalConfig)
+
+
+@dataclass
+class SoftEvalConfig:
+    trained_method_artifact_name: str
+    # if None, use the method's classifier
+    trained_classifier_artifact_name: str | None
+    seed: int
+    device: str
+    output_artifact_aliases: list[str]
+    eval_only_n_samples: (
+        int | None
+    )  # if specified, only evaluate on this many samples
+    dataset_split: str  # use "validation" or "testing"
+    budget: int | None = (
+        None  # if specified, override the budget from training
+    )
+
+
+cs.store(name="soft-eval", node=SoftEvalConfig)
 
 # --- MISC ---
 
