@@ -197,16 +197,20 @@ def main(cfg: SoftEvalConfig) -> None:
         dataset=dataset,
         budget=eval_budget,
         external_afa_predict_fn=afa_predict_fn,
-        builtin_afa_predict_fn=afa_method.predict,
+        builtin_afa_predict_fn=afa_method.predict
+        if afa_method.has_builtin_classifier
+        else None,
         only_n_samples=cfg.eval_only_n_samples,
         device=torch.device(cfg.device),
     )
     # Add columns to conform to expected format
     df["Method"] = method_metadata["method_type"]
     df["Training seed"] = method_metadata["seed"]
-    df["Cost parameter"] = float(
-        method_metadata.get("cost_param", float("nan"))
+    cost_param = afa_method.cost_param
+    assert cost_param is not None, (
+        "Cost parameter should not be None for soft budget methods"
     )
+    df["Cost parameter"] = cost_param
     df["Dataset"] = method_metadata["dataset_type"]
 
     # Log to wandb for debugging purposes

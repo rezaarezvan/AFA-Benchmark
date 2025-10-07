@@ -56,7 +56,8 @@ def eval_soft_budget_afa_method(
     # Loop over the dataset
     for sample_idx, (_features, _label) in tqdm(  # pyright: ignore[reportGeneralTypeIssues]
         enumerate(dataset),  # pyright: ignore[reportArgumentType]
-        desc="Evaluating dataset samples",  # pyright: ignore[reportArgumentType]
+        desc="Evaluating dataset samples",
+        total=len(dataset) if only_n_samples is None else only_n_samples,
     ):
         # Place data on device
         features = _features.to(device)
@@ -77,43 +78,44 @@ def eval_soft_budget_afa_method(
                     label.unsqueeze(0),
                 ).item()
             )
-            # Update feature mask
-            masked_features[selection - 1] = features[selection - 1]
-            feature_mask[selection - 1] = True
+            if selection == 0:  # Stop acquiring features
+                break
+            else:
+                # Update feature mask
+                masked_features[selection - 1] = features[selection - 1]
+                feature_mask[selection - 1] = True
 
-            # Make prediction with current features
-            external_prediction = external_afa_predict_fn(
+        # Feature selection is done, either due to early stopping or reaching the hard budget
+
+        # Make prediction with current features
+        external_prediction = external_afa_predict_fn(
+            masked_features.unsqueeze(0),
+            feature_mask.unsqueeze(0),
+            features.unsqueeze(0),
+            label.unsqueeze(0),
+        ).squeeze(0)
+        external_prediction = int(external_prediction.argmax(dim=-1).item())
+
+        # Builtin prediction, if available
+        if builtin_afa_predict_fn is not None:
+            builtin_prediction = builtin_afa_predict_fn(
                 masked_features.unsqueeze(0),
                 feature_mask.unsqueeze(0),
                 features.unsqueeze(0),
                 label.unsqueeze(0),
             ).squeeze(0)
-            external_prediction = int(
-                external_prediction.argmax(dim=-1).item()
-            )
+            builtin_prediction = int(torch.argmax(builtin_prediction).item())
+        else:
+            builtin_prediction = None
 
-            # Builtin prediction, if available
-            if builtin_afa_predict_fn is not None:
-                builtin_prediction = builtin_afa_predict_fn(
-                    masked_features.unsqueeze(0),
-                    feature_mask.unsqueeze(0),
-                    features.unsqueeze(0),
-                    label.unsqueeze(0),
-                ).squeeze(0)
-                builtin_prediction = int(
-                    torch.argmax(builtin_prediction).item()
-                )
-            else:
-                builtin_prediction = None
-
-            data_rows.append(
-                {
-                    "Sample": sample_idx,
-                    "Features chosen": n_features_collected + 1,
-                    "Predicted label (builtin)": builtin_prediction,
-                    "Predicted label (external)": external_prediction,
-                }
-            )
+        data_rows.append(
+            {
+                "Sample": sample_idx,
+                "Features chosen": n_features_collected + 1,
+                "Predicted label (builtin)": builtin_prediction,
+                "Predicted label (external)": external_prediction,
+            }
+        )
 
     df = pd.DataFrame(data_rows)
 
