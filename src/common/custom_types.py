@@ -100,6 +100,16 @@ class AFAMethod(Protocol):
         """Return the current device the method is on."""
         ...
 
+    @property
+    def has_builtin_classifier(self) -> bool:
+        """Return the current device the method is on."""
+        ...
+
+    @property
+    def cost_param(self) -> float | None:
+        """Return the cost parameter used during training, if any. Only applies to methods that make trade-offs between feature cost and accuracy."""
+        ...
+
 
 class AFAClassifier(Protocol):
     """

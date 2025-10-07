@@ -27,6 +27,11 @@ class RandomDummyAFAMethod(AFAMethod):
         self.n_classes = n_classes
         self.prob_select_0 = prob_select_0
 
+    @property
+    @override
+    def has_builtin_classifier(self) -> bool:
+        return True
+
     @override
     def select(
         self,
@@ -139,14 +144,28 @@ class RandomDummyAFAMethod(AFAMethod):
     def device(self) -> torch.device:
         return self._device
 
+    @property
+    @override
+    def cost_param(self) -> float:
+        # Probability of selecting 0 can be interpreted as a cost parameter
+        return self.prob_select_0
+
 
 @final
 class SequentialDummyAFAMethod(AFAMethod):
-    """A dummy AFAMethod for testing purposes. Always chooses the next feature to observe in order."""
+    """A dummy AFAMethod for testing purposes. Always chooses the next feature to observe in order, with a probability to stop."""
 
-    def __init__(self, device: torch.device, n_classes: int):
+    def __init__(
+        self, device: torch.device, n_classes: int, prob_select_0: float
+    ):
         self._device = device
         self.n_classes = n_classes
+        self.prob_select_0 = prob_select_0
+
+    @property
+    @override
+    def has_builtin_classifier(self) -> bool:
+        return True
 
     @override
     def select(
@@ -161,11 +180,26 @@ class SequentialDummyAFAMethod(AFAMethod):
         masked_features = masked_features.to(self._device)
         feature_mask = feature_mask.to(self._device)
 
-        # Choose the next unobserved feature
-        unobserved_features = (~feature_mask).nonzero(as_tuple=True)[1]
-        if unobserved_features.numel() == 0:
-            return torch.tensor(0, device=masked_features.device)
-        selection = unobserved_features[0] + 1
+        batch_size = masked_features.shape[0]
+        select_0_mask = (
+            torch.rand(batch_size, device=self._device) < self.prob_select_0
+        )
+
+        # For each sample, find the first unobserved feature (if any)
+        selection = torch.zeros(
+            batch_size, dtype=torch.long, device=self._device
+        )
+        for i in range(batch_size):
+            unobserved = (~feature_mask[i]).nonzero(as_tuple=True)[0]
+            if unobserved.numel() > 0:
+                selection[i] = unobserved[0]
+            else:
+                selection[i] = 0  # fallback if all features observed
+
+        # Where select_0_mask is True, set selection to 0
+        selection = torch.where(
+            select_0_mask, torch.zeros_like(selection), selection
+        )
 
         return selection.to(original_device)
 
@@ -183,14 +217,12 @@ class SequentialDummyAFAMethod(AFAMethod):
         masked_features = masked_features.to(self._device)
         feature_mask = feature_mask.to(self._device)
 
-        # Pick a random class from the classes
         prediction = torch.randint(
             0,
             self.n_classes,
             (masked_features.shape[0],),
             device=masked_features.device,
         )
-        # One-hot encode the prediction
         prediction = torch.nn.functional.one_hot(
             prediction, num_classes=self.n_classes
         ).float()
@@ -203,6 +235,7 @@ class SequentialDummyAFAMethod(AFAMethod):
         torch.save(
             {
                 "n_classes": self.n_classes,
+                "prob_select_0": self.prob_select_0,
             },
             path / "method.pt",
         )
@@ -212,7 +245,7 @@ class SequentialDummyAFAMethod(AFAMethod):
     def load(cls, path: Path, device: torch.device) -> Self:
         """Load the method from a folder."""
         data = torch.load(path / "method.pt")
-        return cls(device, data["n_classes"])
+        return cls(device, data["n_classes"], data.get("prob_select_0", 0.0))
 
     @override
     def to(self, device: torch.device) -> Self:
@@ -223,6 +256,11 @@ class SequentialDummyAFAMethod(AFAMethod):
     @override
     def device(self) -> torch.device:
         return self._device
+
+    @property
+    @override
+    def cost_param(self) -> float:
+        return self.prob_select_0
 
 
 @final

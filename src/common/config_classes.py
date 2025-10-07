@@ -491,6 +491,20 @@ class RandomDummyTrainConfig:
 
 cs.store(name="train_randomdummy", node=RandomDummyTrainConfig)
 
+# sequentialdummy
+
+
+@dataclass
+class SequentialDummyTrainConfig:
+    dataset_artifact_name: str
+    hard_budget: int  # not used, but pretend that it is
+    seed: int
+    output_artifact_aliases: list[str]
+    prob_select_0: float
+
+
+cs.store(name="train_randomdummy", node=RandomDummyTrainConfig)
+
 # optimalcube
 
 
