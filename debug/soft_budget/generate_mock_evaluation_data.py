@@ -8,6 +8,7 @@ def generate_mock_data(
     n_cost_params=5,
     n_datasets=5,
     n_samples=200,
+    n_classes=4,
     random_state=42,
 ):
     np.random.seed(random_state)
@@ -27,20 +28,56 @@ def generate_mock_data(
         dataset: np.random.randint(5, 25) for dataset in datasets
     }
 
-    rows = []
+    # 1. Generate dataset file: Dataset, Sample, True label
+    dataset_rows = []
+    for dataset in datasets:
+        for sample in range(n_samples):
+            # Simulate multiclass true labels
+            true_label = np.random.randint(0, n_classes)
+            dataset_rows.append(
+                {
+                    "Dataset": dataset,
+                    "Sample": sample,
+                    "True label": true_label,
+                }
+            )
+    dataset_df = pd.DataFrame(dataset_rows)
+
+    # 2. Generate results file: Method, Training seed, Cost parameter, Dataset, Sample, Features chosen, Predicted label (builtin), Predicted label (external)
+    results_rows = []
+    # For reproducibility, get the true labels as a lookup
+    true_label_lookup = {
+        (row["Dataset"], row["Sample"]): row["True label"]
+        for row in dataset_rows
+    }
+
+    # Method-dependent offsets for features and accuracy
+    method_offsets = {
+        "Method-1": {"features": 0.0, "accuracy": 0.0},
+        "Method-2": {"features": 0.2, "accuracy": 0.1},
+        "Method-3": {"features": -0.2, "accuracy": -0.1},
+        "Method-4": {"features": 0.3, "accuracy": 0.15},
+        "Method-5": {"features": -0.3, "accuracy": -0.15},
+    }
+
     for method in methods:
         # Use method-specific cost_param range
         cost_params = method_cost_param_ranges.get(
             method, np.linspace(0.1, 1, n_cost_params)
         )
         for seed in seeds:
+            # Set a unique random seed for each method/seed combination
+            np.random.seed(seed * 1000 + hash(method) % 1000)
+            # Seed-dependent offsets for features and accuracy
+            seed_offset_features = np.random.uniform(-0.2, 0.2)
+            seed_offset_accuracy = np.random.uniform(-0.1, 0.1)
+            # Method-dependent offsets for features and accuracy
+            method_offset_features = method_offsets[method]["features"]
+            method_offset_accuracy = method_offsets[method]["accuracy"]
             for cost_param in cost_params:
                 for dataset in datasets:
+                    max_features = dataset_max_features[dataset]
                     for sample in range(n_samples):
-                        # More features chosen should generally mean higher accuracy/F1
-                        # For each dataset, average features_chosen should range from 0 to x as cost_param increases
-                        max_features = dataset_max_features[dataset]
-                        # Normalize cost_param to [0, 1] for this method
                         cost_param_range = np.ptp(cost_params)
                         if cost_param_range == 0:
                             norm_cost = 0
@@ -48,9 +85,12 @@ def generate_mock_data(
                             norm_cost = (
                                 cost_param - np.min(cost_params)
                             ) / cost_param_range
-                        # Mean features chosen increases with norm_cost, up to max_features
-                        mean_features = norm_cost * max_features
-                        # Sample features_chosen around this mean, clipped to [0, max_features]
+                        # Add both method and seed offsets to mean_features
+                        mean_features = (
+                            norm_cost
+                            + seed_offset_features
+                            + method_offset_features
+                        ) * max_features
                         features_chosen = int(
                             np.clip(
                                 np.random.normal(
@@ -61,126 +101,57 @@ def generate_mock_data(
                                 max_features,
                             )
                         )
-                        # Randomly decide if this method has a builtin classifier
-                        has_builtin = np.random.rand() > 0.3
+                        methods_with_builtin = {"Method-1", "Method-3"}
+                        has_builtin = method in methods_with_builtin
 
-                        # Method-specific sigmoid and noise parameters for F1/accuracy
-                        method_sigmoid_params = {
-                            "Method-1": {
-                                "k_f1": 0.30,
-                                "x0_f1": 7,
-                                "max_f1": 0.95,
-                                "min_f1": 0.55,
-                                "k_acc": 0.25,
-                                "x0_acc": 6,
-                                "max_acc": 0.90,
-                                "min_acc": 0.55,
-                                "noise_f1": 0.03,
-                                "noise_acc": 0.025,
-                            },
-                            "Method-2": {
-                                "k_f1": 0.45,
-                                "x0_f1": 12,
-                                "max_f1": 0.98,
-                                "min_f1": 0.50,
-                                "k_acc": 0.40,
-                                "x0_acc": 10,
-                                "max_acc": 0.97,
-                                "min_acc": 0.50,
-                                "noise_f1": 0.04,
-                                "noise_acc": 0.03,
-                            },
-                            "Method-3": {
-                                "k_f1": 0.20,
-                                "x0_f1": 10,
-                                "max_f1": 0.90,
-                                "min_f1": 0.60,
-                                "k_acc": 0.18,
-                                "x0_acc": 9,
-                                "max_acc": 0.88,
-                                "min_acc": 0.60,
-                                "noise_f1": 0.05,
-                                "noise_acc": 0.04,
-                            },
-                            "Method-4": {
-                                "k_f1": 0.60,
-                                "x0_f1": 15,
-                                "max_f1": 0.99,
-                                "min_f1": 0.45,
-                                "k_acc": 0.55,
-                                "x0_acc": 13,
-                                "max_acc": 0.99,
-                                "min_acc": 0.45,
-                                "noise_f1": 0.02,
-                                "noise_acc": 0.02,
-                            },
-                            "Method-5": {
-                                "k_f1": 0.33,
-                                "x0_f1": 8,
-                                "max_f1": 0.92,
-                                "min_f1": 0.52,
-                                "k_acc": 0.28,
-                                "x0_acc": 7,
-                                "max_acc": 0.91,
-                                "min_acc": 0.52,
-                                "noise_f1": 0.06,
-                                "noise_acc": 0.05,
-                            },
-                        }
-                        params = method_sigmoid_params.get(
-                            method, method_sigmoid_params["Method-1"]
-                        )
+                        true_label = true_label_lookup[(dataset, sample)]
 
-                        def sigmoid(x, k, x0):
-                            return 1 / (1 + np.exp(-k * (x - x0)))
+                        # Add both method and seed offsets to accuracy
+                        prob_correct_external = min(
+                            0.5
+                            + 0.5 * (features_chosen / max_features)
+                            + seed_offset_accuracy
+                            + method_offset_accuracy,
+                            0.98,
+                        )
+                        prob_correct_external = max(
+                            prob_correct_external, 0.01
+                        )
+                        prob_correct_builtin = min(
+                            0.45
+                            + 0.5 * (features_chosen / max_features)
+                            + seed_offset_accuracy
+                            + method_offset_accuracy,
+                            0.95,
+                        )
+                        prob_correct_builtin = max(prob_correct_builtin, 0.01)
 
-                        # F1
-                        base_f1 = params["min_f1"] + (
-                            params["max_f1"] - params["min_f1"]
-                        ) * sigmoid(
-                            features_chosen, params["k_f1"], params["x0_f1"]
-                        )
-                        # Accuracy
-                        base_acc = params["min_acc"] + (
-                            params["max_acc"] - params["min_acc"]
-                        ) * sigmoid(
-                            features_chosen, params["k_acc"], params["x0_acc"]
-                        )
-                        # Add method-specific noise
-                        f1_external = np.clip(
-                            base_f1 + np.random.normal(0, params["noise_f1"]),
-                            0.5,
-                            1.0,
-                        )
-                        acc_external = np.clip(
-                            base_acc
-                            + np.random.normal(0, params["noise_acc"]),
-                            0.5,
-                            1.0,
-                        )
+                        if np.random.rand() < prob_correct_external:
+                            pred_label_external = true_label
+                        else:
+                            pred_label_external = np.random.choice(
+                                [
+                                    l
+                                    for l in range(n_classes)
+                                    if l != true_label
+                                ]
+                            )
 
                         if has_builtin:
-                            f1_builtin = np.clip(
-                                base_f1
-                                + np.random.normal(
-                                    0, params["noise_f1"] * 1.2
-                                ),
-                                0.5,
-                                1.0,
-                            )
-                            acc_builtin = np.clip(
-                                base_acc
-                                + np.random.normal(
-                                    0, params["noise_acc"] * 1.2
-                                ),
-                                0.5,
-                                1.0,
-                            )
+                            if np.random.rand() < prob_correct_builtin:
+                                pred_label_builtin = true_label
+                            else:
+                                pred_label_builtin = np.random.choice(
+                                    [
+                                        l
+                                        for l in range(n_classes)
+                                        if l != true_label
+                                    ]
+                                )
                         else:
-                            f1_builtin = None
-                            acc_builtin = None
+                            pred_label_builtin = None
 
-                        rows.append(
+                        results_rows.append(
                             {
                                 "Method": method,
                                 "Training seed": seed,
@@ -188,18 +159,33 @@ def generate_mock_data(
                                 "Dataset": dataset,
                                 "Sample": sample,
                                 "Features chosen": features_chosen,
-                                "F1 (builtin)": f1_builtin,
-                                "F1 (external)": f1_external,
-                                "Accuracy (builtin)": acc_builtin,
-                                "Accuracy (external)": acc_external,
+                                "Predicted label (builtin)": pred_label_builtin,
+                                "Predicted label (external)": pred_label_external,
                             }
                         )
-    df = pd.DataFrame(rows)
-    return df
+    results_df = pd.DataFrame(results_rows)
+    return dataset_df, results_df
 
 
 if __name__ == "__main__":
-    df = generate_mock_data()
-    output_path = "mock_evaluation_data.csv"
-    df.to_csv(output_path, index=False)
-    print(f"Mock evaluation data saved to {output_path}")
+    dataset_df, results_df = generate_mock_data()
+
+    # Ensure integer columns are saved as int (not float)
+    dataset_df["Sample"] = dataset_df["Sample"].astype(int)
+    dataset_df["True label"] = dataset_df["True label"].astype(int)
+
+    results_df["Training seed"] = results_df["Training seed"].astype(int)
+    results_df["Sample"] = results_df["Sample"].astype(int)
+    results_df["Features chosen"] = results_df["Features chosen"].astype(int)
+    results_df["Predicted label (external)"] = results_df[
+        "Predicted label (external)"
+    ].astype(int)
+    # Use pandas nullable Int64 for columns that can be NA/None
+    results_df["Predicted label (builtin)"] = results_df[
+        "Predicted label (builtin)"
+    ].astype("Int64")
+
+    dataset_df.to_csv("dataset.csv", index=False)
+    results_df.to_csv("results.csv", index=False)
+    print("Mock dataset saved to dataset.csv")
+    print("Mock results saved to results.csv")

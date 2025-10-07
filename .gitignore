@@ -204,3 +204,7 @@ cython_debug/
 /lightning_logs
 
 /multirun
+debug/soft_budget/.Rhistory
+debug/soft_budget/dataset.csv
+debug/soft_budget/eval_results.csv
+debug/soft_budget/mock_evaluation_data.csv

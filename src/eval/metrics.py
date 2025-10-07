@@ -347,9 +347,8 @@ def eval_afa_method(
     budget: int,
     afa_predict_fn: AFAPredictFn,
     only_n_samples: int | None = None,
-    batch_size: int = 1,
     device: torch.device | None = None,
-) -> dict[str, Any]:
+) -> pd.DataFrame:
     """
     Evaluate an AFA method with support for early stopping and batched processing.
 
@@ -363,64 +362,48 @@ def eval_afa_method(
         batch_size (int): How many AFA episodes to run concurrently.
 
     Returns:
-        dict[str, float]: A dictionary containing the evaluation results.
+        pd.DataFrame: DataFrame containing evaluation metrics.
 
     """
     if device is None:
         device = torch.device("cpu")
 
-    # Store results for all samples
-    all_prediction_histories = []  # list[list[Tensor[n_classes]]] - one per sample
-    all_feature_mask_histories = []  # list[list[Tensor[n_features]]] - one per sample
-    all_labels = []  # list[Tensor[n_classes]] - to be stacked into tensor
-    all_actual_steps = []  # list[int] - number of steps taken per sample
-
-    # Type ignore needed because AFADataset protocol doesn't inherit from Dataset
-    # but implements the required methods
-    dataloader = DataLoader(
-        dataset,  # pyright: ignore[reportArgumentType]
-        batch_size=batch_size,
-        shuffle=False,
-    )
+    data_rows = []
 
     # Loop over the dataset
-    n_evaluated_samples = 0
-    for batch in tqdm(
-        dataloader,
-        total=only_n_samples // batch_size
-        if only_n_samples is not None
-        else len(dataloader),
-        desc="Evaluating",
-    ):
-        # Each batch has features and labels
-        features, labels = batch
+    for features, label in dataset:
+        # Place data on device
         features = features.to(device)
-        labels = labels.to(device)
+        label = label.to(device)
 
-        # Store true labels for this batch
-        all_labels.append(labels)
+        # Keep track of feature masks, update them as we choose more features
+        masked_features = torch.zeros_like(features)
+        feature_mask = torch.zeros_like(features, dtype=torch.bool)
 
-        # Evaluate this batch
-        (
-            batch_prediction_histories,
-            batch_feature_mask_histories,
-            current_batch_size,
-        ) = _evaluate_batch(
-            features, labels, afa_select_fn, afa_predict_fn, budget, device
-        )
+        # Loop over hard budget
+        for n_features_selected in range(budget):
+            # Let AFA method select a feature
+            selection = int(
+                afa_select_fn(
+                    masked_features.unsqueeze(0),
+                    feature_mask.unsqueeze(0),
+                    features.unsqueeze(0),
+                    label.unsqueeze(0),
+                ).item()
+            )
+            # Update feature mask
+            masked_features[selection - 1] = features[selection - 1]
+            feature_mask[selection - 1] = True
 
-        # Store results for this batch
-        for i in range(current_batch_size):
-            all_prediction_histories.append(batch_prediction_histories[i])
-            all_feature_mask_histories.append(batch_feature_mask_histories[i])
-            all_actual_steps.append(len(batch_prediction_histories[i]))
+            # Make prediction with current features
+            prediction = afa_predict_fn(
+                masked_features.unsqueeze(0),
+                feature_mask.unsqueeze(0),
+                features.unsqueeze(0),
+                label.unsqueeze(0),
+            ).squeeze(0)
 
-        n_evaluated_samples += current_batch_size
-        if (
-            only_n_samples is not None
-            and n_evaluated_samples >= only_n_samples
-        ):
-            break
+            # Calculate accuracy and F1 score
 
     # Convert to tensors for metrics computation
     labels_tensor = torch.cat(all_labels)
