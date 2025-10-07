@@ -13,14 +13,16 @@ from common.custom_types import (
 
 
 class Ma2018AFAMethod(AFAMethod):
-    def __init__(
-        self, sampler, predictor, num_classes, device=torch.device("cpu")
-    ):
+    def __init__(self, sampler, predictor, num_classes, device=torch.device("cpu"),
+                 lambda_threshold: float = -float("inf"),
+                 feature_costs: torch.Tensor | None = None):
         super().__init__()
         self.sampler = sampler
         self.predictor = predictor
         self.num_classes = num_classes
         self._device: torch.device = device
+        self.lambda_threshold = lambda_threshold
+        self._feature_costs = feature_costs
 
     def predict(
         self,
@@ -111,10 +113,21 @@ class Ma2018AFAMethod(AFAMethod):
         )
 
         scores = kl_all.view(B, F)
-        # avoid choosing the masked feature j
+        # avoid choosing the already masked features
         scores = scores.masked_fill(feature_mask_all.bool(), float("-inf"))
-        best_j = scores.argmax(dim=1)
-        return best_j
+        if self._feature_costs is not None:
+            costs = self._feature_costs.to(self._device)
+            costs = torch.clamp(costs, min=1e-12)
+            scores = scores / costs.unsqueeze(0)
+        best_scores, best_idx = scores.max(dim=1)
+        lam = self.lambda_threshold
+        stop_mask = best_scores < lam
+        stop_mask = stop_mask | (best_scores < -1e5)
+        selections = (best_scores + 1).to(torch.long)
+        selections = selections.masked_fill(stop_mask, 0)
+        return selections
+        # best_j = scores.argmax(dim=1)
+        # return best_j
 
     @classmethod
     def load(cls, path, device="cpu"):
