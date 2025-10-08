@@ -42,11 +42,12 @@ rule eval_soft_budget_method:
     input:
         "indicators/soft_budget/trained_method/{dataset}/split{dataset_split}/{method}/costparam{cost_param}/seed{seed}.done"
     output:
-        touch("indicators/soft_budget/eval/{dataset}/split{dataset_split}/{method}/costparam{cost_param}/seed{seed}.done")
+        touch("indicators/soft_budget/eval/{method}/{dataset}/split{dataset_split}/costparam{cost_param}/seed{seed}.done")
     shell:
         """
         uv run scripts/evaluation/eval_soft_afa_method.py \
             trained_method_artifact_name=train_{wildcards.method}-{wildcards.dataset}_split_{wildcards.dataset_split}-costparam_{wildcards.cost_param}-seed_{wildcards.seed}:{EXPERIMENT_ID} \
+            cost_param={wildcards.cost_param} \
             trained_classifier_artifact_name={CLASSIFIER}-{wildcards.dataset}_split_{wildcards.dataset_split}:{CLASSIFIER_ARTIFACT_ALIAS} \
             output_artifact_aliases=["{EXPERIMENT_ID}"] \
             seed=null \
@@ -59,19 +60,19 @@ rule eval_soft_budget_method:
 # DONE
 rule download_soft_budget_eval_result:
     input:
-        "indicators/soft_budget/eval/{dataset}/split{dataset_split}/{method}/costparam{cost_param}/seed{seed}.done",
+        "indicators/soft_budget/eval/{method}/{dataset}/split{dataset_split}/costparam{cost_param}/seed{seed}.done",
     output:
-        "results/soft_budget/eval/{dataset}/split{dataset_split}/{method}/costparam{cost_param}/seed{seed}/soft_eval_data.csv"
+        "results/soft_budget/eval/{method}/{dataset}/split{dataset_split}/costparam{cost_param}/seed{seed}/soft_eval_data.csv"
     shell:
         """
-            uv run wandb artifact get train_{wildcards.method}-{wildcards.dataset}_split_{wildcards.dataset_split}-costparam_{wildcards.cost_param}-seed_{wildcards.seed}-{CLASSIFIER}-{wildcards.dataset}_split_{wildcards.dataset_split}:{EXPERIMENT_ID} --root results/soft_budget/eval/{wildcards.dataset}/split{wildcards.dataset_split}/{wildcards.method}/costparam{wildcards.cost_param}/seed{wildcards.seed}
+            uv run wandb artifact get train_{wildcards.method}-{wildcards.dataset}_split_{wildcards.dataset_split}-costparam_{wildcards.cost_param}-seed_{wildcards.seed}-{CLASSIFIER}-{wildcards.dataset}_split_{wildcards.dataset_split}:{EXPERIMENT_ID} --root results/soft_budget/eval/{wildcards.method}/{wildcards.dataset}/split{wildcards.dataset_split}/costparam{wildcards.cost_param}/seed{wildcards.seed}
         """
 
 # DONE
 rule combine_soft_budget_eval_results:
     input:
         [
-            f"results/soft_budget/eval/{dataset}/split{dataset_split}/{method}/costparam{cost_param}/seed{seed}/soft_eval_data.csv"
+            f"results/soft_budget/eval/{method}/{dataset}/split{dataset_split}/costparam{cost_param}/seed{seed}/soft_eval_data.csv"
             for method in METHODS
             for dataset in DATASETS
             for dataset_split in DATASET_SPLITS

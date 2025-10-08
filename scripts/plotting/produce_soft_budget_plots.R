@@ -2,8 +2,8 @@
 
 # Parse command line arguments
 args <- commandArgs(trailingOnly = TRUE)
-if (length(args) != 3) {
-  stop("Usage: Rscript plot_accuracy_vs_features.R dataset.csv eval_results.csv output_plot.png")
+if (length(args) != 2) {
+  stop("Usage: Rscript produce_soft_budget_plots.R eval_results.csv output_plot.png")
 }
 
 library(ggplot2)

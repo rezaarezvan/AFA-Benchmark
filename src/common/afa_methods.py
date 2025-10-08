@@ -192,7 +192,7 @@ class SequentialDummyAFAMethod(AFAMethod):
         for i in range(batch_size):
             unobserved = (~feature_mask[i]).nonzero(as_tuple=True)[0]
             if unobserved.numel() > 0:
-                selection[i] = unobserved[0]
+                selection[i] = unobserved[0] + 1
             else:
                 selection[i] = 0  # fallback if all features observed
 

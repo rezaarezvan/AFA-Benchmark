@@ -1,5 +1,6 @@
 # jobs: all
 # executor: slurm
+latency-wait: 30 # seconds
 
 default-resources:
     runtime: 120 # minutes
