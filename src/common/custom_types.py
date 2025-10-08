@@ -112,7 +112,11 @@ class AFAMethod(Protocol):
 
     @property
     def cost_param(self) -> float | None:
-        """Return the cost parameter used during training, if any. Only applies to methods that make trade-offs between feature cost and accuracy."""
+        """Return the cost parameter, if any. Only applies to methods that make trade-offs between feature cost and accuracy."""
+        ...
+
+    def set_cost_param(self, cost_param: float) -> None:
+        """Set the cost parameter, if any. Mostly applies to methods that do not need a cost parameter during training but can adjust the trade-off during evaluation."""
         ...
 
 

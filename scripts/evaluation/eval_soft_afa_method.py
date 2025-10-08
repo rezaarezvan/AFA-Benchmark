@@ -176,7 +176,12 @@ def main(cfg: SoftEvalConfig) -> None:
         else:
             classifier_type = "builtin"
 
-    # Hard budget is ignored during evaluation of soft budget methods
+    # Some methods need to have the cost parameter set during evaluation
+    if has_attr(afa_method, "set_cost_param"):
+        assert cfg.cost_param is not None, (
+            "cfg.cost_param should be set for methods that need to set the cost parameter during evaluation"
+        )
+        afa_method.set_cost_param(cfg.cost_param)
 
     # Do the evaluation
     log.info("Starting evaluation with soft budget")

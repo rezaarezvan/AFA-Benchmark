@@ -715,6 +715,9 @@ cs.store(name="eval", node=EvalConfig)
 @dataclass
 class SoftEvalConfig:
     trained_method_artifact_name: str
+    cost_param: (
+        float | None
+    )  # Some AFAMethods don't need a cost parameter during training, but need it during evaluation
     # if None, use the method's classifier
     trained_classifier_artifact_name: str | None
     seed: int | None
