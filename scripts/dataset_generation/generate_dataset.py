@@ -27,7 +27,6 @@ def create_split_dataset(original_dataset, subset):
     # Replace features and labels with the subset
     new_dataset.features = original_dataset.features[indices]
     new_dataset.labels = original_dataset.labels[indices]
-    new_dataset.indices = original_dataset.indices[indices]
 
     return new_dataset
 

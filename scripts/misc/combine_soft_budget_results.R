@@ -19,7 +19,6 @@ required_cols <- c(
   "training_seed",
   "cost_parameter",
   "dataset",
-  "sample",
   "features_chosen",
   "predicted_label_builtin",
   "predicted_label_external",
@@ -37,21 +36,5 @@ dfs <- lapply(input_files, function(f) {
 
 # Stack by rows
 combined <- do.call(rbind, dfs)
-
-# FIX: remove
-write.csv(combined, file = paste(output_path, "~"), row.names = FALSE)
-
-# We want to ensure that for a given (dataset, sample) combination, there
-# is only one true_label. If this is not the case, something is wrong!
-conflicting <- combined %>%
-  group_by(dataset, sample) %>%
-  summarise(n_labels = n_distinct(true_label), .groups = "drop") %>%
-  filter(n_labels > 1)
-
-if (nrow(conflicting) > 0) {
-  print("Conflicting true_label values found for the following (dataset, sample) pairs:")
-  print(conflicting)
-  stop("There are observations where dataset and sample are the same but true_label is different!")
-}
 
 write.csv(combined, file = output_path, row.names = FALSE)

@@ -35,7 +35,6 @@ def eval_soft_budget_afa_method(
 
     Returns:
         pd.DataFrame: DataFrame containing columns:
-            - "sample"
             - "features_chosen"
             - "predicted_label_builtin"
             - "predicted_label_external"
@@ -46,7 +45,7 @@ def eval_soft_budget_afa_method(
     data_rows = []
 
     # Loop over the dataset
-    for _features, _label, _sample_idx in tqdm(  # pyright: ignore[reportCallIssue, reportGeneralTypeIssues]
+    for _features, _label in tqdm(  # pyright: ignore[reportCallIssue, reportGeneralTypeIssues]
         dataset,  # pyright: ignore[reportArgumentType]
         desc="Evaluating dataset samples",
         total=len(dataset) if only_n_samples is None else only_n_samples,
@@ -54,7 +53,6 @@ def eval_soft_budget_afa_method(
         # Place data on device
         features = _features.to(device)
         label = _label.to(device)
-        sample_idx = int(_sample_idx.item())
 
         # Keep track of feature masks, update them as we choose more features
         masked_features = torch.zeros_like(features)
@@ -109,7 +107,6 @@ def eval_soft_budget_afa_method(
 
         data_rows.append(
             {
-                "sample": sample_idx,
                 "features_chosen": n_features_collected + 1,
                 "predicted_label_builtin": builtin_prediction,
                 "predicted_label_external": external_prediction,

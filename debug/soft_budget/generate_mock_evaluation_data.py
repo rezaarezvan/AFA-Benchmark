@@ -28,7 +28,6 @@ def generate_mock_data(
         dataset: np.random.randint(5, 25) for dataset in datasets
     }
 
-    # 1. Generate dataset file: dataset, sample, true_label
     dataset_rows = []
     for dataset in datasets:
         for sample in range(n_samples):
@@ -156,7 +155,6 @@ def generate_mock_data(
                                 "training_seed": seed,
                                 "cost_parameter": float(cost_param),
                                 "dataset": dataset,
-                                "sample": sample,
                                 "features_chosen": features_chosen,
                                 "predicted_label_builtin": pred_label_builtin,
                                 "predicted_label_external": pred_label_external,
@@ -171,7 +169,6 @@ if __name__ == "__main__":
     results_df = generate_mock_data()
 
     results_df["training_seed"] = results_df["training_seed"].astype(int)
-    results_df["sample"] = results_df["sample"].astype(int)
     results_df["features_chosen"] = results_df["features_chosen"].astype(int)
     results_df["predicted_label_external"] = results_df[
         "predicted_label_external"

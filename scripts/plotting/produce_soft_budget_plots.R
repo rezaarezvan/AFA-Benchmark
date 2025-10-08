@@ -21,7 +21,6 @@ results <- read_csv(results_path, col_types = cols(
     training_seed = col_integer(),
     cost_parameter = col_double(),
     dataset = col_factor(),
-    sample = col_integer(),
     features_chosen = col_integer(),
     predicted_label_builtin = col_integer(),
     predicted_label_external = col_integer()

@@ -2,7 +2,7 @@ EXPERIMENT_ID = config["experiment_id"]  # affects both artifact aliases and whe
 
 DATASETS = ["AFAContext", "cube"]  # TODO: add more
 DATASET_SPLITS = [1, 2]
-DATASET_ARTIFACT_ALIAS = "oct8"
+DATASET_ARTIFACT_ALIAS = "oct8a"
 DATASET_SPLIT_MODE = "validation"  # switch to test at the end
 CLASSIFIER = "masked_mlp_classifier"
 CLASSIFIER_ARTIFACT_ALIAS = "KDD"
