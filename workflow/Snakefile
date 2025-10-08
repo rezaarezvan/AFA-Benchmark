@@ -92,6 +92,8 @@ rule soft_budget_plot:
         "results/soft_budget/eval/combined.csv"
     output:
         "results/soft_budget/plot.pdf"
+    conda:
+        "envs/soft_budget_plot.yaml"
     shell:
         """
         Rscript scripts/plotting/produce_soft_budget_plots.R {input[0]} {input[1]} {output}
