@@ -5,16 +5,8 @@ library(readr)
 # Which datasets we want to plot F1 for instead of accuracy
 f1_datasets <- c("dataset_B")
 
-dataset_path <- "dataset.csv"
-results_path <- "results.csv"
+results_path <- "eval_results.csv"
 plot_path <- "plot.png"
-
-# Read the data
-dataset <- read_csv(dataset_path, col_types = cols(
-    dataset = col_factor(),
-    sample = col_integer(),
-    true_label = col_integer()
-))
 
 results <- read_csv(results_path, col_types = cols(
     method = col_factor(),
@@ -28,13 +20,10 @@ results <- read_csv(results_path, col_types = cols(
 ))
 
 # For now, only care about the external predictions
-results <- results %>%
+df <- results %>%
     rename(predicted_label = predicted_label_external) %>%
     select(-predicted_label_builtin)
 
-# Join results with true labels
-df <- results %>%
-    left_join(dataset, by = c("dataset", "sample"))
 
 # Summarize accuracy and features chosen
 df_summarized <- df %>%

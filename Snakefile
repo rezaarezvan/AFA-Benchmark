@@ -1,0 +1,98 @@
+EXPERIMENT_ID = config["experiment_id"]  # affects both artifact aliases and where results are stored
+
+DATASETS = ["AFAContext", "cube"]  # TODO: add more
+DATASET_SPLITS = [1, 2]
+DATASET_ARTIFACT_ALIAS = "oct8"
+DATASET_SPLIT_MODE = "validation"  # switch to test at the end
+CLASSIFIER = "masked_mlp_classifier"
+CLASSIFIER_ARTIFACT_ALIAS = "KDD"
+VALIDATE_ARTIFACTS = False # whether to ensure that classifier is trained on the exact same data as the method
+SEEDS = [1, 2]
+TRAIN_DEVICE = "cuda"
+EVAL_DEVICE = "cpu"
+
+COST_PARAMS_PER_METHOD = {
+    "randomdummy": [0.1, 0.3],
+    "sequentialdummy": [0.1, 0.3]
+}
+METHODS = list(COST_PARAMS_PER_METHOD.keys())
+COST_PARAMS_INDICES_PER_METHOD = {method: list(range(len(params))) for method, params in COST_PARAMS_PER_METHOD.items()}
+
+# DONE
+rule soft_budget:
+    input:
+        "results/soft_budget/plot.pdf"
+
+# DONE
+rule train_soft_budget_method:
+    output:
+        touch("indicators/soft_budget/trained_method/{dataset}/split{dataset_split}/{method}/costparam{cost_param}/seed{seed}.done")
+    shell:
+        """
+            uv run scripts/train_methods/train_{wildcards.method}.py \
+                dataset_artifact_name={wildcards.dataset}_split_{wildcards.dataset_split}:{DATASET_ARTIFACT_ALIAS} \
+                seed={wildcards.seed} \
+                hard_budget=null \
+                output_artifact_aliases=["{EXPERIMENT_ID}"] \
+                cost_param={wildcards.cost_param}
+        """
+
+# DONE
+rule eval_soft_budget_method:
+    input:
+        "indicators/soft_budget/trained_method/{dataset}/split{dataset_split}/{method}/costparam{cost_param}/seed{seed}.done"
+    output:
+        touch("indicators/soft_budget/eval/{dataset}/split{dataset_split}/{method}/costparam{cost_param}/seed{seed}.done")
+    shell:
+        """
+        uv run scripts/evaluation/eval_soft_afa_method.py \
+            trained_method_artifact_name=train_{wildcards.method}-{wildcards.dataset}_split_{wildcards.dataset_split}-costparam_{wildcards.cost_param}-seed_{wildcards.seed}:{EXPERIMENT_ID} \
+            trained_classifier_artifact_name={CLASSIFIER}-{wildcards.dataset}_split_{wildcards.dataset_split}:{CLASSIFIER_ARTIFACT_ALIAS} \
+            output_artifact_aliases=["{EXPERIMENT_ID}"] \
+            seed=null \
+            device={EVAL_DEVICE} \
+            eval_only_n_samples=null \
+            dataset_split={DATASET_SPLIT_MODE} \
+            validate_artifacts={VALIDATE_ARTIFACTS}
+        """
+
+# DONE
+rule download_soft_budget_eval_result:
+    input:
+        "indicators/soft_budget/eval/{dataset}/split{dataset_split}/{method}/costparam{cost_param}/seed{seed}.done",
+    output:
+        "results/soft_budget/eval/{dataset}/split{dataset_split}/{method}/costparam{cost_param}/seed{seed}/eval_data.csv"
+    shell:
+        """
+            uv run wandb artifact get train_{wildcards.method}-{wildcards.dataset}_split_{wildcards.dataset_split}-costparam_{cost_param}-seed_{wildcards.seed}:{EXPERIMENT_ID} --root results/soft_budget/eval/{wildcards.dataset}/split{wildcards.dataset_split}/{wildcards.method}/costparam{wildcards.cost_param}/seed{wildcards.seed}
+        """
+
+# DONE
+rule combine_soft_budget_eval_results:
+    input:
+        [
+            f"results/soft_budget/eval/{dataset}/split{dataset_split}/{method}/costparam{cost_param}/seed{seed}/eval_data.csv"
+            for method in METHODS
+            for dataset in DATASETS
+            for dataset_split in DATASET_SPLITS
+            for cost_param in COST_PARAMS_PER_METHOD[method]
+            for seed in SEEDS
+        ]
+    output:
+        "results/soft_budget/eval/combined.csv"
+    shell:
+        """
+        Rscript scripts/misc/combine_soft_budget_results.R --inputs {input} --output {output}
+        """
+
+# DONE
+rule soft_budget_plot:
+    input:
+        "data/datasets.csv",
+        "results/soft_budget/eval/combined.csv"
+    output:
+        "results/soft_budget/plot.pdf"
+    shell:
+        """
+        Rscript scripts/plotting/produce_soft_budget_plots.R {input[0]} {input[1]} {output}
+        """

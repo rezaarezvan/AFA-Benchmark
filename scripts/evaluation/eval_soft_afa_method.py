@@ -157,10 +157,11 @@ def main(cfg: SoftEvalConfig) -> None:
 
     # Load a classifier if it was specified
     if cfg.trained_classifier_artifact_name:
-        validate_artifacts(
-            cfg.trained_method_artifact_name,
-            cfg.trained_classifier_artifact_name,
-        )
+        if cfg.validate_artifacts:
+            validate_artifacts(
+                cfg.trained_method_artifact_name,
+                cfg.trained_classifier_artifact_name,
+            )
         afa_predict_fn, classifier_metadata = load_trained_classifier_artifact(
             cfg.trained_classifier_artifact_name,
             device=torch.device(cfg.device),
@@ -175,27 +176,13 @@ def main(cfg: SoftEvalConfig) -> None:
         else:
             classifier_type = "builtin"
 
-    # Use the same hard budget during evaluation as during training
-    # Note that this can be None, in which case we will use the maximum number of features in the dataset
-    # during evaluation
-    # Any method can still choose to stop acquiring features earlier than the hard budget
-    if hasattr(cfg, "budget") and getattr(cfg, "budget", None) is not None:
-        eval_budget = cfg.budget
-        assert type(eval_budget) is int
-        log.info(f"Using explicitly provided budget: {eval_budget}")
-    elif method_metadata.get("budget") is None:
-        log.info("Using maximum number of features in the dataset as budget")
-        eval_budget = val_dataset.n_features
-    else:
-        log.info("Using same budget as during training")
-        eval_budget = int(method_metadata["budget"])
+    # Hard budget is ignored during evaluation of soft budget methods
 
     # Do the evaluation
-    log.info(f"Starting evaluation with budget {eval_budget}")
+    log.info("Starting evaluation with soft budget")
     df = eval_soft_budget_afa_method(
         afa_select_fn=afa_method.select,
         dataset=dataset,
-        budget=eval_budget,
         external_afa_predict_fn=afa_predict_fn,
         builtin_afa_predict_fn=afa_method.predict
         if afa_method.has_builtin_classifier
@@ -212,18 +199,6 @@ def main(cfg: SoftEvalConfig) -> None:
     )
     df["cost_parameter"] = cost_param
     df["dataset"] = method_metadata["dataset_type"]
-
-    # Optionally, rename columns to snake_case if needed
-    df = df.rename(
-        columns={
-            "Features chosen": "features_chosen",
-            "Predicted label (builtin)": "predicted_label_builtin",
-            "Predicted label (external)": "predicted_label_external",
-            "Sample": "sample",
-            "True label": "true_label",
-            # Add any other columns as needed
-        }
-    )
 
     # Log to wandb for debugging purposes
     run.log({"soft_eval_df": wandb.Table(dataframe=df)})

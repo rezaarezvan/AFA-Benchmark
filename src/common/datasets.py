@@ -20,6 +20,7 @@ from common.custom_types import (
     Features,
     Label,
     MaskedFeatures,
+    SampleIndex,
 )
 
 
@@ -126,7 +127,7 @@ class Shim2018CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 @final
 class CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     """
-    The Cube dataset, as described in the paper "ODIN: Optimal Discovery of High-value INformation Using Model-based Deep Reinforcement Learning"
+    The Cube dataset, as described in the paper "ODIN: Optimal Discovery of High-value INformation Using Model-based Deep Reinforcement Learning".
 
     Implements the AFADataset protocol.
     """
@@ -222,17 +223,19 @@ class CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         ).float()
         assert self.labels.shape[1] == self.n_classes
 
+        self.indices = torch.arange(self.n_samples).unsqueeze(-1)
+
     @override
-    def __getitem__(self, idx: int) -> tuple[MaskedFeatures, FeatureMask]:
-        return self.features[idx], self.labels[idx]
+    def __getitem__(self, idx: int) -> tuple[Features, Label, SampleIndex]:
+        return self.features[idx], self.labels[idx], self.indices[idx]
 
     @override
     def __len__(self):
         return len(self.features)
 
     @override
-    def get_all_data(self) -> tuple[MaskedFeatures, FeatureMask]:
-        return self.features, self.labels
+    def get_all_data(self) -> tuple[Features, Label, SampleIndex]:
+        return self.features, self.labels, self.indices
 
     @override
     def save(self, path: Path) -> None:
@@ -240,6 +243,7 @@ class CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             {
                 "features": self.features,
                 "labels": self.labels,
+                "indices": self.indices,
                 "config": {
                     "n_samples": self.n_samples,
                     "seed": self.seed,
@@ -258,6 +262,7 @@ class CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         dataset = cls(**data["config"])
         dataset.features = data["features"]
         dataset.labels = data["labels"]
+        dataset.indices = data["indices"]
         return dataset
 
 
@@ -732,17 +737,19 @@ class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         # One-hot labels
         self.labels = F.one_hot(y_int, num_classes=self.n_classes).float()
 
+        self.indices = torch.arange(self.n_samples).unsqueeze(-1)
+
     @override
-    def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
-        return self.features[idx], self.labels[idx]
+    def __getitem__(self, idx: int) -> tuple[Features, Label, SampleIndex]:
+        return self.features[idx], self.labels[idx], self.indices[idx]
 
     @override
     def __len__(self) -> int:
         return self.features.size(0)
 
     @override
-    def get_all_data(self) -> tuple[Tensor, Tensor]:
-        return self.features, self.labels
+    def get_all_data(self) -> tuple[Features, Label, SampleIndex]:
+        return self.features, self.labels, self.indices
 
     @override
     def save(self, path: Path) -> None:
@@ -750,6 +757,7 @@ class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             {
                 "features": self.features,
                 "labels": self.labels,
+                "indices": self.indices,
                 "config": {
                     "n_samples": self.n_samples,
                     "seed": self.seed,
@@ -769,6 +777,7 @@ class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         dataset = cls(**data["config"])
         dataset.features = data["features"]
         dataset.labels = data["labels"]
+        dataset.indices = data["indices"]
         return dataset
 
 
@@ -1217,10 +1226,12 @@ class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         # Store feature names
         self.feature_names = features_df.columns.tolist()
 
+        self.indices = torch.arange(self.features.size(0)).unsqueeze(-1)
+
     @override
-    def __getitem__(self, idx: int) -> tuple[Features, Label]:
+    def __getitem__(self, idx: int) -> tuple[Features, Label, SampleIndex]:
         """Return a single sample from the dataset."""
-        return self.features[idx], self.labels[idx]
+        return self.features[idx], self.labels[idx], self.indices[idx]
 
     @override
     def __len__(self) -> int:
@@ -1228,9 +1239,9 @@ class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         return len(self.features)
 
     @override
-    def get_all_data(self) -> tuple[Features, Label]:
+    def get_all_data(self) -> tuple[Features, Label, SampleIndex]:
         """Return all features and labels."""
-        return self.features, self.labels
+        return self.features, self.labels, self.indices
 
     @override
     def save(self, path: Path) -> None:
@@ -1239,6 +1250,7 @@ class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             {
                 "features": self.features,
                 "labels": self.labels,
+                "indices": self.indices,
                 "feature_names": self.feature_names,
                 "config": {
                     "data_path": self.data_path,
@@ -1256,6 +1268,7 @@ class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         dataset = cls(**data["config"])
         dataset.features = data["features"]
         dataset.labels = data["labels"]
+        dataset.indices = data["indices"]
         dataset.feature_names = data["feature_names"]
         return dataset
 
@@ -1411,9 +1424,11 @@ class PhysionetDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
         self.feature_names = features_df.columns.tolist()
 
+        self.indices = torch.arange(self.features.size(0)).unsqueeze(-1)
+
     @override
-    def __getitem__(self, idx: int) -> tuple[Features, Label]:
-        return self.features[idx], self.labels[idx]
+    def __getitem__(self, idx: int) -> tuple[Features, Label, SampleIndex]:
+        return self.features[idx], self.labels[idx], self.indices[idx]
 
     @override
     def __len__(self) -> int:
@@ -1421,7 +1436,7 @@ class PhysionetDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
     @override
     def get_all_data(self) -> tuple[Features, Label]:
-        return self.features, self.labels
+        return self.features, self.labels, self.indices
 
     @override
     def save(self, path: Path) -> None:
@@ -1429,6 +1444,7 @@ class PhysionetDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             {
                 "features": self.features,
                 "labels": self.labels,
+                "indices": self.indices,
                 "feature_names": self.feature_names,
                 "config": {
                     "data_path": self.data_path,
@@ -1445,6 +1461,7 @@ class PhysionetDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         dataset = cls(**data["config"])
         dataset.features = data["features"]
         dataset.labels = data["labels"]
+        dataset.indices = data["indices"]
         dataset.feature_names = data["feature_names"]
         return dataset
 

@@ -41,7 +41,6 @@ def generate_mock_data(
                     "true_label": true_label,
                 }
             )
-    dataset_df = pd.DataFrame(dataset_rows)
 
     # 2. Generate results file: method, training_seed, cost_parameter, dataset, sample, features_chosen, predicted_label_builtin, predicted_label_external
     results_rows = []
@@ -161,18 +160,15 @@ def generate_mock_data(
                                 "features_chosen": features_chosen,
                                 "predicted_label_builtin": pred_label_builtin,
                                 "predicted_label_external": pred_label_external,
+                                "true_label": true_label,
                             }
                         )
     results_df = pd.DataFrame(results_rows)
-    return dataset_df, results_df
+    return results_df
 
 
 if __name__ == "__main__":
-    dataset_df, results_df = generate_mock_data()
-
-    # Ensure integer columns are saved as int (not float)
-    dataset_df["sample"] = dataset_df["sample"].astype(int)
-    dataset_df["true_label"] = dataset_df["true_label"].astype(int)
+    results_df = generate_mock_data()
 
     results_df["training_seed"] = results_df["training_seed"].astype(int)
     results_df["sample"] = results_df["sample"].astype(int)
@@ -185,7 +181,5 @@ if __name__ == "__main__":
         "predicted_label_builtin"
     ].astype("Int64")
 
-    dataset_df.to_csv("dataset.csv", index=False)
-    results_df.to_csv("results.csv", index=False)
-    print("Mock dataset saved to dataset.csv")
+    results_df.to_csv("eval_results.csv", index=False)
     print("Mock results saved to results.csv")

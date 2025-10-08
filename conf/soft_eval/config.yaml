@@ -11,7 +11,8 @@ defaults:
 trained_method_artifact_name: "dummy-cube_split_1-param1-seed_42:tmp"
 trained_classifier_artifact_name: "masked_mlp_classifier-cube_split_1:tmp"
 output_artifact_aliases: ["tmp"]
-seed: 42
+seed: null
 device: "cuda"
 eval_only_n_samples: null
 dataset_split: "validation"
+validate_artifacts: true

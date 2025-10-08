@@ -12,4 +12,4 @@ dataset_artifact_name: cube_split_1:tmp
 seed: 42
 hard_budget: 5
 output_artifact_aliases: ["tmp"]
-prob_select_0: 0.25
+cost_param: 0.25

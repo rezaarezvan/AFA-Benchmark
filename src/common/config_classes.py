@@ -483,10 +483,11 @@ cs.store(name="train_permutation", node=PermutationTrainingConfig)
 @dataclass
 class RandomDummyTrainConfig:
     dataset_artifact_name: str
-    hard_budget: int  # not used, but pretend that it is
+    hard_budget: int | None  # not used, but pretend that it is
+    device: str
     seed: int
     output_artifact_aliases: list[str]
-    prob_select_0: float
+    cost_param: float
 
 
 cs.store(name="train_randomdummy", node=RandomDummyTrainConfig)
@@ -497,10 +498,11 @@ cs.store(name="train_randomdummy", node=RandomDummyTrainConfig)
 @dataclass
 class SequentialDummyTrainConfig:
     dataset_artifact_name: str
-    hard_budget: int  # not used, but pretend that it is
-    seed: int
+    hard_budget: int | None  # not used, but pretend that it is
+    device: str
+    seed: int | None
     output_artifact_aliases: list[str]
-    prob_select_0: float
+    cost_param: float
 
 
 cs.store(name="train_randomdummy", node=RandomDummyTrainConfig)
@@ -715,7 +717,7 @@ class SoftEvalConfig:
     trained_method_artifact_name: str
     # if None, use the method's classifier
     trained_classifier_artifact_name: str | None
-    seed: int
+    seed: int | None
     device: str
     output_artifact_aliases: list[str]
     eval_only_n_samples: (
@@ -725,6 +727,7 @@ class SoftEvalConfig:
     budget: int | None = (
         None  # if specified, override the budget from training
     )
+    validate_artifacts: bool = True  # whether to validate that the method and classifier artifacts are trained on the exact same dataset
 
 
 cs.store(name="soft-eval", node=SoftEvalConfig)

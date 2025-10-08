@@ -9,6 +9,8 @@ from torch import Tensor
 type Features = Float[Tensor, "*batch n_features"]
 # We use float here since in general we can have probabilities, not only one-hot
 type Label = Float[Tensor, "*batch n_classes"]
+# We need to be able to distinguish between samples, e.g., for tracking performance per sample
+type SampleIndex = Integer[Tensor, "*batch 1"]
 
 type Logits = Float[Tensor, "*batch model_output_size"]
 
@@ -23,6 +25,7 @@ class AFADataset(Protocol):
     # Used by AFADatasetFn
     features: Features  # batched
     labels: Label  # batched
+    indices: SampleIndex
 
     # Used by evaluation scripts to avoid loading the dataset
     n_classes: ClassVar[int]
@@ -32,13 +35,15 @@ class AFADataset(Protocol):
         """Generate data."""
         ...
 
-    def __getitem__(self, idx: int) -> tuple[Features, Label]:
-        """Return a single (possibly batched) sample from the dataset."""
+    def __getitem__(self, idx: int) -> tuple[Features, Label, SampleIndex]:
+        """Return a single sample from the dataset. The index of the sample in the dataset should also be returned."""
         ...
 
     def __len__(self) -> int: ...
 
-    def get_all_data(self) -> tuple[Features, Label]:
+    def get_all_data(
+        self,
+    ) -> tuple[Features, Label, SampleIndex]:
         """Return all of the data in the dataset. Useful for batched computations."""
         ...
 

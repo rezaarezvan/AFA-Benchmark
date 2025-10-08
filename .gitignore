@@ -209,3 +209,5 @@ debug/soft_budget/dataset.csv
 debug/soft_budget/eval_results.csv
 debug/soft_budget/mock_evaluation_data.csv
 conf/soft_eval/lists
+debug/soft_budget/plot.png
+indicators/soft_budget

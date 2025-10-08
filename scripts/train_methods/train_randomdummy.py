@@ -52,7 +52,7 @@ def main(cfg: RandomDummyTrainConfig) -> None:
     afa_method = RandomDummyAFAMethod(
         device=torch.device("cpu"),
         n_classes=n_classes,
-        prob_select_0=cfg.prob_select_0,
+        prob_select_0=cfg.cost_param,
     )
     # Save the method to a temporary directory and load it again to ensure it is saved correctly
     with TemporaryDirectory(delete=False) as tmp_path_str:
@@ -61,8 +61,14 @@ def main(cfg: RandomDummyTrainConfig) -> None:
 
         # Save the model as a WandB artifact
         # Save the name of the afa method class as metadata
+        budget_str = (
+            f"budget_{cfg.hard_budget}"
+            if cfg.hard_budget is not None
+            else f"costparam_{cfg.cost_param}"
+        )
+        artifact_name = f"train_randomdummy-{cfg.dataset_artifact_name.split(':')[0]}-{budget_str}-seed_{cfg.seed}"
         afa_method_artifact = wandb.Artifact(
-            name=f"train_randomdummy-{cfg.dataset_artifact_name.split(':')[0]}-budget_{cfg.hard_budget}-seed_{cfg.seed}",
+            name=artifact_name,
             type="trained_method",
             metadata={
                 "method_type": "randomdummy",

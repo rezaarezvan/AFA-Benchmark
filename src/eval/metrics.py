@@ -16,7 +16,6 @@ log = logging.getLogger(__name__)
 def eval_soft_budget_afa_method(
     afa_select_fn: AFASelectFn,
     dataset: AFADataset,
-    budget: int,
     external_afa_predict_fn: AFAPredictFn,
     builtin_afa_predict_fn: AFAPredictFn | None = None,
     only_n_samples: int | None = None,
@@ -29,7 +28,6 @@ def eval_soft_budget_afa_method(
         afa_select_fn (AFASelectFn): How to select new features. Should return 0 to stop.
         method_name (str): Name of the method, included in results DataFrame.
         dataset (AFADataset): The dataset to evaluate on. Additionally assumed to be a torch dataset.
-        budget (int): The maximum number of features to select.
         external_afa_predict_fn (AFAPredictFn): An external classifier.
         builtin_afa_predict_fn (AFAPredictFn): A builtin classifier, if such exists.
         only_n_samples (int|None, optional): If specified, only evaluate on this many samples from the dataset. Defaults to None.
@@ -42,32 +40,33 @@ def eval_soft_budget_afa_method(
             - "predicted_label_builtin"
             - "predicted_label_external"
     """
-    if only_n_samples is not None and only_n_samples:
-        assert only_n_samples <= budget
-        feature_limit = only_n_samples
-    else:
-        feature_limit = budget
-
     if device is None:
         device = torch.device("cpu")
 
     data_rows = []
 
     # Loop over the dataset
-    for sample_idx, (_features, _label) in tqdm(  # pyright: ignore[reportGeneralTypeIssues]
-        enumerate(dataset),  # pyright: ignore[reportArgumentType]
+    for _features, _label, _sample_idx in tqdm(  # pyright: ignore[reportCallIssue, reportGeneralTypeIssues]
+        dataset,  # pyright: ignore[reportArgumentType]
         desc="Evaluating dataset samples",
         total=len(dataset) if only_n_samples is None else only_n_samples,
     ):
         # Place data on device
         features = _features.to(device)
         label = _label.to(device)
+        sample_idx = int(_sample_idx.item())
 
         # Keep track of feature masks, update them as we choose more features
         masked_features = torch.zeros_like(features)
         feature_mask = torch.zeros_like(features, dtype=torch.bool)
 
         # Loop over hard budget
+        feature_limit = (
+            only_n_samples
+            if only_n_samples is not None
+            and only_n_samples < int(features.shape[-1])
+            else int(features.shape[-1])
+        )
         for n_features_collected in range(feature_limit):
             # Let AFA method select a feature
             selection = int(
@@ -114,6 +113,7 @@ def eval_soft_budget_afa_method(
                 "features_chosen": n_features_collected + 1,
                 "predicted_label_builtin": builtin_prediction,
                 "predicted_label_external": external_prediction,
+                "true_label": int(label.argmax().item()),
             }
         )
 
