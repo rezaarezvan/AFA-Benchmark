@@ -2,7 +2,7 @@ from pathlib import Path
 
 import torch
 
-from afa_generative.utils import *
+from afa_generative.utils import restore_parameters
 from common.custom_types import (
     AFAMethod,
     AFASelection,
@@ -162,3 +162,14 @@ class Ma2018AFAMethod(AFAMethod):
     @property
     def device(self) -> torch.device:
         return self._device
+    
+    @property
+    def has_builtin_classifier(self) -> bool:
+        return True
+
+    @property
+    def cost_param(self) -> float | None:
+        return float(self.lambda_threshold)
+
+    def set_cost_param(self, cost_param: float) -> None:
+        self.lambda_threshold = cost_param

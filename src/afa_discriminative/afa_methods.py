@@ -129,6 +129,7 @@ class GreedyDynamicSelection(nn.Module):
             best_selector = deepcopy(selector)
             best_predictor = deepcopy(predictor)
             num_bad_epochs = 0
+            epoch = 0
 
             for epoch in range(nepochs):
                 # Switch models to training mode.
@@ -480,6 +481,17 @@ class Covert2023AFAMethod(AFAMethod):
     @property
     def device(self) -> torch.device:
         return self._device
+    
+    @property
+    def has_builtin_classifier(self) -> bool:
+        return True
+
+    @property
+    def cost_param(self) -> float | None:
+        return float(self.lambda_threshold)
+
+    def set_cost_param(self, cost_param: float) -> None:
+        self.lambda_threshold = cost_param
 
 
 class CMIEstimator(nn.Module):
@@ -911,3 +923,14 @@ class Gadgil2023AFAMethod(AFAMethod):
     @property
     def device(self) -> torch.device:
         return self._device
+    
+    @property
+    def has_builtin_classifier(self) -> bool:
+        return True
+
+    @property
+    def cost_param(self) -> float | None:
+        return float(self.lambda_threshold)
+
+    def set_cost_param(self, cost_param: float) -> None:
+        self.lambda_threshold = cost_param
