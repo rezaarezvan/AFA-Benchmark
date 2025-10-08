@@ -203,15 +203,27 @@ def main(cfg: SoftEvalConfig) -> None:
         only_n_samples=cfg.eval_only_n_samples,
         device=torch.device(cfg.device),
     )
-    # Add columns to conform to expected format
-    df["Method"] = method_metadata["method_type"]
-    df["Training seed"] = method_metadata["seed"]
+    # Add columns to conform to expected format (snake_case)
+    df["method"] = method_metadata["method_type"]
+    df["training_seed"] = method_metadata["seed"]
     cost_param = afa_method.cost_param
     assert cost_param is not None, (
         "Cost parameter should not be None for soft budget methods"
     )
-    df["Cost parameter"] = cost_param
-    df["Dataset"] = method_metadata["dataset_type"]
+    df["cost_parameter"] = cost_param
+    df["dataset"] = method_metadata["dataset_type"]
+
+    # Optionally, rename columns to snake_case if needed
+    df = df.rename(
+        columns={
+            "Features chosen": "features_chosen",
+            "Predicted label (builtin)": "predicted_label_builtin",
+            "Predicted label (external)": "predicted_label_external",
+            "Sample": "sample",
+            "True label": "true_label",
+            # Add any other columns as needed
+        }
+    )
 
     # Log to wandb for debugging purposes
     run.log({"soft_eval_df": wandb.Table(dataframe=df)})

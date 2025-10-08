@@ -12,15 +12,15 @@ def generate_mock_data(
     random_state=42,
 ):
     np.random.seed(random_state)
-    methods = [f"Method-{i + 1}" for i in range(n_methods)]
+    methods = [f"method_{i + 1}" for i in range(n_methods)]
     seeds = [100 + i for i in range(n_seeds)]
     # Define different cost_param ranges for each method
     method_cost_param_ranges = {
-        "Method-1": np.linspace(0.01, 0.1, n_cost_params),
-        "Method-2": np.linspace(1, 5, n_cost_params),
-        "Method-3": np.linspace(0.5, 2, n_cost_params),
-        "Method-4": np.linspace(10, 100, n_cost_params),
-        "Method-5": np.linspace(0.001, 0.01, n_cost_params),
+        "method_1": np.linspace(0.01, 0.1, n_cost_params),
+        "method_2": np.linspace(1, 5, n_cost_params),
+        "method_3": np.linspace(0.5, 2, n_cost_params),
+        "method_4": np.linspace(10, 100, n_cost_params),
+        "method_5": np.linspace(0.001, 0.01, n_cost_params),
     }
     datasets = [f"dataset_{chr(65 + i)}" for i in range(n_datasets)]
     # Assign a different max_features (x) for each dataset
@@ -28,7 +28,7 @@ def generate_mock_data(
         dataset: np.random.randint(5, 25) for dataset in datasets
     }
 
-    # 1. Generate dataset file: Dataset, Sample, True label
+    # 1. Generate dataset file: dataset, sample, true_label
     dataset_rows = []
     for dataset in datasets:
         for sample in range(n_samples):
@@ -36,28 +36,28 @@ def generate_mock_data(
             true_label = np.random.randint(0, n_classes)
             dataset_rows.append(
                 {
-                    "Dataset": dataset,
-                    "Sample": sample,
-                    "True label": true_label,
+                    "dataset": dataset,
+                    "sample": sample,
+                    "true_label": true_label,
                 }
             )
     dataset_df = pd.DataFrame(dataset_rows)
 
-    # 2. Generate results file: Method, Training seed, Cost parameter, Dataset, Sample, Features chosen, Predicted label (builtin), Predicted label (external)
+    # 2. Generate results file: method, training_seed, cost_parameter, dataset, sample, features_chosen, predicted_label_builtin, predicted_label_external
     results_rows = []
     # For reproducibility, get the true labels as a lookup
     true_label_lookup = {
-        (row["Dataset"], row["Sample"]): row["True label"]
+        (row["dataset"], row["sample"]): row["true_label"]
         for row in dataset_rows
     }
 
     # Method-dependent offsets for features and accuracy
     method_offsets = {
-        "Method-1": {"features": 0.0, "accuracy": 0.0},
-        "Method-2": {"features": 0.2, "accuracy": 0.1},
-        "Method-3": {"features": -0.2, "accuracy": -0.1},
-        "Method-4": {"features": 0.3, "accuracy": 0.15},
-        "Method-5": {"features": -0.3, "accuracy": -0.15},
+        "method_1": {"features": 0.0, "accuracy": 0.0},
+        "method_2": {"features": 0.2, "accuracy": 0.1},
+        "method_3": {"features": -0.2, "accuracy": -0.1},
+        "method_4": {"features": 0.3, "accuracy": 0.15},
+        "method_5": {"features": -0.3, "accuracy": -0.15},
     }
 
     for method in methods:
@@ -101,7 +101,7 @@ def generate_mock_data(
                                 max_features,
                             )
                         )
-                        methods_with_builtin = {"Method-1", "Method-3"}
+                        methods_with_builtin = {"method_1", "method_3"}
                         has_builtin = method in methods_with_builtin
 
                         true_label = true_label_lookup[(dataset, sample)]
@@ -153,14 +153,14 @@ def generate_mock_data(
 
                         results_rows.append(
                             {
-                                "Method": method,
-                                "Training seed": seed,
-                                "Cost parameter": float(cost_param),
-                                "Dataset": dataset,
-                                "Sample": sample,
-                                "Features chosen": features_chosen,
-                                "Predicted label (builtin)": pred_label_builtin,
-                                "Predicted label (external)": pred_label_external,
+                                "method": method,
+                                "training_seed": seed,
+                                "cost_parameter": float(cost_param),
+                                "dataset": dataset,
+                                "sample": sample,
+                                "features_chosen": features_chosen,
+                                "predicted_label_builtin": pred_label_builtin,
+                                "predicted_label_external": pred_label_external,
                             }
                         )
     results_df = pd.DataFrame(results_rows)
@@ -171,18 +171,18 @@ if __name__ == "__main__":
     dataset_df, results_df = generate_mock_data()
 
     # Ensure integer columns are saved as int (not float)
-    dataset_df["Sample"] = dataset_df["Sample"].astype(int)
-    dataset_df["True label"] = dataset_df["True label"].astype(int)
+    dataset_df["sample"] = dataset_df["sample"].astype(int)
+    dataset_df["true_label"] = dataset_df["true_label"].astype(int)
 
-    results_df["Training seed"] = results_df["Training seed"].astype(int)
-    results_df["Sample"] = results_df["Sample"].astype(int)
-    results_df["Features chosen"] = results_df["Features chosen"].astype(int)
-    results_df["Predicted label (external)"] = results_df[
-        "Predicted label (external)"
+    results_df["training_seed"] = results_df["training_seed"].astype(int)
+    results_df["sample"] = results_df["sample"].astype(int)
+    results_df["features_chosen"] = results_df["features_chosen"].astype(int)
+    results_df["predicted_label_external"] = results_df[
+        "predicted_label_external"
     ].astype(int)
     # Use pandas nullable Int64 for columns that can be NA/None
-    results_df["Predicted label (builtin)"] = results_df[
-        "Predicted label (builtin)"
+    results_df["predicted_label_builtin"] = results_df[
+        "predicted_label_builtin"
     ].astype("Int64")
 
     dataset_df.to_csv("dataset.csv", index=False)

@@ -1,31 +1,31 @@
 # Evaluation data format
 
-Note that the hard and soft budget cases have the same column names, but `Features chosen` has a different meaning.
+Note that the hard and soft budget cases have the same column names, but `features_chosen` has a different meaning.
 
-During plotting, we can join the dataset dataframe with the results dataframe on `Dataset` and `Sample` to get the true labels.
+During plotting, we can join the dataset dataframe with the results dataframe on `dataset` and `sample` to get the true labels.
 
 ## Dataset
-- `Dataset` (str): name of a dataset
-- `Sample` (int): index of the sample
-- `True label` (int): true label for this sample
+- `dataset` (str): name of a dataset
+- `sample` (int): index of the sample
+- `true_label` (int): true label for this sample
 
 ## Hard budget case
 After evaluating each method we expect a dataframe with the columns
-- `Method` (str): name of the method, e.g. "ODIN-MFRL" or "EDDI"
-- `Training seed` (int): seed used for training the method
-- `Dataset` (str): name of the dataset that the method was trained on and evaluated on (has to be the same)
-- `Sample` (int): index of the sample
-- `Features chosen` (int): how many features the method has chosen so far for this sample
-- `Predicted label (builtin)` (int | null): Predicted label for this sample using the builtin classifier. `null` if the method has no builtin classifier.
-- `Predicted label (external)` (float): Predicted label for this sample using the external classifier.
+- `method` (str): name of the method, e.g. "ODIN-MFRL" or "EDDI"
+- `training_seed` (int): seed used for training the method
+- `dataset` (str): name of the dataset that the method was trained on and evaluated on (has to be the same)
+- `sample` (int): index of the sample
+- `features_chosen` (int): how many features the method has chosen so far for this sample
+- `predicted_label_builtin` (int | null): Predicted label for this sample using the builtin classifier. `null` if the method has no builtin classifier.
+- `predicted_label_external` (float): Predicted label for this sample using the external classifier.
 
 ## Soft budget case
 After evaluating each method we expect a dataframe with the columns
-- `Method` (str): name of the method, e.g. "ODIN-MFRL" or "EDDI"
-- `Training seed` (int): seed used for training the method
-- `Cost parameter` (float): hyperparameter used during training to control the cost sensitivity. This will have different meanings for different methods.
-- `Dataset` (str): name of the dataset that the method was trained on and evaluated on (has to be the same)
-- `Sample` (int): index of the sample
-- `Features chosen` (int): how many features the method chose for this sample before choosing to stop
-- `Predicted label (builtin)` (int | null): Predicted label for this sample using the builtin classifier. `null` if the method has no builtin classifier.
-- `Predicted label (external)` (float): Predicted label for this sample using the external classifier.
+- `method` (str): name of the method, e.g. "ODIN-MFRL" or "EDDI"
+- `training_seed` (int): seed used for training the method
+- `cost_parameter` (float): hyperparameter used during training to control the cost sensitivity. This will have different meanings for different methods.
+- `dataset` (str): name of the dataset that the method was trained on and evaluated on (has to be the same)
+- `sample` (int): index of the sample
+- `features_chosen` (int): how many features the method chose for this sample before choosing to stop
+- `predicted_label_builtin` (int | null): Predicted label for this sample using the builtin classifier. `null` if the method has no builtin classifier.
+- `predicted_label_external` (float): Predicted label for this sample using the external classifier.

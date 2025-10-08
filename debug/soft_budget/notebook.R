@@ -1,118 +1,126 @@
-# Load required libraries
 library(ggplot2)
 library(dplyr)
 library(readr)
-library(tidyr)
+
+# Which datasets we want to plot F1 for instead of accuracy
+f1_datasets <- c("dataset_B")
+
+dataset_path <- "dataset.csv"
+results_path <- "results.csv"
+plot_path <- "plot.png"
 
 # Read the data
-dataset <- read_csv("dataset.csv", col_types = cols(
-  Dataset = col_factor(),
-  `Sample` = col_integer(),
-  `True label` = col_integer()
-))
-results <- read_csv("results.csv", col_types = cols(
-  Method = col_factor(),
-  `Training seed` = col_integer(),
-  `Cost parameter` = col_double(),
-  Dataset = col_factor(),
-  Sample = col_integer(),
-  `Features chosen` = col_integer(),
-  `Predicted label (builtin)` = col_integer(),
-  `Predicted label (external)` = col_integer(),
+dataset <- read_csv(dataset_path, col_types = cols(
+    dataset = col_factor(),
+    sample = col_integer(),
+    true_label = col_integer()
 ))
 
-# ---- Join results with true labels ----
+results <- read_csv(results_path, col_types = cols(
+    method = col_factor(),
+    training_seed = col_integer(),
+    cost_parameter = col_double(),
+    dataset = col_factor(),
+    sample = col_integer(),
+    features_chosen = col_integer(),
+    predicted_label_builtin = col_integer(),
+    predicted_label_external = col_integer()
+))
+
+# For now, only care about the external predictions
+results <- results %>%
+    rename(predicted_label = predicted_label_external) %>%
+    select(-predicted_label_builtin)
+
+# Join results with true labels
 df <- results %>%
-    left_join(dataset, by = c("Dataset", "Sample"))
+    left_join(dataset, by = c("dataset", "sample"))
 
-# First alternative
-accuracy_by_method_df1 = df %>%
-  mutate(
-    correct = (`Predicted label (external)` == `True label`)
-  ) %>%
-  group_by(Method, Dataset, `Cost parameter`, `Training seed`) %>%
-  summarize( # over samples in dataset
-    Accuracy = mean(correct),
-    `Avg. features chosen` = mean(`Features chosen`),
-  .groups = "drop_last") %>% 
+# Summarize accuracy and features chosen
+df_summarized <- df %>%
+    mutate(
+        correct = (predicted_label == true_label),
+        tp = (predicted_label == 1 & true_label == 1),
+        fp = (predicted_label == 1 & true_label == 0),
+        tn = (predicted_label == 0 & true_label == 0),
+        fn = (predicted_label == 0 & true_label == 1)
+    ) %>%
+    group_by(method, dataset, cost_parameter, training_seed) %>%
+    summarize(
+        accuracy = mean(correct),
+        avg_features_chosen = mean(features_chosen),
+        tp = sum(tp),
+        fp = sum(fp),
+        tn = sum(tn),
+        fn = sum(fn),
+        precision = ifelse(tp + fp == 0, 0, tp / (tp + fp)),
+        recall = ifelse(tp + fn == 0, 0, tp / (tp + fn)),
+        f1 = ifelse(precision + recall == 0, 0, 2 * (precision * recall) / (precision + recall)),
+        .groups = "drop_last"
+    )
+
+# Some datasets use accuracy, others use F1
+df_summarized <- df_summarized %>%
+    mutate(
+        metric_type = ifelse(dataset %in% f1_datasets, "f1", "accuracy"),
+        metric_value = ifelse(metric_type == "f1", f1, accuracy)
+    )
+
+# Mean and sd over training seeds
+df_summary <- df_summarized %>%
+    group_by(method, dataset, cost_parameter, metric_type) %>%
+    summarize(
+        avg_metric = mean(metric_value),
+        sd_metric = sd(metric_value),
+        mean_avg_features_chosen = mean(avg_features_chosen),
+        sd_avg_features_chosen = sd(avg_features_chosen),
+        .groups = "drop"
+    )
+
+df_labels <- df_summary %>%
+  group_by(dataset) %>%
   summarize(
-    `Avg. accuracy` = mean(Accuracy),
-    `Sd. accuracy` = sd(Accuracy),
-    `Mean avg. features chosen` = mean(`Avg. features chosen`),
-    `Sd. avg. features chosen` = sd(`Avg. features chosen`)
-  , .groups = "drop_last")
+    metric_label = ifelse(first(metric_type) == "f1", "F1", "Accuracy"),
+    x = min(mean_avg_features_chosen),
+    y = 1
+  )
 
-
-ggplot(accuracy_by_method_df1, aes(
-  x = `Mean avg. features chosen`,
-  y = `Avg. accuracy`,
-  color = Method
+# Create the plot
+p <- ggplot(df_summary, aes(
+    x = mean_avg_features_chosen,
+    y = avg_metric,
+    color = method
 )) +
-  geom_point() +
-  geom_line() +
-  geom_errorbar(
-    aes(
-      ymin = `Avg. accuracy` - `Sd. accuracy`,
-      ymax = `Avg. accuracy` + `Sd. accuracy`
-    ),
-    width = 0
-  ) +
-  geom_errorbarh(
-    aes(
-      xmin = `Mean avg. features chosen` - `Sd. avg. features chosen`,
-      xmax = `Mean avg. features chosen` + `Sd. avg. features chosen`
-    ),
-    height = 0
-  ) +
-  facet_wrap(~Dataset, scales = "free_x") +
-  ylim(0, 1) +
-  labs(
-    title = "Accuracy vs Avg. Features Chosen",
-    x = "Mean avg. features chosen",
-    y = "Avg. accuracy"
-  ) +
-  theme_bw()
+    geom_point() +
+    geom_line() +
+    geom_errorbar(
+        aes(
+            ymin = avg_metric - sd_metric,
+            ymax = avg_metric + sd_metric
+        ),
+        width = 0
+    ) +
+    geom_errorbarh(
+        aes(
+            xmin = mean_avg_features_chosen - sd_avg_features_chosen,
+            xmax = mean_avg_features_chosen + sd_avg_features_chosen
+        ),
+        height = 0
+    ) +
+    geom_text(
+      data = df_labels,
+      aes(x = x, y = y, label = metric_label),
+      inherit.aes = FALSE,
+      hjust = 0, vjust = 1, fontface = "bold"
+    ) +
+    facet_wrap(~dataset, scales = "free_x") +
+    coord_cartesian(ylim = c(0, 1)) +
+    labs(
+        title = "Metric vs Avg. Features Chosen",
+        x = "Avg. features chosen",
+        y = "Metric",
+    ) +
+    theme_bw()
 
-# Second alternative
-accuracy_by_method_df2 = df %>%
-  mutate(
-    correct = (`Predicted label (external)` == `True label`)
-  ) %>%
-  group_by(Method, Dataset, `Cost parameter`) %>%
-  summarize( # over training seed and samples in dataset
-    `Avg. features chosen` = mean(`Features chosen`),
-    `Sd. features chosen` = sd(`Features chosen`),
-    `Avg. accuracy` = mean(correct),
-    `Sd. accuracy` = sd(correct),
-  .groups = "drop_last")
-
-ggplot(accuracy_by_method_df2, aes(
-  x = `Avg. features chosen`,
-  y = `Avg. accuracy`,
-  color = Method
-)) +
-  geom_point() +
-  geom_line() +
-  geom_errorbar(
-    aes(
-      ymin = `Avg. accuracy` - `Sd. accuracy`,
-      ymax = `Avg. accuracy` + `Sd. accuracy`
-    ),
-    width = 0
-  ) +
-  geom_errorbarh(
-    aes(
-      xmin = `Avg. features chosen` - `Sd. features chosen`,
-      xmax = `Avg. features chosen` + `Sd. features chosen`
-    ),
-    height = 0
-  ) +
-  facet_wrap(~Dataset) +
-  coord_cartesian(ylim = c(0, 1)) +
-  # ylim(0, 1) +
-  labs(
-    title = "Accuracy vs avg. features Chosen",
-    x = "Avg. features chosen",
-    y = "Avg. accuracy"
-  ) +
-  theme_bw()
+# Save the plot
+ggsave(plot_path, p, width = 10, height = 6, dpi = 300)

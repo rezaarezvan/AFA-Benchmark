@@ -37,10 +37,10 @@ def eval_soft_budget_afa_method(
 
     Returns:
         pd.DataFrame: DataFrame containing columns:
-            - "Sample"
-            - "Features chosen"
-            - "Predicted label (builtin)"
-            - "Predicted label (external)"
+            - "sample"
+            - "features_chosen"
+            - "predicted_label_builtin"
+            - "predicted_label_external"
     """
     if only_n_samples is not None and only_n_samples:
         assert only_n_samples <= budget
@@ -110,10 +110,10 @@ def eval_soft_budget_afa_method(
 
         data_rows.append(
             {
-                "Sample": sample_idx,
-                "Features chosen": n_features_collected + 1,
-                "Predicted label (builtin)": builtin_prediction,
-                "Predicted label (external)": external_prediction,
+                "sample": sample_idx,
+                "features_chosen": n_features_collected + 1,
+                "predicted_label_builtin": builtin_prediction,
+                "predicted_label_external": external_prediction,
             }
         )
 
