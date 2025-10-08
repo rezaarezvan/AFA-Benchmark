@@ -45,6 +45,7 @@ dev = [
     "ipython>=8.36.0",
     "ruff>=0.11.8",
     "snakemake>=9.12.0",
+    "snakemake-executor-plugin-slurm>=1.8.0",
 ]
 
 [[tool.uv.index]]

@@ -61,17 +61,17 @@ rule download_soft_budget_eval_result:
     input:
         "indicators/soft_budget/eval/{dataset}/split{dataset_split}/{method}/costparam{cost_param}/seed{seed}.done",
     output:
-        "results/soft_budget/eval/{dataset}/split{dataset_split}/{method}/costparam{cost_param}/seed{seed}/eval_data.csv"
+        "results/soft_budget/eval/{dataset}/split{dataset_split}/{method}/costparam{cost_param}/seed{seed}/soft_eval_data.csv"
     shell:
         """
-            uv run wandb artifact get train_{wildcards.method}-{wildcards.dataset}_split_{wildcards.dataset_split}-costparam_{cost_param}-seed_{wildcards.seed}:{EXPERIMENT_ID} --root results/soft_budget/eval/{wildcards.dataset}/split{wildcards.dataset_split}/{wildcards.method}/costparam{wildcards.cost_param}/seed{wildcards.seed}
+            uv run wandb artifact get train_{wildcards.method}-{wildcards.dataset}_split_{wildcards.dataset_split}-costparam_{wildcards.cost_param}-seed_{wildcards.seed}-{CLASSIFIER}-{wildcards.dataset}_split_{wildcards.dataset_split}:{EXPERIMENT_ID} --root results/soft_budget/eval/{wildcards.dataset}/split{wildcards.dataset_split}/{wildcards.method}/costparam{wildcards.cost_param}/seed{wildcards.seed}
         """
 
 # DONE
 rule combine_soft_budget_eval_results:
     input:
         [
-            f"results/soft_budget/eval/{dataset}/split{dataset_split}/{method}/costparam{cost_param}/seed{seed}/eval_data.csv"
+            f"results/soft_budget/eval/{dataset}/split{dataset_split}/{method}/costparam{cost_param}/seed{seed}/soft_eval_data.csv"
             for method in METHODS
             for dataset in DATASETS
             for dataset_split in DATASET_SPLITS
@@ -80,21 +80,22 @@ rule combine_soft_budget_eval_results:
         ]
     output:
         "results/soft_budget/eval/combined.csv"
+    conda:
+        "envs/R.yaml"
     shell:
         """
-        Rscript scripts/misc/combine_soft_budget_results.R --inputs {input} --output {output}
+        Rscript scripts/misc/combine_soft_budget_results.R {input} {output}
         """
 
 # DONE
 rule soft_budget_plot:
     input:
-        "data/datasets.csv",
         "results/soft_budget/eval/combined.csv"
     output:
         "results/soft_budget/plot.pdf"
     conda:
-        "envs/soft_budget_plot.yaml"
+        "envs/R.yaml"
     shell:
         """
-        Rscript scripts/plotting/produce_soft_budget_plots.R {input[0]} {input[1]} {output}
+        Rscript scripts/plotting/produce_soft_budget_plots.R {input[0]} {output}
         """

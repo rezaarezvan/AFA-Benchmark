@@ -205,7 +205,7 @@ def main(cfg: SoftEvalConfig) -> None:
 
     # Save results as wandb artifact
     eval_results_artifact = wandb.Artifact(
-        name=f"{cfg.trained_method_artifact_name.split(':')[0]}-soft-{cfg.trained_classifier_artifact_name.split(':')[0] if cfg.trained_classifier_artifact_name else 'builtin'}",
+        name=f"{cfg.trained_method_artifact_name.split(':')[0]}-{cfg.trained_classifier_artifact_name.split(':')[0] if cfg.trained_classifier_artifact_name else 'builtin'}",
         type="soft_eval_results",
         metadata={
             "dataset_type": method_metadata["dataset_type"],
@@ -217,7 +217,9 @@ def main(cfg: SoftEvalConfig) -> None:
     with NamedTemporaryFile("w", delete=False) as f:
         df_save_path = Path(f.name)
         df.to_csv(df_save_path, index=False)
-    eval_results_artifact.add_file(str(df_save_path), name="soft_eval.csv")
+    eval_results_artifact.add_file(
+        str(df_save_path), name="soft_eval_data.csv"
+    )
     run.log_artifact(
         eval_results_artifact, aliases=cfg.output_artifact_aliases
     )
