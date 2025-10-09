@@ -68,12 +68,18 @@ class RLAFAMethod(AFAMethod):
 
     policy_tdmodule: TensorDictModuleBase | ProbabilisticActor
     afa_classifier: AFAClassifier
+    acquisition_cost: float | None
     _device: torch.device = torch.device("cpu")  # noqa: RUF009
 
     def __post_init__(self):
         # Move policy and classifier to the specified device
         self.policy_tdmodule = self.policy_tdmodule.to(self._device)
         self.afa_classifier = self.afa_classifier.to(self._device)
+
+    @override
+    @property
+    def cost_param(self) -> float:
+        return self.acquisition_cost
 
     @override
     def select(
@@ -127,6 +133,7 @@ class RLAFAMethod(AFAMethod):
         self.afa_classifier.save(path / "classifier.pt")
         with (path / "classifier_class_name.txt").open("w") as f:
             f.write(self.afa_classifier.__class__.__name__)
+        torch.save(self.acquisition_cost, path / "acquisition_cost.pt")
 
     @classmethod
     @override
@@ -142,10 +149,16 @@ class RLAFAMethod(AFAMethod):
         afa_classifier = get_afa_classifier_class(classifier_class_name).load(
             path / "classifier.pt", device=device
         )
+        acquisition_cost = torch.load(
+            path / "acquisition_cost.pt",
+            weights_only=True,
+            map_location=device,
+        )
 
         return cls(
             policy_tdmodule=policy_tdmodule,
             afa_classifier=afa_classifier,
+            acquisition_cost=acquisition_cost,
             _device=device,
         )
 

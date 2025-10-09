@@ -379,6 +379,7 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
             Shim2018AFAClassifier(
                 pretrained_model, device=torch.device("cpu")
             ),
+            cfg.cost_param,
         )
         log.info("AFA method created")
         # Save the method to a temporary directory and load it again to ensure it is saved correctly
