@@ -73,10 +73,7 @@ class RandomDummyAFAMethod(AFAMethod):
         features: Features | None,
         label: Label | None,
     ) -> Label:
-        """
-        Return a prediction that interpolates between a random prediction and the true label,
-        depending on the proportion of unmasked features. If label is None, fallback to random.
-        """
+        """Return a prediction that interpolates between a random prediction and the true label, depending on the proportion of unmasked features. If label is None, fallback to random."""
         original_device = masked_features.device
 
         masked_features = masked_features.to(self._device)
@@ -276,6 +273,11 @@ class RandomClassificationAFAMethod(AFAMethod):
         else:
             self._device = device
             self.afa_classifier = afa_classifier.to(device)
+
+    @property
+    @override
+    def has_builtin_classifier(self) -> bool:
+        return True
 
     @override
     def select(
