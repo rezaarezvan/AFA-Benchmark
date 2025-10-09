@@ -72,10 +72,10 @@ type NaiveIdentityFn = Callable[[FeatureMask], NaiveIdentity]
 type AFAReward = Float[Tensor, "*batch 1"]
 type AFARewardFn = Callable[
     [
-        MaskedFeatures,
-        FeatureMask,
-        MaskedFeatures,
-        FeatureMask,
+        MaskedFeatures,  # current masked features
+        FeatureMask,  # current feature mask
+        MaskedFeatures,  # new masked features
+        FeatureMask,  # new feature mask
         AFASelection,
         Features,
         Label,

@@ -37,7 +37,10 @@ def calc_reward(conf_a: Tensor, conf_b: Tensor, method: str):
 
 
 def get_kachuee2019_reward_fn(
-    pq_module: Kachuee2019PQModule, method: str, mcdrop_samples: int
+    pq_module: Kachuee2019PQModule,
+    method: str,
+    mcdrop_samples: int,
+    acquisition_cost: float | None,
 ) -> AFARewardFn:
     """
     The reward function for kachuee2019.
@@ -52,21 +55,35 @@ def get_kachuee2019_reward_fn(
 
     def f(
         masked_features: MaskedFeatures,
-        feature_mask: FeatureMask,
+        _feature_mask: FeatureMask,
         new_masked_features: MaskedFeatures,
-        new_feature_mask: FeatureMask,
-        _afa_selection: AFASelection,
+        _new_feature_mask: FeatureMask,
+        afa_selection: AFASelection,
         _features: Features,
         _label: Label,
         _done: Bool[Tensor, "*batch 1"],
     ) -> AFAReward:
+        # Acquisition cost per feature
+        if acquisition_cost is None:
+            reward = torch.zeros_like(
+                afa_selection,
+                dtype=torch.float32,
+                device=masked_features.device,
+            )
+        else:
+            reward = -acquisition_cost * torch.ones_like(
+                afa_selection,
+                dtype=torch.float32,
+                device=masked_features.device,
+            )
+
         conf_a = pq_module.confidence(
             masked_features, mcdrop_samples=mcdrop_samples
         )
         conf_b = pq_module.confidence(
             new_masked_features, mcdrop_samples=mcdrop_samples
         )
-        reward = calc_reward(conf_a, conf_b, method=method)
+        reward = reward + calc_reward(conf_a, conf_b, method=method)
         return reward
 
     return f

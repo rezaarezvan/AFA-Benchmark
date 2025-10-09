@@ -16,9 +16,11 @@ cost_params_per_method:
     # randomdummy: [0.1, 0.3]
     # sequentialdummy: [0.1, 0.3]
     shim2018: [0.1, 0.001, 0.00001]
+    kachuee2019: [0.1, 0.001, 0.00001]
 has_pretrain_stage:
     # randomdummy: false
     # sequentialdummy: false
     shim2018: true
+    kachuee2019: true
 pretrain_alias: "KDD"
 smoke_test: true

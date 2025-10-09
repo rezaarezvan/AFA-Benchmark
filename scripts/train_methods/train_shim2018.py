@@ -388,54 +388,9 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
             tmp_path = Path(tmp_path_str)
             afa_method.save(tmp_path)
             del afa_method
-            afa_method = RLAFAMethod.load(
-                tmp_path,
-                device=torch.device("cpu"),
-            )
-            log.info("Method saved and reloaded successfully")
-            # if cfg.evaluate_final_performance:
-            #     log.info("Starting final performance evaluation")
-            #     with (
-            #         torch.no_grad(),
-            #         set_exploration_type(ExplorationType.DETERMINISTIC),
-            #     ):
-            #         # Check what the final performance of the method is. Costly for large datasets.
-            #         # metrics = eval_afa_method(
-            #         #     afa_method.select,
-            #         #     val_dataset,
-            #         #     cfg.hard_budget,
-            #         #     afa_method.predict,
-            #         #     only_n_samples=cfg.eval_only_n_samples,
-            #         # )
-            #         # log.info("Final performance evaluation completed")
-            #     fig_metrics = plot_metrics(metrics)
-            #     # Also check performance of dummy method for comparison
-            #     log.info("Evaluating dummy method for comparison")
-            #     dummy_afa_method = RandomDummyAFAMethod(
-            #         device=torch.device("cpu"), n_classes=n_classes
-            #     )
-            #     dummy_metrics = eval_afa_method(
-            #         dummy_afa_method.select,
-            #         val_dataset,
-            #         cfg.hard_budget,
-            #         afa_method.predict,
-            #         only_n_samples=cfg.eval_only_n_samples,
-            #     )
-            #     fig_dummy_metrics = plot_metrics(dummy_metrics)
-            #     log.info("Dummy method evaluation completed")
-            #     run.log(
-            #         {
-            #             "final_performance_plot": fig_metrics,
-            #             "final_dummy_performance_plot": fig_dummy_metrics,
-            #         }
-            #     )
 
             # Save the model as a WandB artifact
-            # Save the name of the afa method class as metadata
             log.info("Creating WandB artifact for trained method")
-            # print(
-            #     f"dataset name {pretrained_model_config.dataset_artifact_name}"
-            # )
             if cfg.cost_param is not None:
                 budget_str = f"costparam_{cfg.cost_param}"
             else:
