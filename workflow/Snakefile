@@ -3,9 +3,8 @@ configfile: "workflow/conf/default.yaml"
 
 # Define global variables from config values
 EXPERIMENT_ID = config["experiment_id"]
-DATASETS = config["datasets"]
 DATASET_SPLITS = config["dataset_splits"]
-DATASET_ARTIFACT_ALIAS = config["dataset_artifact_alias"]
+DATASET_ARTIFACT_ALIASES = config["dataset_artifact_aliases"]
 DATASET_SPLIT_MODE = config["dataset_split_mode"]
 CLASSIFIER = config["classifier"]
 CLASSIFIER_ARTIFACT_ALIAS = config["classifier_artifact_alias"]
@@ -18,6 +17,8 @@ METHODS = list(COST_PARAMS_PER_METHOD.keys())
 HAS_PRETRAIN_STAGE = config["has_pretrain_stage"]
 PRETRAIN_ALIAS = config["pretrain_alias"]
 SMOKE_TEST = config["smoke_test"]
+
+DATASETS = list(DATASET_ARTIFACT_ALIASES.keys())
 
 COST_PARAMS_INDICES_PER_METHOD = {
     method: list(range(len(params)))
@@ -41,7 +42,7 @@ rule train_soft_budget_method:
         dataset_or_pretrain_artifact_name_arg=lambda wildcards: (
             f"pretrained_model_artifact_name=pretrain_{wildcards.method}-{wildcards.dataset}_split_{wildcards.dataset_split}:{PRETRAIN_ALIAS}"
             if HAS_PRETRAIN_STAGE[wildcards.method]
-            else f"dataset_artifact_name={wildcards.dataset}_split_{wildcards.dataset_split}:{DATASET_ARTIFACT_ALIAS}"
+            else f"dataset_artifact_name={wildcards.dataset}_split_{wildcards.dataset_split}:{DATASET_ARTIFACT_ALIASES[wildcards.dataset]}"
         ),
         dataset_specific_args=lambda wildcards: (
             f"dataset@_global_={wildcards.dataset}_smoke"

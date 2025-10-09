@@ -2,9 +2,10 @@
 #     "experiment_id"
 # ]  # affects both artifact aliases and where results are stored
 experiment_id: "oct9a"
-datasets: ["AFAContext", "cube"] # TODO: add more
+dataset_artifact_aliases:
+    AFAContext: "oct8a"
+    cube: "oct8a"
 dataset_splits: [1, 2]
-dataset_artifact_alias: "oct8a"
 dataset_split_mode: "validation" # switch to test at the end
 classifier: "masked_mlp_classifier"
 classifier_artifact_alias: "KDD"

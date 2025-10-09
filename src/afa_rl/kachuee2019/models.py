@@ -59,8 +59,8 @@ class Kachuee2019PQModule(nn.Module):
         ):
             self.layers_q.append(nn.Linear(size_last, n_h_q))
             size_last = n_h + n_h_q
-        # Output of Q-Net does not include the stop action, unlike the original implementation
-        self.layers_q.append(nn.Linear(size_last, self.n_features))
+        # Output of Q-Net now also includes the stop action
+        self.layers_q.append(nn.Linear(size_last, self.n_features + 1))
 
     @override
     def forward(
