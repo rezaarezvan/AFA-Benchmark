@@ -21,7 +21,7 @@ from common.custom_types import (
 )
 from common.registry import get_afa_classifier_class, get_afa_method_class
 from common.utils import load_dataset_artifact, set_seed
-from eval.metrics import eval_afa_method
+from eval.hard_budget import eval_afa_method
 from eval.utils import plot_metrics
 
 

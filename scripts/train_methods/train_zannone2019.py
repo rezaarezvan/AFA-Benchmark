@@ -42,7 +42,7 @@ from common.utils import (
     get_class_probabilities,
     set_seed,
 )
-from eval.metrics import eval_afa_method
+from eval.soft_budget import eval_afa_method
 from eval.utils import plot_metrics
 
 

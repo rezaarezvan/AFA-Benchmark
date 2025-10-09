@@ -40,7 +40,7 @@ from common.utils import (
     load_dataset_artifact,
     set_seed,
 )
-from eval.metrics import eval_afa_method
+from eval.soft_budget import eval_afa_method
 from eval.utils import plot_metrics
 
 

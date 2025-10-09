@@ -5,13 +5,12 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any
 
-from common.config_classes import SoftEvalConfig
-from eval.metrics import eval_soft_budget_afa_method
 import hydra
 import torch
 from omegaconf import OmegaConf
 
 import wandb
+from common.config_classes import SoftEvalConfig
 from common.custom_types import (
     AFAClassifier,
     AFADataset,
@@ -20,6 +19,7 @@ from common.custom_types import (
 )
 from common.registry import get_afa_classifier_class, get_afa_method_class
 from common.utils import load_dataset_artifact, set_seed
+from eval.soft_budget import eval_soft_budget_afa_method
 
 
 def load_trained_method_artifacts(
