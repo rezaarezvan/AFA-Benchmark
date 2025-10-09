@@ -43,7 +43,7 @@ from common.utils import (
     load_dataset_artifact,
     set_seed,
 )
-from eval.soft_budget import eval_afa_method
+from eval.soft_budget import eval_soft_budget_afa_method
 from eval.utils import plot_metrics
 
 if TYPE_CHECKING:
@@ -142,6 +142,21 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
     device = torch.device(cfg.device)
     log.info(f"Using device: {device}")
 
+    # Two possible cases: hard budget or soft budget
+    if cfg.hard_budget is None:
+        assert cfg.cost_param is not None, (
+            "If no hard budget is specified, a cost_param must be given for soft budget training."
+        )
+        log.info("Detected soft budget case")
+    if cfg.cost_param is None:
+        assert cfg.hard_budget is not None, (
+            "If no cost_param is specified, a hard budget must be given for hard budget training."
+        )
+        log.info("Detected hard budget case")
+    assert not (cfg.hard_budget is not None and cfg.cost_param is not None), (
+        "Only one of hard_budget or cost_param can be specified, not both."
+    )
+
     log.info("Initializing Weights & Biases run")
     run = wandb.init(
         config=cast(
@@ -191,7 +206,7 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
     reward_fn = get_shim2018_reward_fn(
         pretrained_model=pretrained_model,
         weights=class_weights,
-        acquisition_cost=cfg.acquisition_cost,
+        acquisition_cost=cfg.cost_param,
     )
     log.info("Reward function created")
 
@@ -328,27 +343,15 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
                             range(cfg.n_eval_episodes), desc="Evaluating"
                         )
                     ]
-                    # optimal_td_evals = [
-                    #     eval_env.rollout(
-                    #         cfg.eval_max_steps, cubeSimple_optimal_selection_wrapper
-                    #     ).squeeze(0)
-                    #     for _ in tqdm(
-                    #         range(cfg.n_eval_episodes), desc="Evaluating optimal policy"
-                    #     )
-                    # ]
                     # Reset the action spec of the agent to the train env action spec
                     agent.egreedy_tdmodule._spec = train_env.action_spec  # noqa: SLF001
                 metrics_eval = get_eval_metrics(
                     td_evals, Shim2018AFAPredictFn(pretrained_model)
                 )
-                # optimal_metrics_eval = get_eval_metrics(
-                #     optimal_td_evals, Shim2018AFAPredictFn(pretrained_model)
-                # )
                 run.log(
                     dict_with_prefix(
                         "eval/",
                         dict_with_prefix("agent_policy.", metrics_eval)
-                        # | dict_with_prefix("optimal_policy.", optimal_metrics_eval)
                         | dict_with_prefix(
                             "expensive_info.", agent.get_expensive_info()
                         )
@@ -389,51 +392,55 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
                 device=torch.device("cpu"),
             )
             log.info("Method saved and reloaded successfully")
-            if cfg.evaluate_final_performance:
-                log.info("Starting final performance evaluation")
-                with (
-                    torch.no_grad(),
-                    set_exploration_type(ExplorationType.DETERMINISTIC),
-                ):
-                    # Check what the final performance of the method is. Costly for large datasets.
-                    metrics = eval_afa_method(
-                        afa_method.select,
-                        val_dataset,
-                        cfg.hard_budget,
-                        afa_method.predict,
-                        only_n_samples=cfg.eval_only_n_samples,
-                    )
-                    log.info("Final performance evaluation completed")
-                fig_metrics = plot_metrics(metrics)
-                # Also check performance of dummy method for comparison
-                log.info("Evaluating dummy method for comparison")
-                dummy_afa_method = RandomDummyAFAMethod(
-                    device=torch.device("cpu"), n_classes=n_classes
-                )
-                dummy_metrics = eval_afa_method(
-                    dummy_afa_method.select,
-                    val_dataset,
-                    cfg.hard_budget,
-                    afa_method.predict,
-                    only_n_samples=cfg.eval_only_n_samples,
-                )
-                fig_dummy_metrics = plot_metrics(dummy_metrics)
-                log.info("Dummy method evaluation completed")
-                run.log(
-                    {
-                        "final_performance_plot": fig_metrics,
-                        "final_dummy_performance_plot": fig_dummy_metrics,
-                    }
-                )
+            # if cfg.evaluate_final_performance:
+            #     log.info("Starting final performance evaluation")
+            #     with (
+            #         torch.no_grad(),
+            #         set_exploration_type(ExplorationType.DETERMINISTIC),
+            #     ):
+            #         # Check what the final performance of the method is. Costly for large datasets.
+            #         # metrics = eval_afa_method(
+            #         #     afa_method.select,
+            #         #     val_dataset,
+            #         #     cfg.hard_budget,
+            #         #     afa_method.predict,
+            #         #     only_n_samples=cfg.eval_only_n_samples,
+            #         # )
+            #         # log.info("Final performance evaluation completed")
+            #     fig_metrics = plot_metrics(metrics)
+            #     # Also check performance of dummy method for comparison
+            #     log.info("Evaluating dummy method for comparison")
+            #     dummy_afa_method = RandomDummyAFAMethod(
+            #         device=torch.device("cpu"), n_classes=n_classes
+            #     )
+            #     dummy_metrics = eval_afa_method(
+            #         dummy_afa_method.select,
+            #         val_dataset,
+            #         cfg.hard_budget,
+            #         afa_method.predict,
+            #         only_n_samples=cfg.eval_only_n_samples,
+            #     )
+            #     fig_dummy_metrics = plot_metrics(dummy_metrics)
+            #     log.info("Dummy method evaluation completed")
+            #     run.log(
+            #         {
+            #             "final_performance_plot": fig_metrics,
+            #             "final_dummy_performance_plot": fig_dummy_metrics,
+            #         }
+            #     )
 
             # Save the model as a WandB artifact
             # Save the name of the afa method class as metadata
             log.info("Creating WandB artifact for trained method")
-            print(
-                f"dataset name {pretrained_model_config.dataset_artifact_name}"
-            )
+            # print(
+            #     f"dataset name {pretrained_model_config.dataset_artifact_name}"
+            # )
+            if cfg.cost_param is not None:
+                budget_str = f"costparam_{cfg.cost_param}"
+            else:
+                budget_str = f"budget_{cfg.hard_budget}"
             afa_method_artifact = wandb.Artifact(
-                name=f"train_shim2018-{pretrained_model_config.dataset_artifact_name.split(':')[0]}-budget_{cfg.hard_budget}-cost{cfg.acquisition_cost}-seed_{cfg.seed}",
+                name=f"train_shim2018-{pretrained_model_config.dataset_artifact_name.split(':')[0]}-{budget_str}-seed_{cfg.seed}",
                 type="trained_method",
                 metadata={
                     "method_type": "shim2018",

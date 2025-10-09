@@ -20,7 +20,7 @@ from common.custom_types import (
 def get_shim2018_reward_fn(
     pretrained_model: LitShim2018EmbedderClassifier,
     weights: Tensor,
-    acquisition_cost: float,
+    acquisition_cost: float | None,
 ) -> AFARewardFn:
     """
     Return the reward function for shim2018.
@@ -39,10 +39,19 @@ def get_shim2018_reward_fn(
         label: Label,
         done: Bool[Tensor, "*batch 1"],
     ) -> AFAReward:
-        # Always a constant negative reward to encourage fewer feature selections
-        reward = -acquisition_cost * torch.ones_like(
-            afa_selection, dtype=torch.float32, device=masked_features.device
-        )
+        # Acquisition cost per feature
+        if acquisition_cost is None:
+            reward = torch.zeros_like(
+                afa_selection,
+                dtype=torch.float32,
+                device=masked_features.device,
+            )
+        else:
+            reward = -acquisition_cost * torch.ones_like(
+                afa_selection,
+                dtype=torch.float32,
+                device=masked_features.device,
+            )
 
         done_mask = done.squeeze(-1)
 

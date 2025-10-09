@@ -1,6 +1,7 @@
 pretrained_model_artifact_name: "pretrain_shim2018-AFAContext_split_1:tmp"
 n_agents: 128 # shim2018 paper
 hard_budget: 5 # recommended: 3, 5, 10
+cost_param: null
 agent:
     eps_init: 1.0 # shim2018 paper
     eps_end: 0.1 # shim2018 paper

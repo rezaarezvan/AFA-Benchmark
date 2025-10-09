@@ -45,7 +45,8 @@ class AFAEnv(EnvBase):
         batch_size: torch.Size,
         feature_size: int,
         n_classes: int,
-        hard_budget: int,  # how many features can be acquired before the episode ends
+        hard_budget: int
+        | None,  # how many features can be acquired before the episode ends. If None, no limit.
     ):
         # Do not allow empty batch sizes
         assert batch_size != torch.Size(()), "Batch size must be non-empty"
@@ -56,7 +57,10 @@ class AFAEnv(EnvBase):
         self.reward_fn = reward_fn
         self.feature_size = feature_size
         self.n_classes = n_classes
-        self.hard_budget = hard_budget
+        if hard_budget is None:
+            self.hard_budget = self.feature_size
+        else:
+            self.hard_budget = hard_budget
         self.rng: torch.Generator = torch.manual_seed(42)
 
         self._make_spec()
@@ -169,7 +173,7 @@ class AFAEnv(EnvBase):
         # Update action_mask
         new_action_mask[batch_idx, tensordict["action"]] = False
 
-        # Done if we exceed the hard budget or choose to stop (action 0)
+        # Done if we exceed the hard budget, have chosen all the actions, or choose to stop (action 0)
         done = (
             (new_feature_mask.sum(-1) >= self.hard_budget).unsqueeze(-1)
         ) | (tensordict["action"].unsqueeze(-1) == 0)

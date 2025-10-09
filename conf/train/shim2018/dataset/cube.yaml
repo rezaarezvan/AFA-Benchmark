@@ -1,6 +1,7 @@
 pretrained_model_artifact_name: "pretrain_shim2018-cube_split_1:tmp"
 n_agents: 128 # shim2018 paper
 hard_budget: 5 # recommended: 3, 5, 10
+cost_param: null
 acquisition_cost: 0.01 # recommended: 0.01, 0.05, 0.1
 agent:
     eps_init: 1.0 # shim2018 paper
