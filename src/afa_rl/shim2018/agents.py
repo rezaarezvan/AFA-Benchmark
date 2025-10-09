@@ -207,10 +207,9 @@ class Shim2018Agent(Agent):
         self.egreedy_tdmodule.step()
 
         # Compute average loss
-        num_updates = self.cfg.num_epochs * (
-            self.batch_size // self.cfg.replay_buffer_batch_size
-        )
-        process_dict = {k: v / num_updates for k, v in total_loss_dict.items()}
+        process_dict = {
+            k: v / self.cfg.num_epochs for k, v in total_loss_dict.items()
+        }
         process_dict["td_error"] = torch.mean(torch.stack(td_errors)).item()
 
         return process_dict
