@@ -1,48 +1,64 @@
-EXPERIMENT_ID = config["experiment_id"]  # affects both artifact aliases and where results are stored
-
-DATASETS = ["AFAContext", "cube"]  # TODO: add more
-DATASET_SPLITS = [1, 2]
-DATASET_ARTIFACT_ALIAS = "oct8a"
-DATASET_SPLIT_MODE = "validation"  # switch to test at the end
-CLASSIFIER = "masked_mlp_classifier"
-CLASSIFIER_ARTIFACT_ALIAS = "KDD"
-VALIDATE_ARTIFACTS = False # whether to ensure that classifier is trained on the exact same data as the method
-SEEDS = [1, 2]
-TRAIN_DEVICE = "cuda"
-EVAL_DEVICE = "cpu"
-
-COST_PARAMS_PER_METHOD = {
-    "randomdummy": [0.1, 0.3],
-    "sequentialdummy": [0.1, 0.3]
-}
+# Define global variables from config values
+EXPERIMENT_ID = config["experiment_id"]
+DATASETS = config["datasets"]
+DATASET_SPLITS = config["dataset_splits"]
+DATASET_ARTIFACT_ALIAS = config["dataset_artifact_alias"]
+DATASET_SPLIT_MODE = config["dataset_split_mode"]
+CLASSIFIER = config["classifier"]
+CLASSIFIER_ARTIFACT_ALIAS = config["classifier_artifact_alias"]
+VALIDATE_ARTIFACTS = config["validate_artifacts"]
+SEEDS = config["seeds"]
+TRAIN_DEVICE = config["train_device"]
+EVAL_DEVICE = config["eval_device"]
+COST_PARAMS_PER_METHOD = config["cost_params_per_method"]
 METHODS = list(COST_PARAMS_PER_METHOD.keys())
-COST_PARAMS_INDICES_PER_METHOD = {method: list(range(len(params))) for method, params in COST_PARAMS_PER_METHOD.items()}
+HAS_PRETRAIN_STAGE = config["has_pretrain_stage"]
+PRETRAIN_ALIAS = config["pretrain_alias"]
+
+COST_PARAMS_INDICES_PER_METHOD = {
+    method: list(range(len(params)))
+    for method, params in COST_PARAMS_PER_METHOD.items()
+}
+
 
 # DONE
 rule soft_budget:
     input:
-        "results/soft_budget/plot.pdf"
+        "results/soft_budget/plot.pdf",
+
 
 # DONE
 rule train_soft_budget_method:
     output:
-        touch("indicators/soft_budget/trained_method/{dataset}/split{dataset_split}/{method}/costparam{cost_param}/seed{seed}.done")
+        touch(
+            "indicators/soft_budget/trained_method/{dataset}/split{dataset_split}/{method}/costparam{cost_param}/seed{seed}.done"
+        ),
+    params:
+        dataset_or_pretrain_artifact_name_arg=lambda wildcards: (
+            f"pretrained_model_artifact_name=pretrain_{wildcards.method}-{wildcards.dataset}_split_{wildcards.dataset_split}:{PRETRAIN_ALIAS}"
+            if HAS_PRETRAIN_STAGE[wildcards.method]
+            else f"dataset_artifact_name={wildcards.dataset}_split_{wildcards.dataset_split}:{DATASET_ARTIFACT_ALIAS}"
+        ),
     shell:
         """
             uv run scripts/train_methods/train_{wildcards.method}.py \
-                dataset_artifact_name={wildcards.dataset}_split_{wildcards.dataset_split}:{DATASET_ARTIFACT_ALIAS} \
+                {params.dataset_or_pretrain_artifact_name_arg} \
                 seed={wildcards.seed} \
                 hard_budget=null \
                 output_artifact_aliases=["{EXPERIMENT_ID}"] \
-                cost_param={wildcards.cost_param}
+                cost_param={wildcards.cost_param} \
+                device={TRAIN_DEVICE}
         """
+
 
 # DONE
 rule eval_soft_budget_method:
     input:
-        "indicators/soft_budget/trained_method/{dataset}/split{dataset_split}/{method}/costparam{cost_param}/seed{seed}.done"
+        "indicators/soft_budget/trained_method/{dataset}/split{dataset_split}/{method}/costparam{cost_param}/seed{seed}.done",
     output:
-        touch("indicators/soft_budget/eval/{method}/{dataset}/split{dataset_split}/costparam{cost_param}/seed{seed}.done")
+        touch(
+            "indicators/soft_budget/eval/{method}/{dataset}/split{dataset_split}/costparam{cost_param}/seed{seed}.done"
+        ),
     shell:
         """
         uv run scripts/evaluation/eval_soft_afa_method.py \
@@ -57,16 +73,18 @@ rule eval_soft_budget_method:
             validate_artifacts={VALIDATE_ARTIFACTS}
         """
 
+
 # DONE
 rule download_soft_budget_eval_result:
     input:
         "indicators/soft_budget/eval/{method}/{dataset}/split{dataset_split}/costparam{cost_param}/seed{seed}.done",
     output:
-        "results/soft_budget/eval/{method}/{dataset}/split{dataset_split}/costparam{cost_param}/seed{seed}/soft_eval_data.csv"
+        "results/soft_budget/eval/{method}/{dataset}/split{dataset_split}/costparam{cost_param}/seed{seed}/soft_eval_data.csv",
     shell:
         """
             uv run wandb artifact get train_{wildcards.method}-{wildcards.dataset}_split_{wildcards.dataset_split}-costparam_{wildcards.cost_param}-seed_{wildcards.seed}-{CLASSIFIER}-{wildcards.dataset}_split_{wildcards.dataset_split}:{EXPERIMENT_ID} --root results/soft_budget/eval/{wildcards.method}/{wildcards.dataset}/split{wildcards.dataset_split}/costparam{wildcards.cost_param}/seed{wildcards.seed}
         """
+
 
 # DONE
 rule combine_soft_budget_eval_results:
@@ -78,9 +96,9 @@ rule combine_soft_budget_eval_results:
             for dataset_split in DATASET_SPLITS
             for cost_param in COST_PARAMS_PER_METHOD[method]
             for seed in SEEDS
-        ]
+        ],
     output:
-        "results/soft_budget/eval/combined.csv"
+        "results/soft_budget/eval/combined.csv",
     conda:
         "envs/R.yaml"
     shell:
@@ -88,12 +106,13 @@ rule combine_soft_budget_eval_results:
         Rscript scripts/misc/combine_soft_budget_results.R {input} {output}
         """
 
+
 # DONE
 rule soft_budget_plot:
     input:
-        "results/soft_budget/eval/combined.csv"
+        "results/soft_budget/eval/combined.csv",
     output:
-        "results/soft_budget/plot.pdf"
+        "results/soft_budget/plot.pdf",
     conda:
         "envs/R.yaml"
     shell:
