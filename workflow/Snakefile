@@ -1,3 +1,6 @@
+configfile: "workflow/conf/default.yaml"
+
+
 # Define global variables from config values
 EXPERIMENT_ID = config["experiment_id"]
 DATASETS = config["datasets"]
@@ -14,6 +17,7 @@ COST_PARAMS_PER_METHOD = config["cost_params_per_method"]
 METHODS = list(COST_PARAMS_PER_METHOD.keys())
 HAS_PRETRAIN_STAGE = config["has_pretrain_stage"]
 PRETRAIN_ALIAS = config["pretrain_alias"]
+SMOKE_TEST = config["smoke_test"]
 
 COST_PARAMS_INDICES_PER_METHOD = {
     method: list(range(len(params)))
@@ -39,9 +43,15 @@ rule train_soft_budget_method:
             if HAS_PRETRAIN_STAGE[wildcards.method]
             else f"dataset_artifact_name={wildcards.dataset}_split_{wildcards.dataset_split}:{DATASET_ARTIFACT_ALIAS}"
         ),
+        dataset_specific_args=lambda wildcards: (
+            f"dataset@_global_={wildcards.dataset}_smoke"
+            if SMOKE_TEST
+            else f"dataset@_global_={wildcards.dataset}"
+        ),
     shell:
         """
             uv run scripts/train_methods/train_{wildcards.method}.py \
+                {params.dataset_specific_args} \
                 {params.dataset_or_pretrain_artifact_name_arg} \
                 seed={wildcards.seed} \
                 hard_budget=null \

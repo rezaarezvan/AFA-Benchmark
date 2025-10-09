@@ -212,3 +212,4 @@ conf/soft_eval/lists
 debug/soft_budget/plot.png
 indicators/soft_budget
 .snakemake/metadata
+.snakemake
