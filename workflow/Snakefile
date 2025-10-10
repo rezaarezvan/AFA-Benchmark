@@ -94,11 +94,23 @@ rule download_soft_budget_eval_result:
             uv run wandb artifact get train_{wildcards.method}-{wildcards.dataset}_split_{wildcards.dataset_split}-costparam_{wildcards.cost_param}-seed_{wildcards.seed}-{CLASSIFIER}-{wildcards.dataset}_split_{wildcards.dataset_split}:{EXPERIMENT_ID} --root results/soft_budget/eval/{wildcards.method}/{wildcards.dataset}/split{wildcards.dataset_split}/costparam{wildcards.cost_param}/seed{wildcards.seed}
         """
 
+rule add_dataset_split_col_to_soft_budget_eval_result:
+    input:
+        "results/soft_budget/eval/{method}/{dataset}/split{dataset_split}/costparam{cost_param}/seed{seed}/soft_eval_data.csv",
+    output:
+        "results/soft_budget/eval/{method}/{dataset}/split{dataset_split}/costparam{cost_param}/seed{seed}/soft_eval_data_with_split.csv",
+    conda:
+        "envs/R.yaml"
+    shell:
+        """
+        Rscript scripts/misc/add_dataset_split_col.R {input} {output} {wildcards.dataset_split}
+        """
+
 
 rule combine_soft_budget_eval_results:
     input:
         [
-            f"results/soft_budget/eval/{method}/{dataset}/split{dataset_split}/costparam{cost_param}/seed{seed}/soft_eval_data.csv"
+            f"results/soft_budget/eval/{method}/{dataset}/split{dataset_split}/costparam{cost_param}/seed{seed}/soft_eval_data_with_split.csv"
             for method in METHODS
             for dataset in DATASETS
             for dataset_split in DATASET_SPLITS
