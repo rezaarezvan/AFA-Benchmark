@@ -1,5 +1,6 @@
 library(ggplot2)
 library(dplyr)
+library(tidyr)
 library(readr)
 
 # Which datasets we want to plot F1 for instead of accuracy
@@ -8,62 +9,89 @@ f1_datasets <- c("dataset_B")
 results_path <- "eval_results.csv"
 plot_path <- "plot.png"
 
-results <- read_csv(results_path, col_types = cols(
-    method = col_factor(),
-    training_seed = col_integer(),
-    cost_parameter = col_double(),
-    dataset = col_factor(),
-    features_chosen = col_integer(),
-    predicted_label_builtin = col_integer(),
-    predicted_label_external = col_integer()
-))
+# Specify your expected columns and types
+expected_types <- cols(
+  method = col_factor(),
+  training_seed = col_integer(),
+  cost_parameter = col_double(),
+  dataset = col_factor(),
+  dataset_split = col_integer(),
+  sample = col_integer(),
+  features_chosen = col_integer(),
+  predicted_label_builtin = col_integer(),
+  predicted_label_external = col_integer(),
+  true_label = col_integer()
+)
+
+results <- read_csv(results_path, col_types = expected_types)
+
+# Check for unspecified columns
+unspecified_cols <- setdiff(names(results), names(expected_types$cols))
+if (length(unspecified_cols) > 0) {
+  stop(
+    paste(
+      "The following columns were not specified in col_types:",
+      paste(unspecified_cols, collapse = ", ")
+    )
+  )
+}
 
 # For now, only care about the external predictions
+# df <- results %>%
+#     rename(predicted_label = predicted_label_external) %>%
+#     select(-predicted_label_builtin)
+
+# Tidy data
 df <- results %>%
-    rename(predicted_label = predicted_label_external) %>%
-    select(-predicted_label_builtin)
+  pivot_longer(
+    cols = c(predicted_label_external, predicted_label_builtin),
+    names_to = "prediction_type",
+    names_prefix = "predicted_label_",
+    values_to = "predicted_label"
+  ) %>%
+  filter(!is.na(predicted_label)) # Remove rows where builtin is NA
 
 
 # Summarize accuracy and features chosen
 df_summarized <- df %>%
-    mutate(
-        correct = (predicted_label == true_label),
-        tp = (predicted_label == 1 & true_label == 1),
-        fp = (predicted_label == 1 & true_label == 0),
-        tn = (predicted_label == 0 & true_label == 0),
-        fn = (predicted_label == 0 & true_label == 1)
-    ) %>%
-    group_by(method, dataset, cost_parameter, training_seed) %>%
-    summarize(
-        accuracy = mean(correct),
-        avg_features_chosen = mean(features_chosen),
-        tp = sum(tp),
-        fp = sum(fp),
-        tn = sum(tn),
-        fn = sum(fn),
-        precision = ifelse(tp + fp == 0, 0, tp / (tp + fp)),
-        recall = ifelse(tp + fn == 0, 0, tp / (tp + fn)),
-        f1 = ifelse(precision + recall == 0, 0, 2 * (precision * recall) / (precision + recall)),
-        .groups = "drop_last"
-    )
+  mutate(
+    correct = (predicted_label == true_label),
+    tp = (predicted_label == 1 & true_label == 1),
+    fp = (predicted_label == 1 & true_label == 0),
+    tn = (predicted_label == 0 & true_label == 0),
+    fn = (predicted_label == 0 & true_label == 1)
+  ) %>%
+  group_by(method, prediction_type, dataset, dataset_split, cost_parameter, training_seed) %>%
+  summarize(
+    accuracy = mean(correct),
+    avg_features_chosen = mean(features_chosen),
+    tp = sum(tp),
+    fp = sum(fp),
+    tn = sum(tn),
+    fn = sum(fn),
+    precision = ifelse(tp + fp == 0, 0, tp / (tp + fp)),
+    recall = ifelse(tp + fn == 0, 0, tp / (tp + fn)),
+    f1 = ifelse(precision + recall == 0, 0, 2 * (precision * recall) / (precision + recall)),
+    .groups = "keep"
+  )
 
 # Some datasets use accuracy, others use F1
 df_summarized <- df_summarized %>%
-    mutate(
-        metric_type = ifelse(dataset %in% f1_datasets, "f1", "accuracy"),
-        metric_value = ifelse(metric_type == "f1", f1, accuracy)
-    )
+  mutate(
+    metric_type = ifelse(dataset %in% f1_datasets, "f1", "accuracy"),
+    metric_value = ifelse(metric_type == "f1", f1, accuracy)
+  )
 
-# Mean and sd over training seeds
+# Mean and sd over dataset splits and training seeds
 df_summary <- df_summarized %>%
-    group_by(method, dataset, cost_parameter, metric_type) %>%
-    summarize(
-        avg_metric = mean(metric_value),
-        sd_metric = sd(metric_value),
-        mean_avg_features_chosen = mean(avg_features_chosen),
-        sd_avg_features_chosen = sd(avg_features_chosen),
-        .groups = "drop"
-    )
+  group_by(method, prediction_type, dataset, cost_parameter, metric_type) %>%
+  summarize(
+    avg_metric = mean(metric_value),
+    sd_metric = sd(metric_value),
+    mean_avg_features_chosen = mean(avg_features_chosen),
+    sd_avg_features_chosen = sd(avg_features_chosen),
+    .groups = "drop"
+  )
 
 df_labels <- df_summary %>%
   group_by(dataset) %>%
@@ -75,40 +103,40 @@ df_labels <- df_summary %>%
 
 # Create the plot
 p <- ggplot(df_summary, aes(
-    x = mean_avg_features_chosen,
-    y = avg_metric,
-    color = method
+  x = mean_avg_features_chosen,
+  y = avg_metric,
+  color = method
 )) +
-    geom_point() +
-    geom_line() +
-    geom_errorbar(
-        aes(
-            ymin = avg_metric - sd_metric,
-            ymax = avg_metric + sd_metric
-        ),
-        width = 0
-    ) +
-    geom_errorbarh(
-        aes(
-            xmin = mean_avg_features_chosen - sd_avg_features_chosen,
-            xmax = mean_avg_features_chosen + sd_avg_features_chosen
-        ),
-        height = 0
-    ) +
-    geom_text(
-      data = df_labels,
-      aes(x = x, y = y, label = metric_label),
-      inherit.aes = FALSE,
-      hjust = 0, vjust = 1, fontface = "bold"
-    ) +
-    facet_wrap(~dataset, scales = "free_x") +
-    coord_cartesian(ylim = c(0, 1)) +
-    labs(
-        title = "Metric vs Avg. Features Chosen",
-        x = "Avg. features chosen",
-        y = "Metric",
-    ) +
-    theme_bw()
+  geom_point() +
+  geom_line() +
+  geom_errorbar(
+    aes(
+      ymin = avg_metric - sd_metric,
+      ymax = avg_metric + sd_metric
+    ),
+    width = 0
+  ) +
+  geom_errorbarh(
+    aes(
+      xmin = mean_avg_features_chosen - sd_avg_features_chosen,
+      xmax = mean_avg_features_chosen + sd_avg_features_chosen
+    ),
+    height = 0
+  ) +
+  geom_text(
+    data = df_labels,
+    aes(x = x, y = y, label = metric_label),
+    inherit.aes = FALSE,
+    hjust = 0, vjust = 1, fontface = "bold"
+  ) +
+  facet_grid(rows = vars(prediction_type), cols = vars(dataset), scales = "free_x") +
+  coord_cartesian(ylim = c(0, 1)) +
+  labs(
+    title = "Metric vs Avg. Features Chosen",
+    x = "Avg. features chosen",
+    y = "Metric",
+  ) +
+  theme_bw()
 
 # Save the plot
 ggsave(plot_path, p, width = 10, height = 6, dpi = 300)

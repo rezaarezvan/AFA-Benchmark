@@ -9,6 +9,7 @@ def generate_mock_data(
     n_datasets=5,
     n_samples=200,
     n_classes=4,
+    n_splits=3,
     random_state=42,
 ):
     np.random.seed(random_state)
@@ -28,26 +29,26 @@ def generate_mock_data(
         dataset: np.random.randint(5, 25) for dataset in datasets
     }
 
-    dataset_rows = []
+    # For each dataset, for each split, shuffle and assign split-local indices
+    dataset_split_sample_map = {}
+    dataset_split_true_labels = {}
+    rng = np.random.RandomState(random_state)
     for dataset in datasets:
-        for sample in range(n_samples):
-            # Simulate multiclass true labels
-            true_label = np.random.randint(0, n_classes)
-            dataset_rows.append(
-                {
-                    "dataset": dataset,
-                    "sample": sample,
-                    "true_label": true_label,
-                }
+        # Generate true labels for all samples in this dataset
+        true_labels = rng.randint(0, n_classes, size=n_samples)
+        for split in range(n_splits):
+            # Shuffle indices for this split
+            split_rng = np.random.RandomState(
+                random_state + split * 1000 + hash(dataset) % 1000
             )
-
-    # 2. Generate results file: method, training_seed, cost_parameter, dataset, sample, features_chosen, predicted_label_builtin, predicted_label_external
+            indices = np.arange(n_samples)
+            split_rng.shuffle(indices)
+            # Map split-local index to global sample index
+            dataset_split_sample_map[(dataset, split)] = indices.copy()
+            # Store true labels for this split (global index)
+            dataset_split_true_labels[(dataset, split)] = true_labels[indices]
+    # 2. Generate results file: method, training_seed, cost_parameter, dataset, dataset_split, sample, features_chosen, predicted_label_builtin, predicted_label_external
     results_rows = []
-    # For reproducibility, get the true labels as a lookup
-    true_label_lookup = {
-        (row["dataset"], row["sample"]): row["true_label"]
-        for row in dataset_rows
-    }
 
     # Method-dependent offsets for features and accuracy
     method_offsets = {
@@ -75,92 +76,101 @@ def generate_mock_data(
             for cost_param in cost_params:
                 for dataset in datasets:
                     max_features = dataset_max_features[dataset]
-                    for sample in range(n_samples):
-                        cost_param_range = np.ptp(cost_params)
-                        if cost_param_range == 0:
-                            norm_cost = 0
-                        else:
-                            norm_cost = (
-                                cost_param - np.min(cost_params)
-                            ) / cost_param_range
-                        # Add both method and seed offsets to mean_features
-                        mean_features = (
-                            norm_cost
-                            + seed_offset_features
-                            + method_offset_features
-                        ) * max_features
-                        features_chosen = int(
-                            np.clip(
-                                np.random.normal(
-                                    loc=mean_features,
-                                    scale=max(1, 0.15 * max_features),
-                                ),
-                                0,
-                                max_features,
-                            )
-                        )
-                        methods_with_builtin = {"method_1", "method_3"}
-                        has_builtin = method in methods_with_builtin
-
-                        true_label = true_label_lookup[(dataset, sample)]
-
-                        # Add both method and seed offsets to accuracy
-                        prob_correct_external = min(
-                            0.5
-                            + 0.5 * (features_chosen / max_features)
-                            + seed_offset_accuracy
-                            + method_offset_accuracy,
-                            0.98,
-                        )
-                        prob_correct_external = max(
-                            prob_correct_external, 0.01
-                        )
-                        prob_correct_builtin = min(
-                            0.45
-                            + 0.5 * (features_chosen / max_features)
-                            + seed_offset_accuracy
-                            + method_offset_accuracy,
-                            0.95,
-                        )
-                        prob_correct_builtin = max(prob_correct_builtin, 0.01)
-
-                        if np.random.rand() < prob_correct_external:
-                            pred_label_external = true_label
-                        else:
-                            pred_label_external = np.random.choice(
-                                [
-                                    l
-                                    for l in range(n_classes)
-                                    if l != true_label
-                                ]
-                            )
-
-                        if has_builtin:
-                            if np.random.rand() < prob_correct_builtin:
-                                pred_label_builtin = true_label
+                    for split in range(n_splits):
+                        indices = dataset_split_sample_map[(dataset, split)]
+                        split_true_labels = dataset_split_true_labels[
+                            (dataset, split)
+                        ]
+                        for split_sample, global_sample in enumerate(indices):
+                            cost_param_range = np.ptp(cost_params)
+                            if cost_param_range == 0:
+                                norm_cost = 0
                             else:
-                                pred_label_builtin = np.random.choice(
+                                norm_cost = (
+                                    cost_param - np.min(cost_params)
+                                ) / cost_param_range
+                            # Add both method and seed offsets to mean_features
+                            mean_features = (
+                                norm_cost
+                                + seed_offset_features
+                                + method_offset_features
+                            ) * max_features
+                            features_chosen = int(
+                                np.clip(
+                                    np.random.normal(
+                                        loc=mean_features,
+                                        scale=max(1, 0.15 * max_features),
+                                    ),
+                                    0,
+                                    max_features,
+                                )
+                            )
+                            methods_with_builtin = {"method_1", "method_3"}
+                            has_builtin = method in methods_with_builtin
+
+                            true_label = split_true_labels[split_sample]
+
+                            # Add both method and seed offsets to accuracy
+                            prob_correct_external = min(
+                                0.5
+                                + 0.5 * (features_chosen / max_features)
+                                + seed_offset_accuracy
+                                + method_offset_accuracy,
+                                0.98,
+                            )
+                            prob_correct_external = max(
+                                prob_correct_external, 0.01
+                            )
+                            prob_correct_builtin = min(
+                                0.45
+                                + 0.5 * (features_chosen / max_features)
+                                + seed_offset_accuracy
+                                + method_offset_accuracy,
+                                0.95,
+                            )
+                            prob_correct_builtin = max(
+                                prob_correct_builtin, 0.01
+                            )
+
+                            if np.random.rand() < prob_correct_external:
+                                pred_label_external = true_label
+                            else:
+                                pred_label_external = np.random.choice(
                                     [
                                         l
                                         for l in range(n_classes)
                                         if l != true_label
                                     ]
                                 )
-                        else:
-                            pred_label_builtin = None
 
-                        results_rows.append(
-                            {
-                                "method": method,
-                                "training_seed": seed,
-                                "cost_parameter": float(cost_param),
-                                "dataset": dataset,
-                                "features_chosen": features_chosen,
-                                "predicted_label_builtin": pred_label_builtin,
-                                "predicted_label_external": pred_label_external,
-                                "true_label": true_label,
-                            }
-                        )
+                            if has_builtin:
+                                if np.random.rand() < prob_correct_builtin:
+                                    pred_label_builtin = true_label
+                                else:
+                                    pred_label_builtin = np.random.choice(
+                                        [
+                                            l
+                                            for l in range(n_classes)
+                                            if l != true_label
+                                        ]
+                                    )
+                            else:
+                                pred_label_builtin = None
+
+                            results_rows.append(
+                                {
+                                    "method": method,
+                                    "training_seed": seed,
+                                    "cost_parameter": float(cost_param),
+                                    "dataset": dataset,
+                                    "dataset_split": split,
+                                    "sample": split_sample,
+                                    "features_chosen": features_chosen,
+                                    "predicted_label_builtin": pred_label_builtin,
+                                    "predicted_label_external": pred_label_external,
+                                    "true_label": true_label,
+                                }
+                            )
     results_df = pd.DataFrame(results_rows)
     return results_df
 
@@ -179,4 +189,4 @@ if __name__ == "__main__":
     ].astype("Int64")
 
     results_df.to_csv("eval_results.csv", index=False)
-    print("Mock results saved to results.csv")
+    print("Mock results saved to eval_results.csv")
