@@ -76,10 +76,15 @@ class RLAFAMethod(AFAMethod):
         self.policy_tdmodule = self.policy_tdmodule.to(self._device)
         self.afa_classifier = self.afa_classifier.to(self._device)
 
-    @override
     @property
-    def cost_param(self) -> float:
+    @override
+    def cost_param(self) -> float | None:
         return self.acquisition_cost
+
+    @property
+    @override
+    def has_builtin_classifier(self) -> bool:
+        return True
 
     @override
     def select(

@@ -162,19 +162,21 @@ def main(cfg: SoftEvalConfig) -> None:
                 cfg.trained_method_artifact_name,
                 cfg.trained_classifier_artifact_name,
             )
-        afa_predict_fn, classifier_metadata = load_trained_classifier_artifact(
-            cfg.trained_classifier_artifact_name,
-            device=torch.device(cfg.device),
+        external_afa_predict_fn, classifier_metadata = (
+            load_trained_classifier_artifact(
+                cfg.trained_classifier_artifact_name,
+                device=torch.device(cfg.device),
+            )
         )
-        classifier_type = classifier_metadata["classifier_type"]
+        # classifier_type = classifier_metadata["classifier_type"]
         log.info("Loaded external classifier")
-    else:
-        log.info("Using builtin classifier")
-        afa_predict_fn: AFAPredictFn = afa_method.predict
-        if method_metadata["method_type"] == "aaco":
-            classifier_type = "MaskedMLPClassifier"
-        else:
-            classifier_type = "builtin"
+    # else:
+    #     log.info("Using builtin classifier")
+    #     afa_predict_fn: AFAPredictFn = afa_method.predict
+    #     if method_metadata["method_type"] == "aaco":
+    #         classifier_type = "MaskedMLPClassifier"
+    #     else:
+    #         classifier_type = "builtin"
 
     # Some methods need to have the cost parameter set during evaluation
     if hasattr(afa_method, "set_cost_param"):
