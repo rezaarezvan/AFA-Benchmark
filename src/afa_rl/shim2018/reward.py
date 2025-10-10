@@ -47,11 +47,9 @@ def get_shim2018_reward_fn(
                 device=masked_features.device,
             )
         else:
-            reward = -acquisition_cost * torch.ones_like(
-                afa_selection,
-                dtype=torch.float32,
-                device=masked_features.device,
-            )
+            # Only apply cost where not done
+            not_done = (~done).to(torch.float32)
+            reward = -acquisition_cost * not_done
 
         done_mask = done.squeeze(-1)
 

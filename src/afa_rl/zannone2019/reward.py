@@ -20,7 +20,9 @@ from common.custom_types import (
 
 
 def get_zannone2019_reward_fn(
-    pretrained_model: Zannone2019PretrainingModel, weights: Tensor
+    pretrained_model: Zannone2019PretrainingModel,
+    weights: Tensor,
+    acquisition_cost: float | None,
 ) -> AFARewardFn:
     """
     The reward function for zannone2019.
@@ -36,8 +38,20 @@ def get_zannone2019_reward_fn(
         _afa_selection: AFASelection,
         _features: Features,
         label: Label,
-        _done: Bool[Tensor, "*batch 1"],
+        done: Bool[Tensor, "*batch 1"],
     ) -> AFAReward:
+        # Acquisition cost per feature
+        if acquisition_cost is None:
+            reward = torch.zeros_like(
+                afa_selection,
+                dtype=torch.float32,
+                device=masked_features.device,
+            )
+        else:
+            # Only apply cost where not done
+            not_done = (~done).to(torch.float32)
+            reward = -acquisition_cost * not_done
+
         # We don't get to observe the label
         new_augmented_masked_features = torch.cat(
             [new_masked_features, torch.zeros_like(label)], dim=-1
@@ -49,7 +63,7 @@ def get_zannone2019_reward_fn(
             new_augmented_masked_features, new_augmented_feature_mask
         )
         logits = pretrained_model.classifier(mu)
-        reward = -F.cross_entropy(
+        reward = reward - F.cross_entropy(
             logits, label, weight=weights, reduction="none"
         )
 

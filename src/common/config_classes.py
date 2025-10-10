@@ -554,7 +554,8 @@ class Zannone2019AgentConfig:
 class Zannone2019TrainConfig:
     pretrained_model_artifact_name: str
     n_agents: int
-    hard_budget: int
+    hard_budget: int | None
+    cost_param: float | None
     agent: Zannone2019AgentConfig
     n_batches: int  # how many batches to train the agent
     batch_size: int  # batch size for collector
@@ -619,7 +620,7 @@ class Kachuee2019TrainConfig:
 
     pretrained_model_artifact_name: str
     n_agents: int
-    hard_budget: int
+    hard_budget: int | None
     cost_param: float | None
     agent: Kachuee2019AgentConfig
     n_batches: int  # how many batches to train the agent

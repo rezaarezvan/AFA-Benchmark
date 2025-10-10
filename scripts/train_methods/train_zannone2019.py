@@ -42,7 +42,6 @@ from common.utils import (
     get_class_probabilities,
     set_seed,
 )
-from eval.soft_budget import eval_afa_method
 from eval.utils import plot_metrics
 
 
@@ -200,6 +199,21 @@ def main(cfg: Zannone2019TrainConfig):
     log.info(f"W&B run initialized: {run.name} ({run.id})")
     log.info(f"W&B run URL: {run.url}")
 
+    # Two possible cases: hard budget or soft budget
+    if cfg.hard_budget is None:
+        assert cfg.cost_param is not None, (
+            "If no hard budget is specified, a cost_param must be given for soft budget training."
+        )
+        log.info("Detected soft budget case")
+    if cfg.cost_param is None:
+        assert cfg.hard_budget is not None, (
+            "If no cost_param is specified, a hard budget must be given for hard budget training."
+        )
+        log.info("Detected hard budget case")
+    assert not (cfg.hard_budget is not None and cfg.cost_param is not None), (
+        "Only one of hard_budget or cost_param can be specified, not both."
+    )
+
     # Load pretrained model and dataset from artifacts
     (
         train_dataset,
@@ -234,7 +248,9 @@ def main(cfg: Zannone2019TrainConfig):
     n_classes = train_dataset.labels.shape[-1]
 
     reward_fn = get_zannone2019_reward_fn(
-        pretrained_model=pretrained_model, weights=class_weights
+        pretrained_model=pretrained_model,
+        weights=class_weights,
+        acquisition_cost=cfg.cost_param,
     )
 
     if cfg.n_generated_samples > 0:
@@ -382,55 +398,25 @@ def main(cfg: Zannone2019TrainConfig):
         afa_method = RLAFAMethod(
             agent.get_exploitative_policy().to("cpu"),
             Zannone2019AFAClassifier(
-                pretrained_model, device=torch.device("cpu")
+                pretrained_model,
+                device=torch.device("cpu"),
             ),
+            acquisition_cost=cfg.cost_param,
         )
         # Save the method to a temporary directory and load it again to ensure it is saved correctly
         with TemporaryDirectory(delete=False) as tmp_path_str:
             tmp_path = Path(tmp_path_str)
             afa_method.save(tmp_path)
             del afa_method
-            afa_method = RLAFAMethod.load(
-                tmp_path,
-                device=torch.device("cpu"),
-            )
-            if cfg.evaluate_final_performance:
-                # Check what the final performance of the method is. Costly for large datasets.
-                with (
-                    torch.no_grad(),
-                    set_exploration_type(ExplorationType.DETERMINISTIC),
-                ):
-                    metrics = eval_afa_method(
-                        afa_method.select,
-                        val_dataset,
-                        cfg.hard_budget,
-                        afa_method.predict,
-                        only_n_samples=cfg.eval_only_n_samples,
-                    )
-                fig_metrics = plot_metrics(metrics)
-                # Also check performance of dummy method for comparison
-                dummy_afa_method = RandomDummyAFAMethod(
-                    device=torch.device("cpu"), n_classes=n_classes
-                )
-                dummy_metrics = eval_afa_method(
-                    dummy_afa_method.select,
-                    val_dataset,
-                    cfg.hard_budget,
-                    afa_method.predict,
-                    only_n_samples=cfg.eval_only_n_samples,
-                )
-                fig_dummy_metrics = plot_metrics(dummy_metrics)
-                run.log(
-                    {
-                        "final_performance_plot": fig_metrics,
-                        "final_dummy_performance_plot": fig_dummy_metrics,
-                    }
-                )
 
             # Save the model as a WandB artifact
-            # Save the name of the afa method class as metadata
+            log.info("Creating WandB artifact for trained method")
+            if cfg.cost_param is not None:
+                budget_str = f"costparam_{cfg.cost_param}"
+            else:
+                budget_str = f"budget_{cfg.hard_budget}"
             afa_method_artifact = wandb.Artifact(
-                name=f"train_zannone2019-{pretrained_model_config.dataset_artifact_name.split(':')[0]}-budget_{cfg.hard_budget}-seed_{cfg.seed}",
+                name=f"train_zannone2019-{pretrained_model_config.dataset_artifact_name.split(':')[0]}-{budget_str}-seed_{cfg.seed}",
                 type="trained_method",
                 metadata={
                     "method_type": "zannone2019",

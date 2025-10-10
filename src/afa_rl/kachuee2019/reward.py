@@ -61,7 +61,7 @@ def get_kachuee2019_reward_fn(
         afa_selection: AFASelection,
         _features: Features,
         _label: Label,
-        _done: Bool[Tensor, "*batch 1"],
+        done: Bool[Tensor, "*batch 1"],
     ) -> AFAReward:
         # Acquisition cost per feature
         if acquisition_cost is None:
@@ -71,11 +71,9 @@ def get_kachuee2019_reward_fn(
                 device=masked_features.device,
             )
         else:
-            reward = -acquisition_cost * torch.ones_like(
-                afa_selection,
-                dtype=torch.float32,
-                device=masked_features.device,
-            )
+            # Only apply cost where not done
+            not_done = (~done).to(torch.float32)
+            reward = -acquisition_cost * not_done
 
         conf_a = pq_module.confidence(
             masked_features, mcdrop_samples=mcdrop_samples
