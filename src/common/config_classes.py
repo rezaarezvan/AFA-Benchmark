@@ -721,7 +721,7 @@ class SoftEvalConfig:
         float | None
     )  # Some AFAMethods don't need a cost parameter during training, but need it during evaluation
     # if None, use the method's classifier
-    trained_classifier_artifact_name: str | None
+    trained_classifier_artifact_name: str  # has to be given
     seed: int | None
     device: str
     output_artifact_aliases: list[str]

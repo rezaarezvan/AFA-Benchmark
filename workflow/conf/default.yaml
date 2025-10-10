@@ -1,7 +1,12 @@
 experiment_id: "tmp" # set this every time at the command line
 dataset_artifact_aliases:
-    AFAContext: "oct8a"
-    cube: "oct8a"
+    AFAContext: "Jul29-nightly-AFAContext"
+    cube: "Jul24"
+    diabetes: "Jul24"
+    FashionMNIST: "Jul24"
+    miniboone: "Jul24"
+    MNIST: "Jul24"
+    physionet: "Jul24"
 dataset_splits: [1, 2]
 dataset_split_mode: "validation" # switch to test at the end
 # In case some model needed pretraining after adding soft budget
@@ -13,14 +18,55 @@ classifier: "masked_mlp_classifier"
 classifier_artifact_aliases:
     AFAContext: "KDD"
     cube: "KDD"
-validate_artifacts: false # whether to ensure that classifier is trained on the exact same data
+    diabetes: "KDD"
+    FashionMNIST: "KDD"
+    miniboone: "KDD"
+    MNIST: "KDD"
+    physionet: "KDD"
+validate_artifacts: true # whether to ensure that classifier is trained on the exact same data
 seeds: [42] # use more seeds at the end
 train_device: "cpu"
 eval_device: "cpu"
 cost_params_per_method:
     # randomdummy: [0.1, 0.3]
     # sequentialdummy: [0.1, 0.3]
-    shim2018: [0.1, 0.001, 0.00001]
-    zannone2019: [0.1, 0.001, 0.00001]
-    kachuee2019: [0.1, 0.001, 0.00001]
-smoke_test: true
+    shim2018:
+        [
+            0.1,
+            0.0464,
+            0.0215,
+            0.01,
+            0.00464,
+            0.00215,
+            0.001,
+            0.000464,
+            0.000215,
+            0.0001,
+        ]
+    zannone2019:
+        [
+            0.1,
+            0.0464,
+            0.0215,
+            0.01,
+            0.00464,
+            0.00215,
+            0.001,
+            0.000464,
+            0.000215,
+            0.0001,
+        ]
+    kachuee2019:
+        [
+            0.1,
+            0.0464,
+            0.0215,
+            0.01,
+            0.00464,
+            0.00215,
+            0.001,
+            0.000464,
+            0.000215,
+            0.0001,
+        ]
+smoke_test: false

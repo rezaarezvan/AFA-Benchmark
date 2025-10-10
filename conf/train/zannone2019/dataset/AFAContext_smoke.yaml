@@ -1,6 +1,6 @@
-pretrained_model_artifact_name: "pretrain_zannone2019-diabetes_split_1:tmp"
-n_agents: 128 # same as shim2018
-hard_budget: 10 # recommended: 5, 10, 15
+pretrained_model_artifact_name: "pretrain_zannone2019-AFAContext_split_1:tmp"
+n_agents: 2 # same as shim2018
+hard_budget: 5 # recommended: 3, 5, 10
 cost_param: null
 agent:
     # gamma set by higher config
@@ -15,21 +15,21 @@ agent:
     num_epochs: 1 # same as shim2018
     lr: 1e-3 # not specified by zannone2019
     max_grad_norm: 9001 # not specified by zannone2019
-    replay_buffer_batch_size: 128 # same as shim2018
+    replay_buffer_batch_size: 16 # same as shim2018
 
-    # value_num_cells: [32, 32] # same complexity as shim2018
-    value_num_cells: [] # zannone2019
+    value_num_cells: [32, 32] # had to be increased from [] to work on this dataset
+    # value_num_cells: []
     value_dropout: 0.0 # not specified by zannone2019
-    # policy_num_cells: [32, 32] # same complexity as shim2018
-    policy_num_cells: [] # zannone2019
+    policy_num_cells: [32, 32] # had to be increased from [] to work on this dataset
+    # policy_num_cells: []
     policy_dropout: 0.0 # not specified by zannone2019
-n_batches: 10000
-batch_size: 512 # same as shim2018
+n_batches: 10
+batch_size: 16 # same as shim2018
 eval_every_n_batches: 500
 eval_max_steps: 9001
-n_eval_episodes: 100
-n_generated_samples: 10000 # ODIN paper
+n_eval_episodes: 2
+n_generated_samples: 100 # ODIN paper
 # n_generated_samples: 0
-generation_batch_size: 100
+generation_batch_size: 10
 evaluate_final_performance: true
 eval_only_n_samples: null

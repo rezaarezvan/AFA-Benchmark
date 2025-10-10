@@ -51,6 +51,7 @@ def get_zannone2019_reward_fn(
             # Only apply cost where not done
             not_done = (~done).to(torch.float32)
             reward = -acquisition_cost * not_done
+            reward = reward.squeeze(-1)
 
         # We don't get to observe the label
         new_augmented_masked_features = torch.cat(

@@ -156,27 +156,18 @@ def main(cfg: SoftEvalConfig) -> None:
     log.info("Loaded trained AFA method and dataset from artifacts")
 
     # Load a classifier if it was specified
-    if cfg.trained_classifier_artifact_name:
-        if cfg.validate_artifacts:
-            validate_artifacts(
-                cfg.trained_method_artifact_name,
-                cfg.trained_classifier_artifact_name,
-            )
-        external_afa_predict_fn, classifier_metadata = (
-            load_trained_classifier_artifact(
-                cfg.trained_classifier_artifact_name,
-                device=torch.device(cfg.device),
-            )
+    if cfg.validate_artifacts:
+        validate_artifacts(
+            cfg.trained_method_artifact_name,
+            cfg.trained_classifier_artifact_name,
         )
-        # classifier_type = classifier_metadata["classifier_type"]
-        log.info("Loaded external classifier")
-    # else:
-    #     log.info("Using builtin classifier")
-    #     afa_predict_fn: AFAPredictFn = afa_method.predict
-    #     if method_metadata["method_type"] == "aaco":
-    #         classifier_type = "MaskedMLPClassifier"
-    #     else:
-    #         classifier_type = "builtin"
+    external_afa_predict_fn, classifier_metadata = (
+        load_trained_classifier_artifact(
+            cfg.trained_classifier_artifact_name,
+            device=torch.device(cfg.device),
+        )
+    )
+    log.info("Loaded external classifier")
 
     # Some methods need to have the cost parameter set during evaluation
     if hasattr(afa_method, "set_cost_param"):
@@ -190,7 +181,7 @@ def main(cfg: SoftEvalConfig) -> None:
     df = eval_soft_budget_afa_method(
         afa_select_fn=afa_method.select,
         dataset=dataset,
-        external_afa_predict_fn=afa_predict_fn,
+        external_afa_predict_fn=external_afa_predict_fn,
         builtin_afa_predict_fn=afa_method.predict
         if afa_method.has_builtin_classifier
         else None,
@@ -218,7 +209,6 @@ def main(cfg: SoftEvalConfig) -> None:
             "dataset_type": method_metadata["dataset_type"],
             "method_type": method_metadata["method_type"],
             "seed": method_metadata["seed"],
-            "classifier_type": classifier_type,
         },
     )
     with NamedTemporaryFile("w", delete=False) as f:

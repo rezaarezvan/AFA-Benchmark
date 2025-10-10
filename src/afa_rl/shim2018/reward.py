@@ -50,6 +50,7 @@ def get_shim2018_reward_fn(
             # Only apply cost where not done
             not_done = (~done).to(torch.float32)
             reward = -acquisition_cost * not_done
+            reward = reward.squeeze(-1)
 
         done_mask = done.squeeze(-1)
 
