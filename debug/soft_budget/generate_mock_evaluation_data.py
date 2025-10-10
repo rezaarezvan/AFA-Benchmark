@@ -164,7 +164,6 @@ def generate_mock_data(
                                     "cost_parameter": float(cost_param),
                                     "dataset": dataset,
                                     "dataset_split": split,
-                                    "sample": split_sample,
                                     "features_chosen": features_chosen,
                                     "predicted_label_builtin": pred_label_builtin,
                                     "predicted_label_external": pred_label_external,

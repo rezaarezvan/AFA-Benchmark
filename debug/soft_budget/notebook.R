@@ -16,7 +16,6 @@ expected_types <- cols(
   cost_parameter = col_double(),
   dataset = col_factor(),
   dataset_split = col_integer(),
-  sample = col_integer(),
   features_chosen = col_integer(),
   predicted_label_builtin = col_integer(),
   predicted_label_external = col_integer(),
