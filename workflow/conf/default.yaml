@@ -7,7 +7,8 @@ dataset_artifact_aliases:
     miniboone: "Jul24"
     MNIST: "Jul24"
     physionet: "Jul24"
-dataset_splits: [1, 2]
+# dataset_splits: [1, 2]
+dataset_splits: [1]
 dataset_split_mode: "validation" # switch to test at the end
 # In case some model needed pretraining after adding soft budget
 pretrained_model_aliases:
@@ -30,43 +31,40 @@ eval_device: "cpu"
 cost_params_per_method:
     # randomdummy: [0.1, 0.3]
     # sequentialdummy: [0.1, 0.3]
-    shim2018:
-        [
+    shim2018: [
             0.1,
-            0.0464,
-            0.0215,
+            # 0.0464,
+            # 0.0215,
             0.01,
-            0.00464,
-            0.00215,
+            # 0.00464,
+            # 0.00215,
             0.001,
-            0.000464,
-            0.000215,
+            # 0.000464,
+            # 0.000215,
             0.0001,
         ]
-    zannone2019:
-        [
+    zannone2019: [
             0.1,
-            0.0464,
-            0.0215,
+            # 0.0464,
+            # 0.0215,
             0.01,
-            0.00464,
-            0.00215,
+            # 0.00464,
+            # 0.00215,
             0.001,
-            0.000464,
-            0.000215,
+            # 0.000464,
+            # 0.000215,
             0.0001,
         ]
-    kachuee2019:
-        [
+    kachuee2019: [
             0.1,
-            0.0464,
-            0.0215,
+            # 0.0464,
+            # 0.0215,
             0.01,
-            0.00464,
-            0.00215,
+            # 0.00464,
+            # 0.00215,
             0.001,
-            0.000464,
-            0.000215,
+            # 0.000464,
+            # 0.000215,
             0.0001,
         ]
 smoke_test: false

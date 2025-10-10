@@ -32,6 +32,30 @@ rule soft_budget:
         f"experiments/{EXPERIMENT_ID}/results/soft_budget/plot.pdf",
 
 
+rule soft_budget_train_all:
+    input:
+        [
+            f"experiments/{EXPERIMENT_ID}/indicators/soft_budget/trained_method/{dataset}/split{dataset_split}/{method}/costparam{cost_param}/seed{seed}.done"
+            for method in METHODS
+            for dataset in DATASETS
+            for dataset_split in DATASET_SPLITS
+            for cost_param in COST_PARAMS_PER_METHOD[method]
+            for seed in SEEDS
+        ],
+
+
+rule soft_budget_eval_all:
+    input:
+        [
+            f"experiments/{EXPERIMENT_ID}/indicators/soft_budget/eval/{method}/{dataset}/split{dataset_split}/costparam{cost_param}/seed{seed}.done"
+            for method in METHODS
+            for dataset in DATASETS
+            for dataset_split in DATASET_SPLITS
+            for cost_param in COST_PARAMS_PER_METHOD[method]
+            for seed in SEEDS
+        ],
+
+
 rule train_soft_budget_method:
     output:
         touch(

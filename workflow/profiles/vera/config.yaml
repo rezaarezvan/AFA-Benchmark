@@ -1,19 +1,18 @@
-# jobs: all
-# executor: slurm
 latency-wait: 30 # seconds
 
 default-resources:
     runtime: 120 # minutes
+    slurm_partition: vera
     slurm_account: C3SE2025-1-14
 
 set-resources:
     train_soft_budget_method:
-        runtime: 60
+        runtime: 600
         cpus_per_task: 1
         mem_mb: 4000
 
     eval_soft_budget_method:
-        runtime: 60
+        runtime: 600
         cpus_per_task: 1
         mem_mb: 4000
 

@@ -1,0 +1,31 @@
+latency-wait: 30 # seconds
+
+default-resources:
+    runtime: 120 # minutes
+    slurm_partition: alvis
+    slurm_account: NAISS2024-22-1677
+
+set-resources:
+    train_soft_budget_method:
+        runtime: 360
+        cpus_per_task: 1
+        nodes: 1
+        tasks: 1
+        # gpu: 1
+        # gpu_model: "T4"
+        mem_mb: 0 # Only memory attribute that works
+        gres: "gpu:T4:1" # Only GPU attribute
+
+
+    # eval_soft_budget_method:
+    #     gpus_per_node: 1
+    #     cpus_per_gpu: 1
+    #     gpu_model: "T4"
+    #     runtime: 360
+# cluster-generic-submit-cmd: >
+#     sbatch
+#     --cpus-per-task=1
+#     --time={resources.runtime}
+#     --partition={resources.slurm_partition}
+#     --account={resources.slurm_account}
+#     --gres=gpu:T4:1
