@@ -12,9 +12,7 @@ dataset_splits: [1]
 dataset_split_mode: "validation" # switch to test at the end
 # In case some model needed pretraining after adding soft budget
 pretrained_model_aliases:
-    shim2018: "KDD"
     zannone2019: "KDD"
-    # kachuee2019: "oct9a"
 classifier: "masked_mlp_classifier"
 classifier_artifact_aliases:
     AFAContext: "KDD"
@@ -29,20 +27,6 @@ seeds: [42] # use more seeds at the end
 train_device: "cuda"
 eval_device: "cuda"
 cost_params_per_method:
-    # randomdummy: [0.1, 0.3]
-    # sequentialdummy: [0.1, 0.3]
-    # shim2018: [
-    #         0.1,
-    #         # 0.0464,
-    #         # 0.0215,
-    #         0.01,
-    #         # 0.00464,
-    #         # 0.00215,
-    #         0.001,
-    #         # 0.000464,
-    #         # 0.000215,
-    #         0.0001,
-    #     ]
     zannone2019: [
             0.1,
             # 0.0464,
@@ -55,16 +39,4 @@ cost_params_per_method:
             # 0.000215,
             0.0001,
         ]
-    # kachuee2019: [
-    #         0.1,
-    #         # 0.0464,
-    #         # 0.0215,
-    #         0.01,
-    #         # 0.00464,
-    #         # 0.00215,
-    #         0.001,
-    #         # 0.000464,
-    #         # 0.000215,
-    #         0.0001,
-    #     ]
 smoke_test: false
