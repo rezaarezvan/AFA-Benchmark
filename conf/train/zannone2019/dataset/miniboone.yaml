@@ -1,4 +1,4 @@
-pretrained_model_artifact_name: "pretrain_zannone2019-miniboone_split_1:tmp"
+pretrained_model_artifact_name: "pretrain_zannone2019-miniboone_split_1:KDD"
 n_agents: 128 # same as shim2018
 hard_budget: 10 # recommended: 5, 10, 15
 cost_param: null

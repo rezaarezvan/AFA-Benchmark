@@ -154,7 +154,7 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
         )
         log.info("Detected hard budget case")
     assert not (cfg.hard_budget is not None and cfg.cost_param is not None), (
-        "Only one of hard_budget or cost_param can be specified, not both."
+        f"Only one of hard_budget or cost_param can be specified, not both. hard_budget detected as {cfg.hard_budget} (type: {type(cfg.hard_budget)}), cost_param detected as {cfg.cost_param} (type: {type(cfg.cost_param)})"
     )
 
     log.info("Initializing Weights & Biases run")

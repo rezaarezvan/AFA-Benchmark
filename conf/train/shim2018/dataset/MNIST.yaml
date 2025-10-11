@@ -1,4 +1,4 @@
-pretrained_model_artifact_name: "pretrain_shim2018-MNIST_split_1:tmp"
+pretrained_model_artifact_name: "pretrain_shim2018-MNIST_split_1:KDD"
 n_agents: 2 # fewer agents than for cube in order to fit on GPU
 hard_budget: 20 # recommended: 10, 20, 30
 cost_param: null

@@ -1,4 +1,4 @@
-pretrained_model_artifact_name: "pretrain_shim2018-ContextSelectiveXOR_split_1:tmp"
+pretrained_model_artifact_name: "pretrain_shim2018-ContextSelectiveXOR_split_1:KDD"
 n_agents: 128 # shim2018 paper
 hard_budget: 3 # only relevant budget
 cost_param: null
