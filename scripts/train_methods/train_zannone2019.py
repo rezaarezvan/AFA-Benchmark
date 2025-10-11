@@ -360,7 +360,9 @@ def main(cfg: Zannone2019TrainConfig):
                         # "actions": wandb.Histogram(td["action"].cpu()),
                         # Average number of features selected when we stop
                         # FIX: something is wrong with devices here, fails when using cuda
-                        "avg stop time": td[td["action"] == 0]["feature_mask"]
+                        "avg stop time": td[(td["action"] == 0).cpu()][
+                            "feature_mask"
+                        ]
                         .sum(-1)
                         .float()
                         .mean(),
