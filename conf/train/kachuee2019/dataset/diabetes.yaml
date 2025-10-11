@@ -28,7 +28,7 @@ agent:
     # gamma set by higher config
 n_batches: 10000
 batch_size: 512 # same as shim2018
-eval_every_n_batches: 500
+eval_every_n_batches: null
 eval_max_steps: 9001
 n_eval_episodes: 100
 # device set by higher config

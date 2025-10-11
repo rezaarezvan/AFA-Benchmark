@@ -315,19 +315,26 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
                         # "action value": td["action_value"].mean().item(),
                         "chosen action value": td["chosen_action_value"]
                         .mean()
+                        .cpu()
                         .item(),
                         # Average number of features selected when we stop
-                        "avg stop time": td[td["action"] == 0]["feature_mask"]
+                        "avg stop time": td["feature_mask"][td["action"] == 0]
                         .sum(-1)
                         .float()
-                        .mean(),
+                        .mean()
+                        .cpu()
+                        .item(),
                         "batch_idx": batch_idx,
                     }
                     | {"class_loss": class_loss_next.mean().cpu().item()},
                 )
             )
 
-            if batch_idx != 0 and batch_idx % cfg.eval_every_n_batches == 0:
+            if (
+                batch_idx != 0
+                and cfg.eval_every_n_batches is not None
+                and batch_idx % cfg.eval_every_n_batches == 0
+            ):
                 log.info(f"Running evaluation at batch {batch_idx}")
                 with (
                     torch.no_grad(),

@@ -244,22 +244,29 @@ def main(cfg: Kachuee2019TrainConfig):  # noqa: PLR0915
                     dict_with_prefix("process_batch.", process_batch_info)
                     | dict_with_prefix("cheap_info.", agent.get_cheap_info())
                     | {
-                        "reward": td["next", "reward"].mean().item(),
+                        "reward": td["next", "reward"].mean().cpu().item(),
                         # "action value": td["action_value"].mean().item(),
                         "chosen action value": td["chosen_action_value"]
                         .mean()
+                        .cpu()
                         .item(),
                         # Average number of features selected when we stop
-                        "avg stop time": td[td["action"] == 0]["feature_mask"]
+                        "avg stop time": td["feature_mask"][td["action"] == 0]
                         .sum(-1)
                         .float()
-                        .mean(),
+                        .mean()
+                        .cpu()
+                        .item(),
                         "batch_idx": batch_idx,
                     },
                 )
             )
 
-            if batch_idx != 0 and batch_idx % cfg.eval_every_n_batches == 0:
+            if (
+                batch_idx != 0
+                and cfg.eval_every_n_batches is not None
+                and batch_idx % cfg.eval_every_n_batches == 0
+            ):
                 with (
                     torch.no_grad(),
                     set_exploration_type(ExplorationType.DETERMINISTIC),

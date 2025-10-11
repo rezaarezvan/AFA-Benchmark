@@ -32,7 +32,6 @@ from afa_rl.zannone2019.reward import get_zannone2019_reward_fn
 from afa_rl.zannone2019.utils import (
     load_pretrained_model_artifacts,
 )
-from common.afa_methods import RandomDummyAFAMethod
 from common.config_classes import Zannone2019TrainConfig
 from common.custom_types import (
     AFADataset,
@@ -42,7 +41,6 @@ from common.utils import (
     get_class_probabilities,
     set_seed,
 )
-from eval.utils import plot_metrics
 
 
 def visualize_digits(
@@ -180,7 +178,7 @@ log = logging.getLogger(__name__)
     config_path="../../conf/train/zannone2019",
     config_name="config",
 )
-def main(cfg: Zannone2019TrainConfig):
+def main(cfg: Zannone2019TrainConfig) -> None:
     log.debug(cfg)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
@@ -356,22 +354,25 @@ def main(cfg: Zannone2019TrainConfig):
                     loss_info
                     | dict_with_prefix("cheap_info.", agent.get_cheap_info())
                     | {
-                        "reward": td["next", "reward"].mean().item(),
+                        "reward": td["next", "reward"].mean().cpu().item(),
                         # "actions": wandb.Histogram(td["action"].cpu()),
                         # Average number of features selected when we stop
-                        # FIX: something is wrong with devices here, fails when using cuda
-                        "avg stop time": td[(td["action"] == 0).cpu()][
-                            "feature_mask"
-                        ]
+                        "avg stop time": td["feature_mask"][td["action"] == 0]
                         .sum(-1)
                         .float()
-                        .mean(),
+                        .mean()
+                        .cpu()
+                        .item(),
                         "batch_idx": batch_idx,
                     },
                 )
             )
 
-            if batch_idx != 0 and batch_idx % cfg.eval_every_n_batches == 0:
+            if (
+                batch_idx != 0
+                and cfg.eval_every_n_batches is not None
+                and batch_idx % cfg.eval_every_n_batches == 0
+            ):
                 with (
                     torch.no_grad(),
                     set_exploration_type(ExplorationType.DETERMINISTIC),

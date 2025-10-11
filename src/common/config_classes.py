@@ -227,7 +227,7 @@ class Shim2018TrainConfig:
     agent: Shim2018AgentConfig
     n_batches: int  # how many batches to train the agent
     batch_size: int  # batch size for collector
-    eval_every_n_batches: int  # how often to evaluate the agent
+    eval_every_n_batches: int | None  # how often to evaluate the agent
     eval_max_steps: (
         int  # maximum allowed number of steps in an evaluation episode
     )
@@ -638,7 +638,7 @@ class Zannone2019TrainConfig:
     agent: Zannone2019AgentConfig
     n_batches: int  # how many batches to train the agent
     batch_size: int  # batch size for collector
-    eval_every_n_batches: int  # how often to evaluate the agent
+    eval_every_n_batches: int | None  # how often to evaluate the agent
     eval_max_steps: (
         int  # maximum allowed number of steps in an evaluation episode
     )
@@ -704,7 +704,7 @@ class Kachuee2019TrainConfig:
     agent: Kachuee2019AgentConfig
     n_batches: int  # how many batches to train the agent
     batch_size: int  # batch size for collector
-    eval_every_n_batches: int  # how often to evaluate the agent
+    eval_every_n_batches: int | None  # how often to evaluate the agent
     eval_max_steps: (
         int  # maximum allowed number of steps in an evaluation episode
     )
