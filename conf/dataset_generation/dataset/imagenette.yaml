@@ -1,0 +1,6 @@
+type: "imagenette"
+kwargs:
+  data_root: "${data_dir}"
+  variant_dir: "imagenette2-320"
+  load_subdirs: ["train"]
+  image_size: 224

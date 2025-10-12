@@ -11,7 +11,9 @@ from torch.nn import functional as F
 from torch.utils.data import Dataset
 from collections.abc import Callable
 from typing import Self, final, override
+from PIL import Image
 from torchvision import datasets, transforms
+from torchvision.datasets import ImageFolder
 from sklearn.preprocessing import LabelEncoder
 
 from common.custom_types import (
@@ -1796,3 +1798,134 @@ class ACTG175Dataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         dataset.labels = data["labels"]
         dataset.feature_names = data["feature_names"]
         return dataset
+    
+
+@final
+class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
+    """
+    Imagenette dataset from the FastAI image classification benchmark.
+
+    A subset of 10 easily classified classes from Imagenet.
+    """
+
+    n_classes = 10
+    n_features = 3 * 224 * 224
+
+    def __init__(
+        self,
+        data_root: str = "data",
+        variant_dir: str = "imagenette2-320",
+        load_subdirs: tuple[str, ...] = ("train", "val"),
+        seed: int = 123,
+        image_size: int = 224,
+    ):
+        super().__init__()
+        self.data_root = data_root
+        self.variant_dir = variant_dir
+        self.load_subdirs = load_subdirs
+        self.seed = seed
+        self.image_size = image_size
+
+        # self.features: Tensor | None = None
+        # self.labels: Tensor | None = None
+        # self.indices: Tensor | None = None
+        # self.class_to_idx: dict[str, int] | None = None
+        # self.classes: list[str] | None = None
+
+    def _eval_transform(self):
+        return transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(self.image_size),
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ])
+    
+    def _root(self) -> Path:
+        root = Path(self.data_root) / self.variant_dir
+        if not root.exists():
+            raise FileNotFoundError(
+                f"Imagenette folder not found at {root}. "
+                f"Expected '{self.variant_dir}' with train/ and val/ subdirs."
+            )
+        return root
+    
+    def generate_data(self) -> None:
+        torch.manual_seed(self.seed)
+        tfm = self._eval_transform()
+
+        root = self._root()
+        sub_datasets: list[ImageFolder] = []
+        for sub in self.load_subdirs:
+            d = root / sub
+            if not d.exists():
+                raise FileNotFoundError(f"Expected subdir '{sub}' at {d}")
+            sub_datasets.append(ImageFolder(str(d), transform=tfm))
+        
+        self.class_to_idx = sub_datasets[0].class_to_idx
+        self.classes = sub_datasets[0].classes
+        
+        xs: list[Tensor] = []
+        ys: list[int] = []
+        for ds in sub_datasets:
+            for path, y in ds.samples:
+                with Image.open(path) as im:
+                    im = im.convert("RGB")
+                    x = tfm(im)
+                xs.append(x)
+                ys.append(y)
+        
+        self.features = torch.stack(xs, dim=0).contiguous() # [N,3,224,224]
+        y = torch.tensor(ys, dtype=torch.long)
+        self.labels = torch.nn.functional.one_hot(y, num_classes=10).float()
+        self.indices = torch.arange(len(self.features), dtype=torch.long)
+    
+    def __getitem__(self, idx: int) -> tuple[Tensor, Tensor, Tensor]:  # type: ignore[override]
+        assert self.features is not None and self.labels is not None and self.indices is not None
+        return self.features[idx], self.labels[idx], self.indices[idx]
+    
+    def __len__(self) -> int:
+        return self.features.shape[0]
+    
+    def get_all_data(self) -> tuple[Tensor, Tensor, Tensor]:
+        return self.features, self.labels, self.indices
+    
+    def save(self, path: Path) -> None:
+        """
+        save only the split indices and the dataset config
+        reconstruct later from raw files on load
+        """
+        path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(
+            {
+                # "features": self.features,
+                # "labels": self.labels,
+                "indices": self.indices,
+                # "class_to_idx": self.class_to_idx,
+                # "classes": self.classes,
+                "config": {
+                    "data_root": self.data_root,
+                    "variant_dir": self.variant_dir,
+                    "load_subdirs": self.load_subdirs,
+                    "seed": self.seed,
+                    "image_size": self.image_size,
+                },
+            },
+            path,
+        )
+
+    @classmethod
+    def load(cls, path: Path) -> Self:
+        data = torch.load(path)
+        cfg = data["config"]
+        idx = data["indices"]
+        ds = cls(**cfg)
+        ds.generate_data()
+        ds.features = ds.features[idx]
+        ds.labels = ds.labels[idx]
+        ds.indices = idx
+        # ds.features = data["features"]
+        # ds.labels = data["labels"]
+        # ds.indices = data["indices"]
+        # ds.class_to_idx = data["class_to_idx"]
+        # ds.classes = data["classes"]
+        return ds
