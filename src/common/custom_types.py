@@ -35,7 +35,7 @@ class AFADataset(Protocol):
         """Generate data."""
         ...
 
-    def __getitem__(self, idx: int) -> tuple[Features, Label, SampleIndex]:
+    def __getitem__(self, idx: int) -> tuple[Features, Label]:
         """Return a single sample from the dataset. The index of the sample in the dataset should also be returned."""
         ...
 
@@ -43,7 +43,7 @@ class AFADataset(Protocol):
 
     def get_all_data(
         self,
-    ) -> tuple[Features, Label, SampleIndex]:
+    ) -> tuple[Features, Label]:
         """Return all of the data in the dataset. Useful for batched computations."""
         ...
 
