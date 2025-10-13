@@ -35,7 +35,7 @@ rule soft_budget:
 rule soft_budget_train_all:
     input:
         [
-            f"experiments/{EXPERIMENT_ID}/indicators/soft_budget/trained_method/{dataset}/split{dataset_split}/{method}/costparam{cost_param}/seed{seed}.done"
+            f"experiments/{EXPERIMENT_ID}/indicators/soft_budget/trained_method/{method}/{dataset}/split{dataset_split}/costparam{cost_param}/seed{seed}.done"
             for method in METHODS
             for dataset in DATASETS
             for dataset_split in DATASET_SPLITS
@@ -59,7 +59,7 @@ rule soft_budget_eval_all:
 rule train_soft_budget_method:
     output:
         touch(
-            f"experiments/{EXPERIMENT_ID}/indicators/soft_budget/trained_method/{{dataset}}/split{{dataset_split}}/{{method}}/costparam{{cost_param}}/seed{{seed}}.done"
+            f"experiments/{EXPERIMENT_ID}/indicators/soft_budget/trained_method/{{method}}/{{dataset}}/split{{dataset_split}}/costparam{{cost_param}}/seed{{seed}}.done"
         ),
     params:
         dataset_or_pretrain_artifact_name_arg=lambda wildcards: (
@@ -87,7 +87,7 @@ rule train_soft_budget_method:
 
 rule eval_soft_budget_method:
     input:
-        f"experiments/{EXPERIMENT_ID}/indicators/soft_budget/trained_method/{{dataset}}/split{{dataset_split}}/{{method}}/costparam{{cost_param}}/seed{{seed}}.done",
+        f"experiments/{EXPERIMENT_ID}/indicators/soft_budget/trained_method/{{method}}/{{dataset}}/split{{dataset_split}}/costparam{{cost_param}}/seed{{seed}}.done",
     output:
         touch(
             f"experiments/{EXPERIMENT_ID}/indicators/soft_budget/eval/{{method}}/{{dataset}}/split{{dataset_split}}/costparam{{cost_param}}/seed{{seed}}.done"
