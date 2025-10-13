@@ -1,0 +1,43 @@
+experiment_id: "tmp" # set this every time at the command line
+dataset_artifact_aliases:
+    AFAContext: "Jul29-nightly-AFAContext"
+    cube: "Jul24"
+    diabetes: "Jul24"
+    miniboone: "Jul24"
+    physionet: "Jul24"
+eval_batch_size_per_dataset:
+    AFAContext: 256
+    cube: 256
+    diabetes: 256
+    miniboone: 256
+    physionet: 256
+# dataset_splits: [1, 2]
+dataset_splits: [1]
+dataset_split_mode: "testing" # switch to test at the end
+# In case some model needed pretraining after adding soft budget
+pretrained_model_aliases:
+    shim2018: "KDD"
+    zannone2019: "KDD"
+    kachuee2019: "oct9a"
+classifier: "masked_mlp_classifier"
+classifier_artifact_aliases:
+    AFAContext: "KDD"
+    cube: "KDD"
+    diabetes: "KDD"
+    # FashionMNIST: "KDD"
+    miniboone: "KDD"
+    # MNIST: "KDD"
+    physionet: "KDD"
+validate_artifacts: false # whether to ensure that classifier is trained on the exact same data. Since our classifiers are trained on the "latest" alias of the datasets, this will always fail...
+seeds: [42] # use more seeds at the end?
+train_device: "cuda"
+eval_device: "cpu"
+cost_params_per_method_and_dataset:
+    randomdummy:
+        default: [0.01, 0.001, 0.0001, 0.00001]
+        diabetes: [0.01, 0.00001, 0.00000001, 0.00000000001]
+        miniboone: [0.01, 0.001, 0.0001, 0.000001]
+        physionet: [0.01, 0.001, 0.0001, 0.00001, 0.000001]
+    sequentialdummy:
+        default: [0.5, 0.1, 0.05, 0.01]
+smoke_test: false
