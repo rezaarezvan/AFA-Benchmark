@@ -57,17 +57,27 @@ rule soft_budget_eval_all:
         ],
 
 
+def get_train_dependency_arguments(wildcards):
+    """Return an argument that specifies a dependency for training a method.
+
+    Some AFA methods require a pretraining stage, others don't. Also, the naming convention can differ between methods.
+    """
+    if wildcards.method in {"shim2018", "kachuee2019", "zannone2019"}:
+        return f"pretrained_model_artifact_name=pretrain_{wildcards.method}-{wildcards.dataset}_split_{wildcards.dataset_split}:{PRETRAINED_MODEL_ALIASES[wildcards.method]}"
+    elif wildcards.method in {"randomdummy", "sequentialdummy"}:
+        return f"dataset_artifact_name={wildcards.dataset}_split_{wildcards.dataset_split}:{DATASET_ARTIFACT_ALIASES[wildcards.dataset]}"
+    else:
+        msg = f"Unknown method {wildcards.method} when trying to determine training dependency argument."
+        raise ValueError(msg)
+
+
 rule train_soft_budget_method:
     output:
         touch(
             f"experiments/{EXPERIMENT_ID}/indicators/soft_budget/trained_method/{{method}}/{{dataset}}/split{{dataset_split}}/costparam{{cost_param}}/seed{{seed}}.done"
         ),
     params:
-        dataset_or_pretrain_artifact_name_arg=lambda wildcards: (
-            f"pretrained_model_artifact_name=pretrain_{wildcards.method}-{wildcards.dataset}_split_{wildcards.dataset_split}:{PRETRAINED_MODEL_ALIASES[wildcards.method]}"
-            if wildcards.method in METHODS_WITH_PRETRAIN_STAGE
-            else f"dataset_artifact_name={wildcards.dataset}_split_{wildcards.dataset_split}:{DATASET_ARTIFACT_ALIASES[wildcards.dataset]}"
-        ),
+        train_dependency_arguments=get_train_dependency_arguments,
         dataset_specific_args=lambda wildcards: (
             f"dataset@_global_={wildcards.dataset}_smoke"
             if SMOKE_TEST
@@ -77,13 +87,24 @@ rule train_soft_budget_method:
         """
             WANDB_HTTP_TIMEOUT=60 uv run scripts/train_methods/train_{wildcards.method}.py \
                 {params.dataset_specific_args} \
-                {params.dataset_or_pretrain_artifact_name_arg} \
+                {params.train_dependency_arguments} \
                 seed={wildcards.seed} \
                 hard_budget=null \
                 output_artifact_aliases=["{EXPERIMENT_ID}"] \
                 cost_param={wildcards.cost_param} \
                 device={TRAIN_DEVICE}
         """
+
+def get_trained_method_artifact_name(wildcards):
+    """Return the name of the trained method artifact for a given method.
+
+    Used during evaluation.
+    """
+    if wildcards.method in {"shim2018", "kachuee2019", "zannone2019", "randomdummy", "sequentialdummy"}:
+        return f"train_{wildcards.method}-{wildcards.dataset}_split_{wildcards.dataset_split}-costparam_{wildcards.cost_param}-seed_{wildcards.seed}:{EXPERIMENT_ID}"
+    else:
+        msg = f"Unknown method {wildcards.method} when trying to determine training dependency argument."
+        raise ValueError(msg)
 
 
 rule eval_soft_budget_method:
@@ -96,10 +117,11 @@ rule eval_soft_budget_method:
     params:
         classifier_arg=lambda wildcards: f"trained_classifier_artifact_name={CLASSIFIER}-{wildcards.dataset}_split_{wildcards.dataset_split}:{CLASSIFIER_ARTIFACT_ALIASES[wildcards.dataset]}",
         batch_size=lambda wildcards: EVAL_BATCH_SIZE_PER_DATASET[wildcards.dataset],
+        trained_method_artifact_name=get_trained_method_artifact_name
     shell:
         """
         WANDB_HTTP_TIMEOUT=60 uv run scripts/evaluation/eval_soft_afa_method.py \
-            trained_method_artifact_name=train_{wildcards.method}-{wildcards.dataset}_split_{wildcards.dataset_split}-costparam_{wildcards.cost_param}-seed_{wildcards.seed}:{EXPERIMENT_ID} \
+            trained_method_artifact_name={params.trained_method_artifact_name} \
             cost_param={wildcards.cost_param} \
             {params.classifier_arg} \
             output_artifact_aliases=["{EXPERIMENT_ID}"] \
