@@ -111,7 +111,7 @@ def validate_artifacts(
         == classifier_run.config["dataset_artifact_name"]
     ), (
         f"The trained method artifact {trained_method_artifact_name} and the trained classifier artifact {trained_classifier_artifact_name} "
-        "should have been trained on the same dataset, but they are not."
+        f"should have been trained on the same dataset, but they are not. Trained method was trained on {method_artifact.metadata['dataset_artifact_name']}, classifier was trained on {classifier_run.config['dataset_artifact_name']}."
     )
 
     log.debug(
