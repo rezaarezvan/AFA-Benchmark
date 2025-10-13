@@ -17,6 +17,7 @@ expected_types <- cols(
   dataset = col_factor(),
   dataset_split = col_integer(),
   features_chosen = col_integer(),
+  acquisition_cost = col_double(),
   predicted_label_builtin = col_integer(),
   predicted_label_external = col_integer(),
   true_label = col_integer()
@@ -34,11 +35,6 @@ if (length(unspecified_cols) > 0) {
     )
   )
 }
-
-# For now, only care about the external predictions
-# df <- results %>%
-#     rename(predicted_label = predicted_label_external) %>%
-#     select(-predicted_label_builtin)
 
 # Tidy data
 df <- results %>%
@@ -64,6 +60,7 @@ df_summarized <- df %>%
   summarize(
     accuracy = mean(correct),
     avg_features_chosen = mean(features_chosen),
+    avg_acquisition_cost = mean(acquisition_cost),
     tp = sum(tp),
     fp = sum(fp),
     tn = sum(tn),
@@ -89,6 +86,8 @@ df_summary <- df_summarized %>%
     sd_metric = sd(metric_value),
     mean_avg_features_chosen = mean(avg_features_chosen),
     sd_avg_features_chosen = sd(avg_features_chosen),
+    mean_avg_acquisition_cost = mean(avg_acquisition_cost),
+    sd_avg_acquisition_cost = sd(avg_acquisition_cost),
     .groups = "drop"
   )
 
@@ -96,13 +95,15 @@ df_labels <- df_summary %>%
   group_by(dataset) %>%
   summarize(
     metric_label = ifelse(first(metric_type) == "f1", "F1", "Accuracy"),
-    x = min(mean_avg_features_chosen),
+    x = min(mean_avg_acquisition_cost),
+    # x = min(mean_avg_features_chosen),
     y = 1
   )
 
 # Create the plot
 p <- ggplot(df_summary, aes(
-  x = mean_avg_features_chosen,
+  # x = mean_avg_features_chosen,
+  x = mean_avg_acquisition_cost,
   y = avg_metric,
   color = method
 )) +
@@ -117,8 +118,8 @@ p <- ggplot(df_summary, aes(
   ) +
   geom_errorbarh(
     aes(
-      xmin = mean_avg_features_chosen - sd_avg_features_chosen,
-      xmax = mean_avg_features_chosen + sd_avg_features_chosen
+      xmin = mean_avg_acquisition_cost - sd_avg_acquisition_cost,
+      xmax = mean_avg_acquisition_cost + sd_avg_acquisition_cost
     ),
     height = 0
   ) +
@@ -131,8 +132,8 @@ p <- ggplot(df_summary, aes(
   facet_grid(rows = vars(prediction_type), cols = vars(dataset), scales = "free_x") +
   coord_cartesian(ylim = c(0, 1)) +
   labs(
-    title = "Metric vs Avg. Features Chosen",
-    x = "Avg. features chosen",
+    title = "Metric vs avg. acquisition cost",
+    x = "Avg. acquisition cost",
     y = "Metric",
   ) +
   theme_bw()
