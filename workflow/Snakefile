@@ -114,9 +114,11 @@ rule download_soft_budget_eval_result:
         f"experiments/{EXPERIMENT_ID}/indicators/soft_budget/eval/{{method}}/{{dataset}}/split{{dataset_split}}/costparam{{cost_param}}/seed{{seed}}.done",
     output:
         f"experiments/{EXPERIMENT_ID}/results/soft_budget/eval/{{method}}/{{dataset}}/split{{dataset_split}}/costparam{{cost_param}}/seed{{seed}}/soft_eval_data.csv",
+    params:
+        experiment_id=EXPERIMENT_ID,
     shell:
         """
-            WANDB_HTTP_TIMEOUT=60 uv run wandb artifact get train_{wildcards.method}-{wildcards.dataset}_split_{wildcards.dataset_split}-costparam_{wildcards.cost_param}-seed_{wildcards.seed}-{CLASSIFIER}-{wildcards.dataset}_split_{wildcards.dataset_split}:{EXPERIMENT_ID} --root results/soft_budget/eval/{wildcards.method}/{wildcards.dataset}/split{wildcards.dataset_split}/costparam{wildcards.cost_param}/seed{wildcards.seed}
+            WANDB_HTTP_TIMEOUT=60 uv run wandb artifact get train_{wildcards.method}-{wildcards.dataset}_split_{wildcards.dataset_split}-costparam_{wildcards.cost_param}-seed_{wildcards.seed}-{CLASSIFIER}-{wildcards.dataset}_split_{wildcards.dataset_split}:{EXPERIMENT_ID} --root experiments/{params.experiment_id}/results/soft_budget/eval/{wildcards.method}/{wildcards.dataset}/split{wildcards.dataset_split}/costparam{wildcards.cost_param}/seed{wildcards.seed}
         """
 
 

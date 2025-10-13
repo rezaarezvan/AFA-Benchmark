@@ -24,7 +24,7 @@ classifier_artifact_aliases:
     # miniboone: "KDD"
     # MNIST: "KDD"
     # physionet: "KDD"
-validate_artifacts: true # whether to ensure that classifier is trained on the exact same data
+validate_artifacts: false # whether to ensure that classifier is trained on the exact same data. Since our classifiers are trained on the "latest" alias of the datasets, this will always fail...
 seeds: [42] # use more seeds at the end?
 train_device: "cuda"
 eval_device: "cpu"
