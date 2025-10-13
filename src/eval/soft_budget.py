@@ -74,6 +74,7 @@ def eval_soft_budget_afa_method(
     # Retrieve all data at once, in order to do batched computations
     all_features, all_labels = dataset.get_all_data()
     remaining_indices = torch.arange(len(dataset))
+    acquisition_costs = dataset.get_feature_acquisition_costs().to(device)
 
     mask_layer = _MaskLayer2d(mask_width=1, patch_size=1).to(device)
     if is_image:
@@ -216,6 +217,7 @@ def eval_soft_budget_afa_method(
         else:
             batch_masked_features[refill_batch_indices] = 0
             batch_feature_mask[refill_batch_indices] = False
+            cost_per_sample[refill_batch_indices] = 0.0
 
     df = pd.DataFrame(data_rows)
 
