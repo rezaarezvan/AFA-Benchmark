@@ -3,17 +3,13 @@ dataset_artifact_aliases:
     AFAContext: "Jul29-nightly-AFAContext"
     cube: "Jul24"
     diabetes: "Jul24"
-    # FashionMNIST: "Jul24"
     miniboone: "Jul24"
-    # MNIST: "Jul24"
     physionet: "Jul24"
 eval_batch_size_per_dataset:
     AFAContext: 256
     cube: 256
     diabetes: 256
-    # FashionMNIST: 16
     miniboone: 256
-    # MNIST: 16
     physionet: 256
 # dataset_splits: [1, 2]
 dataset_splits: [1]
@@ -28,9 +24,7 @@ classifier_artifact_aliases:
     AFAContext: "KDD"
     cube: "KDD"
     diabetes: "KDD"
-    # FashionMNIST: "KDD"
     miniboone: "KDD"
-    # MNIST: "KDD"
     physionet: "KDD"
 validate_artifacts: false # whether to ensure that classifier is trained on the exact same data. Since our classifiers are trained on the "latest" alias of the datasets, this will always fail...
 seeds: [42] # use more seeds at the end?

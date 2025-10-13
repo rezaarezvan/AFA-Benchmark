@@ -5,7 +5,7 @@ import os
 # Define global variables from config values
 EXPERIMENT_ID = config["experiment_id"]
 DATASET_ARTIFACT_ALIASES = config["dataset_artifact_aliases"]
-EVAL_BATCH_SIZE_PER_DATASET = config["batch_size_per_dataset"]
+EVAL_BATCH_SIZE_PER_DATASET = config["eval_batch_size_per_dataset"]
 DATASET_SPLITS = config["dataset_splits"]
 DATASET_SPLIT_MODE = config["dataset_split_mode"]
 PRETRAINED_MODEL_ALIASES = config["pretrained_model_aliases"]
@@ -15,17 +15,25 @@ VALIDATE_ARTIFACTS = config["validate_artifacts"]
 SEEDS = config["seeds"]
 TRAIN_DEVICE = config["train_device"]
 EVAL_DEVICE = config["eval_device"]
-COST_PARAMS_PER_METHOD = config["cost_params_per_method"]
+COST_PARAMS_PER_METHOD_AND_DATASET = config["cost_params_per_method_and_dataset"]
 SMOKE_TEST = config["smoke_test"]
 
-METHODS_WITH_PRETRAIN_STAGE = set(PRETRAINED_MODEL_ALIASES.keys())
-METHODS = list(COST_PARAMS_PER_METHOD.keys())
+if PRETRAINED_MODEL_ALIASES is None:
+    PRETRAINED_MODEL_ALIASES = {}
+else:
+    METHODS_WITH_PRETRAIN_STAGE = set(PRETRAINED_MODEL_ALIASES.keys())
+METHODS = list(COST_PARAMS_PER_METHOD_AND_DATASET.keys())
 DATASETS = list(DATASET_ARTIFACT_ALIASES.keys())
-COST_PARAMS_INDICES_PER_METHOD = {
-    method: list(range(len(params)))
-    for method, params in COST_PARAMS_PER_METHOD.items()
-}
 
+
+def get_cost_params(method: str, dataset: str):
+    if dataset in COST_PARAMS_PER_METHOD_AND_DATASET[method]:
+        return COST_PARAMS_PER_METHOD_AND_DATASET[method][dataset]
+    else:
+        return COST_PARAMS_PER_METHOD_AND_DATASET[method]["default"]
+
+# def get_cost_params_indices(method: str, dataset: str):
+#     return list(range(len(get_cost_params(method, dataset))))
 
 # Fast way to produce soft budget plot
 rule soft_budget:
@@ -40,7 +48,7 @@ rule soft_budget_train_all:
             for method in METHODS
             for dataset in DATASETS
             for dataset_split in DATASET_SPLITS
-            for cost_param in COST_PARAMS_PER_METHOD[method]
+            for cost_param in get_cost_params(method, dataset)
             for seed in SEEDS
         ],
 
@@ -52,7 +60,7 @@ rule soft_budget_eval_all:
             for method in METHODS
             for dataset in DATASETS
             for dataset_split in DATASET_SPLITS
-            for cost_param in COST_PARAMS_PER_METHOD[method]
+            for cost_param in get_cost_params(method, dataset)
             for seed in SEEDS
         ],
 
@@ -167,7 +175,7 @@ rule combine_soft_budget_eval_results:
             for method in METHODS
             for dataset in DATASETS
             for dataset_split in DATASET_SPLITS
-            for cost_param in COST_PARAMS_PER_METHOD[method]
+            for cost_param in get_cost_params(method, dataset)
             for seed in SEEDS
         ],
     output:

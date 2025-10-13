@@ -75,6 +75,7 @@ def eval_soft_budget_afa_method(
     all_features, all_labels = dataset.get_all_data()
     remaining_indices = torch.arange(len(dataset))
     acquisition_costs = dataset.get_feature_acquisition_costs().to(device)
+    log.debug(f"Acquisition costs: {acquisition_costs}")
 
     mask_layer = _MaskLayer2d(mask_width=1, patch_size=1).to(device)
     if is_image:
@@ -83,6 +84,7 @@ def eval_soft_budget_afa_method(
         mask_layer: _MaskLayer2d = _MaskLayer2d(mask_width=image_mask_width, patch_size=image_patch_size).to(device)
     
     # Prepare initial batch, update as samples are completed
+    batch_size = min(batch_size, len(remaining_indices))
     batch_features = all_features[remaining_indices[:batch_size]].to(device)
     batch_label = all_labels[remaining_indices[:batch_size]].to(device)
     if is_image:
@@ -118,7 +120,7 @@ def eval_soft_budget_afa_method(
             f"batch_selection should be 1D, got {batch_selection.ndim}D with shape {batch_selection.shape}"
         )
         # Update masked features and feature mask individually. This could probably be done more efficiently with some advanced indexing, but this is clearer.
-        for i in range(batch_size):
+        for i in range(batch_selection.shape[0]):
             sel = int(batch_selection[i].item())
             # Note that `sel == 1` means to select the first feature, that's why we subtract 1 here
             if sel > 0:
