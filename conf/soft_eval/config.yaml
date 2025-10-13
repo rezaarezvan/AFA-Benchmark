@@ -17,3 +17,4 @@ device: "cuda"
 eval_only_n_samples: null
 dataset_split: "validation"
 validate_artifacts: true
+batch_size: ??? # set this in the command line

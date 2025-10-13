@@ -808,6 +808,7 @@ class SoftEvalConfig:
         int | None
     )  # if specified, only evaluate on this many samples
     dataset_split: str  # use "validation" or "testing"
+    batch_size: int
     budget: int | None = (
         None  # if specified, override the budget from training
     )

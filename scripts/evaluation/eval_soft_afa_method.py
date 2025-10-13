@@ -15,7 +15,6 @@ from common.custom_types import (
     AFAClassifier,
     AFADataset,
     AFAMethod,
-    AFAPredictFn,
 )
 from common.registry import get_afa_classifier_class, get_afa_method_class
 from common.utils import load_dataset_artifact, set_seed
@@ -177,7 +176,9 @@ def main(cfg: SoftEvalConfig) -> None:
         afa_method.set_cost_param(cfg.cost_param)
 
     # Do the evaluation
-    log.info("Starting evaluation with soft budget")
+    log.info(
+        f"Starting evaluation with soft budget, batch size {cfg.batch_size}"
+    )
     df = eval_soft_budget_afa_method(
         afa_select_fn=afa_method.select,
         dataset=dataset,
@@ -187,6 +188,7 @@ def main(cfg: SoftEvalConfig) -> None:
         else None,
         only_n_samples=cfg.eval_only_n_samples,
         device=torch.device(cfg.device),
+        batch_size=cfg.batch_size,
     )
     # Add columns to conform to expected format (snake_case)
     df["method"] = method_metadata["method_type"]

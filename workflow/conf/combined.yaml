@@ -7,6 +7,14 @@ dataset_artifact_aliases:
     miniboone: "Jul24"
     MNIST: "Jul24"
     physionet: "Jul24"
+eval_batch_size_per_dataset:
+    AFAContext: 256
+    cube: 256
+    diabetes: 256
+    FashionMNIST: 16
+    miniboone: 256
+    MNIST: 16
+    physionet: 256
 # dataset_splits: [1, 2]
 dataset_splits: [1]
 dataset_split_mode: "test" # switch to test at the end

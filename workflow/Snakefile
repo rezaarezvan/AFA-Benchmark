@@ -5,6 +5,7 @@ import os
 # Define global variables from config values
 EXPERIMENT_ID = config["experiment_id"]
 DATASET_ARTIFACT_ALIASES = config["dataset_artifact_aliases"]
+EVAL_BATCH_SIZE_PER_DATASET = config["batch_size_per_dataset"]
 DATASET_SPLITS = config["dataset_splits"]
 DATASET_SPLIT_MODE = config["dataset_split_mode"]
 PRETRAINED_MODEL_ALIASES = config["pretrained_model_aliases"]
@@ -94,6 +95,7 @@ rule eval_soft_budget_method:
         ),
     params:
         classifier_arg=lambda wildcards: f"trained_classifier_artifact_name={CLASSIFIER}-{wildcards.dataset}_split_{wildcards.dataset_split}:{CLASSIFIER_ARTIFACT_ALIASES[wildcards.dataset]}",
+        batch_size=lambda wildcards: EVAL_BATCH_SIZE_PER_DATASET[wildcards.dataset],
     shell:
         """
         WANDB_HTTP_TIMEOUT=60 uv run scripts/evaluation/eval_soft_afa_method.py \
@@ -105,7 +107,8 @@ rule eval_soft_budget_method:
             device={EVAL_DEVICE} \
             eval_only_n_samples=null \
             dataset_split={DATASET_SPLIT_MODE} \
-            validate_artifacts={VALIDATE_ARTIFACTS}
+            validate_artifacts={VALIDATE_ARTIFACTS} \
+            batch_size={params.batch_size}
         """
 
 
