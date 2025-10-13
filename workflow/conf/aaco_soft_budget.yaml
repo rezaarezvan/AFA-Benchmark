@@ -4,12 +4,12 @@ experiment_id: "aaco_soft_budget"
 dataset_artifact_aliases:
   cube: "latest"
   # afacontext: "latest"
-  actg: "latest"
-  ckd: "latest"
-  diabetes: "latest"
-  physionet: "latest"
-  miniboone: "latest"
-  bank_marketing: "latest"
+  # actg: "latest"
+  # ckd: "latest"
+  # diabetes: "latest"
+  # physionet: "latest"
+  # miniboone: "latest"
+  # bank_marketing: "latest"
   # MNIST: "latest"
   # FashionMNIST: "latest"
 
@@ -24,12 +24,12 @@ classifier: "masked_mlp_classifier"
 classifier_artifact_aliases:
   cube: "latest"
   # afacontext: "latest"
-  actg: "latest"
-  ckd: "latest"
-  diabetes: "latest"
-  physionet: "latest"
-  miniboone: "latest"
-  bank_marketing: "latest"
+  # actg: "latest"
+  # ckd: "latest"
+  # diabetes: "latest"
+  # physionet: "latest"
+  # miniboone: "latest"
+  # bank_marketing: "latest"
   # MNIST: "latest"
   # FashionMNIST: "latest"
 
@@ -58,13 +58,13 @@ cost_params_per_method:
     # Small datasets
     cube: [0.001, 0.05, 0.3]
     # afacontext: [0.001, 0.05, 0.3]
-    actg: [0.001, 0.05, 0.3]
-    ckd: [0.001, 0.05, 0.3]
+    # actg: [0.001, 0.05, 0.3]
+    # ckd: [0.001, 0.05, 0.3]
     # Medium datasets
-    diabetes: [0.0005, 0.03, 0.2]
-    physionet: [0.0005, 0.03, 0.2]
-    miniboone: [0.0005, 0.03, 0.2]
-    bank_marketing: [0.0005, 0.03, 0.2]
+    # diabetes: [0.0005, 0.03, 0.2]
+    # physionet: [0.0005, 0.03, 0.2]
+    # miniboone: [0.0005, 0.03, 0.2]
+    # bank_marketing: [0.0005, 0.03, 0.2]
     # Large datasets
     # MNIST: [0.0001, 0.01, 0.1]
     # FashionMNIST: [0.0001, 0.01, 0.1]

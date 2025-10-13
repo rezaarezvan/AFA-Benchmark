@@ -738,6 +738,8 @@ class AACOTrainConfig:
     output_artifact_aliases: list[str]
     seed: int = 42
     device: str = "cpu"
+    cost_param: float | None = None
+    hard_budget: float | None = None
 
 
 # --- TRAINING CLASSIFIERS ---
@@ -812,7 +814,8 @@ class SoftEvalConfig:
     budget: int | None = (
         None  # if specified, override the budget from training
     )
-    validate_artifacts: bool = True  # whether to validate that the method and classifier artifacts are trained on the exact same dataset
+    # whether to validate that the method and classifier artifacts are trained on the exact same dataset
+    validate_artifacts: bool = True
 
 
 cs.store(name="soft-eval", node=SoftEvalConfig)
@@ -868,7 +871,8 @@ class MetricConfig:
 
 @dataclass
 class PlotConfig:
-    eval_artifact_yaml_list: str  # path to a YAML config file which contains a list of evaluation artifacts to use
+    # path to a YAML config file which contains a list of evaluation artifacts to use
+    eval_artifact_yaml_list: str
     metric_keys_and_descriptions: list[
         MetricConfig
     ]  # Inner list has two elements: [metric_key, description]

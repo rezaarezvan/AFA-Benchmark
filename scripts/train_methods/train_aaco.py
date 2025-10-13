@@ -49,9 +49,14 @@ def main(cfg: AACOTrainConfig):
     log.info(f"Features: {n_features}, Classes: {n_classes}")
     log.info(f"Training samples: {len(train_dataset)}")
 
+    cost = (
+        cfg.cost_param
+        if cfg.cost_param is not None
+        else cfg.aco.acquisition_cost
+    )
     aaco_method = create_aaco_method(
         k_neighbors=cfg.aco.k_neighbors,
-        acquisition_cost=cfg.aco.acquisition_cost,
+        acquisition_cost=cost,
         hide_val=cfg.aco.hide_val,
         dataset_name=dataset_type.lower(),
         split=split,
@@ -68,20 +73,23 @@ def main(cfg: AACOTrainConfig):
     with TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir)
         aaco_method.save(temp_path)
-
         split_idx = cfg.dataset_artifact_name.split("_split_")[-1].split(":")[
             0
         ]
+        dataset_lower = dataset_type.lower()
+
+        artifact_name = f"train_aaco-{dataset_lower}_split_{split_idx}-costparam_{cost}-seed_{cfg.seed}"
 
         trained_method_artifact = wandb.Artifact(
-            name=f"aaco-{dataset_type}_split_{split_idx}",
+            name=artifact_name,
             type="trained_method",
             metadata={
                 "method_type": "aaco",
                 "dataset_type": dataset_type,
                 "dataset_artifact_name": cfg.dataset_artifact_name,
-                "budget": None,  # AACO doesn't have fixed training budget
+                "budget": None,
                 "seed": cfg.seed,
+                "cost_param": cost,
             },
         )
         trained_method_artifact.add_dir(str(temp_path))
