@@ -7,7 +7,13 @@ import torch
 from torch import nn, optim
 
 import wandb
-from afa_discriminative.models import fc_Net
+from afa_discriminative.models import (
+    fc_Net,
+    resnet18,
+    ResNet18Backbone,
+    Predictor,
+    ConvNet,
+)
 from afa_discriminative.utils import (
     ConcreteSelector,
     get_entropy,
@@ -365,7 +371,9 @@ class GreedyDynamicSelection(nn.Module):
 class Covert2023AFAMethod(AFAMethod):
     def __init__(self, selector, predictor, device=torch.device("cpu"),
                  lambda_threshold: float = -float("inf"),
-                 feature_costs: torch.Tensor | None = None):
+                 feature_costs: torch.Tensor | None = None,
+                 modality: str | None = "tabular",
+                 n_patches: int | None = None):
         super().__init__()
 
         # Set up models and mask layer.
@@ -374,6 +382,12 @@ class Covert2023AFAMethod(AFAMethod):
         self._device: torch.device = device
         self.lambda_threshold = lambda_threshold
         self._feature_costs = feature_costs
+        self.modality = modality
+        # for image selection
+        self.n_patches = n_patches
+        self.image_size: int | None = None
+        self.patch_size: int | None = None
+        self.mask_width: int | None = None
 
     def predict(
         self,
@@ -382,9 +396,11 @@ class Covert2023AFAMethod(AFAMethod):
         features=None,
         label=None,
     ) -> Label:
-        x_masked = torch.cat([masked_features, feature_mask], dim=1)
-        predictor = self.predictor
-        pred = predictor(x_masked)
+        if self.modality == "tabular":
+            x_masked = torch.cat([masked_features, feature_mask], dim=1)
+            pred = self.predictor(x_masked)
+        else:
+            pred = self.predictor(masked_features)
         return pred.softmax(dim=-1)
 
     def select(
@@ -394,9 +410,12 @@ class Covert2023AFAMethod(AFAMethod):
         features=None,
         label=None,
     ) -> AFASelection:
-        selector = self.selector
-        x_masked = torch.cat([masked_features, feature_mask], dim=1)
-        logits = selector(x_masked).flatten(1)
+        if self.modality == "tabular":
+            x_masked = torch.cat([masked_features, feature_mask], dim=1)
+            logits = self.selector(x_masked).flatten(1)
+        else:
+            logits = self.selector(masked_features)
+            assert logits.dim() == 2, f"Selector must return [B, N], got {logits.shape}"
         logits = logits - 1e6 * feature_mask
 
         if self._feature_costs is not None:
@@ -422,55 +441,100 @@ class Covert2023AFAMethod(AFAMethod):
     def load(cls, path, device="cpu"):
         checkpoint = torch.load(path / "model.pt", map_location=device)
         arch = checkpoint["architecture"]
-        d_in = arch["d_in"]
-        d_out = arch["d_out"]
-        selector_hidden_layers = arch["selector_hidden_layers"]
-        predictor_hidden_layers = arch["predictor_hidden_layers"]
-        dropout = arch["dropout"]
-        predictor = fc_Net(
-            input_dim=d_in * 2,
-            output_dim=d_out,
-            hidden_layer_num=len(predictor_hidden_layers),
-            hidden_unit=predictor_hidden_layers,
-            activations="ReLU",
-            drop_out_rate=dropout,
-            flag_drop_out=True,
-            flag_only_output_layer=False,
-        )
-        selector = fc_Net(
-            input_dim=d_in * 2,
-            output_dim=d_in,
-            hidden_layer_num=len(selector_hidden_layers),
-            hidden_unit=selector_hidden_layers,
-            activations="ReLU",
-            drop_out_rate=dropout,
-            flag_drop_out=True,
-            flag_only_output_layer=False,
-        )
+        # tabular
+        if "predictor_hidden_layers" in arch:
+            d_in = arch["d_in"]
+            d_out = arch["d_out"]
+            selector_hidden_layers = arch["selector_hidden_layers"]
+            predictor_hidden_layers = arch["predictor_hidden_layers"]
+            dropout = arch["dropout"]
+            predictor = fc_Net(
+                input_dim=d_in * 2,
+                output_dim=d_out,
+                hidden_layer_num=len(predictor_hidden_layers),
+                hidden_unit=predictor_hidden_layers,
+                activations="ReLU",
+                drop_out_rate=dropout,
+                flag_drop_out=True,
+                flag_only_output_layer=False,
+            )
+            selector = fc_Net(
+                input_dim=d_in * 2,
+                output_dim=d_in,
+                hidden_layer_num=len(selector_hidden_layers),
+                hidden_unit=selector_hidden_layers,
+                activations="ReLU",
+                drop_out_rate=dropout,
+                flag_drop_out=True,
+                flag_only_output_layer=False,
+            )
 
-        model = cls(selector, predictor, device)
-        model.selector.load_state_dict(checkpoint["selector_state_dict"])
-        model.predictor.load_state_dict(checkpoint["predictor_state_dict"])
-        model.selector.eval()
-        model.predictor.eval()
-        return model.to(device)
+            model = cls(selector, predictor, device)
+            model.selector.load_state_dict(checkpoint["selector_state_dict"])
+            model.predictor.load_state_dict(checkpoint["predictor_state_dict"])
+            model.selector.eval()
+            model.predictor.eval()
+            return model.to(device)
+
+        backbone = arch["backbone"]
+        if backbone == "resnet18":
+            d_out = arch["d_out"]
+            base = resnet18(pretrained=False)
+            backbone_net, expansion = ResNet18Backbone(base)
+            predictor = Predictor(backbone_net, expansion, d_out)
+            selector = ConvNet(backbone_net, 1, 0.5)
+
+            model = cls(selector=selector, predictor=predictor, device=device,
+                modality="image", n_patches=int(arch["mask_width"])**2)
+            
+            model.selector.load_state_dict(checkpoint["selector_state_dict"])
+            model.predictor.load_state_dict(checkpoint["predictor_state_dict"])
+            model.selector.eval()
+            model.predictor.eval()
+            return model.to(device)
+        raise ValueError("Unrecognized checkpoint format")
 
     def save(self, path: Path):
         os.makedirs(path, exist_ok=True)
-        torch.save(
-            {
-                "selector_state_dict": self.selector.state_dict(),
-                "predictor_state_dict": self.predictor.state_dict(),
-                "architecture": {
-                    "d_in": self.selector.output_dim,
-                    "d_out": self.predictor.output_dim,
-                    "selector_hidden_layers": [128, 128],
-                    "predictor_hidden_layers": [128, 128],
-                    "dropout": 0.3,
-                },
-            },
-            os.path.join(path, "model.pt"),
-        )
+        if self.modality == "tabular":
+            arch = {
+                "d_in": self.selector.output_dim,
+                "d_out": self.predictor.output_dim,
+                "selector_hidden_layers": [128, 128],
+                "predictor_hidden_layers": [128, 128],
+                "dropout": 0.3,
+                "model_type": "tabular",
+            }
+        else:
+            arch = {
+                "backbone": "resnet18",
+                "image_size": getattr(self, "image_size", 224),
+                "patch_size": getattr(self, "patch_size", 16),
+                "mask_width": getattr(self, "mask_width", 14),
+                "d_out": self.predictor.fc.out_features,
+                "model_type": "image",
+            }
+        payload = {
+            "selector_state_dict": self.selector.state_dict(),
+            "predictor_state_dict": self.predictor.state_dict(),
+            "architecture": arch,
+        }
+        torch.save(payload, os.path.join(path, "model.pt"))
+
+        # torch.save(
+        #     {
+        #         "selector_state_dict": self.selector.state_dict(),
+        #         "predictor_state_dict": self.predictor.state_dict(),
+        #         "architecture": {
+        #             "d_in": self.selector.output_dim,
+        #             "d_out": self.predictor.output_dim,
+        #             "selector_hidden_layers": [128, 128],
+        #             "predictor_hidden_layers": [128, 128],
+        #             "dropout": 0.3,
+        #         },
+        #     },
+        #     os.path.join(path, "model.pt"),
+        # )
 
     def to(self, device):
         self.selector = self.selector.to(device)
@@ -504,22 +568,6 @@ class CMIEstimator(nn.Module):
         self.value_network = value_network
         self.predictor = predictor
         self.mask_layer = mask_layer
-
-    def set_stopping_criterion(self, budget=None, lam=None, confidence=None):
-        """Set parameters for stopping criterion."""
-        if sum([budget is None, lam is None, confidence is None]) != 2:
-            raise ValueError(
-                "Must specify exactly one of budget, lam, and confidence"
-            )
-        if budget is not None:
-            self.budget = budget
-            self.mode = "budget"
-        elif lam is not None:
-            self.lam = lam
-            self.mode = "penalized"
-        elif confidence is not None:
-            self.confidence = confidence
-            self.mode = "confidence"
 
     def fit(
         self,
@@ -802,7 +850,9 @@ class CMIEstimator(nn.Module):
 class Gadgil2023AFAMethod(AFAMethod):
     def __init__(self, value_network, predictor, device=torch.device("cpu"),
                  lambda_threshold: float = -float("inf"),
-                 feature_costs: torch.Tensor | None = None):
+                 feature_costs: torch.Tensor | None = None,
+                 modality: str | None = "tabular",
+                 n_patches: int | None = None):
         super().__init__()
 
         # Save network modules.
@@ -811,6 +861,11 @@ class Gadgil2023AFAMethod(AFAMethod):
         self._device: torch.device = device
         self.lambda_threshold = lambda_threshold
         self._feature_costs = feature_costs
+        self.modality = modality
+        self.n_patches = n_patches
+        self.image_size: int | None = None
+        self.patch_size: int | None = None
+        self.mask_width: int | None = None
 
     def predict(
         self,
@@ -819,9 +874,11 @@ class Gadgil2023AFAMethod(AFAMethod):
         features=None,
         label=None,
     ) -> Label:
-        x_masked = torch.cat([masked_features, feature_mask], dim=1)
-        predictor = self.predictor
-        pred = predictor(x_masked)
+        if self.modality == "tabular":
+            x_masked = torch.cat([masked_features, feature_mask], dim=1)
+            pred = self.predictor(x_masked)
+        else:
+            pred = self.predictor(masked_features)
         return pred.softmax(dim=-1)
 
     def select(
@@ -831,11 +888,15 @@ class Gadgil2023AFAMethod(AFAMethod):
         features=None,
         label=None,
     ) -> AFASelection:
-        x_masked = torch.cat([masked_features, feature_mask], dim=1)
-        pred = self.predict(masked_features, feature_mask)
-        entropy = get_entropy(pred).unsqueeze(1)
-        value_network = self.value_network
-        pred_cmi = value_network(x_masked).sigmoid() * entropy
+        if self.modality == "tabular":
+            x_masked = torch.cat([masked_features, feature_mask], dim=1)
+            pred = self.predict(masked_features, feature_mask)
+            entropy = get_entropy(pred).unsqueeze(1)
+            pred_cmi = self.value_network(x_masked).sigmoid() * entropy
+        else:
+            pred = self.predict(masked_features, feature_mask)
+            entropy = get_entropy(pred).unsqueeze(1)
+            pred_cmi = self.value_network(masked_features).sigmoid() * entropy
         pred_cmi -= 1e6 * feature_mask
 
         if self._feature_costs is not None:
@@ -859,60 +920,103 @@ class Gadgil2023AFAMethod(AFAMethod):
     def load(cls, path, device="cpu"):
         checkpoint = torch.load(path / "model.pt", map_location=device)
         arch = checkpoint["architecture"]
-        d_in = arch["d_in"]
-        d_out = arch["d_out"]
-        value_network_hidden_layers = arch["value_network_hidden_layers"]
-        predictor_hidden_layers = arch["predictor_hidden_layers"]
-        dropout = arch["dropout"]
-        predictor = fc_Net(
-            input_dim=d_in * 2,
-            output_dim=d_out,
-            hidden_layer_num=len(predictor_hidden_layers),
-            hidden_unit=predictor_hidden_layers,
-            activations="ReLU",
-            drop_out_rate=dropout,
-            flag_drop_out=True,
-            flag_only_output_layer=False,
-        )
-        value_network = fc_Net(
-            input_dim=d_in * 2,
-            output_dim=d_in,
-            hidden_layer_num=len(value_network_hidden_layers),
-            hidden_unit=value_network_hidden_layers,
-            activations="ReLU",
-            drop_out_rate=dropout,
-            flag_drop_out=True,
-            flag_only_output_layer=False,
-        )
-        # Tie weights
-        value_network.hidden[0] = predictor.hidden[0]
-        value_network.hidden[1] = predictor.hidden[1]
+        if "predictor_hidden_layers" in arch:
+            d_in = arch["d_in"]
+            d_out = arch["d_out"]
+            value_network_hidden_layers = arch["value_network_hidden_layers"]
+            predictor_hidden_layers = arch["predictor_hidden_layers"]
+            dropout = arch["dropout"]
+            predictor = fc_Net(
+                input_dim=d_in * 2,
+                output_dim=d_out,
+                hidden_layer_num=len(predictor_hidden_layers),
+                hidden_unit=predictor_hidden_layers,
+                activations="ReLU",
+                drop_out_rate=dropout,
+                flag_drop_out=True,
+                flag_only_output_layer=False,
+            )
+            value_network = fc_Net(
+                input_dim=d_in * 2,
+                output_dim=d_in,
+                hidden_layer_num=len(value_network_hidden_layers),
+                hidden_unit=value_network_hidden_layers,
+                activations="ReLU",
+                drop_out_rate=dropout,
+                flag_drop_out=True,
+                flag_only_output_layer=False,
+            )
+            # Tie weights
+            value_network.hidden[0] = predictor.hidden[0]
+            value_network.hidden[1] = predictor.hidden[1]
 
-        model = cls(value_network, predictor, device)
-        model.value_network.load_state_dict(
-            checkpoint["value_network_state_dict"]
-        )
-        model.predictor.load_state_dict(checkpoint["predictor_state_dict"])
-        model.value_network.eval()
-        model.predictor.eval()
-        return model.to(device)
+            model = cls(value_network, predictor, device)
+            model.value_network.load_state_dict(
+                checkpoint["value_network_state_dict"]
+            )
+            model.predictor.load_state_dict(checkpoint["predictor_state_dict"])
+            model.value_network.eval()
+            model.predictor.eval()
+            return model.to(device)
+
+        backbone = arch["backbone"]
+        if backbone == "resnet18":
+            d_out = arch["d_out"]
+            base = resnet18(pretrained=False)
+            backbone_net, expansion = ResNet18Backbone(base)
+            predictor = Predictor(backbone_net, expansion, d_out)
+            value_network = ConvNet(backbone_net, 1, 0.5)
+            
+            model = cls(value_network=value_network, predictor=predictor, device=device,
+                modality="image", n_patches=int(arch["mask_width"])**2)
+            
+            model.value_network.load_state_dict(checkpoint["value_network_state_dict"])
+            model.predictor.load_state_dict(checkpoint["predictor_state_dict"])
+            model.value_network.eval()
+            model.predictor.eval()
+            return model.to(device)
+        raise ValueError("Unrecognized checkpoint format")
 
     def save(self, path: Path):
         os.makedirs(path, exist_ok=True)
-        torch.save(
-            {
-                "value_network_state_dict": self.value_network.state_dict(),
-                "predictor_state_dict": self.predictor.state_dict(),
-                "architecture": {
-                    "d_in": self.value_network.output_dim,
-                    "d_out": self.predictor.output_dim,
-                    "value_network_hidden_layers": [128, 128],
-                    "predictor_hidden_layers": [128, 128],
-                    "dropout": 0.3,
-                },
-            },
-            os.path.join(path, "model.pt"),
-        )
+        if self.modality == "tabular":
+            arch = {
+                "d_in": self.value_network.output_dim,
+                "d_out": self.predictor.output_dim,
+                "value_network_hidden_layers": [128, 128],
+                "predictor_hidden_layers": [128, 128],
+                "dropout": 0.3,
+                "model_type": "tabular",
+            }
+        else:
+            arch = {
+                "backbone": "resnet18",
+                "image_size": getattr(self, "image_size", 224),
+                "patch_size": getattr(self, "patch_size", 16),
+                "mask_width": getattr(self, "mask_width", 14),
+                "d_out": self.predictor.fc.out_features,
+                "model_type": "image",
+            }
+        payload = {
+            "value_network_state_dict": self.value_network.state_dict(),
+            "predictor_state_dict": self.predictor.state_dict(),
+            "architecture": arch,
+        }
+        torch.save(payload, os.path.join(path, "model.pt"))
+        # torch.save(
+        #     {
+        #         "value_network_state_dict": self.value_network.state_dict(),
+        #         "predictor_state_dict": self.predictor.state_dict(),
+        #         "architecture": {
+        #             "d_in": self.value_network.output_dim,
+        #             "d_out": self.predictor.output_dim,
+        #             "value_network_hidden_layers": [128, 128],
+        #             "predictor_hidden_layers": [128, 128],
+        #             "dropout": 0.3,
+        #         },
+        #     },
+        #     os.path.join(path, "model.pt"),
+        # )
 
     def to(self, device):
         self.value_network = self.value_network.to(device)

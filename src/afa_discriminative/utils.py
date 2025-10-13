@@ -53,6 +53,47 @@ class MaskLayer(nn.Module):
         return out
 
 
+class MaskLayer2d(nn.Module):
+    '''
+    Mask layer for zeroing out 2d image data.
+
+    Args:
+      mask_width: width of the mask, or the number of patches.
+      patch_size: upsampling factor for the mask, or number of pixels along
+        the side of each patch.
+      append: whether to append mask to the output.
+    '''
+
+    def __init__(self, mask_width, patch_size, append=False):
+        super().__init__()
+        self.append = append
+        self.mask_width = mask_width
+        self.mask_size = mask_width ** 2
+
+        # Set up upsampling.
+        self.patch_size = patch_size
+        if patch_size == 1:
+            self.upsample = nn.Identity()
+        elif patch_size > 1:
+            self.upsample = nn.Upsample(scale_factor=patch_size)
+        else:
+            raise ValueError('patch_size should be int >= 1')
+
+    def forward(self, x, mask):
+        # Reshape if necessary.
+        if len(mask.shape) == 2:
+            mask = mask.reshape(-1, 1, self.mask_width, self.mask_width)
+        elif len(mask.shape) != 4:
+            raise ValueError(f'cannot determine how to reshape mask with shape = {mask.shape}')
+
+        # Apply mask.
+        mask = self.upsample(mask)
+        out = x * mask
+        if self.append:
+            out = torch.cat([out, mask], dim=1)
+        return out
+
+
 class ConcreteSelector(nn.Module):
     """Output layer for selector models."""
 

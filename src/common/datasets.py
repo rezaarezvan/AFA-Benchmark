@@ -1879,9 +1879,9 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         self.labels = torch.nn.functional.one_hot(y, num_classes=10).float()
         self.indices = torch.arange(len(self.features), dtype=torch.long)
     
-    def __getitem__(self, idx: int) -> tuple[Tensor, Tensor, Tensor]:  # type: ignore[override]
+    def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:  # type: ignore[override]
         assert self.features is not None and self.labels is not None and self.indices is not None
-        return self.features[idx], self.labels[idx], self.indices[idx]
+        return self.features[idx], self.labels[idx]
     
     def __len__(self) -> int:
         return self.features.shape[0]
@@ -1922,7 +1922,7 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         ds.generate_data()
         ds.features = ds.features[idx]
         ds.labels = ds.labels[idx]
-        ds.indices = idx
+        # ds.indices = idx
         # ds.features = data["features"]
         # ds.labels = data["labels"]
         # ds.indices = data["indices"]

@@ -349,6 +349,27 @@ cs.store(name="pretrain_covert2023", node=Covert2023PretrainingConfig)
 
 
 @dataclass
+class Covert2023Pretraining2DConfig:
+    dataset_artifact_name: str
+    output_artifact_aliases: list[str] = field(default_factory=list)
+
+    batch_size: int = 128
+    seed: int = 42
+    device: str = "cuda"
+    lr: float = 1e-3
+    nepochs: int = 100
+    patience: int = 5
+    min_masking_probability: float = 0.0
+    max_masking_probability: float = 0.9
+
+    image_size: int = 224
+    patch_size: int = 16
+
+
+cs.store(name="pretrain_covert2023", node=Covert2023Pretraining2DConfig)
+
+
+@dataclass
 class Covert2023TrainingConfig:
     pretrained_model_artifact_name: str
     output_artifact_aliases: list[str] = field(default_factory=list)
@@ -369,6 +390,23 @@ class Covert2023TrainingConfig:
 
 
 cs.store(name="train_covert2023", node=Covert2023TrainingConfig)
+
+
+@dataclass
+class Covert2023Training2DConfig:
+    pretrained_model_artifact_name: str
+    output_artifact_aliases: list[str] = field(default_factory=list)
+
+    batch_size: int = 128
+    lr: float = 1e-3
+    hard_budget: int = 20
+    nepochs: int = 100
+    patience: int = 5
+    device: str = "cuda"
+    seed: int = 42
+
+
+cs.store(name="train_covert2023", node=Covert2023Training2DConfig)
 
 
 @dataclass
@@ -396,6 +434,27 @@ cs.store(name="pretrain_gadgil2023", node=Gadgil2023PretrainingConfig)
 
 
 @dataclass
+class Gadgil2023Pretraining2DConfig:
+    dataset_artifact_name: str
+    output_artifact_aliases: list[str] = field(default_factory=list)
+
+    batch_size: int = 128
+    seed: int = 42
+    device: str = "cuda"
+    lr: float = 1e-3
+    nepochs: int = 100
+    patience: int = 5
+    min_masking_probability: float = 0.0
+    max_masking_probability: float = 0.9
+
+    image_size: int = 224
+    patch_size: int = 16
+
+
+cs.store(name="pretrain_gadgil2023", node=Gadgil2023Pretraining2DConfig)
+
+
+@dataclass
 class Gadgil2023TrainingConfig:
     pretrained_model_artifact_name: str
     output_artifact_aliases: list[str] = field(default_factory=list)
@@ -419,6 +478,26 @@ class Gadgil2023TrainingConfig:
 
 
 cs.store(name="train_gadgil2023", node=Gadgil2023TrainingConfig)
+
+
+@dataclass
+class Gadgil2023Training2DConfig:
+    pretrained_model_artifact_name: str
+    output_artifact_aliases: list[str] = field(default_factory=list)
+
+    batch_size: int = 128
+    lr: float = 1e-3
+    hard_budget: int = 20
+    nepochs: int = 100
+    patience: int = 5
+    eps: float = 0.05
+    eps_decay: float = 0.2
+    eps_steps: int = 10
+    device: str = "cuda"
+    seed: int = 42
+
+
+cs.store(name="train_gadgil2023", node=Gadgil2023Training2DConfig)
 
 
 @dataclass
