@@ -105,6 +105,13 @@ def generate_mock_data(
                                     max_features,
                                 )
                             )
+                            # Acquisition cost: proportional to features_chosen, with small noise
+                            cost_per_feature = 1.0  # Can be customized per dataset/method if desired
+                            acquisition_cost = (
+                                features_chosen * cost_per_feature
+                                + np.random.normal(0, 0.1)
+                            )
+                            acquisition_cost = max(acquisition_cost, 0.0)
                             methods_with_builtin = {"method_1", "method_3"}
                             has_builtin = method in methods_with_builtin
 
@@ -165,6 +172,7 @@ def generate_mock_data(
                                     "dataset": dataset,
                                     "dataset_split": split,
                                     "features_chosen": features_chosen,
+                                    "acquisition_cost": acquisition_cost,
                                     "predicted_label_builtin": pred_label_builtin,
                                     "predicted_label_external": pred_label_external,
                                     "true_label": true_label,
