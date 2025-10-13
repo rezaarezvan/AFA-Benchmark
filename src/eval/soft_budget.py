@@ -96,6 +96,11 @@ def eval_soft_budget_afa_method(
             f"finished_mask should be 1D, got {finished_mask.ndim}D with shape {finished_mask.shape}"
         )
         finished_indices = torch.where(finished_mask)[0]
+        n_finished = int(finished_mask.sum().item())
+
+        if n_finished == 0:
+            # skip this iteration to avoid empty-batch calls
+            continue
 
         # For finished samples, do predictions and store results
         external_prediction = external_afa_predict_fn(
