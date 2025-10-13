@@ -1,5 +1,5 @@
-from copy import deepcopy
 import os
+from copy import deepcopy
 
 import torch
 import torch.nn.functional as F
@@ -9,16 +9,24 @@ import wandb
 from afa_discriminative.utils import restore_parameters
 from afa_rl.utils import mask_data
 
-
-models_dir = os.path.expanduser('~/Projects/dynamic_budgeting/pretrained_resnet_models')
+models_dir = os.path.expanduser(
+    "~/Projects/dynamic_budgeting/pretrained_resnet_models"
+)
 model_name = {
-    'resnet18': 'resnet18-f37072fd.pth',
+    "resnet18": "resnet18-f37072fd.pth",
 }
 
 
 def conv3x3(in_planes, out_planes, stride=1):
-    '''3x3 convolution with padding'''
-    return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride, padding=1, bias=False)
+    """3x3 convolution with padding"""
+    return nn.Conv2d(
+        in_planes,
+        out_planes,
+        kernel_size=3,
+        stride=stride,
+        padding=1,
+        bias=False,
+    )
 
 
 def ResNet18Backbone(model):
@@ -28,19 +36,22 @@ def ResNet18Backbone(model):
 
 
 def resnet18(pretrained=False, **kwargs):
-    '''Constructs a ResNet-18 model.
+    """
+    Constructs a ResNet-18 model.
 
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
-    '''
+    """
     model = ResNet(BasicBlock, [2, 2, 2, 2], **kwargs)
     if pretrained:
-        model.load_state_dict(torch.load(os.path.join(models_dir, model_name['resnet18'])))
+        model.load_state_dict(
+            torch.load(os.path.join(models_dir, model_name["resnet18"]))
+        )
     return model
 
 
 def make_layer(block, in_planes, planes, num_blocks, stride, expansion):
-    strides = [stride] + [1]*(num_blocks-1)
+    strides = [stride] + [1] * (num_blocks - 1)
     layers = []
     for stride in strides:
         if stride >= 1:
@@ -48,39 +59,51 @@ def make_layer(block, in_planes, planes, num_blocks, stride, expansion):
 
             if stride != 1 or in_planes != planes * block.expansion:
                 downsample = nn.Sequential(
-                    nn.Conv2d(in_planes, planes * block.expansion, kernel_size=1,
-                              stride=stride, bias=False),
+                    nn.Conv2d(
+                        in_planes,
+                        planes * block.expansion,
+                        kernel_size=1,
+                        stride=stride,
+                        bias=False,
+                    ),
                     nn.BatchNorm2d(planes * block.expansion),
                 )
 
             layers.append(block(in_planes, planes, stride, downsample))
+        elif expansion == 1:
+            layers.append(UpsamplingBlock(in_planes, planes))
         else:
-            if expansion == 1:
-                layers.append(UpsamplingBlock(in_planes, planes))
-            else:
-                layers.append(UpsamplingBottleneckBlock(in_planes, planes))
+            layers.append(UpsamplingBottleneckBlock(in_planes, planes))
         in_planes = planes * block.expansion
     return nn.Sequential(*layers)
 
 
 class UpsamplingBlock(nn.Module):
-    '''Custom residual block for performing upsampling.'''
+    """Custom residual block for performing upsampling."""
+
     expansion = 1
 
     def __init__(self, in_planes, planes):
         super().__init__()
         self.conv1 = nn.ConvTranspose2d(
-            in_planes, planes, kernel_size=4, stride=2, padding=1, bias=False)
+            in_planes, planes, kernel_size=4, stride=2, padding=1, bias=False
+        )
         self.bn1 = nn.BatchNorm2d(planes)
-        self.conv2 = nn.Conv2d(planes, planes, kernel_size=3,
-                               stride=1, padding=1, bias=False)
+        self.conv2 = nn.Conv2d(
+            planes, planes, kernel_size=3, stride=1, padding=1, bias=False
+        )
         self.bn2 = nn.BatchNorm2d(planes)
 
         self.shortcut = nn.Sequential(
             nn.ConvTranspose2d(
-                        in_planes, self.expansion*planes, kernel_size=2,
-                        stride=2, padding=0, bias=False),
-            nn.BatchNorm2d(self.expansion*planes)
+                in_planes,
+                self.expansion * planes,
+                kernel_size=2,
+                stride=2,
+                padding=0,
+                bias=False,
+            ),
+            nn.BatchNorm2d(self.expansion * planes),
         )
 
     def forward(self, x):
@@ -90,29 +113,38 @@ class UpsamplingBlock(nn.Module):
         out = F.relu(out)
 
         return out
-    
+
 
 class UpsamplingBottleneckBlock(nn.Module):
-    '''Custom residual block for performing upsampling.'''
+    """Custom residual block for performing upsampling."""
+
     expansion = 4
 
     def __init__(self, in_planes, planes):
         super().__init__()
         self.conv1 = nn.ConvTranspose2d(
-            in_planes, planes, kernel_size=4, stride=2, padding=1, bias=False)
+            in_planes, planes, kernel_size=4, stride=2, padding=1, bias=False
+        )
         self.bn1 = nn.BatchNorm2d(planes)
-        self.conv2 = nn.Conv2d(planes, planes, kernel_size=3,
-                               stride=1, padding=1, bias=False)
+        self.conv2 = nn.Conv2d(
+            planes, planes, kernel_size=3, stride=1, padding=1, bias=False
+        )
         self.bn2 = nn.BatchNorm2d(planes)
-        self.conv3 = nn.Conv2d(planes,
-                               planes*self.expansion, kernel_size=1, bias=False)
-        self.bn3 = nn.BatchNorm2d(planes*self.expansion)
+        self.conv3 = nn.Conv2d(
+            planes, planes * self.expansion, kernel_size=1, bias=False
+        )
+        self.bn3 = nn.BatchNorm2d(planes * self.expansion)
 
         self.shortcut = nn.Sequential(
             nn.ConvTranspose2d(
-                        in_planes, planes*self.expansion, kernel_size=2,
-                        stride=2, padding=0, bias=False),
-            nn.BatchNorm2d(planes*self.expansion)
+                in_planes,
+                planes * self.expansion,
+                kernel_size=2,
+                stride=2,
+                padding=0,
+                bias=False,
+            ),
+            nn.BatchNorm2d(planes * self.expansion),
         )
 
     def forward(self, x):
@@ -240,7 +272,9 @@ class MaskingPretrainer(nn.Module):
                     # Calculate prediction.
                     if x.dim() == 4:
                         n = self.mask_layer.mask_size
-                        m = (torch.rand(x.size(0), n, device=device) < p).float()
+                        m = (
+                            torch.rand(x.size(0), n, device=device) < p
+                        ).float()
                     else:
                         _, m, _ = mask_data(x, p)
                     x_masked = mask_layer(x, m)
@@ -571,7 +605,9 @@ class Bottleneck(nn.Module):
         super(Bottleneck, self).__init__()
         self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
         self.bn1 = nn.BatchNorm2d(planes)
-        self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
+        self.conv2 = nn.Conv2d(
+            planes, planes, kernel_size=3, stride=stride, padding=1, bias=False
+        )
         self.bn2 = nn.BatchNorm2d(planes)
         self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
         self.bn3 = nn.BatchNorm2d(planes * 4)
@@ -606,7 +642,9 @@ class ResNet(nn.Module):
     def __init__(self, block, layers, num_classes=1000):
         super(ResNet, self).__init__()
         self.inplanes = 64
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.conv1 = nn.Conv2d(
+            3, 64, kernel_size=7, stride=2, padding=3, bias=False
+        )
         self.bn1 = nn.BatchNorm2d(64)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
@@ -622,7 +660,7 @@ class ResNet(nn.Module):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-                m.weight.data.normal_(0, math.sqrt(2. / n))
+                m.weight.data.normal_(0, math.sqrt(2.0 / n))
             elif isinstance(m, nn.BatchNorm2d):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
@@ -631,8 +669,13 @@ class ResNet(nn.Module):
         downsample = None
         if stride != 1 or self.inplanes != planes * block.expansion:
             downsample = nn.Sequential(
-                nn.Conv2d(self.inplanes, planes * block.expansion, kernel_size=1,
-                          stride=stride, bias=False),
+                nn.Conv2d(
+                    self.inplanes,
+                    planes * block.expansion,
+                    kernel_size=1,
+                    stride=stride,
+                    bias=False,
+                ),
                 nn.BatchNorm2d(planes * block.expansion),
             )
 
@@ -689,12 +732,26 @@ class ConvNet(nn.Module):
         self.backbone = backbone
         if expansion == 1:
             # BasicBlock
-            self.block_layer = make_layer(BasicBlock, 512, 256, 2, stride=block_layer_stride, expansion=expansion)
+            self.block_layer = make_layer(
+                BasicBlock,
+                512,
+                256,
+                2,
+                stride=block_layer_stride,
+                expansion=expansion,
+            )
             self.conv = nn.Conv2d(256, 1, 1)
         else:
             # Bottleneck block
             # BasicBlock
-            self.block_layer = make_layer(Bottleneck, 2048, 512, 2, stride=block_layer_stride, expansion=expansion)
+            self.block_layer = make_layer(
+                Bottleneck,
+                2048,
+                512,
+                2,
+                stride=block_layer_stride,
+                expansion=expansion,
+            )
             self.conv = nn.Conv2d(2048, 1, 1)
         self.flatten = nn.Flatten()
 

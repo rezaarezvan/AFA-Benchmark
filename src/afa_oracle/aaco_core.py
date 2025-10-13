@@ -261,7 +261,7 @@ class AACOOracle:
             # ACO optimization returned u(x_o, o) = ∅ - no acquisitions worth the cost
             return None  # Stop action - let method terminate
 
-        elif len(new_features) == 1:
+        if len(new_features) == 1:
             return new_features[0].item()
         # If multiple features, select the one with lowest individual loss
         individual_losses = []

@@ -8,11 +8,11 @@ from torch import nn, optim
 
 import wandb
 from afa_discriminative.models import (
+    ConvNet,
+    Predictor,
+    ResNet18Backbone,
     fc_Net,
     resnet18,
-    ResNet18Backbone,
-    Predictor,
-    ConvNet,
 )
 from afa_discriminative.utils import (
     ConcreteSelector,
@@ -369,11 +369,16 @@ class GreedyDynamicSelection(nn.Module):
 
 
 class Covert2023AFAMethod(AFAMethod):
-    def __init__(self, selector, predictor, device=torch.device("cpu"),
-                 lambda_threshold: float = -float("inf"),
-                 feature_costs: torch.Tensor | None = None,
-                 modality: str | None = "tabular",
-                 n_patches: int | None = None):
+    def __init__(
+        self,
+        selector,
+        predictor,
+        device=torch.device("cpu"),
+        lambda_threshold: float = -float("inf"),
+        feature_costs: torch.Tensor | None = None,
+        modality: str | None = "tabular",
+        n_patches: int | None = None,
+    ):
         super().__init__()
 
         # Set up models and mask layer.
@@ -415,7 +420,9 @@ class Covert2023AFAMethod(AFAMethod):
             logits = self.selector(x_masked).flatten(1)
         else:
             logits = self.selector(masked_features)
-            assert logits.dim() == 2, f"Selector must return [B, N], got {logits.shape}"
+            assert logits.dim() == 2, (
+                f"Selector must return [B, N], got {logits.shape}"
+            )
         logits = logits - 1e6 * feature_mask
 
         if self._feature_costs is not None:
@@ -484,9 +491,14 @@ class Covert2023AFAMethod(AFAMethod):
             predictor = Predictor(backbone_net, expansion, d_out)
             selector = ConvNet(backbone_net, 1, 0.5)
 
-            model = cls(selector=selector, predictor=predictor, device=device,
-                modality="image", n_patches=int(arch["mask_width"])**2)
-            
+            model = cls(
+                selector=selector,
+                predictor=predictor,
+                device=device,
+                modality="image",
+                n_patches=int(arch["mask_width"]) ** 2,
+            )
+
             model.selector.load_state_dict(checkpoint["selector_state_dict"])
             model.predictor.load_state_dict(checkpoint["predictor_state_dict"])
             model.selector.eval()
@@ -545,7 +557,7 @@ class Covert2023AFAMethod(AFAMethod):
     @property
     def device(self) -> torch.device:
         return self._device
-    
+
     @property
     def has_builtin_classifier(self) -> bool:
         return True
@@ -848,11 +860,16 @@ class CMIEstimator(nn.Module):
 
 
 class Gadgil2023AFAMethod(AFAMethod):
-    def __init__(self, value_network, predictor, device=torch.device("cpu"),
-                 lambda_threshold: float = -float("inf"),
-                 feature_costs: torch.Tensor | None = None,
-                 modality: str | None = "tabular",
-                 n_patches: int | None = None):
+    def __init__(
+        self,
+        value_network,
+        predictor,
+        device=torch.device("cpu"),
+        lambda_threshold: float = -float("inf"),
+        feature_costs: torch.Tensor | None = None,
+        modality: str | None = "tabular",
+        n_patches: int | None = None,
+    ):
         super().__init__()
 
         # Save network modules.
@@ -966,11 +983,18 @@ class Gadgil2023AFAMethod(AFAMethod):
             backbone_net, expansion = ResNet18Backbone(base)
             predictor = Predictor(backbone_net, expansion, d_out)
             value_network = ConvNet(backbone_net, 1, 0.5)
-            
-            model = cls(value_network=value_network, predictor=predictor, device=device,
-                modality="image", n_patches=int(arch["mask_width"])**2)
-            
-            model.value_network.load_state_dict(checkpoint["value_network_state_dict"])
+
+            model = cls(
+                value_network=value_network,
+                predictor=predictor,
+                device=device,
+                modality="image",
+                n_patches=int(arch["mask_width"]) ** 2,
+            )
+
+            model.value_network.load_state_dict(
+                checkpoint["value_network_state_dict"]
+            )
             model.predictor.load_state_dict(checkpoint["predictor_state_dict"])
             model.value_network.eval()
             model.predictor.eval()
@@ -1027,7 +1051,7 @@ class Gadgil2023AFAMethod(AFAMethod):
     @property
     def device(self) -> torch.device:
         return self._device
-    
+
     @property
     def has_builtin_classifier(self) -> bool:
         return True

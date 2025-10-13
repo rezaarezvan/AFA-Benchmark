@@ -28,7 +28,6 @@ from afa_rl.kachuee2019.utils import get_kachuee2019_model_from_config
 from afa_rl.utils import (
     get_eval_metrics,
 )
-from common.afa_methods import RandomDummyAFAMethod
 from common.config_classes import (
     Kachuee2019PretrainConfig,
     Kachuee2019TrainConfig,
@@ -40,7 +39,6 @@ from common.utils import (
     load_dataset_artifact,
     set_seed,
 )
-from eval.utils import plot_metrics
 
 
 def load_pretrained_model_artifacts(

@@ -1,20 +1,20 @@
 import os
-import torch
-import zipfile
-import pandas as pd
 import urllib.request
-
+import zipfile
+from collections.abc import Callable
 from pathlib import Path
+from typing import Self, final, override
+
+import pandas as pd
+import torch
+from PIL import Image
+from sklearn.preprocessing import LabelEncoder
 from torch import Tensor
-from ucimlrepo import fetch_ucirepo
 from torch.nn import functional as F
 from torch.utils.data import Dataset
-from collections.abc import Callable
-from typing import Self, final, override
-from PIL import Image
 from torchvision import datasets, transforms
 from torchvision.datasets import ImageFolder
-from sklearn.preprocessing import LabelEncoder
+from ucimlrepo import fetch_ucirepo
 
 from common.custom_types import (
     AFADataset,
@@ -22,7 +22,6 @@ from common.custom_types import (
     Features,
     Label,
     MaskedFeatures,
-    SampleIndex,
 )
 
 
@@ -1904,7 +1903,7 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
     def save(self, path: Path) -> None:
         """
-        save only the split indices and the dataset config
+        Save only the split indices and the dataset config
         reconstruct later from raw files on load
         """
         path.parent.mkdir(parents=True, exist_ok=True)

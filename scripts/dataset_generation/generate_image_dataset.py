@@ -8,12 +8,12 @@ from time import strftime
 import hydra
 import torch
 from torch.utils.data import random_split
+from wandb.sdk.wandb_run import Run
 
 import wandb
 from common.config_classes import DatasetGenerationConfig, SplitRatioConfig
 from common.custom_types import AFADataset
 from common.registry import get_afa_dataset_class
-from wandb.sdk.wandb_run import Run
 
 
 def create_split_dataset(original_dataset, subset):
@@ -45,11 +45,10 @@ def generate_and_save_split(
     **dataset_kwargs,
 ):
     """Generate and save a single train/val/test split for a dataset with a specific seed. The seed affects both data generation and split."""
-    
     # Create TRAIN pool dataset with the specific seed
     dataset_kwargs["seed"] = seed
     train_kwargs = {**dataset_kwargs, "load_subdirs": ("train",)}
-    
+
     dataset = dataset_class(**train_kwargs)
     dataset.generate_data()
 
@@ -71,7 +70,7 @@ def generate_and_save_split(
     test_kwargs = {**test_kwargs, "load_subdirs": ("val",)}
     test_dataset = dataset_class(**test_kwargs)
     test_dataset.generate_data()
-    
+
     # Create dataset directory
     dataset_dir = data_dir / dataset_type
     dataset_dir.mkdir(parents=True, exist_ok=True)

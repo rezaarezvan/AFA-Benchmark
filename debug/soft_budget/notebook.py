@@ -86,7 +86,9 @@ fig, axes = plt.subplots(
 if len(summary_df["Dataset"].unique()) == 1:
     axes = [axes]
 
-for ax, (dataset, subdf) in zip(axes, summary_df.groupby("Dataset")):
+for ax, (dataset, subdf) in zip(
+    axes, summary_df.groupby("Dataset"), strict=False
+):
     sns.scatterplot(
         data=subdf,
         x="Avg. features chosen",
@@ -133,7 +135,9 @@ fig, axes = plt.subplots(
 if len(summary_df_builtin["Dataset"].unique()) == 1:
     axes = [axes]
 
-for ax, (dataset, subdf) in zip(axes, summary_df_builtin.groupby("Dataset")):
+for ax, (dataset, subdf) in zip(
+    axes, summary_df_builtin.groupby("Dataset"), strict=False
+):
     sns.scatterplot(
         data=subdf,
         x="Avg. features chosen",

@@ -13,10 +13,10 @@ from torchmetrics import Accuracy
 import wandb
 from afa_discriminative.datasets import prepare_datasets
 from afa_discriminative.models import (
-    MaskingPretrainer, 
-    resnet18, 
-    ResNet18Backbone, 
+    MaskingPretrainer,
     Predictor,
+    ResNet18Backbone,
+    resnet18,
 )
 from afa_discriminative.utils import MaskLayer2d
 from common.config_classes import Gadgil2023Pretraining2DConfig
@@ -65,11 +65,14 @@ def main(cfg: Gadgil2023Pretraining2DConfig):
 
     image_size = cfg.image_size
     patch_size = cfg.patch_size
-    assert image_size % patch_size == 0, "image_size must be divisible by patch_size"
+    assert image_size % patch_size == 0, (
+        "image_size must be divisible by patch_size"
+    )
     mask_width = image_size // patch_size
 
-    mask_layer = MaskLayer2d(mask_width=mask_width, 
-                             patch_size=patch_size, append=False)
+    mask_layer = MaskLayer2d(
+        mask_width=mask_width, patch_size=patch_size, append=False
+    )
     print("Pretraining predictor")
     print("-" * 8)
     pretrain = MaskingPretrainer(predictor, mask_layer).to(device)

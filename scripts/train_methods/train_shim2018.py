@@ -32,7 +32,6 @@ from afa_rl.utils import (
     get_eval_metrics,
     module_norm,
 )
-from common.afa_methods import RandomDummyAFAMethod
 from common.config_classes import Shim2018PretrainConfig, Shim2018TrainConfig
 from common.custom_types import (
     AFADataset,
@@ -43,8 +42,6 @@ from common.utils import (
     load_dataset_artifact,
     set_seed,
 )
-from eval.soft_budget import eval_soft_budget_afa_method
-from eval.utils import plot_metrics
 
 if TYPE_CHECKING:
     from afa_rl.agents import Agent

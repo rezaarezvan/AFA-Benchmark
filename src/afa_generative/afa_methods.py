@@ -2,7 +2,6 @@ from pathlib import Path
 
 import torch
 
-from afa_generative.utils import restore_parameters
 from common.custom_types import (
     AFAMethod,
     AFASelection,
@@ -13,9 +12,15 @@ from common.custom_types import (
 
 
 class Ma2018AFAMethod(AFAMethod):
-    def __init__(self, sampler, predictor, num_classes, device=torch.device("cpu"),
-                 lambda_threshold: float = -float("inf"),
-                 feature_costs: torch.Tensor | None = None):
+    def __init__(
+        self,
+        sampler,
+        predictor,
+        num_classes,
+        device=torch.device("cpu"),
+        lambda_threshold: float = -float("inf"),
+        feature_costs: torch.Tensor | None = None,
+    ):
         super().__init__()
         self.sampler = sampler
         self.predictor = predictor
@@ -162,7 +167,7 @@ class Ma2018AFAMethod(AFAMethod):
     @property
     def device(self) -> torch.device:
         return self._device
-    
+
     @property
     def has_builtin_classifier(self) -> bool:
         return True

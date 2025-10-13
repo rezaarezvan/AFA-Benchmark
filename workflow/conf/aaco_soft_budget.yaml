@@ -1,0 +1,70 @@
+experiment_id: "aaco_soft_budget"
+
+# Datasets (MNIST commented out for faster results)
+dataset_artifact_aliases:
+  cube: ["latest"]
+  AFAContext: ["latest"]
+  actg: ["latest"]
+  ckd: ["latest"]
+  diabetes: ["latest"]
+  physionet: ["latest"]
+  miniboone: ["latest"]
+  bank_marketing: ["latest"]
+  # MNIST: ["latest"]
+  # FashionMNIST: ["latest"]
+
+dataset_splits: [1, 2, 3, 4, 5]
+dataset_split_mode: "validation"
+
+# AACO doesn't need pretraining
+pretrained_model_aliases: {}
+
+# Classifier configuration
+classifier: "masked_mlp_classifier"
+classifier_artifact_aliases:
+  cube: ["latest"]
+  AFAContext: ["latest"]
+  actg: ["latest"]
+  ckd: ["latest"]
+  diabetes: ["latest"]
+  physionet: ["latest"]
+  miniboone: ["latest"]
+  bank_marketing: ["latest"]
+
+validate_artifacts: true
+
+seeds: [42]  # Just one seed for now
+
+# Device configuration
+train_device: "cuda"
+eval_device: "cuda"
+
+# Batch sizes optimized per dataset
+batch_size_per_dataset:
+  cube: 64
+  AFAContext: 64
+  actg: 64
+  ckd: 64
+  diabetes: 128
+  physionet: 64
+  miniboone: 128
+  bank_marketing: 128
+
+# Cost parameters tailored to each dataset
+cost_params_per_method:
+  aaco:
+    # Small datasets
+    cube: [0.001, 0.05, 0.3]
+    AFAContext: [0.001, 0.05, 0.3]
+    actg: [0.001, 0.05, 0.3]
+    ckd: [0.001, 0.05, 0.3]
+    # Medium datasets
+    diabetes: [0.0005, 0.03, 0.2]
+    physionet: [0.0005, 0.03, 0.2]
+    miniboone: [0.0005, 0.03, 0.2]
+    bank_marketing: [0.0005, 0.03, 0.2]
+    # Large datasets
+    # MNIST: [0.0001, 0.01, 0.1]
+    # FashionMNIST: [0.0001, 0.01, 0.1]
+
+smoke_test: false

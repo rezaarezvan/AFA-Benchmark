@@ -1,20 +1,20 @@
+import logging
 from typing import Any
 
+import numpy as np
 import torch
-import logging
-from torch.utils.data import DataLoader
+import torch.nn.functional as F
+from sklearn.metrics import accuracy_score, f1_score
 from torch import Tensor
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from common.custom_types import (
-    AFASelectFn,
-    AFAPredictFn,
     AFADataset,
+    AFAPredictFn,
+    AFASelectFn,
     Label,
 )
-from sklearn.metrics import accuracy_score, f1_score
-import numpy as np
-import torch.nn.functional as F
 
 log = logging.getLogger(__name__)
 
@@ -22,7 +22,8 @@ log = logging.getLogger(__name__)
 def aggregate_metrics(
     prediction_history, y_true
 ) -> tuple[Tensor, Tensor, Tensor]:
-    """Compute accuracy, F1 and BCE across feature-selection budgets.
+    """
+    Compute accuracy, F1 and BCE across feature-selection budgets.
 
     If y_true contains exactly two unique classes   → average="binary"
     Otherwise                                       → average="weighted"
@@ -106,7 +107,8 @@ def eval_afa_method(
     batch_size: int = 1,
     device: torch.device | None = None,
 ) -> dict[str, Any]:
-    """Evaluate an AFA method.
+    """
+    Evaluate an AFA method.
 
     Args:
         afa_select_fn (AFASelectFn): How to select new features.

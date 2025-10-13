@@ -158,7 +158,7 @@ def get_afa_dataset_class(name: str) -> type[AFADataset]:  # noqa: C901, PLR0911
         from common.datasets import ACTG175Dataset
 
         return ACTG175Dataset
-    
+
     if name == "imagenette":
         from common.datasets import ImagenetteDataset
 

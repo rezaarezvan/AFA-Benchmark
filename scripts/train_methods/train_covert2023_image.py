@@ -17,10 +17,10 @@ from afa_discriminative.afa_methods import (
 )
 from afa_discriminative.datasets import prepare_datasets
 from afa_discriminative.models import (
-    resnet18, 
-    ResNet18Backbone, 
-    Predictor,
     ConvNet,
+    Predictor,
+    ResNet18Backbone,
+    resnet18,
 )
 from afa_discriminative.utils import MaskLayer2d
 from common.config_classes import (
@@ -105,12 +105,19 @@ def main(cfg: Covert2023Training2DConfig):
     n_patches = int(mask_width) ** 2
 
     selector = ConvNet(backbone, expansion).to(device)
-    mask_layer = MaskLayer2d(mask_width=mask_width, 
-                             patch_size=patch_size, append=False)
+    mask_layer = MaskLayer2d(
+        mask_width=mask_width, patch_size=patch_size, append=False
+    )
     x0, _ = next(iter(train_loader))
     with torch.no_grad():
-        logits0 = selector(mask_layer(x0.to(device), torch.zeros(len(x0), n_patches, device=device)))
-    assert logits0.shape[1] == n_patches, f"Selector outputs {logits0.shape[1]} != n_patches {n_patches}"
+        logits0 = selector(
+            mask_layer(
+                x0.to(device), torch.zeros(len(x0), n_patches, device=device)
+            )
+        )
+    assert logits0.shape[1] == n_patches, (
+        f"Selector outputs {logits0.shape[1]} != n_patches {n_patches}"
+    )
 
     gdfs = GreedyDynamicSelection(selector, predictor, mask_layer).to(device)
     gdfs.fit(
@@ -124,11 +131,15 @@ def main(cfg: Covert2023Training2DConfig):
         verbose=True,
     )
 
-    afa_method = Covert2023AFAMethod(gdfs.selector.cpu(), gdfs.predictor.cpu(), 
-                                     modality="image", n_patches=n_patches)
+    afa_method = Covert2023AFAMethod(
+        gdfs.selector.cpu(),
+        gdfs.predictor.cpu(),
+        modality="image",
+        n_patches=n_patches,
+    )
     afa_method.image_size = image_size
     afa_method.patch_size = patch_size
-    afa_method.mask_width  = mask_width
+    afa_method.mask_width = mask_width
 
     with TemporaryDirectory(delete=False) as tmp_path_str:
         tmp_path = Path(tmp_path_str)

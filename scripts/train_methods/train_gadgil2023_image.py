@@ -15,10 +15,10 @@ import wandb
 from afa_discriminative.afa_methods import CMIEstimator, Gadgil2023AFAMethod
 from afa_discriminative.datasets import prepare_datasets
 from afa_discriminative.models import (
-    resnet18, 
-    ResNet18Backbone, 
-    Predictor,
     ConvNet,
+    Predictor,
+    ResNet18Backbone,
+    resnet18,
 )
 from afa_discriminative.utils import MaskLayer2d
 from common.config_classes import (
@@ -101,15 +101,22 @@ def main(cfg: Gadgil2023Training2DConfig):
     assert image_size % patch_size == 0
     mask_width = arch["mask_width"]
     n_patches = int(mask_width) ** 2
-    
+
     value_network = ConvNet(backbone, expansion).to(device)
 
-    mask_layer = MaskLayer2d(mask_width=mask_width, 
-                             patch_size=patch_size, append=False)
+    mask_layer = MaskLayer2d(
+        mask_width=mask_width, patch_size=patch_size, append=False
+    )
     x0, _ = next(iter(train_loader))
     with torch.no_grad():
-        logits0 = value_network(mask_layer(x0.to(device), torch.zeros(len(x0), n_patches, device=device)))
-    assert logits0.shape[1] == n_patches, f"Value Network outputs {logits0.shape[1]} != n_patches {n_patches}"
+        logits0 = value_network(
+            mask_layer(
+                x0.to(device), torch.zeros(len(x0), n_patches, device=device)
+            )
+        )
+    assert logits0.shape[1] == n_patches, (
+        f"Value Network outputs {logits0.shape[1]} != n_patches {n_patches}"
+    )
 
     greedy_cmi_estimator = CMIEstimator(
         value_network, predictor, mask_layer
@@ -133,11 +140,12 @@ def main(cfg: Gadgil2023Training2DConfig):
     afa_method = Gadgil2023AFAMethod(
         greedy_cmi_estimator.value_network.cpu(),
         greedy_cmi_estimator.predictor.cpu(),
-        modality="image", n_patches=n_patches
+        modality="image",
+        n_patches=n_patches,
     )
     afa_method.image_size = image_size
     afa_method.patch_size = patch_size
-    afa_method.mask_width  = mask_width
+    afa_method.mask_width = mask_width
 
     with TemporaryDirectory(delete=False) as tmp_path_str:
         tmp_path = Path(tmp_path_str)

@@ -144,6 +144,22 @@ class AACOAFAMethod(AFAMethod):
         # Return predictions on original device
         return predictions.to(original_device)
 
+    @property
+    @override
+    def cost_param(self) -> float:
+        """Return the current acquisition cost"""
+        return self.aaco_oracle.acquisition_cost
+
+    @override
+    def set_cost_param(self, cost_param: float) -> None:
+        """Set the acquisition cost at eval time"""
+        self.aaco_oracle.acquisition_cost = cost_param
+
+    @property
+    @override
+    def has_builtin_classifier(self) -> bool:
+        return True
+
     @override
     def save(self, path: Path) -> None:
         """Save method state"""
