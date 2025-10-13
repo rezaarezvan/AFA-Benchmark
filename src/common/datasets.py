@@ -1262,6 +1262,11 @@ class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         dataset.feature_names = data["feature_names"]
         return dataset
 
+    @override
+    def get_feature_acquisition_costs(self) -> Tensor:
+        msg = "Missing feature acquisition costs for DiabetesDataset."
+        raise NotImplementedError(msg)
+
 
 @final
 class MiniBooNEDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
@@ -1798,7 +1803,7 @@ class ACTG175Dataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         dataset.labels = data["labels"]
         dataset.feature_names = data["feature_names"]
         return dataset
-    
+
 
 @final
 class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
@@ -1833,13 +1838,17 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         # self.classes: list[str] | None = None
 
     def _eval_transform(self):
-        return transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(self.image_size),
-            transforms.ToTensor(),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-        ])
-    
+        return transforms.Compose(
+            [
+                transforms.Resize(256),
+                transforms.CenterCrop(self.image_size),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
+                ),
+            ]
+        )
+
     def _root(self) -> Path:
         root = Path(self.data_root) / self.variant_dir
         if not root.exists():
@@ -1848,7 +1857,7 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 f"Expected '{self.variant_dir}' with train/ and val/ subdirs."
             )
         return root
-    
+
     def generate_data(self) -> None:
         torch.manual_seed(self.seed)
         tfm = self._eval_transform()
@@ -1860,10 +1869,10 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             if not d.exists():
                 raise FileNotFoundError(f"Expected subdir '{sub}' at {d}")
             sub_datasets.append(ImageFolder(str(d), transform=tfm))
-        
+
         self.class_to_idx = sub_datasets[0].class_to_idx
         self.classes = sub_datasets[0].classes
-        
+
         xs: list[Tensor] = []
         ys: list[int] = []
         for ds in sub_datasets:
@@ -1873,22 +1882,26 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                     x = tfm(im)
                 xs.append(x)
                 ys.append(y)
-        
-        self.features = torch.stack(xs, dim=0).contiguous() # [N,3,224,224]
+
+        self.features = torch.stack(xs, dim=0).contiguous()  # [N,3,224,224]
         y = torch.tensor(ys, dtype=torch.long)
         self.labels = torch.nn.functional.one_hot(y, num_classes=10).float()
         self.indices = torch.arange(len(self.features), dtype=torch.long)
-    
+
     def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:  # type: ignore[override]
-        assert self.features is not None and self.labels is not None and self.indices is not None
+        assert (
+            self.features is not None
+            and self.labels is not None
+            and self.indices is not None
+        )
         return self.features[idx], self.labels[idx]
-    
+
     def __len__(self) -> int:
         return self.features.shape[0]
-    
+
     def get_all_data(self) -> tuple[Tensor, Tensor, Tensor]:
         return self.features, self.labels, self.indices
-    
+
     def save(self, path: Path) -> None:
         """
         save only the split indices and the dataset config

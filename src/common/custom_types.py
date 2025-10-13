@@ -25,7 +25,6 @@ class AFADataset(Protocol):
     # Used by AFADatasetFn
     features: Features  # batched
     labels: Label  # batched
-    indices: SampleIndex
 
     # Used by evaluation scripts to avoid loading the dataset
     n_classes: ClassVar[int]
@@ -55,6 +54,10 @@ class AFADataset(Protocol):
     def load(cls, path: Path) -> Self:
         """Load the dataset from a file. The file should contain the dataset in a format that can be loaded by the dataset. This enables deterministic loading of datasets."""
         ...
+
+    def get_feature_acquisition_costs(self) -> Tensor:
+        """Return the acquisition costs for each feature as a 1D tensor of shape (n_features,)."""
+        return torch.ones(self.n_features)  # Default: all features have cost 1
 
 
 type MaskedFeatures = Integer[Tensor, "*batch n_features"]
