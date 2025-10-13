@@ -2,16 +2,16 @@ experiment_id: "aaco_soft_budget"
 
 # Datasets (MNIST commented out for faster results)
 dataset_artifact_aliases:
-  cube: ["latest"]
-  AFAContext: ["latest"]
-  actg: ["latest"]
-  ckd: ["latest"]
-  diabetes: ["latest"]
-  physionet: ["latest"]
-  miniboone: ["latest"]
-  bank_marketing: ["latest"]
-  # MNIST: ["latest"]
-  # FashionMNIST: ["latest"]
+  cube: "latest"
+  AFAContext: "latest"
+  actg: "latest"
+  ckd: "latest"
+  diabetes: "latest"
+  physionet: "latest"
+  miniboone: "latest"
+  bank_marketing: "latest"
+  # MNIST: "latest"
+  # FashionMNIST: "latest"
 
 dataset_splits: [1, 2, 3, 4, 5]
 dataset_split_mode: "validation"
@@ -22,14 +22,16 @@ pretrained_model_aliases: {}
 # Classifier configuration
 classifier: "masked_mlp_classifier"
 classifier_artifact_aliases:
-  cube: ["latest"]
-  AFAContext: ["latest"]
-  actg: ["latest"]
-  ckd: ["latest"]
-  diabetes: ["latest"]
-  physionet: ["latest"]
-  miniboone: ["latest"]
-  bank_marketing: ["latest"]
+  cube: "latest"
+  AFAContext: "latest"
+  actg: "latest"
+  ckd: "latest"
+  diabetes: "latest"
+  physionet: "latest"
+  miniboone: "latest"
+  bank_marketing: "latest"
+  # MNIST: "latest"
+  # FashionMNIST: "latest"
 
 validate_artifacts: true
 
