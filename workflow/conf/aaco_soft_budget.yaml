@@ -3,7 +3,7 @@ experiment_id: "aaco_soft_budget"
 # Datasets (MNIST commented out for faster results)
 dataset_artifact_aliases:
   cube: "latest"
-  afacontext: "latest"
+  # afacontext: "latest"
   actg: "latest"
   ckd: "latest"
   diabetes: "latest"
@@ -23,7 +23,7 @@ pretrained_model_aliases: {}
 classifier: "masked_mlp_classifier"
 classifier_artifact_aliases:
   cube: "latest"
-  afacontext: "latest"
+  # afacontext: "latest"
   actg: "latest"
   ckd: "latest"
   diabetes: "latest"
@@ -44,7 +44,7 @@ eval_device: "cuda"
 # Batch sizes optimized per dataset
 batch_size_per_dataset:
   cube: 64
-  afacontext: 64
+  # afacontext: 64
   actg: 64
   ckd: 64
   diabetes: 128
@@ -57,7 +57,7 @@ cost_params_per_method:
   aaco:
     # Small datasets
     cube: [0.001, 0.05, 0.3]
-    afacontext: [0.001, 0.05, 0.3]
+    # afacontext: [0.001, 0.05, 0.3]
     actg: [0.001, 0.05, 0.3]
     ckd: [0.001, 0.05, 0.3]
     # Medium datasets

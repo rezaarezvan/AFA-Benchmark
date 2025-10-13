@@ -89,6 +89,7 @@ def main(cfg: AACOTrainConfig):
             trained_method_artifact, aliases=cfg.output_artifact_aliases
         )
 
+    wandb.finish()
     log.info("AACO method saved as artifact")
     run.finish()
 
