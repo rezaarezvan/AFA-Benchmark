@@ -272,8 +272,6 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
         for batch_idx, tds in tqdm(
             enumerate(collector), total=cfg.n_batches, desc="Training agent..."
         ):
-            if batch_idx % 100 == 0:
-                log.info(f"Processing batch {batch_idx}/{cfg.n_batches}")
             collector.update_policy_weights_()
 
             # Collapse agent and batch dimensions
