@@ -190,20 +190,25 @@ ggsave(plot_path2, p2, width = 10, height = 6, dpi = 300)
 
 # Save two tables with AUC scores
 auc1 <- df_summary %>%
-  group_by(method, dataset, metric_type) %>%
-  summarise(
-    auc = {
-      df_sorted <- arrange(pick(everything()), mean_avg_features_chosen)
-      trapz(df_sorted$mean_avg_features_chosen, df_sorted$avg_metric)
-    },
-    .groups = "drop"
-  )
+    group_by(method, dataset, metric_type) %>%
+    summarise(
+        auc = {
+            df_sorted <- arrange(pick(everything()), mean_avg_features_chosen)
+            x <- df_sorted$mean_avg_features_chosen
+            y <- df_sorted$avg_metric
+            sum(diff(x) * (head(y, -1) + tail(y, -1)) / 2)
+        },
+        .groups = "drop"
+)
+
 auc2 <- df_summary %>%
   group_by(method, dataset, metric_type) %>%
   summarise(
     auc = {
       df_sorted <- arrange(pick(everything()), mean_avg_acquisition_cost)
-      trapz(df_sorted$mean_avg_acquisition_cost, df_sorted$avg_metric)
+      x <- df_sorted$mean_avg_acquisition_cost
+      y <- df_sorted$avg_metric
+      sum(diff(x) * (head(y, -1) + tail(y, -1)) / 2)
     },
     .groups = "drop"
   )
