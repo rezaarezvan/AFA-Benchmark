@@ -80,22 +80,27 @@ def eval_soft_budget_afa_method(
     mask_layer = _MaskLayer2d(mask_width=1, patch_size=1).to(device)
     if is_image:
         if image_mask_width is None:
-            raise ValueError("image mask width must be provided when modality = image")
-        mask_layer: _MaskLayer2d = _MaskLayer2d(mask_width=image_mask_width, patch_size=image_patch_size).to(device)
-    
+            raise ValueError(
+                "image mask width must be provided when modality = image"
+            )
+        mask_layer: _MaskLayer2d = _MaskLayer2d(
+            mask_width=image_mask_width, patch_size=image_patch_size
+        ).to(device)
+
     # Prepare initial batch, update as samples are completed
     batch_size = min(batch_size, len(remaining_indices))
     batch_features = all_features[remaining_indices[:batch_size]].to(device)
     batch_label = all_labels[remaining_indices[:batch_size]].to(device)
     if is_image:
-        batch_feature_mask = torch.zeros((batch_size, n_patches),
-                                         device=device, dtype=torch.float32)
+        batch_feature_mask = torch.zeros(
+            (batch_size, n_patches), device=device, dtype=torch.float32
+        )
         batch_masked_features = mask_layer(batch_features, batch_feature_mask)
     else:
         batch_masked_features = torch.zeros_like(batch_features).to(device)
-        batch_feature_mask = torch.zeros_like(batch_features, dtype=torch.bool).to(
-            device
-        )
+        batch_feature_mask = torch.zeros_like(
+            batch_features, dtype=torch.bool
+        ).to(device)
 
     # Keep track of how many samples have been completed. Once an item is completed, it is replaced by a new item from all_data.
     completed_samples = 0
@@ -127,11 +132,15 @@ def eval_soft_budget_afa_method(
                 if is_image:
                     batch_feature_mask[i, sel - 1] = 1.0
                 else:
-                    batch_masked_features[i, sel - 1] = batch_features[i, sel - 1]
+                    batch_masked_features[i, sel - 1] = batch_features[
+                        i, sel - 1
+                    ]
                     batch_feature_mask[i, sel - 1] = True
-        
+
         if is_image:
-            batch_masked_features = mask_layer(batch_features, batch_feature_mask)
+            batch_masked_features = mask_layer(
+                batch_features, batch_feature_mask
+            )
 
         # Check which samples are finished, either due to early stopping or observing all features
         # TODO is the if condition necessary here?
@@ -184,12 +193,17 @@ def eval_soft_budget_afa_method(
                 "predicted_label_external": external_prediction[
                     finish_local_idx
                 ],
-                "true_label": batch_label[finish_global_idx]
-                .argmax()
+                "true_label": batch_label[finish_global_idx].argmax().item(),
+                "predicted_label_builtin": None
+                if builtin_prediction is None
+                else builtin_prediction[finish_local_idx],
+                "acquisition_cost": (
+                    acquisition_costs * batch_feature_mask[finish_global_idx]
+                )
+                .float()
+                .sum()
                 .item(),
             }
-            if builtin_prediction is not None:
-                row["predicted_label_builtin"] = builtin_prediction[finish_local_idx]
             data_rows.append(row)
 
         completed_samples += n_finished
@@ -207,12 +221,10 @@ def eval_soft_budget_afa_method(
         ]
         refill_batch_indices = finished_indices[:n_to_refill]
 
-        batch_features[refill_batch_indices] = all_features[
-            new_indices
-        ].to(device)
-        batch_label[refill_batch_indices] = all_labels[new_indices].to(
+        batch_features[refill_batch_indices] = all_features[new_indices].to(
             device
         )
+        batch_label[refill_batch_indices] = all_labels[new_indices].to(device)
         if is_image:
             batch_masked_features[refill_batch_indices] = 0
             batch_feature_mask[refill_batch_indices] = 0.0
