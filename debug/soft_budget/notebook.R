@@ -143,7 +143,7 @@ p
 # Save the plot
 ggsave(plot_path, p, width = 10, height = 6, dpi = 300)
 
-df_auc <- df_summary %>%
+auc1 <- df_summary %>%
   group_by(method, dataset, metric_type) %>%
   summarise(
     auc = {

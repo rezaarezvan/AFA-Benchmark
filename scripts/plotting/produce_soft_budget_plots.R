@@ -2,8 +2,8 @@
 
 # Parse command line arguments
 args <- commandArgs(trailingOnly = TRUE)
-if (length(args) != 3) {
-    stop("Usage: Rscript produce_soft_budget_plots.R eval_results.csv output_plot1.png output_plot2.png")
+if (length(args) != 5) {
+    stop("Usage: Rscript produce_soft_budget_plots.R eval_results.csv output_plot1.png output_plot2.png auc1.csv auc2.csv")
 }
 
 library(ggplot2)
@@ -17,6 +17,8 @@ f1_datasets <- c("physionet")
 results_path <- args[1]
 plot_path1 <- args[2]
 plot_path2 <- args[3]
+auc_path1 <- args[4]
+auc_path2 <- args[5]
 
 # Specify your expected columns and types
 expected_types <- cols(
@@ -185,3 +187,26 @@ p2 <- ggplot(df_summary, aes(
 # Save the plots
 ggsave(plot_path1, p1, width = 10, height = 6, dpi = 300)
 ggsave(plot_path2, p2, width = 10, height = 6, dpi = 300)
+
+# Save two tables with AUC scores
+auc1 <- df_summary %>%
+  group_by(method, dataset, metric_type) %>%
+  summarise(
+    auc = {
+      df_sorted <- arrange(pick(everything()), mean_avg_features_chosen)
+      trapz(df_sorted$mean_avg_features_chosen, df_sorted$avg_metric)
+    },
+    .groups = "drop"
+  )
+auc2 <- df_summary %>%
+  group_by(method, dataset, metric_type) %>%
+  summarise(
+    auc = {
+      df_sorted <- arrange(pick(everything()), mean_avg_acquisition_cost)
+      trapz(df_sorted$mean_avg_acquisition_cost, df_sorted$avg_metric)
+    },
+    .groups = "drop"
+  )
+
+write_csv(auc1, auc_path1)
+write_csv(auc2, auc_path2)
