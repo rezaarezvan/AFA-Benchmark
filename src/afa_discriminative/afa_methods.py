@@ -607,6 +607,7 @@ class CMIEstimator(nn.Module):
         verbose=True,
     ):
         wandb.watch(self, log="all", log_freq=100)
+        user_supplied_val_metric = val_loss_fn is not None
         if val_loss_fn is None:
             val_loss_fn = loss_fn
             val_loss_mode = "min"
@@ -813,14 +814,22 @@ class CMIEstimator(nn.Module):
                 val_loss_final = pred_losses[-1]
                 val_perf_final = val_scores[-1]
 
-            wandb.log(
-                {
-                    "cmi_estimator/train_loss": total_loss
-                    / (max_features + 1),
-                    "cmi_estimator/val_loss": val_loss_mean,
-                    "cmi_estimator/val_accuracy": val_perf_mean,
-                }
-            )
+            log_payload = {
+                "cmi_estimator/train_loss": total_loss / (max_features + 1),
+            }
+            if user_supplied_val_metric:
+                log_payload["cmi_estimator/val_accuracy"] = val_perf_mean
+            else:
+                log_payload["cmi_estimator/val_loss"] = val_loss_mean
+            # wandb.log(
+            #     {
+            #         "cmi_estimator/train_loss": total_loss
+            #         / (max_features + 1),
+            #         "cmi_estimator/val_loss": val_loss_mean,
+            #         "cmi_estimator/val_accuracy": val_perf_mean,
+            #     }
+            # )
+            wandb.log(log_payload)
 
             # Print progress.
             if verbose:
@@ -915,7 +924,7 @@ class Gadgil2023AFAMethod(AFAMethod):
             entropy = get_entropy(pred).unsqueeze(1)
             pred_cmi = self.value_network(x_masked).sigmoid() * entropy
         else:
-            pred = self.predict(masked_features, feature_mask)
+            pred = self.predictor(masked_features)
             entropy = get_entropy(pred).unsqueeze(1)
             pred_cmi = self.value_network(masked_features).sigmoid() * entropy
         pred_cmi -= 1e6 * feature_mask

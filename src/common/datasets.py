@@ -3,8 +3,7 @@ import urllib.request
 import zipfile
 from collections.abc import Callable
 from pathlib import Path
-from typing import Self, final, override
-
+from typing import Self, final, override, Literal
 import pandas as pd
 import torch
 from PIL import Image
@@ -1829,6 +1828,7 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         load_subdirs: tuple[str, ...] = ("train", "val"),
         seed: int = 123,
         image_size: int = 224,
+        split_role: str | None = None,
     ):
         super().__init__()
         self.data_root = data_root
@@ -1836,12 +1836,25 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         self.load_subdirs = load_subdirs
         self.seed = seed
         self.image_size = image_size
+        self.split_role = split_role # "train" | "val" | "test"
 
         # self.features: Tensor | None = None
         # self.labels: Tensor | None = None
         # self.indices: Tensor | None = None
         # self.class_to_idx: dict[str, int] | None = None
         # self.classes: list[str] | None = None
+
+    def _train_transform(self):
+        return transforms.Compose(
+            [
+                transforms.RandomResizedCrop(self.image_size),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
+                ),
+            ]
+        )
 
     def _eval_transform(self):
         return transforms.Compose(
@@ -1866,7 +1879,8 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
     def generate_data(self) -> None:
         torch.manual_seed(self.seed)
-        tfm = self._eval_transform()
+        use_train_aug = (self.split_role == "train")
+        tfm = self._train_transform() if use_train_aug else self._eval_transform()
 
         root = self._root()
         sub_datasets: list[ImageFolder] = []
@@ -1874,7 +1888,7 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             d = root / sub
             if not d.exists():
                 raise FileNotFoundError(f"Expected subdir '{sub}' at {d}")
-            sub_datasets.append(ImageFolder(str(d), transform=tfm))
+            sub_datasets.append(ImageFolder(str(d), transform=None))
 
         self.class_to_idx = sub_datasets[0].class_to_idx
         self.classes = sub_datasets[0].classes
@@ -1916,17 +1930,14 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(
             {
-                # "features": self.features,
-                # "labels": self.labels,
                 "indices": self.indices,
-                # "class_to_idx": self.class_to_idx,
-                # "classes": self.classes,
                 "config": {
                     "data_root": self.data_root,
                     "variant_dir": self.variant_dir,
                     "load_subdirs": self.load_subdirs,
                     "seed": self.seed,
                     "image_size": self.image_size,
+                    "split_role": self.split_role,
                 },
             },
             path,
@@ -1937,14 +1948,19 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         data = torch.load(path)
         cfg = data["config"]
         idx = data["indices"]
+        if "split_role" not in cfg or cfg["split_role"] is None:
+            stem = Path(path).stem.lower()
+            if "train" in stem:
+                cfg["split_role"] = "train"
+            elif "val" in stem:
+                cfg["split_role"] = "val"
+            elif "test" in stem:
+                cfg["split_role"] = "test"
+            else:
+                cfg["split_role"] = "val"
+
         ds = cls(**cfg)
         ds.generate_data()
         ds.features = ds.features[idx]
         ds.labels = ds.labels[idx]
-        # ds.indices = idx
-        # ds.features = data["features"]
-        # ds.labels = data["labels"]
-        # ds.indices = data["indices"]
-        # ds.class_to_idx = data["class_to_idx"]
-        # ds.classes = data["classes"]
         return ds
