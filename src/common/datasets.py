@@ -1186,6 +1186,7 @@ class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         self.data_path = data_path
         self.seed = seed
         self.feature_names = None  # set when generating data
+        self.feature_costs = None
 
     @override
     def generate_data(self) -> None:
@@ -1242,6 +1243,7 @@ class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 "features": self.features,
                 "labels": self.labels,
                 "feature_names": self.feature_names,
+                "feature_costs": self.feature_costs,
                 "config": {
                     "data_path": self.data_path,
                     "seed": self.seed,
@@ -1259,12 +1261,17 @@ class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         dataset.features = data["features"]
         dataset.labels = data["labels"]
         dataset.feature_names = data["feature_names"]
+        dataset.feature_costs = data["feature_costs"]
         return dataset
 
     @override
     def get_feature_acquisition_costs(self) -> Tensor:
-        msg = "Missing feature acquisition costs for DiabetesDataset."
-        raise NotImplementedError(msg)
+        # msg = "Missing feature acquisition costs for DiabetesDataset."
+        # raise NotImplementedError(msg)
+        if self.feature_costs is None:
+            raise ValueError("Missing feature acquisition costs for DiabetesDataset. Generate or load costs first.")
+        else:
+            return self.feature_costs
 
 
 @final

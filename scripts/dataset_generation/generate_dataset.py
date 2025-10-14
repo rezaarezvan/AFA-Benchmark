@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from time import strftime
+from typing import Any, cast
 
 import hydra
 import torch
@@ -48,6 +49,10 @@ def generate_and_save_split(
     dataset_kwargs["seed"] = seed
     dataset = dataset_class(**dataset_kwargs)
     dataset.generate_data()
+
+    if dataset_type == "diabetes":
+        g = torch.Generator().manual_seed(seed)
+        cast(Any, dataset).feature_costs = 1.0 + 9.0 * torch.rand(dataset.n_features, generator=g)
 
     # Calculate split sizes
     total_size = len(dataset)
