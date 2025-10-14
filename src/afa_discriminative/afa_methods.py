@@ -499,6 +499,10 @@ class Covert2023AFAMethod(AFAMethod):
                 n_patches=int(arch["mask_width"]) ** 2,
             )
 
+            model.mask_width = int(arch["mask_width"])
+            model.patch_size = int(arch["patch_size"])
+            model.image_size = int(arch["image_size"])
+
             model.selector.load_state_dict(checkpoint["selector_state_dict"])
             model.predictor.load_state_dict(checkpoint["predictor_state_dict"])
             model.selector.eval()
@@ -991,6 +995,9 @@ class Gadgil2023AFAMethod(AFAMethod):
                 modality="image",
                 n_patches=int(arch["mask_width"]) ** 2,
             )
+            model.mask_width = int(arch["mask_width"])
+            model.patch_size = int(arch["patch_size"])
+            model.image_size = int(arch["image_size"])
 
             model.value_network.load_state_dict(
                 checkpoint["value_network_state_dict"]

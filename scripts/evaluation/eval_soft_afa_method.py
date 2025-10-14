@@ -179,6 +179,12 @@ def main(cfg: SoftEvalConfig) -> None:
     log.info(
         f"Starting evaluation with soft budget, batch size {cfg.batch_size}"
     )
+    modality = getattr(afa_method, "modality", "tabular")
+    is_image = modality == "image"
+    image_mask_width = getattr(afa_method, "mask_width", None)
+    image_patch_size = getattr(afa_method, "patch_size", 1)
+    n_patches = getattr(afa_method, "n_patches", 1)
+
     df = eval_soft_budget_afa_method(
         afa_select_fn=afa_method.select,
         dataset=dataset,
@@ -189,6 +195,10 @@ def main(cfg: SoftEvalConfig) -> None:
         only_n_samples=cfg.eval_only_n_samples,
         device=torch.device(cfg.device),
         batch_size=cfg.batch_size,
+        is_image=is_image,
+        image_mask_width=image_mask_width,
+        image_patch_size=image_patch_size,
+        n_patches=n_patches,
     )
     # Add columns to conform to expected format (snake_case)
     df["method"] = method_metadata["method_type"]

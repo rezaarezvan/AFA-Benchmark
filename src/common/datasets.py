@@ -1898,8 +1898,8 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     def __len__(self) -> int:
         return self.features.shape[0]
 
-    def get_all_data(self) -> tuple[Tensor, Tensor, Tensor]:
-        return self.features, self.labels, self.indices
+    def get_all_data(self) -> tuple[Tensor, Tensor]:
+        return self.features, self.labels
 
     def save(self, path: Path) -> None:
         """
