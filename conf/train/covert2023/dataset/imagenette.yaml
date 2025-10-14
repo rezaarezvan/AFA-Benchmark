@@ -1,7 +1,8 @@
 pretrained_model_artifact_name: "pretrain_covert2023-imagenette_split_1:latest"
 
 batch_size: 128
-lr: 0.001
-hard_budget: 196
+lr: 0.00001
+min_lr: 0.00000001
+hard_budget: 15
 nepochs: 100
-patience: 5
+patience: 3

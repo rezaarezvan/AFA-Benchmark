@@ -124,6 +124,7 @@ def main(cfg: Covert2023Training2DConfig):
         train_loader,
         val_loader,
         lr=cfg.lr,
+        min_lr=cfg.min_lr,
         nepochs=cfg.nepochs,
         max_features=cfg.hard_budget,
         loss_fn=nn.CrossEntropyLoss(weight=class_weights),

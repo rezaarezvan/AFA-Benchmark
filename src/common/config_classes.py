@@ -356,9 +356,9 @@ class Covert2023Pretraining2DConfig:
     batch_size: int = 128
     seed: int = 42
     device: str = "cuda"
-    lr: float = 1e-3
-    nepochs: int = 100
-    patience: int = 5
+    lr: float = 1e-5
+    nepochs: int = 50
+    patience: int = 2
     min_masking_probability: float = 0.0
     max_masking_probability: float = 0.9
 
@@ -398,10 +398,11 @@ class Covert2023Training2DConfig:
     output_artifact_aliases: list[str] = field(default_factory=list)
 
     batch_size: int = 128
-    lr: float = 1e-3
+    lr: float = 1e-5
+    min_lr: float = 1e-8
     hard_budget: int = 20
-    nepochs: int = 100
-    patience: int = 5
+    nepochs: int = 50
+    patience: int = 3
     device: str = "cuda"
     seed: int = 42
 
@@ -441,9 +442,9 @@ class Gadgil2023Pretraining2DConfig:
     batch_size: int = 128
     seed: int = 42
     device: str = "cuda"
-    lr: float = 1e-3
-    nepochs: int = 100
-    patience: int = 5
+    lr: float = 1e-5
+    nepochs: int = 50
+    patience: int = 2
     min_masking_probability: float = 0.0
     max_masking_probability: float = 0.9
 
@@ -486,10 +487,11 @@ class Gadgil2023Training2DConfig:
     output_artifact_aliases: list[str] = field(default_factory=list)
 
     batch_size: int = 128
-    lr: float = 1e-3
+    lr: float = 1e-5
+    min_lr: float = 1e-8
     hard_budget: int = 20
-    nepochs: int = 100
-    patience: int = 5
+    nepochs: int = 250
+    patience: int = 3
     eps: float = 0.05
     eps_decay: float = 0.2
     eps_steps: int = 10
