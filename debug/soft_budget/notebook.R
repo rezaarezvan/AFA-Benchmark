@@ -2,6 +2,7 @@ library(ggplot2)
 library(dplyr)
 library(tidyr)
 library(readr)
+library(pracma)
 
 # Which datasets we want to plot F1 for instead of accuracy
 f1_datasets <- c("dataset_B")
@@ -137,6 +138,17 @@ p <- ggplot(df_summary, aes(
     y = "Metric",
   ) +
   theme_bw()
+p
 
 # Save the plot
 ggsave(plot_path, p, width = 10, height = 6, dpi = 300)
+
+df_auc <- df_summary %>%
+  group_by(method, dataset, metric_type) %>%
+  summarise(
+    auc = {
+      df_sorted <- arrange(pick(everything()), mean_avg_features_chosen)
+      trapz(df_sorted$mean_avg_features_chosen, df_sorted$avg_metric)
+    },
+    .groups = "drop"
+  )
