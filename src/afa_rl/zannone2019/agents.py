@@ -266,7 +266,7 @@ class Zannone2019Agent(Agent):
         )
 
         # Initialize total loss dictionary
-        total_loss_dict = dict.fromkeys(self.loss_keys, 0.0)
+        total_loss_dict = dict.fromkeys(self.loss_keys + ["loss"], 0.0)
 
         # Perform multiple epochs of training
         for _ in range(self.cfg.num_epochs):
@@ -298,6 +298,7 @@ class Zannone2019Agent(Agent):
                 # Accumulate losses
                 for k in self.loss_keys:
                     total_loss_dict[k] += loss_td[k].item()
+                    total_loss_dict["loss"] += loss_td[k].item()
 
         # Compute average loss
         num_updates = self.cfg.num_epochs * (
