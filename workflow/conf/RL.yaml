@@ -17,7 +17,7 @@ dataset_split_mode: "testing" # switch to test at the end
 # In case some model needed pretraining after adding soft budget
 pretrained_model_aliases:
     shim2018: "KDD"
-    # zannone2019: "KDD"
+    zannone2019: "KDD"
     kachuee2019: "oct9a"
 classifier: "masked_mlp_classifier"
 classifier_artifact_aliases:
@@ -42,7 +42,6 @@ cost_params_per_method_and_dataset:
         default: [0.5, 0.1, 0.05, 0.01]
         AFAContext: [0.5, 0.1, 0.075, 0.05, 0.01]
         miniboone: [0.5, 0.1, 0.075, 0.05, 0.01]
-    # zannone2019:
-    #     # default: [0.00001, 0.0000001, 0.000000001, 0.00000000001]
-    #     default: [0.00000000001, 0.00000000000001, 0.00000000000000001]
+    zannone2019:
+        default: [1, 0.5, 0.1, 0.05, 0.01]
 smoke_test: false

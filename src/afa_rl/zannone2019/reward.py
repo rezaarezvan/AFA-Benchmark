@@ -64,9 +64,11 @@ def get_zannone2019_reward_fn(
             new_augmented_masked_features, new_augmented_feature_mask
         )
         logits = pretrained_model.classifier(mu)
-        reward = reward - F.cross_entropy(
-            logits, label, weight=weights, reduction="none"
-        )
+        predictions = logits.argmax(dim=-1, keepdim=True)
+        integer_label = label.argmax(dim=-1, keepdim=True)
+        reward = reward + (predictions == integer_label).to(
+            torch.float32
+        ).squeeze(-1)
 
         return reward
 

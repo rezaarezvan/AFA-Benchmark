@@ -81,6 +81,12 @@ def get_train_dependency_arguments(wildcards):
         msg = f"Unknown method {wildcards.method} when trying to determine training dependency argument."
         raise ValueError(msg)
 
+def get_method_specific_extra_args(wildcards):
+    """Return any method-specific extra arguments for training."""
+    if wildcards.method == "zannone2019":
+        return "n_generated_samples=0"
+    else:
+        return ""
 
 rule train_soft_budget_method:
     output:
@@ -94,11 +100,13 @@ rule train_soft_budget_method:
             if SMOKE_TEST
             else f"dataset@_global_={wildcards.dataset}"
         ),
+        method_specific_extra_args=get_method_specific_extra_args,
     shell:
         """
             WANDB_HTTP_TIMEOUT=60 uv run scripts/train_methods/train_{wildcards.method}.py \
                 {params.dataset_specific_args} \
                 {params.train_dependency_arguments} \
+                {params.method_specific_extra_args} \
                 seed={wildcards.seed} \
                 hard_budget=null \
                 output_artifact_aliases=["{EXPERIMENT_ID}"] \
