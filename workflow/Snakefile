@@ -32,13 +32,16 @@ def get_cost_params(method: str, dataset: str):
     else:
         return COST_PARAMS_PER_METHOD_AND_DATASET[method]["default"]
 
+
 # def get_cost_params_indices(method: str, dataset: str):
 #     return list(range(len(get_cost_params(method, dataset))))
+
 
 # Fast way to produce soft budget plot
 rule soft_budget:
     input:
-        f"experiments/{EXPERIMENT_ID}/results/soft_budget/plot.pdf",
+        f"experiments/{EXPERIMENT_ID}/results/soft_budget/plot1.pdf",
+        f"experiments/{EXPERIMENT_ID}/results/soft_budget/plot2.pdf",
 
 
 rule soft_budget_train_all:
@@ -103,12 +106,19 @@ rule train_soft_budget_method:
                 device={TRAIN_DEVICE}
         """
 
+
 def get_trained_method_artifact_name(wildcards):
     """Return the name of the trained method artifact for a given method.
 
     Used during evaluation.
     """
-    if wildcards.method in {"shim2018", "kachuee2019", "zannone2019", "randomdummy", "sequentialdummy"}:
+    if wildcards.method in {
+        "shim2018",
+        "kachuee2019",
+        "zannone2019",
+        "randomdummy",
+        "sequentialdummy",
+    }:
         return f"train_{wildcards.method}-{wildcards.dataset}_split_{wildcards.dataset_split}-costparam_{wildcards.cost_param}-seed_{wildcards.seed}:{EXPERIMENT_ID}"
     else:
         msg = f"Unknown method {wildcards.method} when trying to determine training dependency argument."
@@ -125,7 +135,7 @@ rule eval_soft_budget_method:
     params:
         classifier_arg=lambda wildcards: f"trained_classifier_artifact_name={CLASSIFIER}-{wildcards.dataset}_split_{wildcards.dataset_split}:{CLASSIFIER_ARTIFACT_ALIASES[wildcards.dataset]}",
         batch_size=lambda wildcards: EVAL_BATCH_SIZE_PER_DATASET[wildcards.dataset],
-        trained_method_artifact_name=get_trained_method_artifact_name
+        trained_method_artifact_name=get_trained_method_artifact_name,
     shell:
         """
         WANDB_HTTP_TIMEOUT=60 uv run scripts/evaluation/eval_soft_afa_method.py \
@@ -192,7 +202,8 @@ rule soft_budget_plot:
     input:
         f"experiments/{EXPERIMENT_ID}/results/soft_budget/eval/combined.csv",
     output:
-        f"experiments/{EXPERIMENT_ID}/results/soft_budget/plot.pdf",
+        f"experiments/{EXPERIMENT_ID}/results/soft_budget/plot1.pdf",
+        f"experiments/{EXPERIMENT_ID}/results/soft_budget/plot2.pdf",
     conda:
         "envs/R.yaml"
     shell:
