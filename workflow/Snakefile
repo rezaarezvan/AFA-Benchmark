@@ -70,18 +70,26 @@ rule soft_budget_eval_all:
         ],
 
 
+def get_pretrain_alias(method: str, dataset: str):
+    if dataset in PRETRAINED_MODEL_ALIASES.get(method, {}):
+        return PRETRAINED_MODEL_ALIASES[method][dataset]
+    elif method in METHODS_WITH_PRETRAIN_STAGE:
+        return PRETRAINED_MODEL_ALIASES[method]["default"]
+
+
 def get_train_dependency_arguments(wildcards):
     """Return an argument that specifies a dependency for training a method.
 
     Some AFA methods require a pretraining stage, others don't. Also, the naming convention can differ between methods.
     """
     if wildcards.method in {"shim2018", "kachuee2019", "zannone2019"}:
-        return f"pretrained_model_artifact_name=pretrain_{wildcards.method}-{wildcards.dataset}_split_{wildcards.dataset_split}:{PRETRAINED_MODEL_ALIASES[wildcards.method]}"
+        return f"pretrained_model_artifact_name=pretrain_{wildcards.method}-{wildcards.dataset}_split_{wildcards.dataset_split}:{get_pretrain_alias(wildcards.method, wildcards.dataset)}"
     elif wildcards.method in {"randomdummy", "sequentialdummy"}:
         return f"dataset_artifact_name={wildcards.dataset}_split_{wildcards.dataset_split}:{DATASET_ARTIFACT_ALIASES[wildcards.dataset]}"
     else:
         msg = f"Unknown method {wildcards.method} when trying to determine training dependency argument."
         raise ValueError(msg)
+
 
 def get_method_specific_extra_args(wildcards):
     """Return any method-specific extra arguments for training."""
@@ -89,6 +97,7 @@ def get_method_specific_extra_args(wildcards):
         return "n_generated_samples=0"
     else:
         return ""
+
 
 rule train_soft_budget_method:
     output:

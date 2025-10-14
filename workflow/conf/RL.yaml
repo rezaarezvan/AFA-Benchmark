@@ -14,11 +14,16 @@ eval_batch_size_per_dataset:
 # dataset_splits: [1, 2]
 dataset_splits: [1]
 dataset_split_mode: "testing" # switch to test at the end
-# In case some model needed pretraining after adding soft budget
 pretrained_model_aliases:
-    shim2018: "KDD"
-    zannone2019: "KDD"
-    kachuee2019: "oct9a"
+    shim2018:
+        default: "KDD"
+        diabetes: "oct14a"
+    zannone2019:
+        default: "KDD"
+        diabetes: "oct14a"
+    kachuee2019:
+        default: "oct9a"
+        diabetes: "oct14a"
 classifier: "masked_mlp_classifier"
 classifier_artifact_aliases:
     AFAContext: "KDD"
