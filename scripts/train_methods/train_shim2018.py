@@ -203,7 +203,10 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
     reward_fn = get_shim2018_reward_fn(
         pretrained_model=pretrained_model,
         weights=class_weights,
-        acquisition_cost=cfg.cost_param,
+        acquisition_costs=torch.zeros(n_features, device=device)
+        if cfg.cost_param is None
+        else cfg.cost_param
+        * train_dataset.get_feature_acquisition_costs().to(device),
     )
     log.info("Reward function created")
 

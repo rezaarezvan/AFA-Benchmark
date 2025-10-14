@@ -176,7 +176,10 @@ def main(cfg: Kachuee2019TrainConfig):  # noqa: PLR0915
         pq_module=pq_module,
         method=cfg.reward_method,
         mcdrop_samples=cfg.mcdrop_samples,
-        acquisition_cost=cfg.cost_param,
+        acquisition_costs=torch.zeros(n_features, device=device)
+        if cfg.cost_param is None
+        else cfg.cost_param
+        * train_dataset.get_feature_acquisition_costs().to(device),
     )
 
     # MDP expects special dataset functions

@@ -231,7 +231,7 @@ def eval_soft_budget_afa_method(
         else:
             batch_masked_features[refill_batch_indices] = 0
             batch_feature_mask[refill_batch_indices] = False
-            cost_per_sample[refill_batch_indices] = 0.0
+            # cost_per_sample[refill_batch_indices] = 0.0
 
     df = pd.DataFrame(data_rows)
 

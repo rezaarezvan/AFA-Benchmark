@@ -40,7 +40,7 @@ def get_kachuee2019_reward_fn(
     pq_module: Kachuee2019PQModule,
     method: str,
     mcdrop_samples: int,
-    acquisition_cost: float | None,
+    acquisition_costs: torch.Tensor,
 ) -> AFARewardFn:
     """
     The reward function for kachuee2019.
@@ -55,26 +55,18 @@ def get_kachuee2019_reward_fn(
 
     def f(
         masked_features: MaskedFeatures,
-        _feature_mask: FeatureMask,
+        feature_mask: FeatureMask,
         new_masked_features: MaskedFeatures,
-        _new_feature_mask: FeatureMask,
+        new_feature_mask: FeatureMask,
         afa_selection: AFASelection,
         _features: Features,
         _label: Label,
         done: Bool[Tensor, "*batch 1"],
     ) -> AFAReward:
         # Acquisition cost per feature
-        if acquisition_cost is None:
-            reward = torch.zeros_like(
-                afa_selection,
-                dtype=torch.float32,
-                device=masked_features.device,
-            )
-        else:
-            # Only apply cost where not done
-            not_done = (~done).to(torch.float32)
-            reward = -acquisition_cost * not_done
-            reward = reward.squeeze(-1)
+        newly_acquired = (new_feature_mask & ~feature_mask).to(torch.float32)
+        reward = -(newly_acquired * acquisition_costs).sum(dim=-1)
+        reward = reward.squeeze(-1)
 
         conf_a = pq_module.confidence(
             masked_features, mcdrop_samples=mcdrop_samples

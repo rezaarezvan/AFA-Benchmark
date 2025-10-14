@@ -22,17 +22,13 @@ from common.custom_types import (
 def get_zannone2019_reward_fn(
     pretrained_model: Zannone2019PretrainingModel,
     weights: Tensor,
-    acquisition_cost: float | None,
+    acquisition_costs: torch.Tensor,
 ) -> AFARewardFn:
-    """
-    The reward function for zannone2019.
-
-    The agent receives a reward at each step of the episode, equal to the negative classification loss.
-    """
+    """The reward function for zannone2019."""
 
     def f(
         _masked_features: MaskedFeatures,
-        _feature_mask: FeatureMask,
+        feature_mask: FeatureMask,
         new_masked_features: MaskedFeatures,
         new_feature_mask: FeatureMask,
         _afa_selection: AFASelection,
@@ -41,17 +37,9 @@ def get_zannone2019_reward_fn(
         done: Bool[Tensor, "*batch 1"],
     ) -> AFAReward:
         # Acquisition cost per feature
-        if acquisition_cost is None:
-            reward = torch.zeros_like(
-                afa_selection,
-                dtype=torch.float32,
-                device=masked_features.device,
-            )
-        else:
-            # Only apply cost where not done
-            not_done = (~done).to(torch.float32)
-            reward = -acquisition_cost * not_done
-            reward = reward.squeeze(-1)
+        newly_acquired = (new_feature_mask & ~feature_mask).to(torch.float32)
+        reward = -(newly_acquired * acquisition_costs).sum(dim=-1)
+        reward = reward.squeeze(-1)
 
         # We don't get to observe the label
         new_augmented_masked_features = torch.cat(

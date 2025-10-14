@@ -2,7 +2,7 @@ experiment_id: "tmp" # set this every time at the command line
 dataset_artifact_aliases:
     AFAContext: "Jul29-nightly-AFAContext"
     cube: "Jul24"
-    diabetes: "Jul24"
+    diabetes: "cost"
     miniboone: "Jul24"
     physionet: "Jul24"
 eval_batch_size_per_dataset:
