@@ -192,15 +192,15 @@ def eval_soft_budget_afa_method(
                 .item(),
                 "predicted_label_external": external_prediction[
                     finish_local_idx
-                ],
+                ].item(),
                 "true_label": batch_label[finish_global_idx].argmax().item(),
                 "predicted_label_builtin": None
                 if builtin_prediction is None
-                else builtin_prediction[finish_local_idx],
+                else builtin_prediction[finish_local_idx].item(),
                 "acquisition_cost": (
-                    acquisition_costs * batch_feature_mask[finish_global_idx]
+                    acquisition_costs
+                    * batch_feature_mask[finish_global_idx].float()
                 )
-                .float()
                 .sum()
                 .item(),
             }
