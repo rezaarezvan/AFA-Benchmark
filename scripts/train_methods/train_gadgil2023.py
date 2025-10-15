@@ -128,7 +128,7 @@ def main(cfg: Gadgil2023TrainingConfig):
         eps_decay=cfg.eps_decay,
         eps_steps=cfg.eps_steps,
         patience=cfg.patience,
-        feature_costs=train_dataset.get_feature_acquisition_costs(),
+        feature_costs=train_dataset.get_feature_acquisition_costs().to(device),
     )
 
     afa_method = Gadgil2023AFAMethod(
