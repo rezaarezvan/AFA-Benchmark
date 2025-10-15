@@ -11,6 +11,12 @@ Compare state-of-the-art algorithms for sequential feature selection in
 scenarios where acquiring features is costly. Includes implementations of
 multiple AFA methods, standardized datasets, and automated evaluation pipelines.
 
+## Latest Updates
+**2025-10-15**: Trained and evaluated methods for the soft budget case. Results for a single dataset split are:
+![plots of accuracy/f1 as a function of acquisition cost in the soft budget case](results/soft_budget.png)
+Note that the Diabetes dataset uses non-uniform acquisition costs.
+Results for multiple splits are coming soon.
+
 ## Features
 
 - Easily readable and reproducible configuration using
