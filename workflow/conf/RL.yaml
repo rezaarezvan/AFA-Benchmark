@@ -11,8 +11,8 @@ eval_batch_size_per_dataset:
     diabetes: 256
     miniboone: 256
     physionet: 256
-# dataset_splits: [1, 2]
-dataset_splits: [1]
+dataset_splits: [1, 2, 3, 4, 5]
+# dataset_splits: [1]
 dataset_split_mode: "testing" # switch to test at the end
 pretrained_model_aliases:
     shim2018:
