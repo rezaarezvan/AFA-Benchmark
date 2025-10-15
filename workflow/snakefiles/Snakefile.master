@@ -1,0 +1,54 @@
+configfile: "workflow/conf/master.yaml"
+
+EXPERIMENT_ID = config["experiment_id"]
+
+rule soft_budget:
+    input:
+        f"experiments/{EXPERIMENT_ID}/results/soft_budget/plot1.pdf",
+        f"experiments/{EXPERIMENT_ID}/results/soft_budget/plot2.pdf",
+        f"experiments/{EXPERIMENT_ID}/results/soft_budget/plot3.pdf",
+        f"experiments/{EXPERIMENT_ID}/results/soft_budget/auc1.csv",
+        f"experiments/{EXPERIMENT_ID}/results/soft_budget/auc2.csv",
+
+module snake_RL:
+    snakefile: "Snakefile.RL"
+    config: config["RL"]
+
+module snake_greedy:
+    snakefile: "Snakefile.greedy"
+    config: config["greedy"]
+
+use rule combine_soft_budget_eval_results from snake_RL as snake_RL_combine_soft_budget_eval_results with:
+    output: f"experiments/{EXPERIMENT_ID}/results/soft_budget/eval/combined_snake_RL.csv"
+
+use rule combine_soft_budget_eval_results from snake_greedy as snake_greedy_combine_soft_budget_eval_results with:
+    output: f"experiments/{EXPERIMENT_ID}/results/soft_budget/eval/combined_snake_greedy.csv"
+
+rule combine_combined_soft_budget_eval_results:
+    input:
+        f"experiments/{EXPERIMENT_ID}/results/soft_budget/eval/combined_snake_RL.csv"
+        f"experiments/{EXPERIMENT_ID}/results/soft_budget/eval/combined_snake_greedy.csv"
+    output:
+        f"experiments/{EXPERIMENT_ID}/results/soft_budget/eval/combined.csv",
+    conda:
+        "../envs/R.yaml"
+    shell:
+        """
+        Rscript scripts/misc/combine_soft_budget_results.R {input} {output}
+        """
+
+rule soft_budget_plot:
+    input:
+        f"experiments/{EXPERIMENT_ID}/results/soft_budget/eval/combined.csv",
+    output:
+        f"experiments/{EXPERIMENT_ID}/results/soft_budget/plot1.pdf",
+        f"experiments/{EXPERIMENT_ID}/results/soft_budget/plot2.pdf",
+        f"experiments/{EXPERIMENT_ID}/results/soft_budget/plot3.pdf",
+        f"experiments/{EXPERIMENT_ID}/results/soft_budget/auc1.csv",
+        f"experiments/{EXPERIMENT_ID}/results/soft_budget/auc2.csv",
+    conda:
+        "../envs/R.yaml"
+    shell:
+        """
+        Rscript scripts/plotting/produce_soft_budget_plots.R {input} {output}
+        """
