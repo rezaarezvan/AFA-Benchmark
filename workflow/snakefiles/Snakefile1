@@ -1,6 +1,4 @@
-# configfile: "workflow/conf/default.yaml"
-
-import os
+configfile: "workflow/conf/RL.yaml"
 
 # Define global variables from config values
 EXPERIMENT_ID = config["experiment_id"]
