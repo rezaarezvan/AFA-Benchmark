@@ -189,8 +189,10 @@ cython_debug/
 # Model folder, includes weights and other types of saved models
 /models
 
-# Results folder, includes evaluation results
-/results
+# Everything inside results folder, except for things we want
+# to show in the README
+/results/*
+!/results/soft_budget.png
 
 # Plots folder, includes generated plots
 /plots
