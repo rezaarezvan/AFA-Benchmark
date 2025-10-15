@@ -213,3 +213,4 @@ debug/soft_budget/plot.png
 indicators/soft_budget
 .snakemake/metadata
 .snakemake
+scripts/plotting/combined.csv

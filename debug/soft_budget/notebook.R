@@ -153,3 +153,12 @@ auc1 <- df_summary %>%
     },
     .groups = "drop"
   )
+
+# Plot of n_feature_chosen vs cost_param
+ggplot(
+  df_summary,
+  aes(x = mean_avg_features_chosen, y = cost_parameter)
+) +
+  geom_point() +
+  geom_line() +
+  facet_grid(rows = vars(method), cols = vars(dataset), scales = "free_y")
