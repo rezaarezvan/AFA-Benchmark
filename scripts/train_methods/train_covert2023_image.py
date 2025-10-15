@@ -9,6 +9,7 @@ import torch
 from dacite import from_dict
 from omegaconf import OmegaConf
 from torch import nn
+from torch.utils.data import DataLoader
 
 import wandb
 from afa_discriminative.afa_methods import (
@@ -77,14 +78,21 @@ def main(cfg: Covert2023Training2DConfig):
     train_dataset, val_dataset, test_dataset, dataset_metadata = (
         load_dataset_artifact(pretrained_model_config.dataset_artifact_name)
     )
-    train_class_probabilities = get_class_probabilities(train_dataset.labels)
-    class_weights = len(train_class_probabilities) / (
-        len(train_class_probabilities) * train_class_probabilities
+    train_loader = DataLoader(
+        train_dataset, batch_size=cfg.batch_size, shuffle=True, pin_memory=True, drop_last=True # type: ignore
     )
-    class_weights = class_weights.to(device)
-    train_loader, val_loader, d_in, d_out = prepare_datasets(
-        train_dataset, val_dataset, cfg.batch_size
+    val_loader = DataLoader(
+        val_dataset, batch_size=cfg.batch_size, shuffle=False, pin_memory=True # type: ignore
     )
+    d_out = train_dataset.n_classes
+    # train_class_probabilities = get_class_probabilities(train_dataset.labels)
+    # class_weights = len(train_class_probabilities) / (
+    #     len(train_class_probabilities) * train_class_probabilities
+    # )
+    # class_weights = class_weights.to(device)
+    # train_loader, val_loader, d_in, d_out = prepare_datasets(
+    #     train_dataset, val_dataset, cfg.batch_size
+    # )
 
     base = resnet18(pretrained=True)
     backbone, expansion = ResNet18Backbone(base)
@@ -127,7 +135,8 @@ def main(cfg: Covert2023Training2DConfig):
         min_lr=cfg.min_lr,
         nepochs=cfg.nepochs,
         max_features=cfg.hard_budget,
-        loss_fn=nn.CrossEntropyLoss(weight=class_weights),
+        # loss_fn=nn.CrossEntropyLoss(weight=class_weights),
+        loss_fn=nn.CrossEntropyLoss(),
         patience=cfg.patience,
         verbose=True,
     )

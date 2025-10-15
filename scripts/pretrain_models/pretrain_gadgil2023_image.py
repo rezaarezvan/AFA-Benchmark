@@ -8,6 +8,7 @@ import hydra
 import torch
 from omegaconf import OmegaConf
 from torch import nn
+from torch.utils.data import DataLoader
 from torchmetrics import Accuracy
 
 import wandb
@@ -50,14 +51,21 @@ def main(cfg: Gadgil2023Pretraining2DConfig):
     train_dataset, val_dataset, _, _ = load_dataset_artifact(
         cfg.dataset_artifact_name
     )
-    train_class_probabilities = get_class_probabilities(train_dataset.labels)
-    class_weights = len(train_class_probabilities) / (
-        len(train_class_probabilities) * train_class_probabilities
+    train_loader = DataLoader(
+        train_dataset, batch_size=cfg.batch_size, shuffle=True, pin_memory=True, drop_last=True # type: ignore
     )
-    class_weights = class_weights.to(device)
-    train_loader, val_loader, d_in, d_out = prepare_datasets(
-        train_dataset, val_dataset, cfg.batch_size
+    val_loader = DataLoader(
+        val_dataset, batch_size=cfg.batch_size, shuffle=False, pin_memory=True # type: ignore
     )
+    d_out = train_dataset.n_classes
+    # train_class_probabilities = get_class_probabilities(train_dataset.labels)
+    # class_weights = len(train_class_probabilities) / (
+    #     len(train_class_probabilities) * train_class_probabilities
+    # )
+    # class_weights = class_weights.to(device)
+    # train_loader, val_loader, d_in, d_out = prepare_datasets(
+    #     train_dataset, val_dataset, cfg.batch_size
+    # )
 
     base = resnet18(pretrained=True)
     backbone, expansion = ResNet18Backbone(base)
@@ -81,7 +89,8 @@ def main(cfg: Gadgil2023Pretraining2DConfig):
         val_loader,
         lr=cfg.lr,
         nepochs=cfg.nepochs,
-        loss_fn=nn.CrossEntropyLoss(weight=class_weights),
+        # loss_fn=nn.CrossEntropyLoss(weight=class_weights),
+        loss_fn=nn.CrossEntropyLoss(),
         val_loss_fn=Accuracy(task="multiclass", num_classes=d_out).to(device),
         val_loss_mode="max",
         patience=cfg.patience,

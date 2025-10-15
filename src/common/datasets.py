@@ -1810,7 +1810,7 @@ class ACTG175Dataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         return dataset
 
 
-@final
+# @final
 class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     """
     Imagenette dataset from the FastAI image classification benchmark.
@@ -1837,6 +1837,10 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         self.seed = seed
         self.image_size = image_size
         self.split_role = split_role # "train" | "val" | "test"
+        self.indices: torch.Tensor | None = None
+        self.transform = None
+        # self.samples: list[str] | None = None
+        # self.targets: torch.Tensor | None = None
 
         # self.features: Tensor | None = None
         # self.labels: Tensor | None = None
@@ -1880,7 +1884,7 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     def generate_data(self) -> None:
         torch.manual_seed(self.seed)
         use_train_aug = (self.split_role == "train")
-        tfm = self._train_transform() if use_train_aug else self._eval_transform()
+        self.transform = self._train_transform() if use_train_aug else self._eval_transform()
 
         root = self._root()
         sub_datasets: list[ImageFolder] = []
@@ -1890,37 +1894,51 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 raise FileNotFoundError(f"Expected subdir '{sub}' at {d}")
             sub_datasets.append(ImageFolder(str(d), transform=None))
 
-        self.class_to_idx = sub_datasets[0].class_to_idx
-        self.classes = sub_datasets[0].classes
-
-        xs: list[Tensor] = []
-        ys: list[int] = []
-        for ds in sub_datasets:
-            for path, y in ds.samples:
-                with Image.open(path) as im:
-                    im = im.convert("RGB")
-                    x = tfm(im)
-                xs.append(x)
-                ys.append(y)
-
-        self.features = torch.stack(xs, dim=0).contiguous()  # [N,3,224,224]
-        y = torch.tensor(ys, dtype=torch.long)
-        self.labels = torch.nn.functional.one_hot(y, num_classes=10).float()
-        self.indices = torch.arange(len(self.features), dtype=torch.long)
-
-    def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:  # type: ignore[override]
-        assert (
-            self.features is not None
-            and self.labels is not None
-            and self.indices is not None
+        self.samples = [path for ds in sub_datasets for (path, _) in ds.samples]
+        self.targets = torch.tensor(
+            [y for ds in sub_datasets for (_, y) in ds.samples], dtype=torch.long
         )
-        return self.features[idx], self.labels[idx]
+        self.indices = torch.arange(len(self.samples), dtype=torch.long)
+
+        # self.class_to_idx = sub_datasets[0].class_to_idx
+        # self.classes = sub_datasets[0].classes
+
+        # xs: list[Tensor] = []
+        # ys: list[int] = []
+        # for ds in sub_datasets:
+        #     for path, y in ds.samples:
+        #         with Image.open(path) as im:
+        #             im = im.convert("RGB")
+        #             x = tfm(im)
+        #         xs.append(x)
+        #         ys.append(y)
+
+        # self.features = torch.stack(xs, dim=0).contiguous()  # [N,3,224,224]
+        # y = torch.tensor(ys, dtype=torch.long)
+        # self.labels = torch.nn.functional.one_hot(y, num_classes=10).float()
+        # self.indices = torch.arange(len(self.features), dtype=torch.long)
+
+    def __getitem__(self, idx: int):  # type: ignore[override]
+        assert (
+            self.samples is not None
+            and self.targets is not None
+            and self.transform is not None
+        )
+        path = self.samples[idx]
+        y = self.targets[idx]
+        with Image.open(path) as im:
+            im = im.convert("RGB")
+            x = self.transform(im)
+        return x, y
+        # return self.features[idx], self.labels[idx]
 
     def __len__(self) -> int:
-        return self.features.shape[0]
+        return len(self.samples)
+        # return self.features.shape[0]
 
-    def get_all_data(self) -> tuple[Tensor, Tensor]:
-        return self.features, self.labels
+    # TODO need to modify the evaluation script as well
+    # def get_all_data(self) -> tuple[Tensor, Tensor]:
+    #     return self.features, self.labels
 
     def save(self, path: Path) -> None:
         """
@@ -1961,6 +1979,9 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
         ds = cls(**cfg)
         ds.generate_data()
-        ds.features = ds.features[idx]
-        ds.labels = ds.labels[idx]
+        # ds.features = ds.features[idx]
+        # ds.labels = ds.labels[idx]
+        ds.samples = [ds.samples[i] for i in idx.tolist()]
+        ds.targets = ds.targets[idx]
+        ds.indices = idx
         return ds
