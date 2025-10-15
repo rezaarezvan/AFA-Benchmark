@@ -221,44 +221,6 @@ auc2 <- df_summary %>%
 write_csv(auc1, auc_path1)
 write_csv(auc2, auc_path2)
 
-make_md_auc_table <- function(df) {
-  # Step 1: ensure df is ungrouped
-  df <- ungroup(df)
-
-  # Step 2: compute best method per dataset & metric_type
-  df <- df %>%
-    group_by(dataset, metric_type) %>%
-    mutate(is_best = auc == max(auc, na.rm = TRUE)) %>%
-    ungroup()
-
-  # Step 3: format AUC for Markdown, bolding best
-  df <- df %>%
-    mutate(
-      auc_fmt = ifelse(is_best,
-        paste0("**", sprintf("%.4f", auc), "**"),
-        sprintf("%.4f", auc)
-      )
-    )
-
-  # Step 4: arrange by dataset and best method
-  df <- df %>% arrange(dataset, desc(is_best), method)
-
-  # Step 5: select final columns for table
-  df_out <- df %>% select(dataset, method, metric_type, auc_fmt)
-
-  # Step 6: generate Markdown table
-  kable(df_out, format = "markdown", col.names = c("Dataset", "Method", "Metric Type", "AUC"))
-}
-
-
-# Generate Markdown tables
-md_auc1 <- make_md_auc_table(auc1)
-md_auc2 <- make_md_auc_table(auc2)
-
-# Write Markdown tables to files
-writeLines(md_auc1, sub("\\.csv$", "_table1.md", auc_path1))
-writeLines(md_auc2, sub("\\.csv$", "_table2.md", auc_path2))
-
 # Plot of n_feature_chosen vs cost_param
 p3 <- ggplot(
   df_summary,
@@ -266,6 +228,12 @@ p3 <- ggplot(
 ) +
   geom_point() +
   facet_wrap(vars(method, dataset), scales = "free")
-# facet_grid(rows = vars(method), cols = vars(dataset), axes = "all", scales = "free")
 
 ggsave(plot_path3, p3, width = 10, height = 6, dpi = 300)
+
+# Use to produce markdown table to present in rebuttal
+# showcase_df <- df_summary %>%
+#   filter(dataset == "cube", prediction_type == "external") %>%
+#   select(-dataset, -prediction_type, -metric_type, -sd_metric, -sd_avg_features_chosen, -sd_avg_acquisition_cost, mean_avg_acquisition_cost) %>%
+#   rename(avg_accuracy = avg_metric)
+# showcase_md <- kable(showcase_df, format = "markdown")

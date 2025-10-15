@@ -215,3 +215,9 @@ indicators/soft_budget
 .snakemake
 scripts/plotting/combined.csv
 workflow/snakefiles/dummy
+.Rproj.user
+AFA-Benchmark.Rproj
+.Rhistory
+scripts/plotting/combined_RL.csv
+scripts/plotting/combined_greedy.csv
+scripts/plotting/combined_aaco.csv
