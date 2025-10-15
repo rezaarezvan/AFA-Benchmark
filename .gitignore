@@ -214,3 +214,4 @@ indicators/soft_budget
 .snakemake/metadata
 .snakemake
 scripts/plotting/combined.csv
+workflow/snakefiles/dummy
