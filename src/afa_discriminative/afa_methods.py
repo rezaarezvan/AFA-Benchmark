@@ -72,6 +72,7 @@ class GreedyDynamicSelection(nn.Module):
         temp_steps=5,
         argmax=False,
         verbose=True,
+        feature_costs=None,
     ):
         """Train model to perform greedy adaptive feature selection."""
         wandb.watch(self, log="all", log_freq=100)
@@ -104,6 +105,9 @@ class GreedyDynamicSelection(nn.Module):
             x, y = next(iter(val_loader))
             assert len(x.shape) == 2
             mask_size = x.shape[1]
+        if feature_costs is None:
+            feature_costs = torch.ones(mask_size, device=device)
+        log_cost = torch.log(feature_costs)
 
         # For tracking best models with zero temperature.
         best_val = None
@@ -158,9 +162,12 @@ class GreedyDynamicSelection(nn.Module):
                         # Evaluate selector model.
                         x_masked = mask_layer(x, m)
                         logits = selector(x_masked).flatten(1)
+                        # since not a probability, do exp(logits)/cost <-> logits / log_cost
+                        logits_cost = logits - log_cost
 
                         # Get selections.
-                        soft = selector_layer(logits, temp)
+                        # soft = selector_layer(logits, temp)
+                        soft = selector_layer(logits_cost, temp)
                         m_soft = torch.max(m, soft)
 
                         # Evaluate predictor model.
@@ -176,7 +183,7 @@ class GreedyDynamicSelection(nn.Module):
                         m = torch.max(
                             m,
                             make_onehot(
-                                selector_layer(logits - 1e6 * m, 1e-6)
+                                selector_layer(logits_cost - 1e6 * m, 1e-6)
                             ),
                         )
 
@@ -208,15 +215,17 @@ class GreedyDynamicSelection(nn.Module):
                             # Evaluate selector model.
                             x_masked = mask_layer(x, m)
                             logits = selector(x_masked).flatten(1)
+                            logits_cost = logits - log_cost
+                            logits_cost = logits_cost - 1e6 * m
 
                             # Get selections, ensure no repeats.
-                            logits = logits - 1e6 * m
+                            # logits = logits - 1e6 * m
                             if argmax:
                                 soft = selector_layer(
-                                    logits, temp, deterministic=True
+                                    logits_cost, temp, deterministic=True
                                 )
                             else:
-                                soft = selector_layer(logits, temp)
+                                soft = selector_layer(logits_cost, temp)
                             m_soft = torch.max(m, soft)
 
                             # For calculating temp = 0 loss.
@@ -297,6 +306,7 @@ class GreedyDynamicSelection(nn.Module):
         restore_parameters(predictor, best_zerotemp_predictor)
         wandb.unwatch(self)
 
+    # TODO need to add feature costs here if we want to evaluate manually
     def forward(self, x, max_features, argmax=True):
         """Make predictions using selected features."""
         # Setup.
