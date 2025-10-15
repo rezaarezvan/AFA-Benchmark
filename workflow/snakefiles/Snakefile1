@@ -42,6 +42,7 @@ rule soft_budget:
     input:
         f"experiments/{EXPERIMENT_ID}/results/soft_budget/plot1.pdf",
         f"experiments/{EXPERIMENT_ID}/results/soft_budget/plot2.pdf",
+        f"experiments/{EXPERIMENT_ID}/results/soft_budget/plot3.pdf",
         f"experiments/{EXPERIMENT_ID}/results/soft_budget/auc1.csv",
         f"experiments/{EXPERIMENT_ID}/results/soft_budget/auc2.csv",
 
@@ -190,7 +191,7 @@ rule add_dataset_split_col_to_soft_budget_eval_result:
     output:
         f"experiments/{EXPERIMENT_ID}/results/soft_budget/eval/{{method}}/{{dataset}}/split{{dataset_split}}/costparam{{cost_param}}/seed{{seed}}/soft_eval_data_with_split.csv",
     conda:
-        "envs/R.yaml"
+        "../envs/R.yaml"
     shell:
         """
         Rscript scripts/misc/add_dataset_split_col.R {input} {output} {wildcards.dataset_split}
@@ -210,12 +211,11 @@ rule combine_soft_budget_eval_results:
     output:
         f"experiments/{EXPERIMENT_ID}/results/soft_budget/eval/combined.csv",
     conda:
-        "envs/R.yaml"
+        "../envs/R.yaml"
     shell:
         """
         Rscript scripts/misc/combine_soft_budget_results.R {input} {output}
         """
-
 
 rule soft_budget_plot:
     input:
@@ -223,11 +223,12 @@ rule soft_budget_plot:
     output:
         f"experiments/{EXPERIMENT_ID}/results/soft_budget/plot1.pdf",
         f"experiments/{EXPERIMENT_ID}/results/soft_budget/plot2.pdf",
+        f"experiments/{EXPERIMENT_ID}/results/soft_budget/plot3.pdf",
         f"experiments/{EXPERIMENT_ID}/results/soft_budget/auc1.csv",
         f"experiments/{EXPERIMENT_ID}/results/soft_budget/auc2.csv",
     conda:
-        "envs/R.yaml"
+        "../envs/R.yaml"
     shell:
         """
-        Rscript scripts/plotting/produce_soft_budget_plots.R {input[0]} {output}
+        Rscript scripts/plotting/produce_soft_budget_plots.R {input} {output}
         """

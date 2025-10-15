@@ -160,5 +160,4 @@ ggplot(
   aes(x = mean_avg_features_chosen, y = cost_parameter)
 ) +
   geom_point() +
-  geom_line() +
-  facet_grid(rows = vars(method), cols = vars(dataset), scales = "free_y")
+  facet_grid(rows = vars(method), cols = vars(dataset), scales = "free")

@@ -2,7 +2,7 @@
 
 # Parse command line arguments
 args <- commandArgs(trailingOnly = TRUE)
-if (length(args) != 5) {
+if (length(args) != 6) {
     stop("Usage: Rscript produce_soft_budget_plots.R eval_results.csv output_plot1.png output_plot2.png auc1.csv auc2.csv")
 }
 
@@ -17,8 +17,9 @@ f1_datasets <- c("physionet")
 results_path <- args[1]
 plot_path1 <- args[2]
 plot_path2 <- args[3]
-auc_path1 <- args[4]
-auc_path2 <- args[5]
+plot_path3 <- args[4]
+auc_path1 <- args[5]
+auc_path2 <- args[6]
 
 # Specify your expected columns and types
 expected_types <- cols(
@@ -215,3 +216,14 @@ auc2 <- df_summary %>%
 
 write_csv(auc1, auc_path1)
 write_csv(auc2, auc_path2)
+
+# Plot of n_feature_chosen vs cost_param
+p3 <- ggplot(
+  df_summary,
+  aes(x = mean_avg_features_chosen, y = cost_parameter)
+) +
+  geom_point() +
+  facet_wrap(vars(method, dataset), scales = "free")
+  # facet_grid(rows = vars(method), cols = vars(dataset), axes = "all", scales = "free")
+
+ggsave(plot_path3, p3, width = 10, height = 6, dpi = 300)
