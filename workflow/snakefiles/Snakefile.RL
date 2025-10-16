@@ -41,8 +41,6 @@ rule soft_budget:
         f"experiments/{EXPERIMENT_ID}/results/soft_budget/plot1.pdf",
         f"experiments/{EXPERIMENT_ID}/results/soft_budget/plot2.pdf",
         f"experiments/{EXPERIMENT_ID}/results/soft_budget/plot3.pdf",
-        f"experiments/{EXPERIMENT_ID}/results/soft_budget/auc1.csv",
-        f"experiments/{EXPERIMENT_ID}/results/soft_budget/auc2.csv",
 
 
 rule soft_budget_train_all:
@@ -222,8 +220,6 @@ rule soft_budget_plot:
         f"experiments/{EXPERIMENT_ID}/results/soft_budget/plot1.pdf",
         f"experiments/{EXPERIMENT_ID}/results/soft_budget/plot2.pdf",
         f"experiments/{EXPERIMENT_ID}/results/soft_budget/plot3.pdf",
-        f"experiments/{EXPERIMENT_ID}/results/soft_budget/auc1.csv",
-        f"experiments/{EXPERIMENT_ID}/results/soft_budget/auc2.csv",
     conda:
         "../envs/R.yaml"
     shell:
