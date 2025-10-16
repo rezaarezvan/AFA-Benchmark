@@ -25,8 +25,6 @@ Note that the Diabetes dataset uses non-uniform acquisition costs, and that phys
 
 ## Limitations
 
-- Currently supports only evaluation of _hard budget_ methods (methods with a
-  fixed resource constraint).
 - Supports only classification tasks; regression tasks are not yet implemented.
 
 ## What is Active Feature Acquisition?
