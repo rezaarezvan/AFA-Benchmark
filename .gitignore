@@ -192,7 +192,7 @@ cython_debug/
 # Everything inside results folder, except for things we want
 # to show in the README
 /results/*
-!/results/soft_budget.png
+!/results/soft_budget*.png
 
 # Plots folder, includes generated plots
 /plots
