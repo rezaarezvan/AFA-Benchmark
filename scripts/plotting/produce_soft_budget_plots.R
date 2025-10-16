@@ -50,6 +50,17 @@ if (length(unspecified_cols) > 0) {
   )
 }
 
+# Rename methods
+results <- results |>
+  mutate(method = recode(method,
+    "aaco" = "AACO",
+    "covert2023" = "GDFS",
+    "gadgil2023" = "DIME",
+    "kachuee2019" = "OL-MFRL",
+    "ma2018" = "EDDI",
+    "shim2018" = "JAFA-MFRL",
+    "zannone2019" = "ODIN-MFRL"
+  ))
 # Tidy data
 df <- results %>%
   pivot_longer(
@@ -237,3 +248,47 @@ ggsave(plot_path3, p3, width = 10, height = 6, dpi = 300)
 #   select(-dataset, -prediction_type, -metric_type, -sd_metric, -sd_avg_features_chosen, -sd_avg_acquisition_cost, mean_avg_acquisition_cost) %>%
 #   rename(avg_accuracy = avg_metric)
 # showcase_md <- kable(showcase_df, format = "markdown")
+
+# Less cluttered plot of soft budget results
+# df_uncluttered <- df_summary |>
+#   group_by(dataset) |>
+#   filter(n_distinct(method) == n_distinct(df_summary$method)) |>
+#   ungroup() |>
+#   filter(prediction_type == "external") |>
+#   select(-prediction_type)
+# ggplot(df_uncluttered,
+#        aes(
+#   x = mean_avg_acquisition_cost,
+#   y = avg_metric,
+#   color = method
+# )) +
+#   geom_point() +
+#   geom_line() +
+#   geom_errorbar(
+#     aes(
+#       ymin = avg_metric - sd_metric,
+#       ymax = avg_metric + sd_metric
+#     ),
+#     width = 0
+#   ) +
+#   geom_errorbarh(
+#     aes(
+#       xmin = mean_avg_acquisition_cost - sd_avg_acquisition_cost,
+#       xmax = mean_avg_acquisition_cost + sd_avg_acquisition_cost
+#     ),
+#     height = 0
+#   ) +
+#   # geom_text(
+#   #   data = df_labels,
+#   #   aes(x = x, y = y, label = metric_label),
+#   #   inherit.aes = FALSE,
+#   #   hjust = 0, vjust = 1, fontface = "bold"
+#   # ) +
+#   facet_wrap(vars(dataset), scales = "free") +
+#   coord_cartesian(ylim = c(0, 1)) +
+#   labs(
+#     title = "Metric vs avg. acquisition cost",
+#     x = "Avg. acquisition cost",
+#     y = "Metric",
+#   ) +
+#   theme_bw()
