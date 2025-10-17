@@ -67,9 +67,9 @@ class RandomDummyAFAMethod(AFAMethod):
             row_sums = probs.sum(dim=1, keepdim=True)
             probs = torch.where(row_sums > 0, probs / row_sums, probs)
             sampled = torch.multinomial(probs, num_samples=1).squeeze(1)
-            selection[to_sample_mask] = sampled
+            selection[to_sample_mask] = sampled + 1
 
-        return selection.to(original_device)
+        return selection.to(original_device).unsqueeze(-1)
 
     @override
     def predict(
