@@ -205,19 +205,14 @@ cython_debug/
 
 /multirun
 debug/soft_budget/.Rhistory
-debug/soft_budget/dataset.csv
-debug/soft_budget/eval_results.csv
-debug/soft_budget/mock_evaluation_data.csv
+debug/soft_budget/*.csv
+debug/soft_budget/*.png
 conf/soft_eval/lists
-debug/soft_budget/plot.png
-indicators/soft_budget
+indicators
 .snakemake/metadata
 .snakemake
-scripts/plotting/combined.csv
+scripts/plotting/*.csv
 workflow/snakefiles/dummy
 .Rproj.user
 AFA-Benchmark.Rproj
 .Rhistory
-scripts/plotting/combined_RL.csv
-scripts/plotting/combined_greedy.csv
-scripts/plotting/combined_aaco.csv

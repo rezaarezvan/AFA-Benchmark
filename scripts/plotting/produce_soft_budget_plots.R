@@ -153,39 +153,19 @@ unclutter_df <- function(df) {
   # select(-c(sd_accuracy, sd_avg_features_chosen))
 }
 
-get_soft_budget_plots <- function(df) {
-  p1 <- ggplot(df, aes(
-    x = mean_avg_features_chosen,
-    y = avg_metric,
-    color = method
-  )) +
-    geom_point() +
-    geom_line() +
-    geom_errorbar(
-      aes(
-        ymin = avg_metric - sd_metric,
-        ymax = avg_metric + sd_metric
-      ),
-      width = 0
-    ) +
-    geom_errorbarh(
-      aes(
-        xmin = mean_avg_features_chosen - sd_avg_features_chosen,
-        xmax = mean_avg_features_chosen + sd_avg_features_chosen
-      ),
-      height = 0
-    ) +
-    facet_grid(rows = vars(prediction_type), cols = vars(dataset), scales = "free_x") +
-    coord_cartesian(ylim = c(0, 1)) +
-    labs(
-      title = "Metric vs avg. features chosen",
-      x = "Avg. features chosen",
-      y = "Metric",
-    ) +
-    theme_bw()
+get_soft_budget_plot <- function(df, classifier_type) {
+  # Filter to only include the specific classifier type
+  df <- df |>
+    filter(prediction_type == classifier_type) |>
+    select(-prediction_type)
 
-  # Create one plot with acquisition cost on the x-axis
-  p2 <- ggplot(df, aes(
+  # Filter out datasets that only have a single method
+  df <- df |>
+    group_by(dataset) |>
+    filter(n_distinct(method) > 1) |>
+    ungroup()
+
+  ggplot(df, aes(
     x = mean_avg_acquisition_cost,
     y = avg_metric,
     color = method
@@ -206,16 +186,15 @@ get_soft_budget_plots <- function(df) {
       ),
       height = 0
     ) +
-    facet_grid(rows = vars(prediction_type), cols = vars(dataset), scales = "free_x") +
+    facet_wrap(vars(dataset), scales = "free") +
     coord_cartesian(ylim = c(0, 1)) +
     labs(
-      title = "Metric vs avg. acquisition cost",
+      title = paste0("Metric vs avg. acquisition cost (", classifier_type, ")"),
       x = "Avg. acquisition cost",
       y = "Metric",
+      color = "Method"
     ) +
     theme_bw()
-
-  list(p1 = p1, p2 = p2)
 }
 
 get_params_plot <- function(df) {
@@ -235,16 +214,28 @@ plot_path1 <- args[2]
 plot_path2 <- args[3]
 plot_path3 <- args[4]
 
-df <- read_csv(results_path, col_types = expected_types)
+df <- read_csv(results_path, col_types = list(
+  features_chosen = col_integer(),
+  predicted_label_external = col_integer(),
+  true_label = col_integer(),
+  predicted_label_builtin = col_integer(),
+  acquisition_cost = col_double(),
+  method = col_factor(),
+  training_seed = col_integer(),
+  cost_parameter = col_double(),
+  dataset = col_factor(),
+  dataset_split = col_integer()
+))
 verify_df(df)
 tidied_df <- tidy_df(df)
 summarized_df <- summarize_df(tidied_df)
-soft_budget_plots <- get_soft_budget_plots(summarized_df)
+soft_budget_plot_builtin <- get_soft_budget_plot(summarized_df, "builtin")
+soft_budget_plot_external <- get_soft_budget_plot(summarized_df, "external")
 params_plot <- get_params_plot(summarized_df)
 
 # Save the plots
-ggsave(plot_path1, soft_budget_plots$p1, width = 10, height = 6, dpi = 300)
-ggsave(plot_path2, soft_budget_plots$p2, width = 10, height = 6, dpi = 300)
+ggsave(plot_path1, soft_budget_plot_builtin, width = 10, height = 6, dpi = 300)
+ggsave(plot_path2, soft_budget_plot_external, width = 10, height = 6, dpi = 300)
 ggsave(plot_path3, params_plot, width = 10, height = 6, dpi = 300)
 
 if (interactive()) {
