@@ -2,6 +2,7 @@ import logging
 
 import pandas as pd
 import torch
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from common.custom_types import (
@@ -36,16 +37,12 @@ class _MaskLayer2d(torch.nn.Module):
 
 def eval_soft_budget_afa_method(
     afa_select_fn: AFASelectFn,
-    dataset: AFADataset,
+    dataset: AFADataset,  # also assumed to subclass torch Dataset
     external_afa_predict_fn: AFAPredictFn,
     builtin_afa_predict_fn: AFAPredictFn | None = None,
     only_n_samples: int | None = None,
     device: torch.device | None = None,
     batch_size: int = 1,
-    is_image: bool = False,
-    image_mask_width: int | None = None,
-    image_patch_size: int = 1,
-    n_patches: int = 1,
 ) -> pd.DataFrame:
     """
     Evaluate an AFA method with support for early stopping and batched processing.
@@ -71,167 +68,129 @@ def eval_soft_budget_afa_method(
 
     data_rows = []
 
-    # Retrieve all data at once, in order to do batched computations
-    all_features, all_labels = dataset.get_all_data()
-    remaining_indices = torch.arange(len(dataset))
     acquisition_costs = dataset.get_feature_acquisition_costs().to(device)
     log.debug(f"Acquisition costs: {acquisition_costs}")
 
-    mask_layer = _MaskLayer2d(mask_width=1, patch_size=1).to(device)
-    if is_image:
-        if image_mask_width is None:
-            raise ValueError(
-                "image mask width must be provided when modality = image"
-            )
-        mask_layer: _MaskLayer2d = _MaskLayer2d(
-            mask_width=image_mask_width, patch_size=image_patch_size
-        ).to(device)
+    # Optionally subset the dataset
+    if only_n_samples is not None:
+        dataset = torch.utils.data.Subset(dataset, range(only_n_samples))  # pyright: ignore[reportAssignmentType, reportArgumentType]
 
-    # Prepare initial batch, update as samples are completed
-    batch_size = min(batch_size, len(remaining_indices))
-    batch_features = all_features[remaining_indices[:batch_size]].to(device)
-    batch_label = all_labels[remaining_indices[:batch_size]].to(device)
-    if is_image:
-        batch_feature_mask = torch.zeros(
-            (batch_size, n_patches), device=device, dtype=torch.float32
-        )
-        batch_masked_features = mask_layer(batch_features, batch_feature_mask)
-    else:
+    dataloader = DataLoader(dataset, batch_size=batch_size)  # pyright: ignore[reportArgumentType]
+
+    data_rows = []
+
+    samples_to_eval = len(dataset)
+    pbar = tqdm(
+        total=samples_to_eval,
+        desc="Evaluating dataset samples",
+    )
+
+    for _batch_features, _batch_label in dataloader:
+        batch_features = _batch_features.to(device)
+        batch_label = _batch_label.to(device)
+
+        # Initialize masks for the batch
         batch_masked_features = torch.zeros_like(batch_features).to(device)
         batch_feature_mask = torch.zeros_like(
             batch_features, dtype=torch.bool
         ).to(device)
 
-    # Keep track of how many samples have been completed. Once an item is completed, it is replaced by a new item from all_data.
-    completed_samples = 0
+        # Keep track of which samples still need processing
+        active_indices = torch.arange(batch_features.shape[0], device=device)
 
-    # Loop over the dataset
-    samples_to_eval = (
-        len(dataset) if only_n_samples is None else only_n_samples
-    )
-    pbar = tqdm(
-        total=samples_to_eval,
-        desc="Evaluating dataset samples",
-    )
-    while True:
-        # Let AFA method do batched selection of new features (or stop)
-        batch_selection = afa_select_fn(
-            batch_masked_features,
-            batch_feature_mask,
-            batch_features,
-            batch_label,
-        ).squeeze(-1)
-        assert batch_selection.ndim == 1, (
-            f"batch_selection should be 1D, got {batch_selection.ndim}D with shape {batch_selection.shape}"
-        )
-        # Update masked features and feature mask individually. This could probably be done more efficiently with some advanced indexing, but this is clearer.
-        for i in range(batch_selection.shape[0]):
-            sel = int(batch_selection[i].item())
-            # Note that `sel == 1` means to select the first feature, that's why we subtract 1 here
-            if sel > 0:
-                if is_image:
-                    batch_feature_mask[i, sel - 1] = 1.0
-                else:
-                    batch_masked_features[i, sel - 1] = batch_features[
-                        i, sel - 1
-                    ]
-                    batch_feature_mask[i, sel - 1] = True
+        while len(active_indices) > 0:
+            log.debug(f"Active indices in batch: {active_indices}")
 
-        if is_image:
-            batch_masked_features = mask_layer(
-                batch_features, batch_feature_mask
+            # Only choose features for active samples
+            active_batch_selection = afa_select_fn(
+                batch_masked_features[active_indices],
+                batch_feature_mask[active_indices],
+                batch_features[active_indices],
+                batch_label[active_indices],
+            ).squeeze(-1)
+            assert active_batch_selection.ndim == 1, (
+                f"batch_selection should be 1D, got {active_batch_selection.ndim}D with shape {active_batch_selection.shape}"
             )
-
-        # Check which samples are finished, either due to early stopping or observing all features
-        # TODO is the if condition necessary here?
-        if is_image:
-            finished_mask = (batch_selection == 0) | (
-                batch_feature_mask.sum(dim=-1) >= n_patches
-            )
-        else:
-            finished_mask = (batch_selection == 0) | (
-                batch_feature_mask.all(dim=-1)
-            )
-        assert finished_mask.ndim == 1, (
-            f"finished_mask should be 1D, got {finished_mask.ndim}D with shape {finished_mask.shape}"
-        )
-        finished_indices = torch.where(finished_mask)[0]
-        n_finished = int(finished_mask.sum().item())
-
-        if n_finished == 0:
-            # skip this iteration to avoid empty-batch calls
-            continue
-
-        # For finished samples, do predictions and store results
-        external_prediction = external_afa_predict_fn(
-            batch_masked_features[finished_mask],
-            batch_feature_mask[finished_mask],
-            batch_features[finished_mask],
-            batch_label[finished_mask],
-        )
-        external_prediction = torch.argmax(external_prediction, dim=-1)
-
-        # Builtin prediction, if available
-        if builtin_afa_predict_fn is not None:
-            builtin_prediction = builtin_afa_predict_fn(
-                batch_masked_features[finished_mask],
-                batch_feature_mask[finished_mask],
-                batch_features[finished_mask],
-                batch_label[finished_mask],
-            )
-            builtin_prediction = torch.argmax(builtin_prediction, dim=-1)
-        else:
-            builtin_prediction = None
-
-        # For each finished sample, add a row to the DataFrame
-        # "Local" index refers to the index within the finished sample, while "global" index refers to the index within the entire batch
-        for finish_local_idx, finish_global_idx in enumerate(finished_indices):
-            row = {
-                "features_chosen": batch_feature_mask[finish_global_idx]
-                .sum()
-                .item(),
-                "predicted_label_external": external_prediction[
-                    finish_local_idx
-                ].item(),
-                "true_label": batch_label[finish_global_idx].argmax().item(),
-                "predicted_label_builtin": None
-                if builtin_prediction is None
-                else builtin_prediction[finish_local_idx].item(),
-                "acquisition_cost": (
-                    acquisition_costs
-                    * batch_feature_mask[finish_global_idx].float()
+            log.debug(f"Active batch selection: {active_batch_selection}")
+            # Update masked features and feature mask individually
+            # Stop action is handled later
+            for i, active_idx in zip(
+                range(active_batch_selection.shape[0]),
+                active_indices,
+                strict=True,
+            ):
+                sel = int(active_batch_selection[i].item())
+                if sel > 0:
+                    batch_feature_mask[active_idx, sel - 1] = True
+                    batch_masked_features[active_idx, sel - 1] = (
+                        batch_features[active_idx, sel - 1]
+                    )
+                # Log mask after update
+                log.debug(
+                    f"Sample {i} mask after update: {batch_feature_mask[i]}"
                 )
-                .sum()
-                .item(),
-            }
-            data_rows.append(row)
 
-        completed_samples += n_finished
-        pbar.update(n_finished)
-        if completed_samples >= samples_to_eval:
-            break
+            # Check which active samples are now finished, either due to early stopping or observing all features
+            just_finished_indices = active_indices[
+                (active_batch_selection == 0)
+                | (batch_feature_mask[active_indices].all(dim=-1))
+            ]
+            log.debug(
+                f"Just finished indices in batch: {just_finished_indices}"
+            )
 
-        # Replace the finished samples with new samples from all_data
-        n_to_refill = min(
-            len(remaining_indices) - completed_samples,
-            len(finished_indices),
-        )
-        new_indices = remaining_indices[
-            completed_samples : completed_samples + n_to_refill
-        ]
-        refill_batch_indices = finished_indices[:n_to_refill]
+            if len(just_finished_indices) > 0:
+                # Run predictions for just finished samples
+                log.debug(
+                    f"Running predictions for just finished samples {just_finished_indices}"
+                )
+                external_prediction = external_afa_predict_fn(
+                    batch_masked_features[just_finished_indices],
+                    batch_feature_mask[just_finished_indices],
+                    batch_features[just_finished_indices],
+                    batch_label[just_finished_indices],
+                )
+                external_prediction = torch.argmax(external_prediction, dim=-1)
 
-        batch_features[refill_batch_indices] = all_features[new_indices].to(
-            device
-        )
-        batch_label[refill_batch_indices] = all_labels[new_indices].to(device)
-        if is_image:
-            batch_masked_features[refill_batch_indices] = 0
-            batch_feature_mask[refill_batch_indices] = 0.0
-        else:
-            batch_masked_features[refill_batch_indices] = 0
-            batch_feature_mask[refill_batch_indices] = False
-            # cost_per_sample[refill_batch_indices] = 0.0
+                if builtin_afa_predict_fn is not None:
+                    builtin_prediction = builtin_afa_predict_fn(
+                        batch_masked_features[just_finished_indices],
+                        batch_feature_mask[just_finished_indices],
+                        batch_features[just_finished_indices],
+                        batch_label[just_finished_indices],
+                    )
+                    builtin_prediction = torch.argmax(
+                        builtin_prediction, dim=-1
+                    )
+                else:
+                    builtin_prediction = None
+
+                for i, idx in enumerate(just_finished_indices):
+                    row = {
+                        "features_chosen": batch_feature_mask[idx]
+                        .sum()
+                        .item(),
+                        "predicted_label_external": external_prediction[
+                            i
+                        ].item(),
+                        "true_label": batch_label[idx].argmax().item(),
+                        "predicted_label_builtin": None
+                        if builtin_prediction is None
+                        else builtin_prediction[i].item(),
+                        "acquisition_cost": (
+                            acquisition_costs * batch_feature_mask[idx].float()
+                        )
+                        .sum()
+                        .item(),
+                    }
+                    data_rows.append(row)
+                pbar.update(len(just_finished_indices))
+                pbar.refresh()
+
+                # Remove finished samples from active indices
+                active_indices = active_indices[
+                    ~torch.isin(active_indices, just_finished_indices)
+                ]
 
     df = pd.DataFrame(data_rows)
 
