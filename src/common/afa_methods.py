@@ -47,21 +47,27 @@ class RandomDummyAFAMethod(AFAMethod):
         feature_mask = feature_mask.to(self._device)
 
         batch_size = masked_features.shape[0]
-        # Decide for each sample whether to select 0 or sample randomly
         select_0_mask = (
             torch.rand(batch_size, device=self._device) < self.prob_select_0
         )
 
-        # Sample from unobserved features uniformly
-        probs = (~feature_mask).float()
-        row_sums = probs.sum(dim=1, keepdim=True)
-        probs = torch.where(row_sums > 0, probs / row_sums, probs)
-        sampled = torch.multinomial(probs, num_samples=1).squeeze(1)
+        # Mask for samples where all features are acquired
+        all_acquired_mask = feature_mask.sum(dim=1) == feature_mask.shape[1]
 
-        # Where select_0_mask is True, set selection to 0
-        selection = torch.where(
-            select_0_mask, torch.zeros_like(sampled), sampled
+        # Initialize selection to zeros (action 0)
+        selection = torch.zeros(
+            batch_size, dtype=torch.long, device=self._device
         )
+
+        # Indices where not all features are acquired and not select_0_mask
+        to_sample_mask = (~all_acquired_mask) & (~select_0_mask)
+        if to_sample_mask.any():
+            # Only sample for these indices
+            probs = (~feature_mask[to_sample_mask]).float()
+            row_sums = probs.sum(dim=1, keepdim=True)
+            probs = torch.where(row_sums > 0, probs / row_sums, probs)
+            sampled = torch.multinomial(probs, num_samples=1).squeeze(1)
+            selection[to_sample_mask] = sampled
 
         return selection.to(original_device)
 
