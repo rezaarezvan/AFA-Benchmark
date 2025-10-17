@@ -1,4 +1,5 @@
-configfile: "workflow/conf/RL.yaml"
+# configfile: "workflow/conf/RL.yaml"
+
 
 # Define global variables from config values
 EXPERIMENT_ID = config["experiment_id"]
@@ -18,8 +19,7 @@ SMOKE_TEST = config["smoke_test"]
 
 if PRETRAINED_MODEL_ALIASES is None:
     PRETRAINED_MODEL_ALIASES = {}
-else:
-    METHODS_WITH_PRETRAIN_STAGE = set(PRETRAINED_MODEL_ALIASES.keys())
+METHODS_WITH_PRETRAIN_STAGE = set(PRETRAINED_MODEL_ALIASES.keys())
 METHODS = list(COST_PARAMS_PER_METHOD_AND_DATASET.keys())
 DATASETS = list(DATASET_ARTIFACT_ALIASES.keys())
 
@@ -212,6 +212,7 @@ rule combine_soft_budget_eval_results:
         """
         Rscript scripts/misc/combine_soft_budget_results.R {input} {output}
         """
+
 
 rule soft_budget_plot:
     input:
