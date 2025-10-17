@@ -13,6 +13,27 @@ library(readr)
 library(knitr)
 library(kableExtra)
 
+read_single_csv <- function(path) {
+  read_csv(path, col_types = list(
+    features_chosen = col_integer(),
+    predicted_label_external = col_integer(),
+    true_label = col_integer(),
+    predicted_label_builtin = col_integer(),
+    acquisition_cost = col_double(),
+    method = col_factor(),
+    training_seed = col_integer(),
+    cost_parameter = col_double(),
+    dataset = col_factor(),
+    dataset_split = col_integer()
+  ))
+}
+
+read_multiple_csv <- function(paths) {
+  paths |>
+    lapply(read_single_csv) |>
+    bind_rows()
+}
+
 verify_df <- function(df) {
   # Specify your expected columns and types
   expected_types <- cols(
