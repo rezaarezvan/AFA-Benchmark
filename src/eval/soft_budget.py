@@ -33,11 +33,11 @@ def eval_soft_budget_afa_method(
         method_name (str): Name of the method, included in results DataFrame.
         dataset (AFADataset): The dataset to evaluate on. Additionally assumed to be a torch dataset.
         external_afa_predict_fn (AFAPredictFn): An external classifier.
+        afa_uncover_fn (AFAUncoverFn): Function to that determines how to uncover features from AFA selections.
         builtin_afa_predict_fn (AFAPredictFn): A builtin classifier, if such exists.
         only_n_samples (int|None, optional): If specified, only evaluate on this many samples from the dataset. Defaults to None.
         device (torch.device|None): Device to place data on. Defaults to "cpu".
         batch_size (int): Batch size for processing samples. Defaults to 1.
-        afa_uncover_fn (AFAUncoverFn | None): Function to uncover features. Used if the method's actions does not directly correspond to which feature to uncover.Defaults to None, in which case the method's actions are assumed to be the features to uncover.
 
     Returns:
         pd.DataFrame: DataFrame containing columns:
