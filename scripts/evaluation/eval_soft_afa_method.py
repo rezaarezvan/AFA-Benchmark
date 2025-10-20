@@ -5,12 +5,12 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any
 
-from common.afa_uncoverings import one_based_index_uncovering
 import hydra
 import torch
 from omegaconf import OmegaConf
 
 import wandb
+from common.afa_uncoverings import one_based_index_uncover_fn
 from common.config_classes import SoftEvalConfig
 from common.custom_types import (
     AFAClassifier,
@@ -190,7 +190,7 @@ def main(cfg: SoftEvalConfig) -> None:
         afa_select_fn=afa_method.select,
         dataset=dataset,
         external_afa_predict_fn=external_afa_predict_fn,
-        afa_uncover_fn=one_based_index_uncovering,
+        afa_uncover_fn=one_based_index_uncover_fn,
         builtin_afa_predict_fn=afa_method.predict
         if afa_method.has_builtin_classifier
         else None,

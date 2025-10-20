@@ -15,27 +15,6 @@ from common.custom_types import (
 log = logging.getLogger(__name__)
 
 
-class _MaskLayer2d(torch.nn.Module):
-    def __init__(self, mask_width: int, patch_size: int):
-        super().__init__()
-        self.mask_width = mask_width
-        self.patch_size = patch_size
-        self.upsample = (
-            torch.nn.Identity()
-            if patch_size == 1
-            else torch.nn.Upsample(scale_factor=patch_size)
-        )
-
-    def forward(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-        if len(mask.shape) == 2:
-            B, N = mask.shape
-            mask = mask.view(B, 1, self.mask_width, self.mask_width)
-        elif mask.dim() != 4:
-            raise ValueError(f"Unexpected mask shape {tuple(mask.shape)}")
-        m = self.upsample(mask)
-        return x * m
-
-
 def eval_soft_budget_afa_method(
     afa_select_fn: AFASelectFn,
     dataset: AFADataset,  # also assumed to subclass torch Dataset
@@ -117,7 +96,7 @@ def eval_soft_budget_afa_method(
             log.debug(f"Active batch selection: {active_batch_selection}")
 
             # Update masked features and feature mask
-            _feature_mask, _masked_features = afa_uncover_fn(
+            _masked_features, _feature_mask = afa_uncover_fn(
                 masked_features=batch_masked_features[active_indices],
                 feature_mask=batch_feature_mask[active_indices],
                 features=batch_features[active_indices],
