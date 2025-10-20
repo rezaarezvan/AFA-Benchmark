@@ -5,6 +5,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any
 
+from common.afa_uncoverings import one_based_index_uncovering
 import hydra
 import torch
 from omegaconf import OmegaConf
@@ -185,10 +186,11 @@ def main(cfg: SoftEvalConfig) -> None:
     image_patch_size = getattr(afa_method, "patch_size", 1)
     n_patches = getattr(afa_method, "n_patches", 1)
 
-    df = eval_soft_budget_afa_method(
+    df_eval = eval_soft_budget_afa_method(
         afa_select_fn=afa_method.select,
         dataset=dataset,
         external_afa_predict_fn=external_afa_predict_fn,
+        afa_uncover_fn=one_based_index_uncovering,
         builtin_afa_predict_fn=afa_method.predict
         if afa_method.has_builtin_classifier
         else None,
@@ -197,17 +199,17 @@ def main(cfg: SoftEvalConfig) -> None:
         batch_size=cfg.batch_size,
     )
     # Add columns to conform to expected format (snake_case)
-    df["method"] = method_metadata["method_type"]
-    df["training_seed"] = method_metadata["seed"]
+    df_eval["method"] = method_metadata["method_type"]
+    df_eval["training_seed"] = method_metadata["seed"]
     cost_param = afa_method.cost_param
     assert cost_param is not None, (
         "Cost parameter should not be None for soft budget methods"
     )
-    df["cost_parameter"] = cost_param
-    df["dataset"] = method_metadata["dataset_type"]
+    df_eval["cost_parameter"] = cost_param
+    df_eval["dataset"] = method_metadata["dataset_type"]
 
     # Log to wandb for debugging purposes
-    run.log({"soft_eval_df": wandb.Table(dataframe=df)})
+    run.log({"soft_eval_df": wandb.Table(dataframe=df_eval)})
 
     # Save results as wandb artifact
     eval_results_artifact = wandb.Artifact(
@@ -221,7 +223,7 @@ def main(cfg: SoftEvalConfig) -> None:
     )
     with NamedTemporaryFile("w", delete=False) as f:
         df_save_path = Path(f.name)
-        df.to_csv(df_save_path, index=False)
+        df_eval.to_csv(df_save_path, index=False)
     eval_results_artifact.add_file(
         str(df_save_path), name="soft_eval_data.csv"
     )

@@ -9,6 +9,7 @@ from common.custom_types import (
     AFADataset,
     AFAPredictFn,
     AFASelectFn,
+    AFAUncoverFn,
 )
 
 log = logging.getLogger(__name__)
@@ -39,6 +40,7 @@ def eval_soft_budget_afa_method(
     afa_select_fn: AFASelectFn,
     dataset: AFADataset,  # also assumed to subclass torch Dataset
     external_afa_predict_fn: AFAPredictFn,
+    afa_uncover_fn: AFAUncoverFn,
     builtin_afa_predict_fn: AFAPredictFn | None = None,
     only_n_samples: int | None = None,
     device: torch.device | None = None,
@@ -56,6 +58,7 @@ def eval_soft_budget_afa_method(
         only_n_samples (int|None, optional): If specified, only evaluate on this many samples from the dataset. Defaults to None.
         device (torch.device|None): Device to place data on. Defaults to "cpu".
         batch_size (int): Batch size for processing samples. Defaults to 1.
+        afa_uncover_fn (AFAUncoverFn | None): Function to uncover features. Used if the method's actions does not directly correspond to which feature to uncover.Defaults to None, in which case the method's actions are assumed to be the features to uncover.
 
     Returns:
         pd.DataFrame: DataFrame containing columns:
@@ -112,23 +115,16 @@ def eval_soft_budget_afa_method(
                 f"batch_selection should be 1D, got {active_batch_selection.ndim}D with shape {active_batch_selection.shape}"
             )
             log.debug(f"Active batch selection: {active_batch_selection}")
-            # Update masked features and feature mask individually
-            # Stop action is handled later
-            for i, active_idx in zip(
-                range(active_batch_selection.shape[0]),
-                active_indices,
-                strict=True,
-            ):
-                sel = int(active_batch_selection[i].item())
-                if sel > 0:
-                    batch_feature_mask[active_idx, sel - 1] = True
-                    batch_masked_features[active_idx, sel - 1] = (
-                        batch_features[active_idx, sel - 1]
-                    )
-                # Log mask after update
-                log.debug(
-                    f"Sample {i} mask after update: {batch_feature_mask[i]}"
-                )
+
+            # Update masked features and feature mask
+            _feature_mask, _masked_features = afa_uncover_fn(
+                masked_features=batch_masked_features[active_indices],
+                feature_mask=batch_feature_mask[active_indices],
+                features=batch_features[active_indices],
+                afa_selection=active_batch_selection,
+            )
+            batch_masked_features[active_indices] = _masked_features
+            batch_feature_mask[active_indices] = _feature_mask
 
             # Check which active samples are now finished, either due to early stopping or observing all features
             just_finished_indices = active_indices[
@@ -192,6 +188,4 @@ def eval_soft_budget_afa_method(
                     ~torch.isin(active_indices, just_finished_indices)
                 ]
 
-    df = pd.DataFrame(data_rows)
-
-    return df
+    return pd.DataFrame(data_rows)

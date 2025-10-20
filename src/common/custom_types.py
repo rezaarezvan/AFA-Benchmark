@@ -179,3 +179,14 @@ class AFAPredictFn(Protocol):
         features: Features | None,
         label: Label | None,
     ) -> Label: ...
+
+
+# Feature uncover interface assumed during evaluation. Applicable in scenarios where a single AFA action might uncover multiple features.
+class AFAUncoverFn(Protocol):
+    def __call__(
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        features: Features,
+        afa_selection: AFASelection,
+    ) -> tuple[FeatureMask, MaskedFeatures]: ...
