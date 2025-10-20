@@ -1,4 +1,5 @@
 import logging
+from typing import Tuple, Optional, Callable
 
 import pandas as pd
 import torch
@@ -37,7 +38,7 @@ class _MaskLayer2d(torch.nn.Module):
 def eval_soft_budget_afa_method(
     afa_select_fn: AFASelectFn,
     dataset: AFADataset,
-    external_afa_predict_fn: AFAPredictFn,
+    external_afa_predict_fn: AFAPredictFn | None = None,
     builtin_afa_predict_fn: AFAPredictFn | None = None,
     only_n_samples: int | None = None,
     device: torch.device | None = None,
@@ -71,11 +72,49 @@ def eval_soft_budget_afa_method(
 
     data_rows = []
 
-    # Retrieve all data at once, in order to do batched computations
-    all_features, all_labels = dataset.get_all_data()
+    all_features: Optional[torch.Tensor] = None
+    all_labels: Optional[torch.Tensor] = None
+    try:
+        # Retrieve all data at once, in order to do batched computations
+        all_features, all_labels = dataset.get_all_data()
+        log.debug("Using dataset.get_all_data() fast path")
+    except Exception:
+        log.debug("Dataset does not provide get_all_data(), falling back to on-demand indexing.")
+    
     remaining_indices = torch.arange(len(dataset))
-    acquisition_costs = dataset.get_feature_acquisition_costs().to(device)
+    if is_image:
+        acquisition_costs = torch.ones(n_patches, device=device)
+    else:
+        acquisition_costs = dataset.get_feature_acquisition_costs().to(device)
     log.debug(f"Acquisition costs: {acquisition_costs}")
+
+    def fetch_by_indices(idxs: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Returns:
+            features: Tensor [B, ...] on device
+            true_label_idx: Tensor [B] (long) on device
+        """
+        if all_features is not None and all_labels is not None:
+            f = all_features[idxs].to(device)
+            y = all_labels[idxs]
+            if y.dim() == 2:
+                y_idx = torch.argmax(y, dim=1)
+            elif y.dim() == 1:
+                y_idx = y
+            else:
+                raise ValueError(f"Unexpected label tensor shape {tuple(y.shape)}")
+            return f, y_idx.to(device, dtype=torch.long)
+        
+        # On-demand path
+        xs = []
+        ys = []
+        for i in idxs.tolist():
+            x, y = dataset[int(i)]
+            xs.append(x)
+            ys.append(y)
+        features = torch.stack(xs, dim=0).to(device)
+        true_labels = torch.as_tensor(ys, dtype=torch.long, device=device)
+        return features, true_labels
 
     mask_layer = _MaskLayer2d(mask_width=1, patch_size=1).to(device)
     if is_image:
@@ -89,8 +128,10 @@ def eval_soft_budget_afa_method(
 
     # Prepare initial batch, update as samples are completed
     batch_size = min(batch_size, len(remaining_indices))
-    batch_features = all_features[remaining_indices[:batch_size]].to(device)
-    batch_label = all_labels[remaining_indices[:batch_size]].to(device)
+    # batch_features = all_features[remaining_indices[:batch_size]].to(device)
+    # batch_label = all_labels[remaining_indices[:batch_size]].to(device)
+    init_indices = remaining_indices[:batch_size]
+    batch_features, batch_label = fetch_by_indices(init_indices)
     if is_image:
         batch_feature_mask = torch.zeros(
             (batch_size, n_patches), device=device, dtype=torch.float32
@@ -163,13 +204,16 @@ def eval_soft_budget_afa_method(
             continue
 
         # For finished samples, do predictions and store results
-        external_prediction = external_afa_predict_fn(
-            batch_masked_features[finished_mask],
-            batch_feature_mask[finished_mask],
-            batch_features[finished_mask],
-            batch_label[finished_mask],
-        )
-        external_prediction = torch.argmax(external_prediction, dim=-1)
+        if external_afa_predict_fn is not None:
+            external_prediction = external_afa_predict_fn(
+                batch_masked_features[finished_mask],
+                batch_feature_mask[finished_mask],
+                batch_features[finished_mask],
+                batch_label[finished_mask],
+            )
+            external_prediction = torch.argmax(external_prediction, dim=-1)
+        else:
+            external_prediction = None
 
         # Builtin prediction, if available
         if builtin_afa_predict_fn is not None:
@@ -190,10 +234,14 @@ def eval_soft_budget_afa_method(
                 "features_chosen": batch_feature_mask[finish_global_idx]
                 .sum()
                 .item(),
-                "predicted_label_external": external_prediction[
-                    finish_local_idx
-                ].item(),
-                "true_label": batch_label[finish_global_idx].argmax().item(),
+                # "predicted_label_external": external_prediction[
+                #     finish_local_idx
+                # ].item(),
+                "predicted_label_external": None 
+                if external_prediction is None 
+                else external_prediction[finish_local_idx].item(),
+                # "true_label": batch_label[finish_global_idx].argmax().item(),
+                "true_label": int(batch_label[finish_global_idx].item()),
                 "predicted_label_builtin": None
                 if builtin_prediction is None
                 else builtin_prediction[finish_local_idx].item(),
@@ -221,10 +269,13 @@ def eval_soft_budget_afa_method(
         ]
         refill_batch_indices = finished_indices[:n_to_refill]
 
-        batch_features[refill_batch_indices] = all_features[new_indices].to(
-            device
-        )
-        batch_label[refill_batch_indices] = all_labels[new_indices].to(device)
+        new_feats, new_label = fetch_by_indices(new_indices)
+        # batch_features[refill_batch_indices] = all_features[new_indices].to(
+        #     device
+        # )
+        # batch_label[refill_batch_indices] = all_labels[new_indices].to(device)
+        batch_features[refill_batch_indices] = new_feats
+        batch_label[refill_batch_indices] = new_label
         if is_image:
             batch_masked_features[refill_batch_indices] = 0
             batch_feature_mask[refill_batch_indices] = 0.0

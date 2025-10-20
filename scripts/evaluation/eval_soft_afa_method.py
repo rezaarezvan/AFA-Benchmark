@@ -155,18 +155,22 @@ def main(cfg: SoftEvalConfig) -> None:
     log.info("Loaded trained AFA method and dataset from artifacts")
 
     # Load a classifier if it was specified
-    if cfg.validate_artifacts:
-        validate_artifacts(
-            cfg.trained_method_artifact_name,
-            cfg.trained_classifier_artifact_name,
+    external_afa_predict_fn = None
+    if cfg.trained_classifier_artifact_name:
+        if cfg.validate_artifacts:
+            validate_artifacts(
+                cfg.trained_method_artifact_name,
+                cfg.trained_classifier_artifact_name,
+            )
+        external_afa_predict_fn, classifier_metadata = (
+            load_trained_classifier_artifact(
+                cfg.trained_classifier_artifact_name,
+                device=torch.device(cfg.device),
+            )
         )
-    external_afa_predict_fn, classifier_metadata = (
-        load_trained_classifier_artifact(
-            cfg.trained_classifier_artifact_name,
-            device=torch.device(cfg.device),
-        )
-    )
-    log.info("Loaded external classifier")
+        log.info("Loaded external classifier")
+    else:
+        log.info("No external classifier provided; using builtin predictor only.")
 
     # Some methods need to have the cost parameter set during evaluation
     if hasattr(afa_method, "set_cost_param"):
@@ -174,6 +178,9 @@ def main(cfg: SoftEvalConfig) -> None:
             "cfg.cost_param should be set for methods that need to set the cost parameter during evaluation"
         )
         afa_method.set_cost_param(cfg.cost_param)
+
+    if external_afa_predict_fn is None and not afa_method.has_builtin_classifier:
+        raise RuntimeError("No classifier available: provide an external classifier or use a method with a builtin predictor.")
 
     # Do the evaluation
     log.info(
