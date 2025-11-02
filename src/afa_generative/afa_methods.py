@@ -78,11 +78,15 @@ class Ma2018AFAMethod(AFAMethod):
         ).to(self._device)
 
         with torch.no_grad():
-            _, _, _, _, x_full = self.sampler.forward(
+            _, _, _, z_base, x_full = self.sampler.forward(
                 augmented_masked_feature, augmented_feature_mask
             )
+            base_probs = self.predictor(z_base).softmax(dim=-1)
         x_full = x_full.view(B, F)
-        x_full = torch.cat([x_full, zeros_label], dim=-1).to(self._device)
+        x_filled = masked_features.clone()
+        missing = ~feature_mask.bool()
+        x_filled[missing] = x_full[missing]
+        x_full = torch.cat([x_filled, zeros_label], dim=-1).to(self._device)
 
         feature_mask_all = augmented_feature_mask[:, :F]
         feature_indices = torch.eye(
@@ -112,10 +116,13 @@ class Ma2018AFAMethod(AFAMethod):
             preds_all = preds_all.sigmoid().view(-1, 1)
             preds_all = torch.cat([1 - preds_all, preds_all], dim=1)
 
-        mean_all = preds_all.mean(dim=0, keepdim=True)
-        kl_all = torch.sum(
-            preds_all * torch.log(preds_all / (mean_all + 1e-6) + 1e-6), dim=1
-        )
+        # mean_all = preds_all.mean(dim=0, keepdim=True)
+        # kl_all = torch.sum(
+        #     preds_all * torch.log(preds_all / (mean_all + 1e-6) + 1e-6), dim=1
+        # )
+        preds_all = preds_all.view(B, F, self.num_classes)
+        base_probs = base_probs.unsqueeze(1).expand(B, F, self.num_classes)
+        kl_all = (preds_all * ((preds_all + 1e-6).log() - (base_probs + 1e-6).log())).sum(-1)
 
         scores = kl_all.view(B, F)
         # avoid choosing the already masked features
