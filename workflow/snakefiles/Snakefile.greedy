@@ -1,5 +1,6 @@
 configfile: "workflow/conf/greedy.yaml"
 
+
 from collections.abc import Mapping
 
 # Define global variables from config values
@@ -28,6 +29,7 @@ COST_PARAMS_INDICES_PER_METHOD = {
     for method, params in COST_PARAMS_PER_METHOD.items()
 }
 
+
 def get_budgets(method: str, dataset: str):
     entry = TRAINED_BUDGETS_PER_METHOD[method]
     if isinstance(entry, Mapping):  # dataset-specific budgets
@@ -38,6 +40,7 @@ def get_budgets(method: str, dataset: str):
             )
         return entry[dataset]
     return entry
+
 
 # Fast way to produce soft budget plot
 rule soft_budget:
@@ -70,7 +73,9 @@ rule eval_soft_budget_method:
     params:
         classifier_arg=lambda wildcards: f"trained_classifier_artifact_name={CLASSIFIER}-{wildcards.dataset}_split_{wildcards.dataset_split}:{CLASSIFIER_ARTIFACT_ALIASES[wildcards.dataset]}",
         batch_size=lambda wildcards: EVAL_BATCH_SIZE_PER_DATASET[wildcards.dataset],
-        trained_alias=lambda wildcards: TRAINED_METHOD_ALIASES.get(wildcards.method, EXPERIMENT_ID),
+        trained_alias=lambda wildcards: TRAINED_METHOD_ALIASES.get(
+            wildcards.method, EXPERIMENT_ID
+        ),
     shell:
         """
         WANDB_HTTP_TIMEOUT=60 uv run scripts/evaluation/eval_soft_afa_method.py \
