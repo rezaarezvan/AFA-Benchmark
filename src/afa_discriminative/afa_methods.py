@@ -404,6 +404,17 @@ class Covert2023AFAMethod(AFAMethod):
         self.patch_size: int | None = None
         self.mask_width: int | None = None
 
+    def _flat_mask_to_patch_mask(self, feature_mask: torch.Tensor):
+        assert feature_mask.dim() == 4
+        B, C, H, W = feature_mask.shape
+        ps = self.patch_size
+        assert ps is not None
+        ph = H // ps
+        pw = W // ps
+        fm = feature_mask.view(B, C, ph, ps, pw, ps)
+        patch_revealed = fm.any(dim=(1, 3, 5))
+        return patch_revealed.reshape(B, ph * pw)
+
     def predict(
         self,
         masked_features: MaskedFeatures,
@@ -428,12 +439,14 @@ class Covert2023AFAMethod(AFAMethod):
         if self.modality == "tabular":
             x_masked = torch.cat([masked_features, feature_mask], dim=1)
             logits = self.selector(x_masked).flatten(1)
+            logits = logits - 1e6 * feature_mask
         else:
             logits = self.selector(masked_features)
             assert logits.dim() == 2, (
                 f"Selector must return [B, N], got {logits.shape}"
             )
-        logits = logits - 1e6 * feature_mask
+            patch_mask = self._flat_mask_to_patch_mask(feature_mask).float()
+            logits = logits - 1e6 * patch_mask
 
         if self._feature_costs is not None:
             costs = self._feature_costs.to(self._device)
@@ -907,6 +920,17 @@ class Gadgil2023AFAMethod(AFAMethod):
         self.patch_size: int | None = None
         self.mask_width: int | None = None
 
+    def _flat_mask_to_patch_mask(self, feature_mask: torch.Tensor):
+        assert feature_mask.dim() == 4
+        B, C, H, W = feature_mask.shape
+        ps = self.patch_size
+        assert ps is not None
+        ph = H // ps
+        pw = W // ps
+        fm = feature_mask.view(B, C, ph, ps, pw, ps)
+        patch_revealed = fm.any(dim=(1, 3, 5))
+        return patch_revealed.reshape(B, ph * pw)
+
     def predict(
         self,
         masked_features: MaskedFeatures,
@@ -933,11 +957,13 @@ class Gadgil2023AFAMethod(AFAMethod):
             pred = self.predict(masked_features, feature_mask)
             entropy = get_entropy(pred).unsqueeze(1)
             pred_cmi = self.value_network(x_masked).sigmoid() * entropy
+            pred_cmi -= 1e6 * feature_mask
         else:
             pred = self.predictor(masked_features)
             entropy = get_entropy(pred).unsqueeze(1)
             pred_cmi = self.value_network(masked_features).sigmoid() * entropy
-        pred_cmi -= 1e6 * feature_mask
+            patch_mask = self._flat_mask_to_patch_mask(feature_mask).float()
+            pred_cmi = pred_cmi - 1e6 * patch_mask
 
         if self._feature_costs is not None:
             costs = self._feature_costs.to(self._device)

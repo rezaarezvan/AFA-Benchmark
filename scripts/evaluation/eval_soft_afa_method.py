@@ -1,5 +1,6 @@
 """Evaluate a single AFA method with soft budget on a dataset, using a trained classifier if specified."""
 
+import re
 import logging
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -10,7 +11,7 @@ import torch
 from omegaconf import OmegaConf
 
 import wandb
-from common.afa_uncoverings import one_based_index_uncover_fn
+from common.afa_uncoverings import one_based_index_uncover_fn, get_image_patch_uncover_fn
 from common.config_classes import SoftEvalConfig
 from common.custom_types import (
     AFAClassifier,
@@ -180,30 +181,38 @@ def main(cfg: SoftEvalConfig) -> None:
         )
         afa_method.set_cost_param(cfg.cost_param)
 
-    if external_afa_predict_fn is None and not afa_method.has_builtin_classifier:
-        raise RuntimeError("No classifier available: provide an external classifier or use a method with a builtin predictor.")
-
     # Do the evaluation
     log.info(
         f"Starting evaluation with soft budget, batch size {cfg.batch_size}"
     )
-    # modality = getattr(afa_method, "modality", "tabular")
+    modality = getattr(afa_method, "modality", "tabular")
     # is_image = modality == "image"
     image_mask_width = getattr(afa_method, "mask_width", None)
     image_patch_size = getattr(afa_method, "patch_size", 1)
     n_patches = getattr(afa_method, "n_patches", 1)
+    uncover_fn = None
+    if modality == "image":
+        x, _ = dataset[0]
+        assert x.ndim == 3
+        C, H, W = x.shape
+        uncover_fn = get_image_patch_uncover_fn(
+            image_side_length=H, n_channels=C, patch_size=image_patch_size
+        )
+    else:
+        uncover_fn = one_based_index_uncover_fn
 
     df_eval = eval_soft_budget_afa_method(
         afa_select_fn=afa_method.select,
         dataset=dataset,
         external_afa_predict_fn=external_afa_predict_fn,
-        afa_uncover_fn=one_based_index_uncover_fn,
+        afa_uncover_fn=uncover_fn,
         builtin_afa_predict_fn=afa_method.predict
         if afa_method.has_builtin_classifier
         else None,
         only_n_samples=cfg.eval_only_n_samples,
         device=torch.device(cfg.device),
         batch_size=cfg.batch_size,
+        patch_size=image_patch_size,
     )
     # Add columns to conform to expected format (snake_case)
     df_eval["method"] = method_metadata["method_type"]
@@ -219,8 +228,10 @@ def main(cfg: SoftEvalConfig) -> None:
     run.log({"soft_eval_df": wandb.Table(dataframe=df_eval)})
 
     # Save results as wandb artifact
+    trained_base = cfg.trained_method_artifact_name.split(":")[0]
+    trained_base_cost = re.sub(r"-budget_[^-]+", f"-costparam_{cfg.cost_param}", trained_base)
     eval_results_artifact = wandb.Artifact(
-        name=f"{cfg.trained_method_artifact_name.split(':')[0]}-{cfg.trained_classifier_artifact_name.split(':')[0] if cfg.trained_classifier_artifact_name else 'builtin'}",
+        name=f"{trained_base_cost}-{cfg.trained_classifier_artifact_name.split(':')[0] if cfg.trained_classifier_artifact_name else 'builtin'}",
         type="soft_eval_results",
         metadata={
             "dataset_type": method_metadata["dataset_type"],

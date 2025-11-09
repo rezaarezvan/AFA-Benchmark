@@ -1,5 +1,5 @@
 """Different types of AFAUncoverFn."""
-
+import torch
 from torch.nn import functional as F
 
 from common.custom_types import (
@@ -68,20 +68,25 @@ def get_image_patch_uncover_fn(
         )
 
         # Convert afa selection into 1D mask
+        sel = afa_selection.to(torch.long)
+        stop = sel == 0
+        # avoid -1 for one hot
+        sel = torch.where(stop, torch.ones_like(sel), sel)
         afa_selection_1d = F.one_hot(
-            afa_selection - 1, num_classes=afa_selection_size
+            sel - 1, num_classes=afa_selection_size
         )
+        afa_selection_1d[stop] = 0
 
         # Convert to low-dimensional image mask
-        afa_selection_low_dim_image = afa_selection_1d.reshape(
+        afa_selection_low_dim_image = afa_selection_1d.view(
+            -1,
             low_dim_image_side_length,
             low_dim_image_side_length,
         )
 
         # Add batch dimension and channel dimension, expand channels
         afa_selection_low_dim_image = (
-            afa_selection_low_dim_image.unsqueeze(0)
-            .unsqueeze(0)
+            afa_selection_low_dim_image.unsqueeze(1)
             .expand(-1, n_channels, -1, -1)
         )
 
@@ -96,9 +101,10 @@ def get_image_patch_uncover_fn(
         print(f"{feature_mask.shape}")
 
         # Convert image mask to feature mask and add to previous feature mask
-        new_feature_mask = feature_mask + afa_selection_image.flatten(
-            start_dim=1
-        )
+        # new_feature_mask = feature_mask + afa_selection_image.flatten(
+        #     start_dim=1
+        # )
+        new_feature_mask = feature_mask | afa_selection_image
 
         # Apply new feature mask on features
         new_masked_features = features * new_feature_mask

@@ -1,5 +1,4 @@
 import logging
-from typing import Tuple, Optional, Callable
 
 import pandas as pd
 import torch
@@ -19,12 +18,13 @@ log = logging.getLogger(__name__)
 def eval_soft_budget_afa_method(
     afa_select_fn: AFASelectFn,
     dataset: AFADataset,  # also assumed to subclass torch Dataset
-    external_afa_predict_fn: AFAPredictFn,
     afa_uncover_fn: AFAUncoverFn,
+    external_afa_predict_fn: AFAPredictFn | None = None,
     builtin_afa_predict_fn: AFAPredictFn | None = None,
     only_n_samples: int | None = None,
     device: torch.device | None = None,
     batch_size: int = 1,
+    patch_size: int = 1,
 ) -> pd.DataFrame:
     """
     Evaluate an AFA method with support for early stopping and batched processing.
@@ -70,9 +70,15 @@ def eval_soft_budget_afa_method(
 
     for _batch_features, _batch_label in dataloader:
         batch_features = _batch_features.to(device)
-        batch_label = _batch_label.to(device)
+        if _batch_label.ndim == 2:
+            batch_label = _batch_label.argmax(dim=1).to(device)
+        elif _batch_label.ndim == 1:
+            batch_label = _batch_label.to(device)
+        else:
+            raise ValueError(f"Unexpected label shape {_batch_label.shape}")
 
         # Initialize masks for the batch
+        # TODO currently using 4D mask. Convert to 2D patches when evaluate on common classifier.
         batch_masked_features = torch.zeros_like(batch_features).to(device)
         batch_feature_mask = torch.zeros_like(
             batch_features, dtype=torch.bool
@@ -90,7 +96,7 @@ def eval_soft_budget_afa_method(
                 batch_feature_mask[active_indices],
                 batch_features[active_indices],
                 batch_label[active_indices],
-            ).squeeze(-1)
+            ).reshape(-1)
             assert active_batch_selection.ndim == 1, (
                 f"batch_selection should be 1D, got {active_batch_selection.ndim}D with shape {active_batch_selection.shape}"
             )
@@ -109,7 +115,7 @@ def eval_soft_budget_afa_method(
             # Check which active samples are now finished, either due to early stopping or observing all features
             just_finished_indices = active_indices[
                 (active_batch_selection == 0)
-                | (batch_feature_mask[active_indices].all(dim=-1))
+                | (batch_feature_mask[active_indices].flatten(1).all(dim=-1))
             ]
             log.debug(
                 f"Just finished indices in batch: {just_finished_indices}"
@@ -120,13 +126,16 @@ def eval_soft_budget_afa_method(
                 log.debug(
                     f"Running predictions for just finished samples {just_finished_indices}"
                 )
-                external_prediction = external_afa_predict_fn(
-                    batch_masked_features[just_finished_indices],
-                    batch_feature_mask[just_finished_indices],
-                    batch_features[just_finished_indices],
-                    batch_label[just_finished_indices],
-                )
-                external_prediction = torch.argmax(external_prediction, dim=-1)
+                if external_afa_predict_fn is not None:
+                    external_prediction = external_afa_predict_fn(
+                        batch_masked_features[just_finished_indices],
+                        batch_feature_mask[just_finished_indices],
+                        batch_features[just_finished_indices],
+                        batch_label[just_finished_indices],
+                    )
+                    external_prediction = torch.argmax(external_prediction, dim=-1)
+                else:
+                    external_prediction = None
 
                 if builtin_afa_predict_fn is not None:
                     builtin_prediction = builtin_afa_predict_fn(
@@ -142,22 +151,31 @@ def eval_soft_budget_afa_method(
                     builtin_prediction = None
 
                 for i, idx in enumerate(just_finished_indices):
+                    fm = batch_feature_mask[idx]
+                    if fm.dim() >= 3:
+                        C, H, W = fm.shape[-3], fm.shape[-2], fm.shape[-1]
+                        assert H % patch_size == 0 and W % patch_size == 0
+                        ph, pw = H // patch_size, W // patch_size
+                        patch_revealed = fm.view(C, ph, patch_size, pw, patch_size).any(dim=(0, 2, 4))
+                        patches_chosen = int(patch_revealed.sum().item())
+                        features_chosen_val = patches_chosen
+                        acquisition_cost_val = float(patches_chosen)
+                    else:
+                        features_chosen_val = int(fm.sum().item())
+                        acquisition_cost_val = float(
+                            (acquisition_costs.flatten() * fm.flatten().float()).sum().item()
+                        )
+                    
                     row = {
-                        "features_chosen": batch_feature_mask[idx]
-                        .sum()
-                        .item(),
-                        "predicted_label_external": external_prediction[
-                            i
-                        ].item(),
-                        "true_label": batch_label[idx].argmax().item(),
+                        "features_chosen": features_chosen_val,
+                        "predicted_label_external": None if external_prediction is None
+                            else external_prediction[i].item(),
+                        # "true_label": batch_label[idx].argmax().item(),
+                        "true_label": int(batch_label[idx].item()),
                         "predicted_label_builtin": None
                         if builtin_prediction is None
                         else builtin_prediction[i].item(),
-                        "acquisition_cost": (
-                            acquisition_costs * batch_feature_mask[idx].float()
-                        )
-                        .sum()
-                        .item(),
+                        "acquisition_cost": acquisition_cost_val,
                     }
                     data_rows.append(row)
                 pbar.update(len(just_finished_indices))
