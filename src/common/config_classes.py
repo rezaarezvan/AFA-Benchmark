@@ -773,6 +773,31 @@ cs.store(
 )
 
 
+@dataclass
+class TrainMaskedViTClassifierConfig:
+    dataset_artifact_name: str
+    batch_size: int
+    epochs: int
+    min_masking_probability: float
+    max_masking_probability: float
+
+    model_name: str
+    image_size: int
+    patch_size: int
+    patience: int
+    min_lr: float
+
+    lr: float
+    seed: int
+    device: str
+    output_artifact_aliases: list[str]
+
+
+cs.store(
+    name="train_masked_vit_classifier", node=TrainMaskedViTClassifierConfig
+)
+
+
 # --- EVALUATION ---
 
 

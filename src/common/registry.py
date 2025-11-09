@@ -172,6 +172,7 @@ AFA_CLASSIFIER_TYPES = {
     "randomdummy",
     "uniformdummy",
     "WrappedMaskedMLPClassifier",
+    "WrappedMaskedVitClassifier",
     "Shim2018AFAClassifier",
 }
 
@@ -195,6 +196,13 @@ def get_afa_classifier_class(name: str) -> type[AFAClassifier]:
         )
 
         return WrappedMaskedMLPClassifier
+    
+    if name == "WrappedMaskedVitClassifier":
+        from common.classifiers import (
+            WrappedMaskedViTClassifier,
+        )
+
+        return WrappedMaskedViTClassifier
     if name == "Shim2018AFAClassifier":
         from afa_rl.shim2018.models import (  # noqa: PLC0415
             Shim2018AFAClassifier,

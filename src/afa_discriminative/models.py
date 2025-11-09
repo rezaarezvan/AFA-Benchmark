@@ -311,56 +311,6 @@ class MaskingPretrainer(nn.Module):
         restore_parameters(model, best_model)
         wandb.unwatch(self)
 
-    # def evaluate(self, loader, metric):
-    #     """
-    #     Evaluate mean performance across a dataset.
-
-    #     Args:
-    #       loader:
-    #       metric:
-
-    #     """
-    #     # Setup.
-    #     self.model.eval()
-    #     device = next(self.model.parameters()).device
-
-    #     # Determine mask size.
-    #     if hasattr(self.mask_layer, "mask_size") and (
-    #         self.mask_layer.mask_size is not None
-    #     ):
-    #         mask_size = self.mask_layer.mask_size
-    #     else:
-    #         # Must be tabular (1d data).
-    #         x, y = next(iter(loader))
-    #         assert len(x.shape) == 2
-    #         mask_size = x.shape[1]
-
-    #     # For calculating mean loss.
-    #     pred_list = []
-    #     label_list = []
-
-    #     with torch.no_grad():
-    #         for x, y in loader:
-    #             # Move to GPU.
-    #             x = x.to(device)
-    #             mask = torch.ones(len(x), mask_size, device=device)
-
-    #             # Calculate loss.
-    #             pred = self.forward(x, mask)
-    #             pred_list.append(pred.cpu())
-    #             label_list.append(y.cpu())
-
-    #         # Calculate metric(s).
-    #         y = torch.cat(label_list, 0)
-    #         pred = torch.cat(pred_list, 0)
-    #         if isinstance(metric, (tuple, list)):
-    #             score = [m(pred, y).item() for m in metric]
-    #         elif isinstance(metric, dict):
-    #             score = {name: m(pred, y).item() for name, m in metric.items()}
-    #         else:
-    #             score = metric(pred, y).item()
-
-    #     return score
 
     def forward(self, x, mask):
         """

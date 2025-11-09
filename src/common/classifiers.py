@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Self, final, override
 
 import torch
+import timm
 from torch import nn
 
 from common.custom_types import (
@@ -14,7 +15,7 @@ from common.custom_types import (
     Logits,
     MaskedFeatures,
 )
-from common.models import MaskedMLPClassifier
+from common.models import MaskedMLPClassifier, MaskedViTClassifier
 
 
 @final
@@ -202,3 +203,81 @@ class WrappedMaskedMLPClassifier(AFAClassifier):
         self._device = device
         self.module = self.module.to(device)
         return self
+    
+
+@final
+class WrappedMaskedViTClassifier(AFAClassifier):
+    def __init__(
+        self, module: MaskedViTClassifier, device: torch.device,
+        pretrained_model_name: str, image_size: int, patch_size: int,
+    ):
+        self.module = module.to(device)
+        self.module.eval()
+        self._device = device
+
+        # Minimal reconstruction info
+        self.pretrained_model_name = pretrained_model_name
+        self.image_size = int(image_size)
+        self.patch_size = int(patch_size)
+
+    @override
+    def __call__(
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        features: Features | None,
+        label: Label | None,
+    ) -> Label:
+        original_device = masked_features.device
+        masked_features = masked_features.to(self._device)
+        feature_mask = feature_mask.to(self._device)
+
+        with torch.no_grad():
+            logits = self.module(masked_features, feature_mask)
+            probs = logits.softmax(dim=-1)
+
+        return probs.to(original_device)
+    
+    @override
+    def save(self, path: Path) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        checkpoint = {
+            "state_dict": self.module.state_dict(),
+            "num_classes": int(self.module.fc.out_features),
+            "pretrained_model_name": self.pretrained_model_name,
+            "image_size": self.image_size,
+            "patch_size": self.patch_size,
+        }
+        torch.save(checkpoint, path)
+    
+    @override
+    @classmethod
+    def load(cls, path: Path, device: torch.device) -> Self:
+        checkpoint = torch.load(path, map_location=device, weights_only=False)
+        name = checkpoint["pretrained_model_name"]
+        num_classes = int(checkpoint["num_classes"])
+        image_size = int(checkpoint["image_size"])
+        patch_size = int(checkpoint["patch_size"])
+
+        backbone = timm.create_model(name, pretrained=False)
+        module = MaskedViTClassifier(backbone=backbone, num_classes=num_classes)
+        module.load_state_dict(checkpoint["state_dict"])
+        module.eval()
+
+        return cls(
+            module=module, device=device, pretrained_model_name=name,
+            image_size=image_size, patch_size=patch_size,
+        )
+
+    @property
+    @override
+    def device(self) -> torch.device:
+        return self._device
+    
+    @override
+    def to(self, device: torch.device) -> Self:
+        self._device = device
+        self.module = self.module.to(device)
+        return self
+

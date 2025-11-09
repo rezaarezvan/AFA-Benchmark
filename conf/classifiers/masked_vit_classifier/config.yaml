@@ -1,0 +1,27 @@
+hydra:
+  searchpath:
+    - file://conf/global
+
+defaults:
+  - _self_
+  - dataset@_global_: imagenette
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+  - override hydra/launcher: custom_slurm
+
+dataset_artifact_name: "cube_split_1:tmp"
+output_artifact_aliases: ["tmp"]
+batch_size: 128
+epochs: 100
+
+min_masking_probability: 0.0
+max_masking_probability: 0.9
+model_name: "vit_small_patch16_224"
+image_size: 224
+patch_size: 16
+patience: 3
+
+lr: 1e-5
+min_lr: 1e-8
+seed: 42
+device: "cuda"
