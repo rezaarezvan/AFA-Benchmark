@@ -175,6 +175,10 @@ unclutter_df <- function(df) {
   # select(-c(sd_accuracy, sd_avg_features_chosen))
 }
 
+empty_plot <- function(title_text) {
+  ggplot() + theme_void() + labs(title = title_text, subtitle = "No data to plot")
+}
+
 get_soft_budget_plot <- function(df, classifier_type) {
   # Filter to only include the specific classifier type
   df <- df |>
@@ -186,6 +190,10 @@ get_soft_budget_plot <- function(df, classifier_type) {
     group_by(dataset) |>
     filter(n_distinct(method) > 1) |>
     ungroup()
+
+  if (nrow(df) == 0) {
+    return(empty_plot(paste0("Metric vs avg. acquisition cost (", classifier_type, ")")))
+  }
 
   ggplot(df, aes(
     x = mean_avg_acquisition_cost,
@@ -201,12 +209,13 @@ get_soft_budget_plot <- function(df, classifier_type) {
       ),
       width = 0
     ) +
-    geom_errorbarh(
+    geom_errorbar(
       aes(
         xmin = mean_avg_acquisition_cost - sd_avg_acquisition_cost,
         xmax = mean_avg_acquisition_cost + sd_avg_acquisition_cost
       ),
-      height = 0
+      height = 0,
+      orientation = "y"
     ) +
     facet_wrap(vars(dataset), scales = "free") +
     coord_cartesian(ylim = c(0, 1)) +
@@ -220,6 +229,9 @@ get_soft_budget_plot <- function(df, classifier_type) {
 }
 
 get_params_plot <- function(df) {
+  if (nrow(df) == 0) {
+    return(empty_plot("Cost parameter vs features chosen"))
+  }
   ggplot(
     df,
     aes(x = mean_avg_features_chosen, y = cost_parameter)
@@ -251,8 +263,21 @@ df <- read_csv(results_path, col_types = list(
 verify_df(df)
 tidied_df <- tidy_df(df)
 summarized_df <- summarize_df(tidied_df)
-soft_budget_plot_builtin <- get_soft_budget_plot(summarized_df, "builtin")
-soft_budget_plot_external <- get_soft_budget_plot(summarized_df, "external")
+
+has_builtin  <- any(summarized_df$prediction_type == "builtin")
+has_external <- any(summarized_df$prediction_type == "external")
+
+if (has_builtin) {
+  soft_budget_plot_builtin <- get_soft_budget_plot(summarized_df, "builtin")
+} else {
+  soft_budget_plot_builtin <- empty_plot("Metric vs avg. acquisition cost (builtin)")
+}
+
+if (has_external) {
+  soft_budget_plot_external <- get_soft_budget_plot(summarized_df, "external")
+} else {
+  soft_budget_plot_external <- empty_plot("Metric vs avg. acquisition cost (external)")
+}
 params_plot <- get_params_plot(summarized_df)
 
 # Save the plots
