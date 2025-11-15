@@ -35,7 +35,7 @@ def main(cfg: SequentialDummyTrainConfig) -> None:
         ),
         job_type="training",
         tags=["sequentialdummy"],
-        dir="wandb",
+        dir="extra/wandb",
     )
 
     # Log W&B run URL

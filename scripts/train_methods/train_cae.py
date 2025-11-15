@@ -46,7 +46,7 @@ def main(cfg: CAETrainingConfig):
         ),
         job_type="training",
         tags=["CAE"],
-        dir="wandb",
+        dir="extra/wandb",
     )
     set_seed(cfg.seed)
     device = torch.device(cfg.device)

@@ -167,7 +167,7 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
         ),
         job_type="training",
         tags=["shim2018"],
-        dir="wandb",
+        dir="extra/wandb",
     )
 
     # Log W&B run URL

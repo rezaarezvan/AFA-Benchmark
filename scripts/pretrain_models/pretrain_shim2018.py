@@ -39,7 +39,7 @@ def main(cfg: Shim2018PretrainConfig) -> None:
         # pyright: ignore[reportArgumentType]
         config=OmegaConf.to_container(cfg, resolve=True),
         tags=["shim2018"],
-        dir="wandb",
+        dir="extra/wandb",
     )
 
     # Log W&B run URL
@@ -75,7 +75,7 @@ def main(cfg: Shim2018PretrainConfig) -> None:
         mode="min",
     )
 
-    logger = WandbLogger(save_dir="wandb")
+    logger = WandbLogger(save_dir="extra/wandb")
     trainer = pl.Trainer(
         max_epochs=cfg.epochs,
         logger=logger,

@@ -36,7 +36,7 @@ def main(cfg: RandomDummyTrainConfig) -> None:
         ),
         job_type="training",
         tags=["randomdummy"],
-        dir="wandb",
+        dir="extra/wandb",
     )
 
     # Log W&B run URL

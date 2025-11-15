@@ -47,7 +47,7 @@ def main(cfg: Covert2023TrainingConfig):
         ),
         job_type="training",
         tags=["GDFS"],
-        dir="wandb",
+        dir="extra/wandb",
     )
     set_seed(cfg.seed)
     device = torch.device(cfg.device)

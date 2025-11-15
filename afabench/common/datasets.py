@@ -1018,7 +1018,7 @@ class MNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         train: bool = True,
         transform: Callable[[Tensor], Tensor] | None = None,
         download: bool = True,
-        root: str = "data/MNIST",
+        root: str = "extra/data/MNIST",
         seed: None = None,  # does nothing, added to not panic during data generation
     ):
         super().__init__()
@@ -1098,7 +1098,7 @@ class FashionMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         train: bool = True,
         transform: Callable[[Tensor], Tensor] | None = None,
         download: bool = True,
-        root: str = "data/FashionMNIST",
+        root: str = "extra/data/FashionMNIST",
         seed: None = None,  # does nothing, added to not panic during data generation
     ):
         super().__init__()
@@ -1472,7 +1472,7 @@ class BankMarketingDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
     def __init__(
         self,
-        data_path: str = "data/bank_marketing/bank-marketing.csv",
+        data_path: str = "extra/data/bank_marketing/bank-marketing.csv",
         seed: int = 123,
     ):
         super().__init__()
@@ -1583,7 +1583,7 @@ class CKDDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     def __init__(
         self,
         # Not used, kept for API consistency
-        data_path: str = "data/ckd/chronic_kidney_disease.csv",
+        data_path: str = "extra/data/ckd/chronic_kidney_disease.csv",
         seed: int = 123,
     ):
         super().__init__()
@@ -1700,7 +1700,7 @@ class ACTG175Dataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     def __init__(
         self,
         # Not used, kept for API consistency
-        data_path: str = "data/actg175/actg175.csv",
+        data_path: str = "extra/data/actg175/actg175.csv",
         seed: int = 123,
     ):
         super().__init__()

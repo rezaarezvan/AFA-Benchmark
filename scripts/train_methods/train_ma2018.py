@@ -36,7 +36,7 @@ def main(cfg: Ma2018TrainingConfig):
         ),
         job_type="training",
         tags=["EDDI"],
-        dir="wandb",
+        dir="extra/wandb",
     )
     set_seed(cfg.seed)
     device = torch.device(cfg.device)

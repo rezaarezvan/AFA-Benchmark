@@ -185,7 +185,7 @@ def main(cfg: Zannone2019TrainConfig) -> None:
         ),
         job_type="training",
         tags=["zannone2019"],
-        dir="wandb",
+        dir="extra/wandb",
     )
 
     # Log W&B run URL

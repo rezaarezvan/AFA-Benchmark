@@ -134,12 +134,12 @@ class MNISTDataModule(pl.LightningDataModule):
             self.transform = transform
 
     def prepare_data(self):
-        datasets.MNIST(root="data/MNIST", train=True, download=True)
-        datasets.MNIST(root="data/MNIST", train=False, download=True)
+        datasets.MNIST(root="extra/data/MNIST", train=True, download=True)
+        datasets.MNIST(root="extra/data/MNIST", train=False, download=True)
 
     def setup(self, stage=None):
         mnist_full = datasets.MNIST(
-            root="data/MNIST", train=True, transform=self.transform
+            root="extra/data/MNIST", train=True, transform=self.transform
         )
         train_set, val_set = random_split(mnist_full, [55000, 5000])
         self.train_set = OneHotLabelWrapper(train_set, num_classes=10)

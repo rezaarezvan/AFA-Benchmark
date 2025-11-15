@@ -45,15 +45,15 @@ def get_budgets(method: str, dataset: str):
 # Fast way to produce soft budget plot
 rule soft_budget:
     input:
-        f"experiments/{EXPERIMENT_ID}/results/soft_budget/plot1.pdf",
-        f"experiments/{EXPERIMENT_ID}/results/soft_budget/plot2.pdf",
-        f"experiments/{EXPERIMENT_ID}/results/soft_budget/plot3.pdf",
+        f"extra/experiments/{EXPERIMENT_ID}/results/soft_budget/plot1.pdf",
+        f"extra/experiments/{EXPERIMENT_ID}/results/soft_budget/plot2.pdf",
+        f"extra/experiments/{EXPERIMENT_ID}/results/soft_budget/plot3.pdf",
 
 
 rule soft_budget_eval_all:
     input:
         [
-            f"experiments/{EXPERIMENT_ID}/indicators/soft_budget/eval/{method}/{dataset}/split{dataset_split}/budget{budget}/costparam{cost_param}/seed{seed}.done"
+            f"extra/experiments/{EXPERIMENT_ID}/indicators/soft_budget/eval/{method}/{dataset}/split{dataset_split}/budget{budget}/costparam{cost_param}/seed{seed}.done"
             for method in METHODS
             for dataset in DATASETS
             for dataset_split in DATASET_SPLITS
@@ -68,7 +68,7 @@ rule eval_soft_budget_method:
         [],
     output:
         touch(
-            f"experiments/{EXPERIMENT_ID}/indicators/soft_budget/eval/{{method}}/{{dataset}}/split{{dataset_split}}/budget{{budget}}/costparam{{cost_param}}/seed{{seed}}.done"
+            f"extra/experiments/{EXPERIMENT_ID}/indicators/soft_budget/eval/{{method}}/{{dataset}}/split{{dataset_split}}/budget{{budget}}/costparam{{cost_param}}/seed{{seed}}.done"
         ),
     params:
         classifier_arg=lambda wildcards: f"trained_classifier_artifact_name={CLASSIFIER}-{wildcards.dataset}_split_{wildcards.dataset_split}:{CLASSIFIER_ARTIFACT_ALIASES[wildcards.dataset]}",
@@ -94,9 +94,9 @@ rule eval_soft_budget_method:
 
 rule download_soft_budget_eval_result:
     input:
-        f"experiments/{EXPERIMENT_ID}/indicators/soft_budget/eval/{{method}}/{{dataset}}/split{{dataset_split}}/budget{{budget}}/costparam{{cost_param}}/seed{{seed}}.done",
+        f"extra/experiments/{EXPERIMENT_ID}/indicators/soft_budget/eval/{{method}}/{{dataset}}/split{{dataset_split}}/budget{{budget}}/costparam{{cost_param}}/seed{{seed}}.done",
     output:
-        f"experiments/{EXPERIMENT_ID}/results/soft_budget/eval/{{method}}/{{dataset}}/split{{dataset_split}}/budget{{budget}}/costparam{{cost_param}}/seed{{seed}}/soft_eval_data.csv",
+        f"extra/experiments/{EXPERIMENT_ID}/results/soft_budget/eval/{{method}}/{{dataset}}/split{{dataset_split}}/budget{{budget}}/costparam{{cost_param}}/seed{{seed}}/soft_eval_data.csv",
     params:
         experiment_id=EXPERIMENT_ID,
     shell:
@@ -107,9 +107,9 @@ rule download_soft_budget_eval_result:
 
 rule add_dataset_split_col_to_soft_budget_eval_result:
     input:
-        f"experiments/{EXPERIMENT_ID}/results/soft_budget/eval/{{method}}/{{dataset}}/split{{dataset_split}}/budget{{budget}}/costparam{{cost_param}}/seed{{seed}}/soft_eval_data.csv",
+        f"extra/experiments/{EXPERIMENT_ID}/results/soft_budget/eval/{{method}}/{{dataset}}/split{{dataset_split}}/budget{{budget}}/costparam{{cost_param}}/seed{{seed}}/soft_eval_data.csv",
     output:
-        f"experiments/{EXPERIMENT_ID}/results/soft_budget/eval/{{method}}/{{dataset}}/split{{dataset_split}}/budget{{budget}}/costparam{{cost_param}}/seed{{seed}}/soft_eval_data_with_split.csv",
+        f"extra/experiments/{EXPERIMENT_ID}/results/soft_budget/eval/{{method}}/{{dataset}}/split{{dataset_split}}/budget{{budget}}/costparam{{cost_param}}/seed{{seed}}/soft_eval_data_with_split.csv",
     conda:
         "../envs/R.yaml"
     shell:
@@ -121,7 +121,7 @@ rule add_dataset_split_col_to_soft_budget_eval_result:
 rule combine_soft_budget_eval_results:
     input:
         [
-            f"experiments/{EXPERIMENT_ID}/results/soft_budget/eval/{method}/{dataset}/split{dataset_split}/budget{budget}/costparam{cost_param}/seed{seed}/soft_eval_data_with_split.csv"
+            f"extra/experiments/{EXPERIMENT_ID}/results/soft_budget/eval/{method}/{dataset}/split{dataset_split}/budget{budget}/costparam{cost_param}/seed{seed}/soft_eval_data_with_split.csv"
             for method in METHODS
             for dataset in DATASETS
             for dataset_split in DATASET_SPLITS
@@ -130,7 +130,7 @@ rule combine_soft_budget_eval_results:
             for seed in SEEDS
         ],
     output:
-        f"experiments/{EXPERIMENT_ID}/results/soft_budget/eval/combined.csv",
+        f"extra/experiments/{EXPERIMENT_ID}/results/soft_budget/eval/combined.csv",
     conda:
         "../envs/R.yaml"
     shell:
@@ -141,11 +141,11 @@ rule combine_soft_budget_eval_results:
 
 rule soft_budget_plot:
     input:
-        f"experiments/{EXPERIMENT_ID}/results/soft_budget/eval/combined.csv",
+        f"extra/experiments/{EXPERIMENT_ID}/results/soft_budget/eval/combined.csv",
     output:
-        f"experiments/{EXPERIMENT_ID}/results/soft_budget/plot1.pdf",
-        f"experiments/{EXPERIMENT_ID}/results/soft_budget/plot2.pdf",
-        f"experiments/{EXPERIMENT_ID}/results/soft_budget/plot3.pdf",
+        f"extra/experiments/{EXPERIMENT_ID}/results/soft_budget/plot1.pdf",
+        f"extra/experiments/{EXPERIMENT_ID}/results/soft_budget/plot2.pdf",
+        f"extra/experiments/{EXPERIMENT_ID}/results/soft_budget/plot3.pdf",
     conda:
         "../envs/R.yaml"
     shell:

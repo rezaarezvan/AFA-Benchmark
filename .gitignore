@@ -180,8 +180,8 @@ cython_debug/
 /logs
 
 # Wandb folders
-/wandb
-/artifacts
+/extra/wandb
+/extra/artifacts
 
 # Data
 /extra/data
@@ -196,14 +196,14 @@ cython_debug/
 !/result/soft_budget*.png
 
 # Hydra output folder
-/outputs
+/extra/outputs
 
 # Temporary folder for storing intermediate files
-/tmp
+/extra/tmp
 
 /lightning_logs
 
-/multirun
+/extra/multirun
 debug/soft_budget/.Rhistory
 debug/soft_budget/*.csv
 debug/soft_budget/*.png

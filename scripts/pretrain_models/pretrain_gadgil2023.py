@@ -38,7 +38,7 @@ def main(cfg: Gadgil2023PretrainingConfig):
         job_type="pretraining",
         config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore
         tags=["DIME"],
-        dir="wandb",
+        dir="extra/wandb",
     )
     set_seed(cfg.seed)
     device = torch.device(cfg.device)

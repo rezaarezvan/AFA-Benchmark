@@ -45,7 +45,7 @@ def main(cfg: PermutationTrainingConfig):
         ),
         job_type="training",
         tags=["permutation"],
-        dir="wandb",
+        dir="extra/wandb",
     )
     set_seed(cfg.seed)
     device = torch.device(cfg.device)

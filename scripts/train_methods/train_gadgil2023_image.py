@@ -51,7 +51,7 @@ def main(cfg: Gadgil2023Training2DConfig):
         ),
         job_type="training",
         tags=["DIME"],
-        dir="wandb",
+        dir="extra/wandb",
     )
     set_seed(cfg.seed)
     device = torch.device(cfg.device)

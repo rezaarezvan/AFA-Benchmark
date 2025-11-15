@@ -133,7 +133,7 @@ def main(cfg: Kachuee2019TrainConfig):  # noqa: PLR0915
         ),
         job_type="training",
         tags=["kachuee2019"],
-        dir="wandb",
+        dir="extra/wandb",
     )
 
     # Log W&B run URL

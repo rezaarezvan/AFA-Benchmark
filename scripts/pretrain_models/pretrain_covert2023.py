@@ -37,7 +37,7 @@ def main(cfg: Covert2023PretrainingConfig):
         job_type="pretraining",
         config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore
         tags=["GDFS"],
-        dir="wandb",
+        dir="extra/wandb",
     )
 
     set_seed(cfg.seed)

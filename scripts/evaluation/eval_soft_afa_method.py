@@ -157,7 +157,7 @@ def main(cfg: SoftEvalConfig) -> None:
         job_type="evaluation",
         # pyright: ignore[reportArgumentType]
         config=OmegaConf.to_container(cfg, resolve=True),
-        dir="wandb",
+        dir="extra/wandb",
     )
 
     # Log W&B run URL

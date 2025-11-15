@@ -132,7 +132,9 @@ def main(cfg: DatasetGenerationConfig) -> None:
 
     # Data will be logged as a wandb artifact
     # Since we often generate data with multiruns, only create a new run if not already running
-    run = wandb.run or wandb.init(job_type="data_generation", dir="wandb")
+    run = wandb.run or wandb.init(
+        job_type="data_generation", dir="extra/wandb"
+    )
 
     dataset_class = get_afa_dataset_class(cfg.dataset.type)
 

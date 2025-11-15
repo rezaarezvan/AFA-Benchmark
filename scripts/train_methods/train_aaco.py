@@ -32,7 +32,7 @@ def main(cfg: AACOTrainConfig):
         ),
         job_type="training",
         tags=["aaco"],
-        dir="wandb",
+        dir="extra/wandb",
     )
 
     log.info(f"W&B run initialized: {run.name} ({run.id})")
