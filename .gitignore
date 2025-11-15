@@ -180,14 +180,17 @@ cython_debug/
 /logs
 
 # Wandb folders
+artifacts/
+wandb/
 /extra/wandb
 /extra/artifacts
 
 # Data
+data
 /extra/data
-/extra/artifacts
 
 # Model folder, includes weights and other types of saved models
+models
 /extra/models
 
 # Everything inside results folder, except for things we want
@@ -196,6 +199,7 @@ cython_debug/
 !/result/soft_budget*.png
 
 # Hydra output folder
+outputs
 /extra/outputs
 
 # Temporary folder for storing intermediate files
