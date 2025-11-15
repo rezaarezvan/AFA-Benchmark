@@ -1,39 +1,40 @@
 import gc
-import logging
-from pathlib import Path
-from tempfile import TemporaryDirectory
-from typing import Any, cast
-
-import hydra
-import numpy as np
 import torch
-from omegaconf import OmegaConf
-from torch import nn
-from torch.utils.data import DataLoader
-from torchrl.modules import MLP
-
 import wandb
-from afa_discriminative.datasets import prepare_datasets
-from common.config_classes import CAETrainingConfig
-from common.utils import (
+import hydra
+import logging
+import numpy as np
+
+from torch import nn
+from pathlib import Path
+from typing import Any, cast
+from torchrl.modules import MLP
+from omegaconf import OmegaConf
+from tempfile import TemporaryDirectory
+from torch.utils.data import DataLoader
+
+from afabench.static.models import BaseModel
+from afabench.static.utils import transform_dataset
+from afabench.common.config_classes import CAETrainingConfig
+from afabench.afa_discriminative.datasets import prepare_datasets
+
+from afabench.common.utils import (
     get_class_probabilities,
     load_dataset_artifact,
     set_seed,
 )
-from static.models import BaseModel
-from static.static_methods import (
+from afabench.static.static_methods import (
     ConcreteMask,
     DifferentiableSelector,
     StaticBaseMethod,
 )
-from static.utils import transform_dataset
 
 log = logging.getLogger(__name__)
 
 
 @hydra.main(
     version_base=None,
-    config_path="../../conf/train/cae",
+    config_path="../../extra/conf/train/cae",
     config_name="config",
 )
 def main(cfg: CAETrainingConfig):
@@ -85,7 +86,9 @@ def main(cfg: CAETrainingConfig):
 
     if len(np.unique(ranked_features)) != cfg.hard_budget:
         print(
-            f"{len(np.unique(ranked_features))} selected instead of {cfg.hard_budget}, appending extras"
+            f"{len(np.unique(ranked_features))} selected instead of {
+                cfg.hard_budget
+            }, appending extras"
         )
     num_extras = cfg.hard_budget - len(np.unique(ranked_features))
     remaining_features = np.setdiff1d(np.arange(d_in), ranked_features)
@@ -143,7 +146,9 @@ def main(cfg: CAETrainingConfig):
         del static_method
         static_method = StaticBaseMethod.load(tmp_path, device=device)
         static_method_artifact = wandb.Artifact(
-            name=f"train_cae-{cfg.dataset_artifact_name.split(':')[0]}-budget_{cfg.hard_budget}-seed_{cfg.seed}",
+            name=f"train_cae-{cfg.dataset_artifact_name.split(':')[0]}-budget_{
+                cfg.hard_budget
+            }-seed_{cfg.seed}",
             type="trained_method",
             metadata={
                 "method_type": "cae",

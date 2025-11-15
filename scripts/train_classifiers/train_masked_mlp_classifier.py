@@ -1,34 +1,35 @@
-import logging
-from pathlib import Path
-from tempfile import NamedTemporaryFile
-
-import hydra
-import lightning as pl
 import torch
-from lightning.pytorch.callbacks import ModelCheckpoint
-from lightning.pytorch.loggers import WandbLogger
-from omegaconf import OmegaConf
-
 import wandb
-from afa_rl.datasets import DataModuleFromDatasets
-from common.afa_methods import RandomClassificationAFAMethod
-from common.classifiers import WrappedMaskedMLPClassifier
-from common.config_classes import TrainMaskedMLPClassifierConfig
-from common.models import LitMaskedMLPClassifier
-from common.utils import (
+import hydra
+import logging
+import lightning as pl
+
+from pathlib import Path
+from omegaconf import OmegaConf
+from tempfile import NamedTemporaryFile
+from lightning.pytorch.loggers import WandbLogger
+from lightning.pytorch.callbacks import ModelCheckpoint
+
+from afabench.eval.utils import plot_metrics
+from afabench.eval.hard_budget import eval_afa_method
+from afabench.common.models import LitMaskedMLPClassifier
+from afabench.afa_rl.datasets import DataModuleFromDatasets
+from afabench.common.classifiers import WrappedMaskedMLPClassifier
+from afabench.common.afa_methods import RandomClassificationAFAMethod
+from afabench.common.config_classes import TrainMaskedMLPClassifierConfig
+
+from afabench.common.utils import (
     get_class_probabilities,
     load_dataset_artifact,
     set_seed,
 )
-from eval.hard_budget import eval_afa_method
-from eval.utils import plot_metrics
 
 log = logging.getLogger(__name__)
 
 
 @hydra.main(
     version_base=None,
-    config_path="../../conf/classifiers/masked_mlp_classifier",
+    config_path="../../extra/conf/classifiers/masked_mlp_classifier",
     config_name="config",
 )
 def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
@@ -39,7 +40,8 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
     run = wandb.init(
         group="train_masked_mlp_classifier",
         job_type="train_classifier",
-        config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore[reportArgumentType]
+        # pyright: ignore[reportArgumentType]
+        config=OmegaConf.to_container(cfg, resolve=True),
         dir="wandb",
     )
 
@@ -97,7 +99,8 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
         pass
     finally:
         # Convert lightning model to a classifier that implements the AFAClassifier interface
-        best_checkpoint = trainer.checkpoint_callback.best_model_path  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
+        # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
+        best_checkpoint = trainer.checkpoint_callback.best_model_path
         best_lit_model = LitMaskedMLPClassifier.load_from_checkpoint(
             best_checkpoint,
             n_features=n_features,
@@ -132,7 +135,9 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
             wrapped_classifier.save(save_path)
         # Save classifier as wandb artifact
         trained_classifier_artifact = wandb.Artifact(
-            name=f"masked_mlp_classifier-{cfg.dataset_artifact_name.split(':')[0]}",
+            name=f"masked_mlp_classifier-{
+                cfg.dataset_artifact_name.split(':')[0]
+            }",
             type="trained_classifier",
             metadata={
                 "dataset_type": dataset_metadata["dataset_type"],

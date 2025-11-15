@@ -1,22 +1,24 @@
-import logging
-from pathlib import Path
-from tempfile import TemporaryDirectory
-from typing import Any, cast
-
-import hydra
 import torch
-from omegaconf import OmegaConf
-
 import wandb
-from afa_oracle import create_aaco_method
-from common.config_classes import AACOTrainConfig
-from common.utils import load_dataset_artifact, set_seed
+import hydra
+import logging
+
+from pathlib import Path
+from typing import Any, cast
+from omegaconf import OmegaConf
+from tempfile import TemporaryDirectory
+
+from afabench.afa_oracle import create_aaco_method
+from afabench.common.config_classes import AACOTrainConfig
+from afabench.common.utils import load_dataset_artifact, set_seed
 
 log = logging.getLogger(__name__)
 
 
 @hydra.main(
-    version_base=None, config_path="../../conf/train/aco", config_name="config"
+    version_base=None,
+    config_path="../../extra/conf/train/aaco",
+    config_name="config",
 )
 def main(cfg: AACOTrainConfig):
     log.debug(cfg)
@@ -78,7 +80,9 @@ def main(cfg: AACOTrainConfig):
         ]
         dataset_lower = dataset_type.lower()
 
-        artifact_name = f"train_aaco-{dataset_lower}_split_{split_idx}-costparam_{cost}-seed_{cfg.seed}"
+        artifact_name = f"train_aaco-{dataset_lower}_split_{
+            split_idx
+        }-costparam_{cost}-seed_{cfg.seed}"
 
         trained_method_artifact = wandb.Artifact(
             name=artifact_name,

@@ -1,7 +1,5 @@
 # Evaluation data format
-
 Note that the hard and soft budget cases have the same column names, but `features_chosen` has a different meaning.
-
 
 ## Hard budget case
 After evaluating each method we expect a dataframe with the columns

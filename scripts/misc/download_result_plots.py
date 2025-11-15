@@ -1,13 +1,13 @@
-import logging
 import re
+import torch
+import wandb
+import hydra
 import shutil
+import logging
+
 from pathlib import Path
 
-import hydra
-import torch
-
-import wandb
-from common.config_classes import PlotDownloadConfig
+from afabench.common.config_classes import PlotDownloadConfig
 
 
 def process_figure_artifact(figure_artifact, files):
@@ -64,7 +64,9 @@ def is_match(
         budget_pattern = r"budget\d+"
     else:
         budget_pattern = f"budget{budget}"
-    pattern = rf"^figure-{re.escape(dataset)}_.*_{budget_pattern}_{re.escape(metric)}-{file_type}:v\d+$"
+    pattern = rf"^figure-{re.escape(dataset)}_.*_{budget_pattern}_{
+        re.escape(metric)
+    }-{file_type}:v\d+$"
     return re.match(pattern, artifact_name) is not None
 
 
@@ -73,7 +75,7 @@ log = logging.getLogger(__name__)
 
 @hydra.main(
     version_base=None,
-    config_path="../../conf/misc",
+    config_path="../../extra/conf/misc",
     config_name="download_plot_results",
 )
 def main(cfg: PlotDownloadConfig) -> None:

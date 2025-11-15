@@ -1,37 +1,39 @@
 import gc
-import logging
-from pathlib import Path
-from tempfile import TemporaryDirectory
-from typing import Any, cast
-
-import hydra
-import numpy as np
 import torch
-from omegaconf import OmegaConf
+import wandb
+import hydra
+import logging
+import numpy as np
+
 from torch import nn
-from torch.utils.data import DataLoader
+from tqdm import tqdm
+from pathlib import Path
+from typing import Any, cast
 from torchmetrics import AUROC
 from torchrl.modules import MLP
-from tqdm import tqdm
+from omegaconf import OmegaConf
+from tempfile import TemporaryDirectory
+from torch.utils.data import DataLoader
 
-import wandb
-from afa_discriminative.datasets import prepare_datasets
-from common.config_classes import PermutationTrainingConfig
-from common.utils import (
+
+from afabench.static.models import BaseModel
+from afabench.static.utils import transform_dataset
+from afabench.static.static_methods import StaticBaseMethod
+from afabench.afa_discriminative.datasets import prepare_datasets
+from afabench.common.config_classes import PermutationTrainingConfig
+
+from afabench.common.utils import (
     get_class_probabilities,
     load_dataset_artifact,
     set_seed,
 )
-from static.models import BaseModel
-from static.static_methods import StaticBaseMethod
-from static.utils import transform_dataset
 
 log = logging.getLogger(__name__)
 
 
 @hydra.main(
     version_base=None,
-    config_path="../../conf/train/permutation",
+    config_path="../../extra/conf/train/permutation",
     config_name="config",
 )
 def main(cfg: PermutationTrainingConfig):
@@ -60,9 +62,10 @@ def main(cfg: PermutationTrainingConfig):
         train_dataset, val_dataset, cfg.batch_size
     )
 
-    auroc_metric = lambda pred, y: AUROC(task="multiclass", num_classes=d_out)(
-        pred.softmax(dim=1), y
-    )
+    def auroc_metric(pred, y):
+        return AUROC(task="multiclass", num_classes=d_out)(
+            pred.softmax(dim=1), y
+        )
 
     predictors: dict[int, nn.Module] = {}
     selected_history: dict[int, list[int]] = {}
@@ -142,7 +145,9 @@ def main(cfg: PermutationTrainingConfig):
         del static_method
         static_method = StaticBaseMethod.load(tmp_path, device=device)
         static_method_artifact = wandb.Artifact(
-            name=f"train_permutation-{cfg.dataset_artifact_name.split(':')[0]}-budget_{cfg.hard_budget}-seed_{cfg.seed}",
+            name=f"train_permutation-{
+                cfg.dataset_artifact_name.split(':')[0]
+            }-budget_{cfg.hard_budget}-seed_{cfg.seed}",
             type="trained_method",
             metadata={
                 "method_type": "permutation",

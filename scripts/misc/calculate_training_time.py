@@ -1,18 +1,17 @@
-"""Calculate the average time required to train each method presented in a plotting run."""
-
-import logging
-from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from pathlib import Path
-from tempfile import NamedTemporaryFile
-
-import hydra
-import numpy as np
 import torch
-from omegaconf import OmegaConf
-
 import wandb
-from common.config_classes import TrainingTimeCalculationConfig
+import hydra
+import logging
+import numpy as np
+
+from pathlib import Path
+from omegaconf import OmegaConf
+from collections import defaultdict
+from tempfile import NamedTemporaryFile
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+
+from afabench.common.config_classes import TrainingTimeCalculationConfig
 
 
 def process_eval_artifact_sync(eval_artifact, training_times):
@@ -59,7 +58,7 @@ log = logging.getLogger(__name__)
 
 @hydra.main(
     version_base=None,
-    config_path="../../conf/misc",
+    config_path="../../extra/conf/misc",
     config_name="calculate_training_time",
 )
 def main(cfg: TrainingTimeCalculationConfig) -> None:

@@ -1,19 +1,22 @@
-import copy
-import logging
 import os
-from pathlib import Path
-from tempfile import NamedTemporaryFile
-from time import strftime
-
+import copy
+import wandb
 import hydra
 import torch
-from torch.utils.data import random_split
-from wandb.sdk.wandb_run import Run
+import logging
 
-import wandb
-from common.config_classes import DatasetGenerationConfig, SplitRatioConfig
-from common.custom_types import AFADataset
-from common.registry import get_afa_dataset_class
+from pathlib import Path
+from time import strftime
+from wandb.sdk.wandb_run import Run
+from tempfile import NamedTemporaryFile
+from torch.utils.data import random_split
+
+from afabench.common.config_classes import (
+    DatasetGenerationConfig,
+    SplitRatioConfig,
+)
+from afabench.common.custom_types import AFADataset
+from afabench.common.registry import get_afa_dataset_class
 
 
 def create_split_dataset(original_dataset, subset):
@@ -41,7 +44,8 @@ def generate_and_save_split(
     seed: int,
     data_dir: Path,
     output_artifact_aliases: tuple[str, ...] = (),
-    epsilon: float = 1e-8,  # added when dividing by standard deviation to avoid division by zero
+    # added when dividing by standard deviation to avoid division by zero
+    epsilon: float = 1e-8,
     **dataset_kwargs,
 ):
     """Generate and save a single train/val/test split for a dataset with a specific seed. The seed affects both data generation and split."""
@@ -109,7 +113,9 @@ def generate_and_save_split(
 
     log.info(f"Saved {dataset_type} split to {dataset_dir}")
     log.info(
-        f"Train size: {len(train_dataset)}, Val size: {len(val_dataset)}, Test size: {len(test_dataset)}"
+        f"Train size: {len(train_dataset)}, Val size: {
+            len(val_dataset)
+        }, Test size: {len(test_dataset)}"
     )
 
 
@@ -118,7 +124,7 @@ log = logging.getLogger(__name__)
 
 @hydra.main(
     version_base=None,
-    config_path="../../conf/dataset_generation",
+    config_path="../../extra/conf/dataset_generation",
     config_name="config",
 )
 def main(cfg: DatasetGenerationConfig) -> None:

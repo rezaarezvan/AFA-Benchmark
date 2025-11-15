@@ -1,39 +1,40 @@
 import gc
-import logging
-from pathlib import Path
-from tempfile import TemporaryDirectory
-from typing import Any, cast
-
-import hydra
+import wandb
 import torch
+import hydra
+import logging
+
+from tqdm import tqdm
+from pathlib import Path
+from typing import Any, cast
 from dacite import from_dict
 from omegaconf import OmegaConf
+from tempfile import TemporaryDirectory
 from torchrl.collectors import SyncDataCollector
 from torchrl.envs import ExplorationType, check_env_specs, set_exploration_type
-from tqdm import tqdm
 
-import wandb
-from afa_rl.afa_env import AFAEnv
-from afa_rl.afa_methods import RLAFAMethod
-from afa_rl.agents import Agent
-from afa_rl.datasets import get_afa_dataset_fn
-from afa_rl.kachuee2019.agents import Kachuee2019Agent
-from afa_rl.kachuee2019.models import (
+from afabench.afa_rl.agents import Agent
+from afabench.afa_rl.afa_env import AFAEnv
+from afabench.common.custom_types import AFADataset
+from afabench.afa_rl.afa_methods import RLAFAMethod
+from afabench.afa_rl.datasets import get_afa_dataset_fn
+from afabench.afa_rl.kachuee2019.agents import Kachuee2019Agent
+from afabench.afa_rl.kachuee2019.reward import get_kachuee2019_reward_fn
+from afabench.afa_rl.kachuee2019.utils import get_kachuee2019_model_from_config
+
+from afabench.afa_rl.kachuee2019.models import (
     Kachuee2019AFAClassifier,
     Kachuee2019AFAPredictFn,
     LitKachuee2019PQModule,
 )
-from afa_rl.kachuee2019.reward import get_kachuee2019_reward_fn
-from afa_rl.kachuee2019.utils import get_kachuee2019_model_from_config
-from afa_rl.utils import (
+from afabench.afa_rl.utils import (
     get_eval_metrics,
 )
-from common.config_classes import (
+from afabench.common.config_classes import (
     Kachuee2019PretrainConfig,
     Kachuee2019TrainConfig,
 )
-from common.custom_types import AFADataset
-from common.utils import (
+from afabench.common.utils import (
     dict_with_prefix,
     get_class_probabilities,
     load_dataset_artifact,
@@ -60,9 +61,11 @@ def load_pretrained_model_artifacts(
     artifact_filenames = [
         f.name for f in pretrained_model_artifact_dir.iterdir()
     ]
-    assert {"model.pt"}.issubset(artifact_filenames), (
-        f"Dataset artifact must contain a model.pt file. Instead found: {artifact_filenames}"
-    )
+    assert {"model.pt"}.issubset(
+        artifact_filenames
+    ), f"Dataset artifact must contain a model.pt file. Instead found: {
+        artifact_filenames
+    }"
 
     # Access config of the run that produced this pretrained model
     pretraining_run = pretrained_model_artifact.logged_by()
@@ -115,7 +118,7 @@ log = logging.getLogger(__name__)
 
 @hydra.main(
     version_base=None,
-    config_path="../../conf/train/kachuee2019",
+    config_path="../../extra/conf/train/kachuee2019",
     config_name="config",
 )
 def main(cfg: Kachuee2019TrainConfig):  # noqa: PLR0915
@@ -318,7 +321,9 @@ def main(cfg: Kachuee2019TrainConfig):  # noqa: PLR0915
             else:
                 budget_str = f"budget_{cfg.hard_budget}"
             afa_method_artifact = wandb.Artifact(
-                name=f"train_kachuee2019-{pretrained_model_config.dataset_artifact_name.split(':')[0]}-{budget_str}-seed_{cfg.seed}",
+                name=f"train_kachuee2019-{
+                    pretrained_model_config.dataset_artifact_name.split(':')[0]
+                }-{budget_str}-seed_{cfg.seed}",
                 type="trained_method",
                 metadata={
                     "method_type": "kachuee2019",

@@ -13,7 +13,7 @@ multiple AFA methods, standardized datasets, and automated evaluation pipelines.
 ## Latest Updates
 **2025-10-16**:
 Trained and evaluated methods for the soft budget case. To reduce clutter, here is a plot with only a subset of the datasets, and only showing the accuracy/F1 score of the external classifier:
-![plots of accuracy/f1 as a function of acquisition cost in the soft budget case](results/soft_budget_5_splits.png)
+![](result/soft_budget_5_splits.png)
 Note that the Diabetes dataset uses non-uniform acquisition costs, and that physionet uses f1 score instead of accuracy.
 
 ## Features
@@ -153,7 +153,7 @@ saved to W&B and locally.
     `pipeline/pretrain.py` for batch pretraining.
   - `train_methods`: Method-specific training. Prefer `pipeline/train.py` for
     batch training.
-- `src`: Source code.
+- `afabench`: Main package.
 - `tests`: Unit tests.
 
 ## Full Pipeline Tutorial

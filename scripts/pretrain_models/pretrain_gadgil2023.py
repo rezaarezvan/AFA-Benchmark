@@ -1,21 +1,22 @@
 import gc
-import logging
-from datetime import datetime
-from pathlib import Path
-from tempfile import TemporaryDirectory
-
+import wandb
 import hydra
 import torch
-from omegaconf import OmegaConf
-from torch import nn
-from torchmetrics import Accuracy
+import logging
 
-import wandb
-from afa_discriminative.datasets import prepare_datasets
-from afa_discriminative.models import MaskingPretrainer, fc_Net
-from afa_discriminative.utils import MaskLayer
-from common.config_classes import Gadgil2023PretrainingConfig
-from common.utils import (
+from torch import nn
+from pathlib import Path
+from datetime import datetime
+from omegaconf import OmegaConf
+from torchmetrics import Accuracy
+from tempfile import TemporaryDirectory
+
+from afabench.afa_discriminative.utils import MaskLayer
+from afabench.afa_discriminative.datasets import prepare_datasets
+from afabench.afa_discriminative.models import MaskingPretrainer, fc_Net
+
+from afabench.common.config_classes import Gadgil2023PretrainingConfig
+from afabench.common.utils import (
     get_class_probabilities,
     load_dataset_artifact,
     set_seed,
@@ -26,7 +27,7 @@ log = logging.getLogger(__name__)
 
 @hydra.main(
     version_base=None,
-    config_path="../../conf/pretrain/gadgil2023",
+    config_path="../../extra/conf/pretrain/gadgil2023",
     config_name="config",
 )
 def main(cfg: Gadgil2023PretrainingConfig):

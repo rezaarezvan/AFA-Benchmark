@@ -184,18 +184,16 @@ cython_debug/
 /artifacts
 
 # Data
-/data
+/extra/data
+/extra/artifacts
 
 # Model folder, includes weights and other types of saved models
-/models
+/extra/models
 
 # Everything inside results folder, except for things we want
 # to show in the README
-/results/*
-!/results/soft_budget*.png
-
-# Plots folder, includes generated plots
-/plots
+/result/*
+!/result/soft_budget*.png
 
 # Hydra output folder
 /outputs

@@ -1,20 +1,19 @@
 import gc
-import logging
-
-import hydra
-import lightning as pl
-import torch
-from lightning.pytorch.callbacks import ModelCheckpoint
-from lightning.pytorch.loggers import WandbLogger
-from omegaconf import OmegaConf
-
 import wandb
-from afa_rl.datasets import DataModuleFromDatasets
-from afa_rl.kachuee2019.utils import (
-    get_kachuee2019_model_from_config,
-)
-from common.config_classes import Kachuee2019PretrainConfig
-from common.utils import (
+import hydra
+import torch
+import logging
+import lightning as pl
+
+from omegaconf import OmegaConf
+from lightning.pytorch.loggers import WandbLogger
+from lightning.pytorch.callbacks import ModelCheckpoint
+
+from afabench.afa_rl.datasets import DataModuleFromDatasets
+from afabench.common.config_classes import Kachuee2019PretrainConfig
+from afabench.afa_rl.kachuee2019.utils import get_kachuee2019_model_from_config
+
+from afabench.common.utils import (
     get_class_probabilities,
     load_dataset_artifact,
     set_seed,
@@ -25,7 +24,7 @@ log = logging.getLogger(__name__)
 
 @hydra.main(
     version_base=None,
-    config_path="../../conf/pretrain/kachuee2019",
+    config_path="../../extra/conf/pretrain/kachuee2019",
     config_name="config",
 )
 def main(cfg: Kachuee2019PretrainConfig) -> None:
@@ -69,7 +68,8 @@ def main(cfg: Kachuee2019PretrainConfig) -> None:
 
     # ModelCheckpoint callback
     checkpoint_callback = ModelCheckpoint(
-        monitor="val_loss_many_observations",  # val_loss_few_observations could also work but is probably not as robust
+        # val_loss_few_observations could also work but is probably not as robust
+        monitor="val_loss_many_observations",
         save_top_k=1,
         mode="min",
     )
@@ -93,7 +93,9 @@ def main(cfg: Kachuee2019PretrainConfig) -> None:
         # Save best model as wandb artifact
         best_checkpoint = trainer.checkpoint_callback.best_model_path  # pyright: ignore
         pretrained_model_artifact = wandb.Artifact(
-            name=f"pretrain_kachuee2019-{cfg.dataset_artifact_name.split(':')[0]}",
+            name=f"pretrain_kachuee2019-{
+                cfg.dataset_artifact_name.split(':')[0]
+            }",
             type="pretrained_model",
         )
         pretrained_model_artifact.add_file(

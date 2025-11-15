@@ -1,0 +1,16 @@
+hydra:
+  searchpath:
+    - file://extra/conf/global
+
+defaults:
+  - _self_
+  - dataset@_global_: cube
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+  - override hydra/launcher: custom_slurm
+
+
+output_artifact_aliases: ["test"]
+device: "cuda"
+seed: 42
+hard_budget: 20

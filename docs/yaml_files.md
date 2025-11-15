@@ -1,6 +1,4 @@
-
 ## Trained AFAMethods
-
 Each trained AFAMethod is represented by a folder with two files:
 - `model.pt` containing the model weights
 - `params.yml` containing info about the training
@@ -15,7 +13,6 @@ Each trained AFAMethod is represented by a folder with two files:
 
 
 ## Trained AFAClassifiers
-
 Each trained AFAClassifier is represented by a folder with two files:
 - `model.pt` containing the model weights
 - `params.yml` containing info about the training
@@ -27,7 +24,6 @@ Each trained AFAClassifier is represented by a folder with two files:
 - `val_dataset_path: str` Validation dataset used during training
 
 ## Evaluation results
-
 Combining a trained AFAMethod with a trained AFAClassifier allows us to do evaluations. Each evaluation is represented
 by a folder with two files:
 - `results.pt` containing the evaluation metrics

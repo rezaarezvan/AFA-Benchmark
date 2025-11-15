@@ -1,29 +1,31 @@
-"""Evaluate a single AFA method on a dataset, using a trained classifier if specified."""
-
-import logging
-from collections import Counter
-from pathlib import Path
-from tempfile import NamedTemporaryFile
-from typing import Any
-
 import hydra
-import torch
-from matplotlib import pyplot as plt
-from omegaconf import OmegaConf
-
 import wandb
-from common.config_classes import EvalConfig
-from common.custom_types import (
+import torch
+import logging
+import matplotlib.pyplot as plt
+
+from typing import Any
+from pathlib import Path
+from omegaconf import OmegaConf
+from collections import Counter
+from tempfile import NamedTemporaryFile
+
+from afabench.eval.utils import plot_metrics
+from afabench.eval.hard_budget import eval_afa_method
+from afabench.common.config_classes import EvalConfig
+from afabench.common.utils import load_dataset_artifact, set_seed
+from afabench.common.afa_uncoverings import get_image_patch_uncover_fn
+from afabench.common.registry import (
+    get_afa_classifier_class,
+    get_afa_method_class,
+)
+
+from afabench.common.custom_types import (
     AFAClassifier,
     AFADataset,
     AFAMethod,
     AFAPredictFn,
 )
-from common.afa_uncoverings import get_image_patch_uncover_fn
-from common.registry import get_afa_classifier_class, get_afa_method_class
-from common.utils import load_dataset_artifact, set_seed
-from eval.hard_budget import eval_afa_method
-from eval.utils import plot_metrics
 
 
 def load_trained_method_artifacts(
@@ -46,7 +48,9 @@ def load_trained_method_artifacts(
         trained_method_artifact.metadata["method_type"]
     )
     log.debug(
-        f"Loading trained AFA method of class {method_class.__name__} from artifact {artifact_name}"
+        f"Loading trained AFA method of class {
+            method_class.__name__
+        } from artifact {artifact_name}"
     )
     method = method_class.load(trained_method_artifact_dir, device=device)
 
@@ -82,7 +86,9 @@ def load_trained_classifier_artifact(
     ]
     classifier_class = get_afa_classifier_class(classifier_class_name)
     log.debug(
-        f"Loading trained classifier of class {classifier_class_name} from artifact {artifact_name}"
+        f"Loading trained classifier of class {
+            classifier_class_name
+        } from artifact {artifact_name}"
     )
     classifier = classifier_class.load(
         trained_classifier_artifact_dir / "classifier.pt", device=device
@@ -114,12 +120,18 @@ def validate_artifacts(
         method_artifact.metadata["dataset_artifact_name"]
         == classifier_run.config["dataset_artifact_name"]
     ), (
-        f"The trained method artifact {trained_method_artifact_name} and the trained classifier artifact {trained_classifier_artifact_name} "
+        f"The trained method artifact {
+            trained_method_artifact_name
+        } and the trained classifier artifact {
+            trained_classifier_artifact_name
+        } "
         "should have been trained on the same dataset, but they are not."
     )
 
     log.debug(
-        f"Method and classifier artifacts are compatible and trained on the same dataset: {method_artifact.metadata['dataset_artifact_name']}"
+        f"Method and classifier artifacts are compatible and trained on the same dataset: {
+            method_artifact.metadata['dataset_artifact_name']
+        }"
     )
 
 
@@ -127,7 +139,9 @@ log = logging.getLogger(__name__)
 
 
 @hydra.main(
-    version_base=None, config_path="../../conf/eval", config_name="config"
+    version_base=None,
+    config_path="../../extra/conf/eval",
+    config_name="config",
 )
 def main(cfg: EvalConfig) -> None:  # noqa: PLR0915
     log.debug(cfg)
@@ -136,7 +150,8 @@ def main(cfg: EvalConfig) -> None:  # noqa: PLR0915
 
     run = wandb.init(
         job_type="evaluation",
-        config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore[reportArgumentType]
+        # pyright: ignore[reportArgumentType]
+        config=OmegaConf.to_container(cfg, resolve=True),
         dir="wandb",
     )
 
@@ -155,7 +170,9 @@ def main(cfg: EvalConfig) -> None:  # noqa: PLR0915
     elif cfg.dataset_split == "testing":
         dataset = test_dataset
     else:
-        msg = f"cfg.dataset_split should either be 'validation' or 'testing', not {cfg.dataset_split}"
+        msg = f"cfg.dataset_split should either be 'validation' or 'testing', not {
+            cfg.dataset_split
+        }"
         raise ValueError(msg)
     log.info("Loaded trained AFA method and dataset from artifacts")
 
@@ -205,7 +222,9 @@ def main(cfg: EvalConfig) -> None:  # noqa: PLR0915
             image_side_length=H, n_channels=C, patch_size=image_patch_size
         )
         log.info(
-            f"Image modality detected, patch size={image_patch_size}, image_size=({C}, {H}, {W})."
+            f"Image modality detected, patch size={
+                image_patch_size
+            }, image_size=({C}, {H}, {W})."
         )
     else:
         log.info(f"Tabular modality detected.")
@@ -232,7 +251,9 @@ def main(cfg: EvalConfig) -> None:  # noqa: PLR0915
     stopped_early = (metrics["actual_steps"] < eval_budget).sum()
     total_samples = len(metrics["actual_steps"])
     log.info(
-        f"Samples that stopped early: {stopped_early}/{total_samples} ({100 * stopped_early / total_samples:.1f}%)"
+        f"Samples that stopped early: {stopped_early}/{total_samples} ({
+            100 * stopped_early / total_samples:.1f
+        }%)"
     )
 
     fig = plot_metrics(metrics)
@@ -278,7 +299,11 @@ def main(cfg: EvalConfig) -> None:  # noqa: PLR0915
 
     # Save results as wandb artifact
     eval_results_artifact = wandb.Artifact(
-        name=f"{cfg.trained_method_artifact_name.split(':')[0]}-{cfg.trained_classifier_artifact_name.split(':')[0] if cfg.trained_classifier_artifact_name else 'builtin'}",
+        name=f"{cfg.trained_method_artifact_name.split(':')[0]}-{
+            cfg.trained_classifier_artifact_name.split(':')[0]
+            if cfg.trained_classifier_artifact_name
+            else 'builtin'
+        }",
         type="eval_results",
         metadata={
             "dataset_type": method_metadata["dataset_type"],

@@ -1,29 +1,32 @@
-"""Evaluate a single AFA method with soft budget on a dataset, using a trained classifier if specified."""
-
 import re
-import logging
-from pathlib import Path
-from tempfile import NamedTemporaryFile
-from typing import Any
-
+import wandb
 import hydra
 import torch
-from omegaconf import OmegaConf
+import logging
 
-import wandb
-from common.afa_uncoverings import (
+from typing import Any
+from pathlib import Path
+from omegaconf import OmegaConf
+from tempfile import NamedTemporaryFile
+
+from afabench.common.config_classes import SoftEvalConfig
+from afabench.common.utils import load_dataset_artifact, set_seed
+from afabench.eval.soft_budget import eval_soft_budget_afa_method
+from afabench.common.registry import (
+    get_afa_classifier_class,
+    get_afa_method_class,
+)
+
+from afabench.common.afa_uncoverings import (
     one_based_index_uncover_fn,
     get_image_patch_uncover_fn,
 )
-from common.config_classes import SoftEvalConfig
-from common.custom_types import (
+
+from afabench.common.custom_types import (
     AFAClassifier,
     AFADataset,
     AFAMethod,
 )
-from common.registry import get_afa_classifier_class, get_afa_method_class
-from common.utils import load_dataset_artifact, set_seed
-from eval.soft_budget import eval_soft_budget_afa_method
 
 
 def load_trained_method_artifacts(
@@ -46,7 +49,9 @@ def load_trained_method_artifacts(
         trained_method_artifact.metadata["method_type"]
     )
     log.debug(
-        f"Loading trained AFA method of class {method_class.__name__} from artifact {artifact_name}"
+        f"Loading trained AFA method of class {
+            method_class.__name__
+        } from artifact {artifact_name}"
     )
     method = method_class.load(trained_method_artifact_dir, device=device)
 
@@ -82,7 +87,9 @@ def load_trained_classifier_artifact(
     ]
     classifier_class = get_afa_classifier_class(classifier_class_name)
     log.debug(
-        f"Loading trained classifier of class {classifier_class_name} from artifact {artifact_name}"
+        f"Loading trained classifier of class {
+            classifier_class_name
+        } from artifact {artifact_name}"
     )
     classifier = classifier_class.load(
         trained_classifier_artifact_dir / "classifier.pt", device=device
@@ -114,12 +121,22 @@ def validate_artifacts(
         method_artifact.metadata["dataset_artifact_name"]
         == classifier_run.config["dataset_artifact_name"]
     ), (
-        f"The trained method artifact {trained_method_artifact_name} and the trained classifier artifact {trained_classifier_artifact_name} "
-        f"should have been trained on the same dataset, but they are not. Trained method was trained on {method_artifact.metadata['dataset_artifact_name']}, classifier was trained on {classifier_run.config['dataset_artifact_name']}."
+        f"The trained method artifact {
+            trained_method_artifact_name
+        } and the trained classifier artifact {
+            trained_classifier_artifact_name
+        } "
+        f"should have been trained on the same dataset, but they are not. Trained method was trained on {
+            method_artifact.metadata['dataset_artifact_name']
+        }, classifier was trained on {
+            classifier_run.config['dataset_artifact_name']
+        }."
     )
 
     log.debug(
-        f"Method and classifier artifacts are compatible and trained on the same dataset: {method_artifact.metadata['dataset_artifact_name']}"
+        f"Method and classifier artifacts are compatible and trained on the same dataset: {
+            method_artifact.metadata['dataset_artifact_name']
+        }"
     )
 
 
@@ -127,7 +144,9 @@ log = logging.getLogger(__name__)
 
 
 @hydra.main(
-    version_base=None, config_path="../../conf/soft_eval", config_name="config"
+    version_base=None,
+    config_path="../../extra/conf/soft_eval",
+    config_name="config",
 )
 def main(cfg: SoftEvalConfig) -> None:
     log.debug(cfg)
@@ -136,7 +155,8 @@ def main(cfg: SoftEvalConfig) -> None:
 
     run = wandb.init(
         job_type="evaluation",
-        config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore[reportArgumentType]
+        # pyright: ignore[reportArgumentType]
+        config=OmegaConf.to_container(cfg, resolve=True),
         dir="wandb",
     )
 
@@ -155,7 +175,9 @@ def main(cfg: SoftEvalConfig) -> None:
     elif cfg.dataset_split == "testing":
         dataset = test_dataset
     else:
-        msg = f"cfg.dataset_split should either be 'validation' or 'testing', not {cfg.dataset_split}"
+        msg = f"cfg.dataset_split should either be 'validation' or 'testing', not {
+            cfg.dataset_split
+        }"
         raise ValueError(msg)
     log.info("Loaded trained AFA method and dataset from artifacts")
 
@@ -238,7 +260,11 @@ def main(cfg: SoftEvalConfig) -> None:
         r"-budget_[^-]+", f"-costparam_{cfg.cost_param}", trained_base
     )
     eval_results_artifact = wandb.Artifact(
-        name=f"{trained_base_cost}-{cfg.trained_classifier_artifact_name.split(':')[0] if cfg.trained_classifier_artifact_name else 'builtin'}",
+        name=f"{trained_base_cost}-{
+            cfg.trained_classifier_artifact_name.split(':')[0]
+            if cfg.trained_classifier_artifact_name
+            else 'builtin'
+        }",
         type="soft_eval_results",
         metadata={
             "dataset_type": method_metadata["dataset_type"],

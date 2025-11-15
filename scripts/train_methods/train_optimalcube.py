@@ -1,26 +1,27 @@
 import gc
-import logging
-from pathlib import Path
-from tempfile import TemporaryDirectory
-from typing import Any, cast
-
-import hydra
 import torch
-from omegaconf import OmegaConf
-
 import wandb
-from common.afa_methods import OptimalCubeAFAMethod
-from common.config_classes import (
+import hydra
+import logging
+
+from pathlib import Path
+from typing import Any, cast
+from omegaconf import OmegaConf
+from tempfile import TemporaryDirectory
+
+from afabench.common.afa_methods import OptimalCubeAFAMethod
+from afabench.common.utils import load_dataset_artifact, set_seed
+
+from afabench.common.config_classes import (
     OptimalCubeTrainConfig,
 )
-from common.utils import load_dataset_artifact, set_seed
 
 log = logging.getLogger(__name__)
 
 
 @hydra.main(
     version_base=None,
-    config_path="../../conf/train/optimalcube",
+    config_path="../../extra/conf/train/optimalcube",
     config_name="config",
 )
 def main(cfg: OptimalCubeTrainConfig):
@@ -60,7 +61,9 @@ def main(cfg: OptimalCubeTrainConfig):
         # Save the model as a WandB artifact
         # Save the name of the afa method class as metadata
         afa_method_artifact = wandb.Artifact(
-            name=f"train_optimalcube-{cfg.dataset_artifact_name.split(':')[0]}-budget_{cfg.hard_budget}-seed_{cfg.seed}",
+            name=f"train_optimalcube-{
+                cfg.dataset_artifact_name.split(':')[0]
+            }-budget_{cfg.hard_budget}-seed_{cfg.seed}",
             type="trained_method",
             metadata={
                 "method_type": "optimalcube",

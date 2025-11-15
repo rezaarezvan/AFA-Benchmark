@@ -1,29 +1,30 @@
 import gc
-import logging
-from pathlib import Path
-from tempfile import TemporaryDirectory
-from typing import Any, cast
-
-import hydra
 import torch
-from omegaconf import OmegaConf
-
 import wandb
-from afa_generative.afa_methods import Ma2018AFAMethod
-from afa_rl.zannone2019.utils import (
+import hydra
+import logging
+
+from pathlib import Path
+from typing import Any, cast
+from omegaconf import OmegaConf
+from tempfile import TemporaryDirectory
+
+from afabench.common.utils import set_seed
+from afabench.afa_generative.afa_methods import Ma2018AFAMethod
+
+from afabench.afa_rl.zannone2019.utils import (
     load_pretrained_model_artifacts,
 )
-from common.config_classes import (
+from afabench.common.config_classes import (
     Ma2018TrainingConfig,
 )
-from common.utils import set_seed
 
 log = logging.getLogger(__name__)
 
 
 @hydra.main(
     version_base=None,
-    config_path="../../conf/train/ma2018",
+    config_path="../../extra/conf/train/ma2018",
     config_name="config",
 )
 def main(cfg: Ma2018TrainingConfig):
@@ -60,7 +61,9 @@ def main(cfg: Ma2018TrainingConfig):
         del afa_method
         afa_method = Ma2018AFAMethod.load(tmp_path, device=device)
         afa_method_artifact = wandb.Artifact(
-            name=f"train_ma2018-{pretrained_model_config.dataset_artifact_name.split(':')[0]}-budget_{cfg.hard_budget}-seed_{cfg.seed}",
+            name=f"train_ma2018-{
+                pretrained_model_config.dataset_artifact_name.split(':')[0]
+            }-budget_{cfg.hard_budget}-seed_{cfg.seed}",
             type="trained_method",
             metadata={
                 "method_type": "ma2018",

@@ -1,35 +1,24 @@
+import yaml
+import torch
+import hydra
+import wandb
 import logging
 import tempfile
+import numpy as np
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+
+from typing import Any
+from pathlib import Path
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from pathlib import Path
-from typing import Any
 
-import hydra
-import matplotlib as mpl
-import numpy as np
-import torch
-import yaml
-from matplotlib import pyplot as plt
-from matplotlib.ticker import MaxNLocator
 from omegaconf import OmegaConf
+from matplotlib.ticker import MaxNLocator
 
-import wandb
-from common.config_classes import PlotConfig
+from afabench.common.config_classes import PlotConfig
 
 log = logging.getLogger(__name__)
-
-# METHOD_STYLES = {
-#     "aaco": {"color": "#0173B2", "linestyle": "-", "name": "AACO"},
-#     "cae": {"color": "#DE8F05", "linestyle": "--", "name": "CAE-S"},
-#     "permutation": {"color": "#029E73", "linestyle": "-.", "name": "PT-S"},
-#     "covert2023": {"color": "#CC78BC", "linestyle": ":", "name": "GDFS-DG"},
-#     "gadgil2023": {"color": "#CA3542", "linestyle": "-", "name": "DIME-DG"},
-#     "ma2018": {"color": "#CA3542", "linestyle": "-", "name": "EDDI-GG"},
-#     "shim2018": {"color": "#FB4F14", "linestyle": "--", "name": "JAFA-MFRL"},
-#     "kachuee2019": {"color": "#56B4E9", "linestyle": "-.", "name": "OL-MFRL"},
-#     "zannone2019": {"color": "#949494", "linestyle": ":", "name": "ODIN-MBRL"},
-# }
 
 METHOD_STYLES = {
     "aaco": {
@@ -257,7 +246,9 @@ def load_eval_results(
 
 
 @hydra.main(
-    version_base=None, config_path="../../conf/plot", config_name="config"
+    version_base=None,
+    config_path="../../extra/conf/plot",
+    config_name="config",
 )
 def main(cfg: PlotConfig):
     log.debug(cfg)

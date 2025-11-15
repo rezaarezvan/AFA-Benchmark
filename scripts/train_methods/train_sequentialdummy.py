@@ -1,26 +1,27 @@
 import gc
-import logging
-from pathlib import Path
-from tempfile import TemporaryDirectory
-from typing import Any, cast
-
-import hydra
 import torch
-from omegaconf import OmegaConf
-
 import wandb
-from common.afa_methods import SequentialDummyAFAMethod
-from common.config_classes import (
+import hydra
+import logging
+
+from pathlib import Path
+from typing import Any, cast
+from omegaconf import OmegaConf
+from tempfile import TemporaryDirectory
+
+from afabench.common.afa_methods import SequentialDummyAFAMethod
+from afabench.common.utils import load_dataset_artifact, set_seed
+
+from afabench.common.config_classes import (
     SequentialDummyTrainConfig,
 )
-from common.utils import load_dataset_artifact, set_seed
 
 log = logging.getLogger(__name__)
 
 
 @hydra.main(
     version_base=None,
-    config_path="../../conf/train/sequentialdummy",
+    config_path="../../extra/conf/train/sequentialdummy",
     config_name="config",
 )
 def main(cfg: SequentialDummyTrainConfig) -> None:
@@ -66,7 +67,9 @@ def main(cfg: SequentialDummyTrainConfig) -> None:
             if cfg.hard_budget is not None
             else f"costparam_{cfg.cost_param}"
         )
-        artifact_name = f"train_sequentialdummy-{cfg.dataset_artifact_name.split(':')[0]}-{budget_str}-seed_{cfg.seed}"
+        artifact_name = f"train_sequentialdummy-{
+            cfg.dataset_artifact_name.split(':')[0]
+        }-{budget_str}-seed_{cfg.seed}"
         afa_method_artifact = wandb.Artifact(
             name=artifact_name,
             type="trained_method",

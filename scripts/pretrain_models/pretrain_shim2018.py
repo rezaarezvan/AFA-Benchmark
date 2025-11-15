@@ -1,20 +1,19 @@
 import gc
-import logging
-
-import hydra
-import lightning as pl
-import torch
-from lightning.pytorch.callbacks import ModelCheckpoint
-from lightning.pytorch.loggers import WandbLogger
-from omegaconf import OmegaConf
-
 import wandb
-from afa_rl.datasets import DataModuleFromDatasets
-from afa_rl.shim2018.utils import (
-    get_shim2018_model_from_config,
-)
-from common.config_classes import Shim2018PretrainConfig
-from common.utils import (
+import hydra
+import torch
+import logging
+import lightning as pl
+
+from omegaconf import OmegaConf
+from lightning.pytorch.loggers import WandbLogger
+from lightning.pytorch.callbacks import ModelCheckpoint
+
+from afabench.afa_rl.datasets import DataModuleFromDatasets
+from afabench.common.config_classes import Shim2018PretrainConfig
+from afabench.afa_rl.shim2018.utils import get_shim2018_model_from_config
+
+from afabench.common.utils import (
     get_class_probabilities,
     load_dataset_artifact,
     set_seed,
@@ -25,7 +24,7 @@ log = logging.getLogger(__name__)
 
 @hydra.main(
     version_base=None,
-    config_path="../../conf/pretrain/shim2018",
+    config_path="../../extra/conf/pretrain/shim2018",
     config_name="config",
 )
 def main(cfg: Shim2018PretrainConfig) -> None:
@@ -37,7 +36,8 @@ def main(cfg: Shim2018PretrainConfig) -> None:
     run = wandb.init(
         group="pretrain_shim2018",
         job_type="pretraining",
-        config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore[reportArgumentType]
+        # pyright: ignore[reportArgumentType]
+        config=OmegaConf.to_container(cfg, resolve=True),
         tags=["shim2018"],
         dir="wandb",
     )
@@ -69,7 +69,8 @@ def main(cfg: Shim2018PretrainConfig) -> None:
 
     # ModelCheckpoint callback
     checkpoint_callback = ModelCheckpoint(
-        monitor="val_loss_many_observations",  # val_loss_few_observations could also work but is probably not as robust
+        # val_loss_few_observations could also work but is probably not as robust
+        monitor="val_loss_many_observations",
         save_top_k=1,
         mode="min",
     )
@@ -91,9 +92,12 @@ def main(cfg: Shim2018PretrainConfig) -> None:
         pass
     finally:
         # Save best model as wandb artifact
-        best_checkpoint = trainer.checkpoint_callback.best_model_path  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
+        # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
+        best_checkpoint = trainer.checkpoint_callback.best_model_path
         pretrained_model_artifact = wandb.Artifact(
-            name=f"pretrain_shim2018-{cfg.dataset_artifact_name.split(':')[0]}",
+            name=f"pretrain_shim2018-{
+                cfg.dataset_artifact_name.split(':')[0]
+            }",
             type="pretrained_model",
         )
         pretrained_model_artifact.add_file(

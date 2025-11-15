@@ -1,26 +1,30 @@
 import gc
-import logging
-from pathlib import Path
-from tempfile import TemporaryDirectory
-from typing import Any, cast
-
-import hydra
 import torch
+import wandb
+import hydra
+import logging
+
+from torch import nn
+from pathlib import Path
+from typing import Any, cast
 from dacite import from_dict
 from omegaconf import OmegaConf
-from torch import nn
 from torchmetrics import Accuracy
+from tempfile import TemporaryDirectory
 
-import wandb
-from afa_discriminative.afa_methods import CMIEstimator, Gadgil2023AFAMethod
-from afa_discriminative.datasets import prepare_datasets
-from afa_discriminative.models import fc_Net
-from afa_discriminative.utils import MaskLayer
-from common.config_classes import (
+from afabench.afa_discriminative.models import fc_Net
+from afabench.afa_discriminative.utils import MaskLayer
+from afabench.afa_discriminative.datasets import prepare_datasets
+from afabench.afa_discriminative.afa_methods import (
+    CMIEstimator,
+    Gadgil2023AFAMethod,
+)
+
+from afabench.common.config_classes import (
     Gadgil2023PretrainingConfig,
     Gadgil2023TrainingConfig,
 )
-from common.utils import (
+from afabench.common.utils import (
     get_class_probabilities,
     load_dataset_artifact,
     set_seed,
@@ -31,7 +35,7 @@ log = logging.getLogger(__name__)
 
 @hydra.main(
     version_base=None,
-    config_path="../../conf/train/gadgil2023",
+    config_path="../../extra/conf/train/gadgil2023",
     config_name="config",
 )
 def main(cfg: Gadgil2023TrainingConfig):
@@ -55,9 +59,11 @@ def main(cfg: Gadgil2023TrainingConfig):
     artifact_filenames = [
         f.name for f in pretrained_model_artifact_dir.iterdir()
     ]
-    assert {"model.pt"}.issubset(artifact_filenames), (
-        f"Dataset artifact must contain a model.pt file. Instead found: {artifact_filenames}"
-    )
+    assert {"model.pt"}.issubset(
+        artifact_filenames
+    ), f"Dataset artifact must contain a model.pt file. Instead found: {
+        artifact_filenames
+    }"
     pretraining_run = pretrained_model_artifact.logged_by()
     assert pretraining_run is not None, (
         "Pretrained model artifact must be logged by a run."
@@ -142,7 +148,9 @@ def main(cfg: Gadgil2023TrainingConfig):
         del afa_method
         afa_method = Gadgil2023AFAMethod.load(tmp_path, device=device)
         afa_method_artifact = wandb.Artifact(
-            name=f"train_gadgil2023-{pretrained_model_config.dataset_artifact_name.split(':')[0]}-budget_{cfg.hard_budget}-seed_{cfg.seed}",
+            name=f"train_gadgil2023-{
+                pretrained_model_config.dataset_artifact_name.split(':')[0]
+            }-budget_{cfg.hard_budget}-seed_{cfg.seed}",
             type="trained_method",
             metadata={
                 "method_type": "gadgil2023",

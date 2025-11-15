@@ -1,23 +1,21 @@
-import gc
+import torch
+import wandb
+import timm
+import hydra
 import logging
-from datetime import datetime
+
+from torch import nn
 from pathlib import Path
+from omegaconf import OmegaConf
+from torch.utils.data import DataLoader
 from tempfile import NamedTemporaryFile
 
-import hydra
-import torch
-import timm
-from omegaconf import OmegaConf
-from torch import nn
-from torch.utils.data import DataLoader
+from afabench.afa_discriminative.utils import MaskLayer2d
+from afabench.common.classifiers import WrappedMaskedViTClassifier
+from afabench.common.models import MaskedViTClassifier, MaskedViTTrainer
+from afabench.common.config_classes import TrainMaskedViTClassifierConfig
 
-import wandb
-from afa_discriminative.utils import MaskLayer2d
-from common.config_classes import TrainMaskedViTClassifierConfig
-from common.models import MaskedViTClassifier, MaskedViTTrainer
-from common.classifiers import WrappedMaskedViTClassifier
-from common.utils import (
-    get_class_probabilities,
+from afabench.common.utils import (
     load_dataset_artifact,
     set_seed,
 )
@@ -27,7 +25,7 @@ log = logging.getLogger(__name__)
 
 @hydra.main(
     version_base=None,
-    config_path="../../conf/classifiers/masked_vit_classifier",
+    config_path="../../extra/conf/classifiers/masked_vit_classifier",
     config_name="config",
 )
 def main(cfg: TrainMaskedViTClassifierConfig) -> None:
@@ -38,7 +36,8 @@ def main(cfg: TrainMaskedViTClassifierConfig) -> None:
     run = wandb.init(
         group="train_masked_vit_classifier",
         job_type="train_classifier",
-        config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore[reportArgumentType]
+        # pyright: ignore[reportArgumentType]
+        config=OmegaConf.to_container(cfg, resolve=True),
         dir="wandb",
     )
     log.info(f"W&B run initialized: {run.name} ({run.id})")
@@ -98,7 +97,9 @@ def main(cfg: TrainMaskedViTClassifierConfig) -> None:
         wrapped_classifier.save(save_path)
 
     trained_classifier_artifact = wandb.Artifact(
-        name=f"masked_vit_classifier-{cfg.dataset_artifact_name.split(':')[0]}",
+        name=f"masked_vit_classifier-{
+            cfg.dataset_artifact_name.split(':')[0]
+        }",
         type="trained_classifier",
         metadata={
             "dataset_type": dataset_metadata["dataset_type"],
