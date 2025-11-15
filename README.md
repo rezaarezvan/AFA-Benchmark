@@ -1,5 +1,4 @@
 # AFA Benchmark
-
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![License:](https://img.shields.io/badge/License-XYZ-yellow.svg)]()
 [![Paper](https://img.shields.io/badge/KDD%202026-Paper-red.svg)]()
@@ -12,23 +11,21 @@ scenarios where acquiring features is costly. Includes implementations of
 multiple AFA methods, standardized datasets, and automated evaluation pipelines.
 
 ## Latest Updates
-**2025-10-16**: Trained and evaluated methods for the soft budget case. To reduce clutter, here is a plot with only a subset of the datasets, and only showing the accuracy/f1 score of the external classifier:
+**2025-10-16**:
+Trained and evaluated methods for the soft budget case. To reduce clutter, here is a plot with only a subset of the datasets, and only showing the accuracy/F1 score of the external classifier:
 ![plots of accuracy/f1 as a function of acquisition cost in the soft budget case](results/soft_budget_5_splits.png)
 Note that the Diabetes dataset uses non-uniform acquisition costs, and that physionet uses f1 score instead of accuracy.
 
 ## Features
-
 - Easily readable and reproducible configuration using
-  [hydra](https://hydra.cc/).
+  [hydra](https://hydra.cc/) and [snakemake](https://snakemake.readthedocs.io/en/stable/).
 - Modular design: rerun specific parts of the pipeline as needed.
 - Extensible framework: add custom datasets and AFA methods.
 
 ## Limitations
-
 - Supports only classification tasks; regression tasks are not yet implemented.
 
 ## What is Active Feature Acquisition?
-
 **Active Feature Acquisition (AFA)** addresses scenarios where,
 
 - **Features are expensive** to obtain (medical tests, surveys, sensors),
@@ -39,27 +36,14 @@ Note that the Diabetes dataset uses non-uniform acquisition costs, and that phys
 intelligently decide which tests to order next based on previous results, aiming
 for accurate diagnosis with minimal cost.
 
-**Visual Example**
-
-```
-Patient arrives → Blood test → More tests needed?
-     ↓              ↓              ↓
-  Age: 45      Glucose: High    → AFA decides: Check HbA1c
-  Sex: M       Pressure: Normal → Skip expensive MRI
-               ↓
-           Diagnosis with 3 tests instead of 10
-```
-
 ## Installation
 
 ### Prerequisites
-
 - [uv](https://docs.astral.sh/uv/)
 - [Weights & Biases](https://wandb.ai) account (for experiment tracking)
 - [mprocs](https://github.com/pvolok/mprocs) (optional, for batch training)
 
 ### Setup
-
 ```bash
 # Clone repository
 git clone https://github.com/Linusaronsson/AFA-Benchmark.git
@@ -79,7 +63,6 @@ this file can then be referenced in scripts in order to run experiments in
 parallel.
 
 ## Simple Example
-
 Train and evaluate a single AFA method on synthetic data:
 
 ```bash
@@ -144,7 +127,6 @@ saved to W&B and locally.
 |  **MiniBooNE**   | Real World |            130 064             |     50     |     2     |
 
 ## Project structure
-
 - `conf`: This is where all the configuration files are. Each configuration file
   corresponds to a class in `config_classes.py`.
 - `docs`: Documentation.
@@ -175,7 +157,6 @@ saved to W&B and locally.
 - `tests`: Unit tests.
 
 ## Full Pipeline Tutorial
-
 This tutorial will show how to train and evaluate two separate methods. The
 first one, **ODIN**, is RL-based and has a pretraining stage. The second one,
 **CAE**, is a static method based on global feature importance and does not
@@ -202,7 +183,6 @@ If you use the `zsh` shell, first run `setopt NO_NOMATCH` in your terminal so
 that square brackets do not have to be escaped in all commands.
 
 ### Dataset generation
-
 First, generate some data. You can choose hyperparameters by creating new
 configurations in `conf/dataset_generation/dataset/`. Let's assume that you want
 to generate two noiseless versions of the **cube** and **AFAContext** datasets.
@@ -216,7 +196,6 @@ Note how the chosen alias `"tutorial-data"` will be used by subsequent scripts
 that use these datasets.
 
 ### Pretraining
-
 **ODIN** has a pretraining stage where a partial variational autoencoder (PVAE)
 is trained. To pretrain on the recently generated datasets, run
 
@@ -227,7 +206,6 @@ uv run scripts/pipeline/pretrain.py --method-name "zannone2019" --dataset cube A
 The **CAE** method does not have to be pretrained.
 
 ### Training
-
 The training procedure is very similar to pretraining. The most notable
 difference is that you now have to provide a set of hard budgets to use for each
 dataset. To train **ODIN** and use the budgets [5,10] on **cube** but [4,8] on
@@ -248,7 +226,6 @@ Note that training this static method is sufficiently fast, so there's no need
 to limit the number of epochs.
 
 ### Classifier training
-
 This is an optional step, but useful if you want to assess a method's feature
 acquisition performance in isolation from a jointly trained classifier. Some
 methods train a classifier jointly, but using such a classifier directly during
@@ -261,7 +238,6 @@ uv run scripts/pipeline/train_classifier.py --dataset cube AFAContext --split 1 
 ```
 
 ### Evaluation
-
 One of the main features of **AFABench** is the consistent evaluation. The same
 evaluation script is used for all methods. To evaluate the two methods we just
 trained, we use the configuration file `conf/eval/lists/tutorial.yaml` in the
@@ -272,7 +248,6 @@ uv run scripts/pipeline/evaluate.py --launcher $LAUNCHER --device $DEVICE --yaml
 ```
 
 ### Plotting
-
 Now we are ready to produce some plots. We need tell the plotting script which
 evaluation results it should plot, so we create the file
 `conf/plot/lists/tutorial.yaml`.
@@ -300,7 +275,6 @@ The singular `'.'` instead of a list for budgets means that we accept any
 budget.
 
 ### Miscellaneous
-
 The `scripts/misc` contains other optional scripts that are not related to the
 main AFA results.
 
@@ -322,15 +296,13 @@ It will look like this:
 ![a screenshot of dictionaries containing training times](docs/tutorial-calc-times.png)
 
 ## Adding New Components
-
-You are highly recommended to use [hydra]() for specifying hyperparameters in
+You are highly recommended to use [hydra](https://hydra.cc/) for specifying hyperparameters in
 all of your scripts. The current code base makes heavy use of
 [structured configs](https://hydra.cc/docs/tutorials/structured_config/intro/).
 Place your dataclasses in `src/common/config_classes.py` and their corresponding
 instantiations in `conf/`.
 
 ### New Dataset
-
 1. **Implement dataset class**: All dataset classes are stored in
    `src/common/datasets.py`. They all implement the `AFADataset` protocol, which
    notably requires each dataset class to always have a fixed number of features
@@ -348,7 +320,6 @@ instantiations in `conf/`.
    `generate_dataset.py` script.
 
 ### New AFA Method
-
 1. **Implement the method**: You are free to place the source code for your
    method wherever you want. If you implement a new RL-based method, you could
    create the folder `src/afa_rl/new_rl_method/` for example. AFA methods are
@@ -368,11 +339,17 @@ which is the class that all RL-based methods use.
 - adding an additional `elif` statement to `get_afa_method_class`
 
 ## Citation
-
 If you use this benchmark in your research, please cite,
 
 ```bibtex
-@inproceedings{
+@misc{schütz2025afabenchgenericframeworkbenchmarking,
+      title={AFABench: A Generic Framework for Benchmarking Active Feature Acquisition},
+      author={Valter Schütz and Han Wu and Reza Rezvan and Linus Aronsson and Morteza Haghir Chehreghani},
+      year={2025},
+      eprint={2508.14734},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2508.14734},
 }
 ```
 
