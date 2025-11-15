@@ -19,6 +19,7 @@ class TestDatasets(TestCase):
         torch.testing.assert_close(
             get_wrapped_batch(t, idx=1, numel=6),
             torch.tensor(
-                [[3, 4], [5, 6], [1, 2], [3, 4], [5, 6], [1, 2]], dtype=torch.int64
+                [[3, 4], [5, 6], [1, 2], [3, 4], [5, 6], [1, 2]],
+                dtype=torch.int64,
             ),
         )

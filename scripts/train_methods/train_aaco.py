@@ -1,12 +1,13 @@
-import torch
-import hydra
-import wandb
 import logging
-
 from pathlib import Path
-from typing import Any, cast
-from omegaconf import OmegaConf
 from tempfile import TemporaryDirectory
+from typing import Any, cast
+
+import hydra
+import torch
+from omegaconf import OmegaConf
+
+import wandb
 from afa_oracle import create_aaco_method
 from common.config_classes import AACOTrainConfig
 from common.utils import load_dataset_artifact, set_seed
@@ -14,7 +15,9 @@ from common.utils import load_dataset_artifact, set_seed
 log = logging.getLogger(__name__)
 
 
-@hydra.main(version_base=None, config_path="../../conf/train/aco", config_name="config")
+@hydra.main(
+    version_base=None, config_path="../../conf/train/aco", config_name="config"
+)
 def main(cfg: AACOTrainConfig):
     log.debug(cfg)
     set_seed(cfg.seed)
@@ -22,7 +25,9 @@ def main(cfg: AACOTrainConfig):
     device = torch.device(cfg.device)
 
     run = wandb.init(
-        config=cast(dict[str, Any], OmegaConf.to_container(cfg, resolve=True)),
+        config=cast(
+            "dict[str, Any]", OmegaConf.to_container(cfg, resolve=True)
+        ),
         job_type="training",
         tags=["aaco"],
         dir="wandb",
@@ -44,9 +49,14 @@ def main(cfg: AACOTrainConfig):
     log.info(f"Features: {n_features}, Classes: {n_classes}")
     log.info(f"Training samples: {len(train_dataset)}")
 
+    cost = (
+        cfg.cost_param
+        if cfg.cost_param is not None
+        else cfg.aco.acquisition_cost
+    )
     aaco_method = create_aaco_method(
         k_neighbors=cfg.aco.k_neighbors,
-        acquisition_cost=cfg.aco.acquisition_cost,
+        acquisition_cost=cost,
         hide_val=cfg.aco.hide_val,
         dataset_name=dataset_type.lower(),
         split=split,
@@ -63,23 +73,31 @@ def main(cfg: AACOTrainConfig):
     with TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir)
         aaco_method.save(temp_path)
+        split_idx = cfg.dataset_artifact_name.split("_split_")[-1].split(":")[
+            0
+        ]
+        dataset_lower = dataset_type.lower()
 
-        split_idx = cfg.dataset_artifact_name.split("_split_")[-1].split(":")[0]
+        artifact_name = f"train_aaco-{dataset_lower}_split_{split_idx}-costparam_{cost}-seed_{cfg.seed}"
 
         trained_method_artifact = wandb.Artifact(
-            name=f"aaco-{dataset_type}_split_{split_idx}",
+            name=artifact_name,
             type="trained_method",
             metadata={
                 "method_type": "aaco",
                 "dataset_type": dataset_type,
                 "dataset_artifact_name": cfg.dataset_artifact_name,
-                "budget": None,  # AACO doesn't have fixed training budget
+                "budget": None,
                 "seed": cfg.seed,
+                "cost_param": cost,
             },
         )
         trained_method_artifact.add_dir(str(temp_path))
-        run.log_artifact(trained_method_artifact, aliases=cfg.output_artifact_aliases)
+        run.log_artifact(
+            trained_method_artifact, aliases=cfg.output_artifact_aliases
+        )
 
+    wandb.finish()
     log.info("AACO method saved as artifact")
     run.finish()
 

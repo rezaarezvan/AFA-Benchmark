@@ -2,8 +2,8 @@ import torch
 
 from afa_rl.utils import (
     get_1D_identity,
-    get_feature_set,
     get_2d_identity,
+    get_feature_set,
     get_image_feature_set,
     resample_invalid_actions,
 )
@@ -43,7 +43,9 @@ def test_get_feature_set():
     # Batched, stack them
     masked_features = torch.stack([masked_features1, masked_features2])
     feature_mask = torch.stack([feature_mask1, feature_mask2])
-    expected_feature_set = torch.stack([expected_feature_set1, expected_feature_set2])
+    expected_feature_set = torch.stack(
+        [expected_feature_set1, expected_feature_set2]
+    )
     expected_lengths = torch.stack([expected_length1, expected_length2])
 
     feature_set, lengths = get_feature_set(masked_features, feature_mask)
@@ -59,11 +61,15 @@ def test_get_feature_set():
 def test_get_1D_identity():
     # First case
     feature_mask1 = torch.tensor([1, 0, 1], dtype=torch.bool)
-    expected1 = torch.tensor([[1, 0, 0], [0, 0, 0], [0, 0, 1]], dtype=torch.float32)
+    expected1 = torch.tensor(
+        [[1, 0, 0], [0, 0, 0], [0, 0, 1]], dtype=torch.float32
+    )
 
     # Second case
     feature_mask2 = torch.tensor([1, 1, 0], dtype=torch.bool)
-    expected2 = torch.tensor([[1, 0, 0], [0, 1, 0], [0, 0, 0]], dtype=torch.float32)
+    expected2 = torch.tensor(
+        [[1, 0, 0], [0, 1, 0], [0, 0, 0]], dtype=torch.float32
+    )
 
     # Batched, stack them
     feature_mask = torch.stack([feature_mask1, feature_mask2])
@@ -119,7 +125,9 @@ def test_get_image_feature_set():
     result = get_image_feature_set(masked_image, feature_mask, image_shape)
 
     # The order of rows matters because of how nonzero works (row-major)
-    assert torch.equal(result, expected), f"\nExpected:\n{expected}\nGot:\n{result}"
+    assert torch.equal(result, expected), (
+        f"\nExpected:\n{expected}\nGot:\n{result}"
+    )
 
 
 def test_get_2D_identity():
@@ -163,7 +171,9 @@ def test_get_2D_identity():
     result = get_2d_identity(feature_mask, image_shape)
 
     # The order of rows matters because of how nonzero works (row-major)
-    assert torch.equal(result, expected), f"\nExpected:\n{expected}\nGot:\n{result}"
+    assert torch.equal(result, expected), (
+        f"\nExpected:\n{expected}\nGot:\n{result}"
+    )
 
 
 def test_resample_invalid_actions():
@@ -189,8 +199,12 @@ def test_resample_invalid_actions():
         ]
     )
 
-    resampled_actions = resample_invalid_actions(actions, action_mask, action_values)
-    assert torch.all(action_mask[torch.arange(actions.shape[0]), resampled_actions])
+    resampled_actions = resample_invalid_actions(
+        actions, action_mask, action_values
+    )
+    assert torch.all(
+        action_mask[torch.arange(actions.shape[0]), resampled_actions]
+    )
     # Ensure invalid actions are replaced with the highest valid value
     expected_actions = torch.tensor([2, 0, 3])
     assert torch.all(resampled_actions == expected_actions)
@@ -204,8 +218,12 @@ def test_resample_invalid_actions_randomized():
     actions = torch.randint(0, num_actions, (batch_size,))
 
     # Randomly generate action masks ensuring at least one valid action per row
-    action_mask = torch.rand(batch_size, num_actions) > 0.3  # 70% chance of being valid
-    valid_mask = action_mask.any(dim=-1)  # Ensure at least one valid action per row
+    action_mask = (
+        torch.rand(batch_size, num_actions) > 0.3
+    )  # 70% chance of being valid
+    valid_mask = action_mask.any(
+        dim=-1
+    )  # Ensure at least one valid action per row
     while not valid_mask.all():  # Regenerate rows with no valid actions
         action_mask[~valid_mask] = torch.rand(1, num_actions) > 0.3
         valid_mask = action_mask.any(dim=-1)
@@ -216,12 +234,14 @@ def test_resample_invalid_actions_randomized():
     action_values = torch.rand(batch_size, num_actions)
 
     # Apply resampling function
-    resampled_actions = resample_invalid_actions(actions, action_mask, action_values)
+    resampled_actions = resample_invalid_actions(
+        actions, action_mask, action_values
+    )
 
     # Assertions
-    assert torch.all(action_mask[torch.arange(batch_size), resampled_actions]), (
-        "Some resampled actions are still invalid!"
-    )
+    assert torch.all(
+        action_mask[torch.arange(batch_size), resampled_actions]
+    ), "Some resampled actions are still invalid!"
 
     # Compute the expected highest valid action per row
     valid_action_values = action_values.clone()
@@ -233,5 +253,6 @@ def test_resample_invalid_actions_randomized():
 
     # Ensure invalid actions were correctly replaced
     assert torch.all(
-        resampled_actions[invalid_mask] == expected_resampled_actions[invalid_mask]
+        resampled_actions[invalid_mask]
+        == expected_resampled_actions[invalid_mask]
     ), "Invalid actions were not replaced with the highest valid action!"

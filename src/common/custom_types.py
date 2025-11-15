@@ -1,21 +1,23 @@
 from pathlib import Path
 from typing import ClassVar, Protocol, Self
 
+import torch
 from jaxtyping import Bool, Float, Integer
 from torch import Tensor
-import torch
-
 
 # AFA datasets return features and labels
 type Features = Float[Tensor, "*batch n_features"]
 # We use float here since in general we can have probabilities, not only one-hot
 type Label = Float[Tensor, "*batch n_classes"]
+# We need to be able to distinguish between samples, e.g., for tracking performance per sample
+type SampleIndex = Integer[Tensor, "*batch 1"]
 
 type Logits = Float[Tensor, "*batch model_output_size"]
 
 
 class AFADataset(Protocol):
-    """Datasets that can be used for evaluating AFA methods.
+    """
+    Datasets that can be used for evaluating AFA methods.
 
     Notably, the __init__ constructor should *not* generate data. Instead, generate_data() should be called. This makes it possible to call load if deterministic data is desired.
     """
@@ -33,12 +35,14 @@ class AFADataset(Protocol):
         ...
 
     def __getitem__(self, idx: int) -> tuple[Features, Label]:
-        """Return a single (possibly batched) sample from the dataset."""
+        """Return a single sample from the dataset. The index of the sample in the dataset should also be returned."""
         ...
 
     def __len__(self) -> int: ...
 
-    def get_all_data(self) -> tuple[Features, Label]:
+    def get_all_data(
+        self,
+    ) -> tuple[Features, Label]:
         """Return all of the data in the dataset. Useful for batched computations."""
         ...
 
@@ -51,17 +55,20 @@ class AFADataset(Protocol):
         """Load the dataset from a file. The file should contain the dataset in a format that can be loaded by the dataset. This enables deterministic loading of datasets."""
         ...
 
+    def get_feature_acquisition_costs(self) -> Tensor:
+        """Return the acquisition costs for each feature as a 1D tensor of shape (n_features,)."""
+        return torch.ones(self.n_features)  # Default: all features have cost 1
+
 
 type MaskedFeatures = Integer[Tensor, "*batch n_features"]
 type FeatureMask = Bool[Tensor, "*batch n_features"]
 
-# Outputs of AFA methods, representing which feature to collect next.
-# It is not possible to choose to stop collecting features, since we use a hard budget.
+# Outputs of AFA methods, representing which feature to collect next, or to stop acquiring features (0)
 type AFASelection = Integer[Tensor, "*batch 1"]
 
 
 class AFAMethod(Protocol):
-    """An AFA method is an object that can decide which features to collect next and also do predictions with the features it has seen so far."""
+    """An AFA method is an object that can decide which features to collect next (or stop collecting features) and also do predictions with the features it has seen so far."""
 
     def select(
         self,
@@ -101,9 +108,24 @@ class AFAMethod(Protocol):
         """Return the current device the method is on."""
         ...
 
+    @property
+    def has_builtin_classifier(self) -> bool:
+        """Return the current device the method is on."""
+        return False
+
+    @property
+    def cost_param(self) -> float | None:
+        """Return the cost parameter, if any. Only applies to methods that make trade-offs between feature cost and accuracy."""
+        return None
+
+    def set_cost_param(self, cost_param: float) -> None:
+        """Set the cost parameter, if any. Mostly applies to methods that do not need a cost parameter during training but can adjust the trade-off during evaluation."""
+        pass  # noqa: PIE790
+
 
 class AFAClassifier(Protocol):
-    """An AFA classifier is an object that can perform classification on masked features.
+    """
+    An AFA classifier is an object that can perform classification on masked features.
 
     Classifiers saved as artifacts should follow this protocol to ensure compatibility with the evaluation scripts.
     """
@@ -157,3 +179,14 @@ class AFAPredictFn(Protocol):
         features: Features | None,
         label: Label | None,
     ) -> Label: ...
+
+
+# Feature uncover interface assumed during evaluation. Applicable in scenarios where a single AFA action might uncover multiple features.
+class AFAUncoverFn(Protocol):
+    def __call__(
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        features: Features,
+        afa_selection: AFASelection,
+    ) -> tuple[FeatureMask, MaskedFeatures]: ...

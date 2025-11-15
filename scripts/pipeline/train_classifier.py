@@ -64,7 +64,8 @@ def main():
     jobs = []
     for dataset in args.dataset:
         dataset_artifact_names = [
-            f"{dataset}_split_{split}:{args.dataset_alias}" for split in args.split
+            f"{dataset}_split_{split}:{args.dataset_alias}"
+            for split in args.split
         ]
         cmd = (
             f"uv run scripts/train_classifiers/train_masked_mlp_classifier.py -m "

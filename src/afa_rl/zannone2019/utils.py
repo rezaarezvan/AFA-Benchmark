@@ -1,12 +1,13 @@
 from pathlib import Path
 from typing import Any
+
+import torch
 from dacite import from_dict
 from jaxtyping import Float
 from torch import Tensor
-import torch
 from torchrl.modules import MLP
-import wandb
 
+import wandb
 from afa_rl.utils import (
     str_to_activation_class_mapping,
 )
@@ -59,7 +60,9 @@ def get_zannone2019_model_from_config(
         out_features=2 * cfg.partial_vae.latent_size,
         num_cells=cfg.encoder.num_cells,
         dropout=cfg.encoder.dropout,
-        activation_class=str_to_activation_class_mapping[cfg.encoder.activation_class],
+        activation_class=str_to_activation_class_mapping[
+            cfg.encoder.activation_class
+        ],
     )
     partial_vae = PartialVAE(
         pointnet=pointnet,
@@ -114,7 +117,9 @@ def load_pretrained_model_artifacts(
     )
     pretrained_model_artifact_dir = Path(pretrained_model_artifact.download())
     # The dataset dir should contain a file called model.pt
-    artifact_filenames = [f.name for f in pretrained_model_artifact_dir.iterdir()]
+    artifact_filenames = [
+        f.name for f in pretrained_model_artifact_dir.iterdir()
+    ]
     assert {"model.pt"}.issubset(artifact_filenames), (
         f"Dataset artifact must contain a model.pt file. Instead found: {artifact_filenames}"
     )
@@ -130,8 +135,8 @@ def load_pretrained_model_artifacts(
     )
 
     # Load the dataset that the pretrained model was trained on
-    train_dataset, val_dataset, test_dataset, dataset_metadata = load_dataset_artifact(
-        pretrained_model_config.dataset_artifact_name
+    train_dataset, val_dataset, test_dataset, dataset_metadata = (
+        load_dataset_artifact(pretrained_model_config.dataset_artifact_name)
     )
 
     # Get the number of features and classes from the dataset

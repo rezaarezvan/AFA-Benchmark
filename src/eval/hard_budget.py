@@ -1,26 +1,30 @@
+import logging
 from typing import Any
 
+import numpy as np
 import torch
-import logging
-from torch.utils.data import DataLoader
+import torch.nn.functional as F
+from sklearn.metrics import accuracy_score, f1_score
 from torch import Tensor
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from common.custom_types import (
-    AFASelectFn,
-    AFAPredictFn,
     AFADataset,
+    AFAPredictFn,
+    AFASelectFn,
+    AFAUncoverFn,
     Label,
 )
-from sklearn.metrics import accuracy_score, f1_score
-import numpy as np
-import torch.nn.functional as F
 
 log = logging.getLogger(__name__)
 
 
-def aggregate_metrics(prediction_history, y_true) -> tuple[Tensor, Tensor, Tensor]:
-    """Compute accuracy, F1 and BCE across feature-selection budgets.
+def aggregate_metrics(
+    prediction_history, y_true
+) -> tuple[Tensor, Tensor, Tensor]:
+    """
+    Compute accuracy, F1 and BCE across feature-selection budgets.
 
     If y_true contains exactly two unique classes   → average="binary"
     Otherwise                                       → average="weighted"
@@ -57,7 +61,8 @@ def aggregate_metrics(prediction_history, y_true) -> tuple[Tensor, Tensor, Tenso
         probs_i = torch.stack([row for row in prediction_history[:, i]])
         bce_all.append(
             F.binary_cross_entropy(
-                probs_i, F.one_hot(y_true, num_classes=probs_i.shape[-1]).float()
+                probs_i,
+                F.one_hot(y_true, num_classes=probs_i.shape[-1]).float(),
             )
         )
 
@@ -102,8 +107,11 @@ def eval_afa_method(
     only_n_samples: int | None = None,
     batch_size: int = 1,
     device: torch.device | None = None,
+    afa_uncover_fn: AFAUncoverFn | None = None,
+    patch_size: int = 1,
 ) -> dict[str, Any]:
-    """Evaluate an AFA method.
+    """
+    Evaluate an AFA method.
 
     Args:
         afa_select_fn (AFASelectFn): How to select new features.
@@ -151,25 +159,36 @@ def eval_afa_method(
         labels_all.append(labels)
 
         # We will keep a history of which features have been observed, in case its relevant for evaluation
-        feature_mask_history = torch.zeros(
-            budget,
-            features.shape[0],
-            features.shape[1],
-            dtype=torch.bool,
-            device=device,
-        )  # budget, batch_size, n_features
+        # assume 4D image
+        if features.dim() > 2:
+            feature_mask_history = torch.zeros(
+                (budget, *features.shape),
+                dtype=torch.bool,
+                device=device,
+            )
+        else:
+            feature_mask_history = torch.zeros(
+                budget,
+                features.shape[0],
+                features.shape[1],
+                dtype=torch.bool,
+                device=device,
+            )  # budget, batch_size, n_features
 
         # And also a history of predictions
-        prediction_history = torch.zeros(
-            budget,
-            features.shape[0],
-            labels.shape[1],
-            dtype=torch.float32,
-            device=device,
-        )  # budget, batch_size, n_classes
+        prediction_history: Tensor | None = None
+        # prediction_history = torch.zeros(
+        #     budget,
+        #     features.shape[0],
+        #     labels.shape[1],
+        #     dtype=torch.float32,
+        #     device=device,
+        # )  # budget, batch_size, n_classes
 
         # Start with all features unobserved
-        feature_mask = torch.zeros_like(features, dtype=torch.bool, device=device)
+        feature_mask = torch.zeros_like(
+            features, dtype=torch.bool, device=device
+        )
         masked_features = features.clone()
         masked_features[~feature_mask] = 0.0
 
@@ -181,12 +200,26 @@ def eval_afa_method(
             ).squeeze(-1)
 
             # Update the feature mask and masked features
-            feature_mask[
-                torch.arange(feature_mask.shape[0], device=device), selections
-            ] = True
-            masked_features[
-                torch.arange(feature_mask.shape[0], device=device), selections
-            ] = features[torch.arange(feature_mask.shape[0], device=device), selections]
+            if afa_uncover_fn is not None and features.dim() > 2:
+                selections = selections.reshape(-1)
+                masked_features, feature_mask = afa_uncover_fn(
+                    masked_features=masked_features,
+                    feature_mask=feature_mask,
+                    features=features,
+                    afa_selection=selections,
+                )
+            else:
+                feature_mask[
+                    torch.arange(feature_mask.shape[0], device=device),
+                    selections,
+                ] = True
+                masked_features[
+                    torch.arange(feature_mask.shape[0], device=device),
+                    selections,
+                ] = features[
+                    torch.arange(feature_mask.shape[0], device=device),
+                    selections,
+                ]
             # Store a copy of the feature mask in history
             feature_mask_history[i] = feature_mask.clone()
 
@@ -195,14 +228,29 @@ def eval_afa_method(
                 masked_features, feature_mask, features, labels
             )
 
+            if prediction_history is None:
+                assert predictions.dim() == 2
+                n_classes = predictions.shape[1]
+                prediction_history = torch.zeros(
+                    budget,
+                    features.shape[0],
+                    n_classes,
+                    dtype=torch.float32,
+                    device=device,
+                )
             prediction_history[i] = predictions
+
+        assert prediction_history is not None
 
         # Add the feature mask history and prediction history of this batch to the overall history
         feature_mask_history_all.append(feature_mask_history)
         prediction_history_all.append(prediction_history)
 
         n_evaluated_samples += features.shape[0]
-        if only_n_samples is not None and n_evaluated_samples >= only_n_samples:
+        if (
+            only_n_samples is not None
+            and n_evaluated_samples >= only_n_samples
+        ):
             break
 
     temp = [
@@ -212,19 +260,56 @@ def eval_afa_method(
         temp
     )  # Tensor[n_samples,budget,n_classes] (n_batches)
 
-    temp = [
-        t.permute(1, 0, 2) for t in feature_mask_history_all
-    ]  # list[Tensor[batch_size,budget,n_classes]] (n_batches)
-    feature_mask_history_tensor: Tensor = torch.cat(
-        temp
-    )  # Tensor[n_samples,budget,n_classes] (n_batches)
-    # (n_classes,)
-    action_count = feature_mask_history_tensor[:, -1, :].sum(dim=0)
-    action_distribution = action_count / action_count.sum()  # (n_classes,)
+    if feature_mask_history_all[0].dim() == 5:
+        # 4D image mask
+        temp = [t.permute(1, 0, 2, 3, 4) for t in feature_mask_history_all]
+    elif feature_mask_history_all[0].dim() == 3:
+        temp = [
+            t.permute(1, 0, 2) for t in feature_mask_history_all
+        ]  # list[Tensor[batch_size,budget,n_classes]] (n_batches)
+    else:
+        raise ValueError(
+            f"Unexpected feature_mask_history_all[0].dim() = "
+            f"{feature_mask_history_all[0].dim()}."
+        )
+    feature_mask_history_tensor: Tensor = torch.cat(temp)
+    if feature_mask_history_tensor.dim() == 5:
+        last_mask = feature_mask_history_tensor[:, -1]
+        _, C, H, W = last_mask.shape
+        assert H % patch_size == 0 and W % patch_size == 0
+        ph, pw = H // patch_size, W // patch_size
+        fm = last_mask.view(
+            last_mask.shape[0],
+            C,
+            ph,
+            patch_size,
+            pw,
+            patch_size,
+        )
+        patch_revealed = fm.any(dim=(1, 3, 5))
+        patches_flat = patch_revealed.view(last_mask.shape[0], ph * pw).float()
+        action_count = patches_flat.sum(dim=0)
+        action_distribution = action_count / action_count.sum()
+    elif feature_mask_history_tensor.dim() == 3:
+        action_count = feature_mask_history_tensor[:, -1, :].sum(dim=0)
+        action_distribution = action_count / action_count.sum()  # (n_classes,)
+    else:
+        raise ValueError(
+            f"Unexpected feature_mask_history_tensor.dim() = "
+            f"{feature_mask_history_tensor.dim()}"
+        )
 
-    labels_tensor: Tensor = torch.cat(labels_all)  # Tensor[n_samples,n_classes]
-
-    labels_tensor = torch.argmax(labels_tensor, dim=1)
+    labels_tensor: Tensor = torch.cat(
+        labels_all
+    )  # Tensor[n_samples,n_classes]
+    if labels_tensor.dim() == 2:
+        labels_tensor = torch.argmax(labels_tensor, dim=1)
+    elif labels_tensor.dim() == 1:
+        pass
+    else:
+        raise ValueError(
+            f"Unexpected labels_tensor.dim() = {labels_tensor.dim()}"
+        )
 
     log.info("Aggregating metrics...")
     accuracy_all, f1_all, bce_all = aggregate_metrics(

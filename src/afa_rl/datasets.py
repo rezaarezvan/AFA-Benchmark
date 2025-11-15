@@ -22,12 +22,15 @@ def get_wrapped_batch(
     return repeated[idx : idx + numel]
 
 
-def get_afa_dataset_fn(features: Features, labels: Label) -> AFADatasetFn:
+def get_afa_dataset_fn(
+    features: Features, labels: Label, device: torch.device | None = None
+) -> AFADatasetFn:
     """Given features and labels, return a function that can be used to get batches of AFA data."""
     idx = 0  # keep track of where in the dataset we are
 
     def afa_dataset_fn(
-        batch_size: torch.Size, move_on: bool = True
+        batch_size: torch.Size,
+        move_on: bool = True,  # noqa: FBT002
     ) -> tuple[Features, Label]:
         nonlocal idx, features, labels
         local_features = get_wrapped_batch(features, idx, batch_size.numel())
@@ -41,8 +44,18 @@ def get_afa_dataset_fn(features: Features, labels: Label) -> AFADatasetFn:
                 perm = torch.randperm(len(features))
                 features = features[perm]
                 labels = labels[perm]
-        local_features = local_features.reshape(*batch_size, local_features.shape[-1])
-        local_labels = local_labels.reshape(*batch_size, local_labels.shape[-1])
+        local_features = local_features.reshape(
+            *batch_size, local_features.shape[-1]
+        )
+        local_labels = local_labels.reshape(
+            *batch_size, local_labels.shape[-1]
+        )
+
+        # Move to specified device if provided
+        if device is not None:
+            local_features = local_features.to(device)
+            local_labels = local_labels.to(device)
+
         return local_features, local_labels
 
     return afa_dataset_fn
@@ -97,7 +110,9 @@ class OneHotLabelWrapper(torch.utils.data.Dataset):
 
     def __getitem__(self, index):
         img, label = self.dataset[index]
-        one_hot_label = F.one_hot(torch.tensor(label), num_classes=self.num_classes)
+        one_hot_label = F.one_hot(
+            torch.tensor(label), num_classes=self.num_classes
+        )
         return img, one_hot_label
 
     def __len__(self):
@@ -126,14 +141,17 @@ class MNISTDataModule(pl.LightningDataModule):
         self.val_set = OneHotLabelWrapper(val_set, num_classes=10)
 
     def train_dataloader(self):
-        return DataLoader(self.train_set, batch_size=self.batch_size, shuffle=True)
+        return DataLoader(
+            self.train_set, batch_size=self.batch_size, shuffle=True
+        )
 
     def val_dataloader(self):
         return DataLoader(self.val_set, batch_size=self.batch_size)
 
 
 class Zannone2019CubeDataset(Dataset):
-    """The Cube dataset, as described in the paper "ODIN: Optimal Discovery of High-value INformation Using Model-based Deep Reinforcement Learning"
+    """
+    The Cube dataset, as described in the paper "ODIN: Optimal Discovery of High-value INformation Using Model-based Deep Reinforcement Learning"
 
     Implements the AFADataset protocol.
     """
@@ -153,7 +171,9 @@ class Zannone2019CubeDataset(Dataset):
         self.seed = seed
         self.non_informative_feature_mean = non_informative_feature_mean
         self.informative_feature_variance = informative_feature_variance
-        self.non_informative_feature_variance = non_informative_feature_variance
+        self.non_informative_feature_variance = (
+            non_informative_feature_variance
+        )
 
         self._informative_feature_std = math.sqrt(informative_feature_variance)
         self._non_informative_feature_std = math.sqrt(
@@ -165,7 +185,11 @@ class Zannone2019CubeDataset(Dataset):
         rng.manual_seed(self.seed)
         # Each coordinate is drawn from a Bernoulli distribution with p=0.5, which is the same as uniform
         coords = torch.randint(
-            low=0, high=2, size=(self.data_points, 3), dtype=torch.int64, generator=rng
+            low=0,
+            high=2,
+            size=(self.data_points, 3),
+            dtype=torch.int64,
+            generator=rng,
         )
         # Each corner in the cube is a different label
         labels = torch.einsum(
@@ -174,7 +198,9 @@ class Zannone2019CubeDataset(Dataset):
         # Coords have noise
         coords = coords.float()
         coords += (
-            torch.randn(self.data_points, 3, dtype=torch.float32, generator=rng)
+            torch.randn(
+                self.data_points, 3, dtype=torch.float32, generator=rng
+            )
             * self._informative_feature_std
         )
         # The final features are the coordinates offset according to the labels, and some noise added

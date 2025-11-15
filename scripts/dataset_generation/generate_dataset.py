@@ -1,17 +1,20 @@
+import copy
 import logging
 import os
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from time import strftime
+from typing import Any, cast
+
 import hydra
 import torch
-import copy
 from torch.utils.data import random_split
 from wandb.sdk.wandb_run import Run
+
+import wandb
 from common.config_classes import DatasetGenerationConfig, SplitRatioConfig
 from common.custom_types import AFADataset
 from common.registry import get_afa_dataset_class
-import wandb
 
 
 def create_split_dataset(original_dataset, subset):
@@ -47,6 +50,12 @@ def generate_and_save_split(
     dataset = dataset_class(**dataset_kwargs)
     dataset.generate_data()
 
+    if dataset_type == "diabetes":
+        g = torch.Generator().manual_seed(seed)
+        cast(Any, dataset).feature_costs = 1.0 + 9.0 * torch.rand(
+            dataset.n_features, generator=g
+        )
+
     # Calculate split sizes
     total_size = len(dataset)
     train_size = int(split_ratio.train * total_size)
@@ -55,7 +64,7 @@ def generate_and_save_split(
 
     # Split dataset
     train_subset, val_subset, test_subset = random_split(
-        dataset,
+        dataset,  # pyright: ignore[reportArgumentType]
         [train_size, val_size, test_size],
         generator=torch.Generator().manual_seed(seed),
     )

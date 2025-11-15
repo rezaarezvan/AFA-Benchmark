@@ -1,0 +1,28 @@
+program: scripts/train_methods/train_shim2018.py
+method: random
+parameters:
+    dataset:
+        values:
+            [
+                "cube",
+                "AFAContext",
+                "diabetes",
+                "FashionMNIST",
+                "miniboone",
+                "MNIST",
+                "physionet",
+            ]
+    cost_param:
+        distribution: log_uniform_values
+        min: 0.00001
+        max: 0.01
+
+command:
+    - ${env}
+    - python
+    - ${program}
+    - "-m"
+    - "hydra/launcher=vera"
+    - ${args_no_hyphens}
+    - "hard_budget=null"
+    - "device=cpu"

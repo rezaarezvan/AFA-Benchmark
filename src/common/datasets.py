@@ -1,16 +1,27 @@
-from pathlib import Path
-from typing import Self, final, override
+import os
+import urllib.request
+import zipfile
 from collections.abc import Callable
+from pathlib import Path
+from typing import Self, final, override, Literal
+import pandas as pd
 import torch
+from PIL import Image
+from sklearn.preprocessing import LabelEncoder
 from torch import Tensor
+from torch.nn import functional as F
 from torch.utils.data import Dataset
 from torchvision import datasets, transforms
-import pandas as pd
-import os
-from torch.nn import functional as F
+from torchvision.datasets import ImageFolder
+from ucimlrepo import fetch_ucirepo
 
-
-from common.custom_types import AFADataset, FeatureMask, MaskedFeatures, Features, Label
+from common.custom_types import (
+    AFADataset,
+    FeatureMask,
+    Features,
+    Label,
+    MaskedFeatures,
+)
 
 
 @final
@@ -50,7 +61,9 @@ class Shim2018CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         # Add Gaussian noise to coords
         coords = coords.float()
         coords += (
-            torch.randn(self.n_samples, 3, dtype=torch.float32, generator=self.rng)
+            torch.randn(
+                self.n_samples, 3, dtype=torch.float32, generator=self.rng
+            )
             * self.sigma
         )
         # The final features are the coordinates offset according to the labels, and uniform noise for all other features
@@ -70,7 +83,9 @@ class Shim2018CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 generator=self.rng,
             )
         # Convert labels to one-hot encoding
-        self.labels = torch.nn.functional.one_hot(labels, num_classes=8).float()
+        self.labels = torch.nn.functional.one_hot(
+            labels, num_classes=8
+        ).float()
 
     @override
     def __getitem__(self, idx: int):
@@ -111,7 +126,8 @@ class Shim2018CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
 @final
 class CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
-    """The Cube dataset, as described in the paper "ODIN: Optimal Discovery of High-value INformation Using Model-based Deep Reinforcement Learning"
+    """
+    The Cube dataset, as described in the paper "ODIN: Optimal Discovery of High-value INformation Using Model-based Deep Reinforcement Learning".
 
     Implements the AFADataset protocol.
     """
@@ -148,7 +164,11 @@ class CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
         # Draw labels
         y_int = torch.randint(
-            0, self.n_classes, (self.n_samples,), dtype=torch.int64, generator=self.rng
+            0,
+            self.n_classes,
+            (self.n_samples,),
+            dtype=torch.int64,
+            generator=self.rng,
         )
 
         # Binary codes for labels (8×3)
@@ -204,7 +224,7 @@ class CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         assert self.labels.shape[1] == self.n_classes
 
     @override
-    def __getitem__(self, idx: int) -> tuple[MaskedFeatures, FeatureMask]:
+    def __getitem__(self, idx: int) -> tuple[Features, Label]:
         return self.features[idx], self.labels[idx]
 
     @override
@@ -212,7 +232,7 @@ class CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         return len(self.features)
 
     @override
-    def get_all_data(self) -> tuple[MaskedFeatures, FeatureMask]:
+    def get_all_data(self) -> tuple[Features, Label]:
         return self.features, self.labels
 
     @override
@@ -244,7 +264,8 @@ class CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
 @final
 class CubeSimpleDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
-    """A simplified version of the cube dataset, made for debugging purposes. Three features contain label information and three others are noise.
+    """
+    A simplified version of the cube dataset, made for debugging purposes. Three features contain label information and three others are noise.
 
     Implements the AFADataset protocol.
     """
@@ -275,7 +296,11 @@ class CubeSimpleDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
         # Draw labels
         y_int = torch.randint(
-            0, self.n_classes, (self.n_samples,), dtype=torch.int64, generator=self.rng
+            0,
+            self.n_classes,
+            (self.n_samples,),
+            dtype=torch.int64,
+            generator=self.rng,
         )
 
         # Binary codes for labels (8×3)
@@ -361,7 +386,8 @@ class CubeSimpleDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
 @final
 class CubeOnlyInformativeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
-    """A version of the cube dataset that only has the first 10 informative features.
+    """
+    A version of the cube dataset that only has the first 10 informative features.
 
     Implements the AFADataset protocol.
     """
@@ -388,7 +414,11 @@ class CubeOnlyInformativeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
         # Draw labels
         y_int = torch.randint(
-            0, self.n_classes, (self.n_samples,), dtype=torch.int64, generator=self.rng
+            0,
+            self.n_classes,
+            (self.n_samples,),
+            dtype=torch.int64,
+            generator=self.rng,
         )
 
         # Binary codes for labels (8×3)
@@ -594,7 +624,8 @@ class CubeOnlyInformativeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
 @final
 class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
-    """A hybrid dataset combining context-based feature selection and the Cube dataset.
+    """
+    A hybrid dataset combining context-based feature selection and the Cube dataset.
 
     - Features:
         * First n_contexts features: one-hot context (0, 1, ..., n_contexts-1)
@@ -649,7 +680,9 @@ class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         )  # (n_samples, n_contexts)
 
         # Sample labels 0–7
-        y_int = torch.randint(0, self.n_classes, (self.n_samples,), generator=self.rng)
+        y_int = torch.randint(
+            0, self.n_classes, (self.n_samples,), generator=self.rng
+        )
 
         # Binary codes for labels (8×3)
         binary_codes = torch.stack(
@@ -701,7 +734,7 @@ class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         self.labels = F.one_hot(y_int, num_classes=self.n_classes).float()
 
     @override
-    def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
+    def __getitem__(self, idx: int) -> tuple[Features, Label]:
         return self.features[idx], self.labels[idx]
 
     @override
@@ -709,7 +742,7 @@ class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         return self.features.size(0)
 
     @override
-    def get_all_data(self) -> tuple[Tensor, Tensor]:
+    def get_all_data(self) -> tuple[Features, Label]:
         return self.features, self.labels
 
     @override
@@ -741,8 +774,11 @@ class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
 
 @final
-class AFAContextRandomInsertDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
-    """A hybrid dataset with context-based feature selection and Cube-like structure.
+class AFAContextRandomInsertDataset(
+    Dataset[tuple[Tensor, Tensor]], AFADataset
+):
+    """
+    A hybrid dataset with context-based feature selection and Cube-like structure.
 
     - Features:
         * First n_contexts features: one-hot context
@@ -785,7 +821,9 @@ class AFAContextRandomInsertDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         context = torch.randint(
             0, self.n_contexts, (self.n_samples,), generator=self.rng
         )
-        context_onehot = F.one_hot(context, num_classes=self.n_contexts).float()
+        context_onehot = F.one_hot(
+            context, num_classes=self.n_contexts
+        ).float()
         context_onehot += torch.normal(
             mean=0,
             std=self.context_feature_std,
@@ -793,7 +831,9 @@ class AFAContextRandomInsertDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             generator=self.rng,
         )
 
-        y_int = torch.randint(0, self.n_classes, (self.n_samples,), generator=self.rng)
+        y_int = torch.randint(
+            0, self.n_classes, (self.n_samples,), generator=self.rng
+        )
 
         binary_codes = torch.stack(
             [
@@ -816,7 +856,9 @@ class AFAContextRandomInsertDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             bin_code = binary_codes[label].float()
 
             # Select 3 **random** indices for informative positions
-            insert_idx = torch.randperm(self.block_size, generator=self.rng)[:3]
+            insert_idx = torch.randperm(self.block_size, generator=self.rng)[
+                :3
+            ]
 
             noise = torch.normal(
                 mean=0.0,
@@ -872,7 +914,8 @@ class AFAContextRandomInsertDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
 @final
 class ContextSelectiveXORDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
-    """Each data point:
+    """
+    Each data point:
       - context c ∈ {0, 1}
       - features: x1, x2, x3, x4 ∈ {0, 1}
 
@@ -912,7 +955,9 @@ class ContextSelectiveXORDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 labels[i] = int(x[i, 2] ^ x[i, 3])  # x3 XOR x4
 
         # One-hot labels
-        self.labels = torch.nn.functional.one_hot(labels, num_classes=2).float()
+        self.labels = torch.nn.functional.one_hot(
+            labels, num_classes=2
+        ).float()
 
         # Combine context and features into full feature vector
         self.features = torch.cat(
@@ -977,7 +1022,9 @@ class MNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     ):
         super().__init__()
         self.train = train
-        self.transform = transform if transform is not None else transforms.ToTensor()
+        self.transform = (
+            transform if transform is not None else transforms.ToTensor()
+        )
         self.download = download
         self.root = root
 
@@ -992,7 +1039,9 @@ class MNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             download=self.download,
         )
         # Convert images to features (flatten)
-        self.features = torch.stack([x[0].flatten() for x in self.dataset]).float()
+        self.features = torch.stack(
+            [x[0].flatten() for x in self.dataset]
+        ).float()
         assert self.features.shape[1] == self.n_features
         self.labels = torch.tensor([x[1] for x in self.dataset])
         self.labels = torch.nn.functional.one_hot(
@@ -1053,7 +1102,9 @@ class FashionMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     ):
         super().__init__()
         self.train = train
-        self.transform = transform if transform is not None else transforms.ToTensor()
+        self.transform = (
+            transform if transform is not None else transforms.ToTensor()
+        )
         self.download = download
         self.root = root
         self.dataset = None  # set when generating data
@@ -1067,7 +1118,9 @@ class FashionMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             download=self.download,
         )
         # Convert images to flattened feature vectors
-        self.features = torch.stack([x[0].flatten() for x in self.dataset]).float()
+        self.features = torch.stack(
+            [x[0].flatten() for x in self.dataset]
+        ).float()
         assert self.features.shape[1] == self.n_features
         self.labels = torch.tensor([x[1] for x in self.dataset])
         self.labels = torch.nn.functional.one_hot(
@@ -1113,7 +1166,8 @@ class FashionMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
 @final
 class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
-    """Diabetes dataset wrapped to follow the AFADataset protocol.
+    """
+    Diabetes dataset wrapped to follow the AFADataset protocol.
 
     This dataset contains medical measurements and indicators for diabetes classification.
     The target variable has 3 classes (0, 1, 2) representing different diabetes outcomes.
@@ -1131,6 +1185,7 @@ class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         self.data_path = data_path
         self.seed = seed
         self.feature_names = None  # set when generating data
+        self.feature_costs = None
 
     @override
     def generate_data(self) -> None:
@@ -1140,7 +1195,9 @@ class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
         # Check if file exists
         if not os.path.exists(self.data_path):
-            raise FileNotFoundError(f"Diabetes dataset not found at {self.data_path}")
+            raise FileNotFoundError(
+                f"Diabetes dataset not found at {self.data_path}"
+            )
 
         # Load the dataset
         df = pd.read_csv(self.data_path)
@@ -1185,6 +1242,7 @@ class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 "features": self.features,
                 "labels": self.labels,
                 "feature_names": self.feature_names,
+                "feature_costs": self.feature_costs,
                 "config": {
                     "data_path": self.data_path,
                     "seed": self.seed,
@@ -1202,12 +1260,25 @@ class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         dataset.features = data["features"]
         dataset.labels = data["labels"]
         dataset.feature_names = data["feature_names"]
+        dataset.feature_costs = data["feature_costs"]
         return dataset
+
+    @override
+    def get_feature_acquisition_costs(self) -> Tensor:
+        # msg = "Missing feature acquisition costs for DiabetesDataset."
+        # raise NotImplementedError(msg)
+        if self.feature_costs is None:
+            raise ValueError(
+                "Missing feature acquisition costs for DiabetesDataset. Generate or load costs first."
+            )
+        else:
+            return self.feature_costs
 
 
 @final
 class MiniBooNEDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
-    """MiniBooNE dataset wrapped to follow the AFADataset protocol.
+    """
+    MiniBooNE dataset wrapped to follow the AFADataset protocol.
 
     This dataset contains particle physics measurements from the MiniBooNE experiment.
     The target variable has 2 classes (signal and background).
@@ -1232,7 +1303,9 @@ class MiniBooNEDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         torch.manual_seed(self.seed)
 
         if not os.path.exists(self.data_path):
-            raise FileNotFoundError(f"MiniBooNE dataset not found at {self.data_path}")
+            raise FileNotFoundError(
+                f"MiniBooNE dataset not found at {self.data_path}"
+            )
 
         df = pd.read_csv(self.data_path)
 
@@ -1291,7 +1364,8 @@ class MiniBooNEDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
 @final
 class PhysionetDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
-    """Physionet dataset wrapped to follow the AFADataset protocol.
+    """
+    Physionet dataset wrapped to follow the AFADataset protocol.
 
     This dataset contains medical measurements from ICU patients.
     The target variable has 2 classes (0, 1) representing different outcomes.
@@ -1316,7 +1390,9 @@ class PhysionetDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         torch.manual_seed(self.seed)
 
         if not os.path.exists(self.data_path):
-            raise FileNotFoundError(f"Physionet dataset not found at {self.data_path}")
+            raise FileNotFoundError(
+                f"Physionet dataset not found at {self.data_path}"
+            )
 
         df = pd.read_csv(self.data_path)
 
@@ -1332,7 +1408,9 @@ class PhysionetDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
         # Check for NaNs after tensor conversion
         if torch.isnan(self.features).any():
-            raise ValueError("NaNs detected in features after filling missing values.")
+            raise ValueError(
+                "NaNs detected in features after filling missing values."
+            )
 
         # === Standardize features ===
         # scaler = StandardScaler()
@@ -1384,3 +1462,535 @@ class PhysionetDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         dataset.labels = data["labels"]
         dataset.feature_names = data["feature_names"]
         return dataset
+
+
+@final
+class BankMarketingDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
+    n_classes = 2
+    n_features = 16
+
+    def __init__(
+        self,
+        data_path: str = "data/bank_marketing/bank-marketing.csv",
+        seed: int = 123,
+    ):
+        super().__init__()
+        self.data_path = data_path
+        self.seed = seed
+        self.feature_names = None
+
+    @override
+    def generate_data(self) -> None:
+        torch.manual_seed(self.seed)
+
+        if not os.path.exists(self.data_path):
+            self._download_dataset()
+
+        df = pd.read_csv(self.data_path, sep=";")
+
+        # Process data
+        target_col = "y" if "y" in df.columns else "deposit"
+        features_df = df.drop(columns=[target_col])
+        target_series = df[target_col].map({"yes": 1, "no": 0})
+
+        # Encode categoricals
+        for col in features_df.columns:
+            if features_df[col].dtype == "object":
+                le = LabelEncoder()
+                features_df[col] = le.fit_transform(
+                    features_df[col].astype(str)
+                )
+
+        features_df = features_df.fillna(features_df.mean())
+
+        self.features = torch.tensor(features_df.values, dtype=torch.float32)
+        self.labels = torch.nn.functional.one_hot(
+            torch.tensor(target_series.values, dtype=torch.long),
+            num_classes=self.n_classes,
+        ).float()
+
+        BankMarketingDataset.n_features = self.features.shape[1]
+        self.feature_names = features_df.columns.tolist()
+
+        # Clean up raw CSV
+        os.remove(self.data_path)
+
+    def _download_dataset(self):
+        os.makedirs(os.path.dirname(self.data_path), exist_ok=True)
+        url = "https://archive.ics.uci.edu/ml/machine-learning-databases/00222/bank.zip"
+        zip_path = os.path.join(os.path.dirname(self.data_path), "bank.zip")
+
+        urllib.request.urlretrieve(url, zip_path)
+        with zipfile.ZipFile(zip_path, "r") as zip_ref:
+            csv_file = next(
+                f for f in zip_ref.namelist() if f.endswith("bank-full.csv")
+            )
+            zip_ref.extract(csv_file, os.path.dirname(self.data_path))
+            os.rename(
+                os.path.join(os.path.dirname(self.data_path), csv_file),
+                self.data_path,
+            )
+        os.remove(zip_path)
+
+    @override
+    def __getitem__(self, idx: int):
+        return self.features[idx], self.labels[idx]
+
+    @override
+    def __len__(self):
+        return len(self.features)
+
+    @override
+    def get_all_data(self):
+        return self.features, self.labels
+
+    @override
+    def save(self, path: Path):
+        torch.save(
+            {
+                "features": self.features,
+                "labels": self.labels,
+                "feature_names": self.feature_names,
+                "config": {"data_path": self.data_path, "seed": self.seed},
+            },
+            path,
+        )
+
+    @classmethod
+    @override
+    def load(cls, path: Path):
+        data = torch.load(path)
+        dataset = cls(**data["config"])
+        dataset.features = data["features"]
+        dataset.labels = data["labels"]
+        dataset.feature_names = data["feature_names"]
+        return dataset
+
+
+@final
+class CKDDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
+    """
+    Chronic Kidney Disease dataset from UCI Machine Learning Repository.
+
+    Binary classification task to predict CKD (chronic kidney disease) vs non-CKD.
+    Dataset contains 400 patient records with 24 clinical features.
+    """
+
+    n_classes = 2
+    n_features = 24  # Will be updated after preprocessing
+
+    def __init__(
+        self,
+        # Not used, kept for API consistency
+        data_path: str = "data/ckd/chronic_kidney_disease.csv",
+        seed: int = 123,
+    ):
+        super().__init__()
+        self.data_path = data_path
+        self.seed = seed
+        self.feature_names = None
+
+    @override
+    def generate_data(self) -> None:
+        torch.manual_seed(self.seed)
+
+        # Fetch dataset (ID 336 is Chronic Kidney Disease)
+        ckd_data = fetch_ucirepo(id=336)
+
+        # Get features and targets as pandas DataFrames
+        # Make copies to avoid SettingWithCopyWarning
+        features_df = ckd_data.data.features.copy()
+        target_df = ckd_data.data.targets.copy()
+
+        # Process target - convert 'ckd'/'notckd' to 1/0
+        # Handle potential whitespace and different capitalizations
+        target_series = (
+            target_df.iloc[:, 0].astype(str).str.strip().str.lower()
+        )
+        target_series = target_series.map({"ckd": 1, "notckd": 0})
+
+        # Handle any NaN values in target (shouldn't happen, but just in case)
+        if target_series.isna().any():
+            unique_vals = target_df.iloc[:, 0].unique()
+            raise ValueError(
+                f"Found NaN values in target after mapping. "
+                f"Unique values in original target: {unique_vals}"
+            )
+
+        # Handle missing values and encode categorical columns
+        for col in features_df.columns:
+            if features_df[col].dtype == "object":
+                # Use label encoding for categorical variables
+                le = LabelEncoder()
+                # Handle NaN values before label encoding
+                mask = features_df[col].notna()
+                if mask.any():
+                    features_df.loc[mask, col] = le.fit_transform(
+                        features_df.loc[mask, col].astype(str)
+                    )
+
+        # Convert all columns to numeric
+        for col in features_df.columns:
+            features_df[col] = pd.to_numeric(features_df[col], errors="coerce")
+
+        # Fill missing values with mean
+        features_df = features_df.fillna(features_df.mean())
+
+        # Convert to tensors
+        self.features = torch.tensor(features_df.values, dtype=torch.float32)
+        self.labels = torch.nn.functional.one_hot(
+            torch.tensor(target_series.values, dtype=torch.long),
+            num_classes=self.n_classes,
+        ).float()
+
+        # Update n_features based on actual data
+        CKDDataset.n_features = self.features.shape[1]
+        self.feature_names = features_df.columns.tolist()
+
+    @override
+    def __getitem__(self, idx: int):
+        return self.features[idx], self.labels[idx]
+
+    @override
+    def __len__(self):
+        return len(self.features)
+
+    @override
+    def get_all_data(self):
+        return self.features, self.labels
+
+    @override
+    def save(self, path: Path):
+        torch.save(
+            {
+                "features": self.features,
+                "labels": self.labels,
+                "feature_names": self.feature_names,
+                "config": {"data_path": self.data_path, "seed": self.seed},
+            },
+            path,
+        )
+
+    @classmethod
+    @override
+    def load(cls, path: Path):
+        data = torch.load(path)
+        dataset = cls(**data["config"])
+        dataset.features = data["features"]
+        dataset.labels = data["labels"]
+        dataset.feature_names = data["feature_names"]
+        return dataset
+
+
+@final
+class ACTG175Dataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
+    """
+    AIDS Clinical Trials Group Study 175 dataset from UCI Machine Learning Repository.
+
+    Binary classification task to predict death within a certain time window.
+    Dataset contains 2,139 HIV-infected patients with 23 clinical features.
+
+    From the famous ACTG 175 clinical trial comparing different HIV treatments.
+    """
+
+    n_classes = 2
+    n_features = 23  # Will be updated after preprocessing
+
+    def __init__(
+        self,
+        # Not used, kept for API consistency
+        data_path: str = "data/actg175/actg175.csv",
+        seed: int = 123,
+    ):
+        super().__init__()
+        self.data_path = data_path
+        self.seed = seed
+        self.feature_names = None
+
+    @override
+    def generate_data(self) -> None:
+        torch.manual_seed(self.seed)
+
+        # Fetch dataset (ID 890 is AIDS Clinical Trials Group Study 175)
+        actg_data = fetch_ucirepo(id=890)
+
+        # Get features and targets as pandas DataFrames
+        # Make copies to avoid SettingWithCopyWarning
+        features_df = actg_data.data.features.copy()
+        target_df = actg_data.data.targets.copy()
+
+        # Process target - binary classification for death
+        # The target variable in ACTG175 is typically 'cid' (censor indicator for death)
+        # or we may need to check what column name is used
+        # Get the first (and likely only) target column
+        target_col = target_df.columns[0]
+        target_series = target_df[target_col]
+
+        # Convert to binary (0/1) if not already
+        if target_series.dtype == "object":
+            # Map string values to binary
+            unique_vals = target_series.unique()
+            if len(unique_vals) == 2:
+                # Create mapping for binary classification
+                target_series = target_series.map(
+                    {unique_vals[0]: 0, unique_vals[1]: 1}
+                )
+        else:
+            # Ensure it's 0/1
+            target_series = target_series.astype(int)
+
+        # Handle any NaN values in target
+        if target_series.isna().any():
+            raise ValueError(
+                f"Found NaN values in target. "
+                f"Target column: {target_col}, "
+                f"Unique values: {target_df[target_col].unique()}"
+            )
+
+        # Handle missing values and encode categorical columns
+        for col in features_df.columns:
+            if features_df[col].dtype == "object":
+                # Use label encoding for categorical variables
+                le = LabelEncoder()
+                # Handle NaN values before label encoding
+                mask = features_df[col].notna()
+                if mask.any():
+                    features_df.loc[mask, col] = le.fit_transform(
+                        features_df.loc[mask, col].astype(str)
+                    )
+
+        # Convert all columns to numeric
+        for col in features_df.columns:
+            features_df[col] = pd.to_numeric(features_df[col], errors="coerce")
+
+        # Fill missing values with mean
+        features_df = features_df.fillna(features_df.mean())
+
+        # Convert to tensors
+        self.features = torch.tensor(features_df.values, dtype=torch.float32)
+        self.labels = torch.nn.functional.one_hot(
+            torch.tensor(target_series.values, dtype=torch.long),
+            num_classes=self.n_classes,
+        ).float()
+
+        # Update n_features based on actual data
+        ACTG175Dataset.n_features = self.features.shape[1]
+        self.feature_names = features_df.columns.tolist()
+
+    @override
+    def __getitem__(self, idx: int):
+        return self.features[idx], self.labels[idx]
+
+    @override
+    def __len__(self):
+        return len(self.features)
+
+    @override
+    def get_all_data(self):
+        return self.features, self.labels
+
+    @override
+    def save(self, path: Path):
+        torch.save(
+            {
+                "features": self.features,
+                "labels": self.labels,
+                "feature_names": self.feature_names,
+                "config": {"data_path": self.data_path, "seed": self.seed},
+            },
+            path,
+        )
+
+    @classmethod
+    @override
+    def load(cls, path: Path):
+        data = torch.load(path)
+        dataset = cls(**data["config"])
+        dataset.features = data["features"]
+        dataset.labels = data["labels"]
+        dataset.feature_names = data["feature_names"]
+        return dataset
+
+
+# @final
+class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
+    """
+    Imagenette dataset from the FastAI image classification benchmark.
+
+    A subset of 10 easily classified classes from Imagenet.
+    """
+
+    n_classes = 10
+    n_features = 3 * 224 * 224
+
+    def __init__(
+        self,
+        data_root: str = "data",
+        variant_dir: str = "imagenette2-320",
+        load_subdirs: tuple[str, ...] = ("train", "val"),
+        seed: int = 123,
+        image_size: int = 224,
+        split_role: str | None = None,
+    ):
+        super().__init__()
+        self.data_root = data_root
+        self.variant_dir = variant_dir
+        self.load_subdirs = load_subdirs
+        self.seed = seed
+        self.image_size = image_size
+        self.split_role = split_role  # "train" | "val" | "test"
+        self.indices: torch.Tensor | None = None
+        self.transform = None
+        # self.samples: list[str] | None = None
+        # self.targets: torch.Tensor | None = None
+
+        # self.features: Tensor | None = None
+        # self.labels: Tensor | None = None
+        # self.indices: Tensor | None = None
+        # self.class_to_idx: dict[str, int] | None = None
+        # self.classes: list[str] | None = None
+
+    def _train_transform(self):
+        return transforms.Compose(
+            [
+                transforms.RandomResizedCrop(self.image_size),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
+                ),
+            ]
+        )
+
+    def _eval_transform(self):
+        return transforms.Compose(
+            [
+                transforms.Resize(256),
+                transforms.CenterCrop(self.image_size),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
+                ),
+            ]
+        )
+
+    def _root(self) -> Path:
+        root = Path(self.data_root) / self.variant_dir
+        if not root.exists():
+            raise FileNotFoundError(
+                f"Imagenette folder not found at {root}. "
+                f"Expected '{self.variant_dir}' with train/ and val/ subdirs."
+            )
+        return root
+
+    def generate_data(self) -> None:
+        torch.manual_seed(self.seed)
+        use_train_aug = self.split_role == "train"
+        self.transform = (
+            self._train_transform()
+            if use_train_aug
+            else self._eval_transform()
+        )
+
+        root = self._root()
+        sub_datasets: list[ImageFolder] = []
+        for sub in self.load_subdirs:
+            d = root / sub
+            if not d.exists():
+                raise FileNotFoundError(f"Expected subdir '{sub}' at {d}")
+            sub_datasets.append(ImageFolder(str(d), transform=None))
+
+        self.samples = [
+            path for ds in sub_datasets for (path, _) in ds.samples
+        ]
+        self.targets = torch.tensor(
+            [y for ds in sub_datasets for (_, y) in ds.samples],
+            dtype=torch.long,
+        )
+        self.indices = torch.arange(len(self.samples), dtype=torch.long)
+
+        # self.class_to_idx = sub_datasets[0].class_to_idx
+        # self.classes = sub_datasets[0].classes
+
+        # xs: list[Tensor] = []
+        # ys: list[int] = []
+        # for ds in sub_datasets:
+        #     for path, y in ds.samples:
+        #         with Image.open(path) as im:
+        #             im = im.convert("RGB")
+        #             x = tfm(im)
+        #         xs.append(x)
+        #         ys.append(y)
+
+        # self.features = torch.stack(xs, dim=0).contiguous()  # [N,3,224,224]
+        # y = torch.tensor(ys, dtype=torch.long)
+        # self.labels = torch.nn.functional.one_hot(y, num_classes=10).float()
+        # self.indices = torch.arange(len(self.features), dtype=torch.long)
+
+    def __getitem__(self, idx: int):  # type: ignore[override]
+        assert (
+            self.samples is not None
+            and self.targets is not None
+            and self.transform is not None
+        )
+        path = self.samples[idx]
+        y = self.targets[idx]
+        with Image.open(path) as im:
+            im = im.convert("RGB")
+            x = self.transform(im)
+        return x, y
+        # return self.features[idx], self.labels[idx]
+
+    def __len__(self) -> int:
+        return len(self.samples)
+        # return self.features.shape[0]
+
+    # TODO need to modify the evaluation script as well
+    # def get_all_data(self) -> tuple[Tensor, Tensor]:
+    #     return self.features, self.labels
+
+    def save(self, path: Path) -> None:
+        """
+        Save only the split indices and the dataset config
+        reconstruct later from raw files on load
+        """
+        path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(
+            {
+                "indices": self.indices,
+                "config": {
+                    "data_root": self.data_root,
+                    "variant_dir": self.variant_dir,
+                    "load_subdirs": self.load_subdirs,
+                    "seed": self.seed,
+                    "image_size": self.image_size,
+                    "split_role": self.split_role,
+                },
+            },
+            path,
+        )
+
+    @classmethod
+    def load(cls, path: Path) -> Self:
+        data = torch.load(path)
+        cfg = data["config"]
+        idx = data["indices"]
+        if "split_role" not in cfg or cfg["split_role"] is None:
+            stem = Path(path).stem.lower()
+            if "train" in stem:
+                cfg["split_role"] = "train"
+            elif "val" in stem:
+                cfg["split_role"] = "val"
+            elif "test" in stem:
+                cfg["split_role"] = "test"
+            else:
+                cfg["split_role"] = "val"
+
+        ds = cls(**cfg)
+        ds.generate_data()
+        # ds.features = ds.features[idx]
+        # ds.labels = ds.labels[idx]
+        ds.samples = [ds.samples[i] for i in idx.tolist()]
+        ds.targets = ds.targets[idx]
+        ds.indices = idx
+        return ds

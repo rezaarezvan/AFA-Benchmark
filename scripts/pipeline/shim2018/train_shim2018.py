@@ -3,6 +3,8 @@ import os
 import subprocess
 import time
 
+import numpy as np
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -15,6 +17,9 @@ def parse_args():
     parser.add_argument("--output-alias", type=str, required=True)
     parser.add_argument("--wandb-entity", type=str, default="afa-team")
     parser.add_argument("--wandb-project", type=str, default="afa-benchmark")
+    parser.add_argument("--min-acquisition-cost", type=float, required=True)
+    parser.add_argument("--max-acquisition-cost", type=float, required=True)
+    parser.add_argument("--n-acquisition-cost", type=int, required=True)
     return parser.parse_args()
 
 
@@ -25,6 +30,16 @@ def main():
 
     print("Starting shim2018 training jobs...")
     time.sleep(1)
+
+    # Generate acquisition costs uniformly in the specified range
+    acquisition_costs = np.linspace(
+        args.min_acquisition_cost,
+        args.max_acquisition_cost,
+        args.n_acquisition_cost,
+    )
+    acquisition_costs_str = ",".join(
+        f"{cost:.6f}" for cost in acquisition_costs
+    )
 
     jobs = []
     for dataset, budgets_str in zip(args.dataset, args.budgets, strict=False):
@@ -38,6 +53,7 @@ def main():
             f"dataset@_global_={dataset} "
             f"pretrained_model_artifact_name={','.join(pretrained_model_artifact_names)} "
             f'hard_budget="{budgets_str}" '
+            f"acquisition_cost={acquisition_costs_str} "
             f"device={args.device} hydra/launcher={args.launcher}"
         )
         jobs.append(cmd)

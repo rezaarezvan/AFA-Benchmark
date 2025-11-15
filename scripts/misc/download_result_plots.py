@@ -1,14 +1,13 @@
-import re
 import logging
-from pathlib import Path
+import re
 import shutil
+from pathlib import Path
 
 import hydra
 import torch
-import wandb
 
+import wandb
 from common.config_classes import PlotDownloadConfig
-from omegaconf import OmegaConf
 
 
 def process_figure_artifact(figure_artifact, files):
@@ -55,7 +54,11 @@ def process_plot_artifact(cfg: PlotDownloadConfig, plot_run):
 
 
 def is_match(
-    artifact_name: str, dataset: str, budget: int | None, metric: str, file_type: str
+    artifact_name: str,
+    dataset: str,
+    budget: int | None,
+    metric: str,
+    file_type: str,
 ):
     if budget is None:
         budget_pattern = r"budget\d+"

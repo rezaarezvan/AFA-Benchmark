@@ -1,21 +1,24 @@
 import gc
 import logging
+
 import hydra
+import lightning as pl
+import torch
+from lightning.pytorch.callbacks import ModelCheckpoint
+from lightning.pytorch.loggers import WandbLogger
 from omegaconf import OmegaConf
 
-import lightning as pl
-from lightning.pytorch.callbacks import ModelCheckpoint
-import torch
-from lightning.pytorch.loggers import WandbLogger
-
 import wandb
+from afa_rl.datasets import DataModuleFromDatasets
 from afa_rl.shim2018.utils import (
     get_shim2018_model_from_config,
 )
 from common.config_classes import Shim2018PretrainConfig
-from afa_rl.datasets import DataModuleFromDatasets
-from common.utils import get_class_probabilities, load_dataset_artifact, set_seed
-
+from common.utils import (
+    get_class_probabilities,
+    load_dataset_artifact,
+    set_seed,
+)
 
 log = logging.getLogger(__name__)
 
@@ -34,7 +37,7 @@ def main(cfg: Shim2018PretrainConfig) -> None:
     run = wandb.init(
         group="pretrain_shim2018",
         job_type="pretraining",
-        config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore
+        config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore[reportArgumentType]
         tags=["shim2018"],
         dir="wandb",
     )
@@ -44,7 +47,9 @@ def main(cfg: Shim2018PretrainConfig) -> None:
     log.info(f"W&B run URL: {run.url}")
 
     # Load dataset artifact
-    train_dataset, val_dataset, _, _ = load_dataset_artifact(cfg.dataset_artifact_name)
+    train_dataset, val_dataset, _, _ = load_dataset_artifact(
+        cfg.dataset_artifact_name
+    )
     datamodule = DataModuleFromDatasets(
         train_dataset, val_dataset, batch_size=cfg.batch_size
     )
@@ -54,7 +59,9 @@ def main(cfg: Shim2018PretrainConfig) -> None:
     n_classes = train_dataset.labels.shape[-1]
 
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
-    log.debug(f"Class probabilities in training set: {train_class_probabilities}")
+    log.debug(
+        f"Class probabilities in training set: {train_class_probabilities}"
+    )
     lit_model = get_shim2018_model_from_config(
         cfg, n_features, n_classes, train_class_probabilities
     )
@@ -84,13 +91,17 @@ def main(cfg: Shim2018PretrainConfig) -> None:
         pass
     finally:
         # Save best model as wandb artifact
-        best_checkpoint = trainer.checkpoint_callback.best_model_path  # pyright: ignore
+        best_checkpoint = trainer.checkpoint_callback.best_model_path  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
         pretrained_model_artifact = wandb.Artifact(
             name=f"pretrain_shim2018-{cfg.dataset_artifact_name.split(':')[0]}",
             type="pretrained_model",
         )
-        pretrained_model_artifact.add_file(local_path=best_checkpoint, name="model.pt")
-        run.log_artifact(pretrained_model_artifact, aliases=cfg.output_artifact_aliases)
+        pretrained_model_artifact.add_file(
+            local_path=best_checkpoint, name="model.pt"
+        )
+        run.log_artifact(
+            pretrained_model_artifact, aliases=cfg.output_artifact_aliases
+        )
         run.finish()
 
         gc.collect()  # Force Python GC

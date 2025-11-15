@@ -1,9 +1,8 @@
-from jaxtyping import Bool
-from typing import Protocol
 from collections.abc import Callable
+from typing import Protocol
 
 import torch
-from jaxtyping import Float, Integer
+from jaxtyping import Bool, Float, Integer
 from torch import Tensor
 
 from common.custom_types import (
@@ -73,10 +72,10 @@ type NaiveIdentityFn = Callable[[FeatureMask], NaiveIdentity]
 type AFAReward = Float[Tensor, "*batch 1"]
 type AFARewardFn = Callable[
     [
-        MaskedFeatures,
-        FeatureMask,
-        MaskedFeatures,
-        FeatureMask,
+        MaskedFeatures,  # current masked features
+        FeatureMask,  # current feature mask
+        MaskedFeatures,  # new masked features
+        FeatureMask,  # new feature mask
         AFASelection,
         Features,
         Label,

@@ -1,76 +1,57 @@
-from pathlib import Path
 from typing import Any
-from matplotlib.figure import Figure
-import torch
-from matplotlib import pyplot as plt
+
 import numpy as np
+from matplotlib import pyplot as plt
 
-from common.utils import get_folders_with_matching_params
-
-
-def get_eval_results_with_fixed_keys(
-    fixed_params_mapping: dict[str, Any] = {}, results_path=Path("results")
-) -> list[dict[str, Any]]:
-    """Return all evaluation results (as dictionaries) that have specific params values.
-    The remaining keys are allowed to take any value.
-
-    Args:
-        fixed_params_mapping (dict[str, Any]): A dictionary mapping parameter names to their fixed values. Applies to the `params.yml` file in the results folder.
-        results_path (Path): The path to the results folder. Defaults to "results".
-
-    """
-    return [
-        torch.load(folder / "results.pt")
-        for folder in get_folders_with_matching_params(
-            results_path, fixed_params_mapping
-        )
-    ]
+import wandb
 
 
-def get_classifier_paths_trained_on_data(
-    classifier_type: str,
-    train_dataset_path: Path,
-    classifier_folder=Path("models/classifiers"),
-) -> list[Path]:
-    """Get Paths to all classifiers of a specific type trained on a specific dataset."""
-    # Define the fixed parameters to match
-    fixed_params_mapping = {"train_dataset_path": str(train_dataset_path)}
-
-    # Get all matching folders
-    matching_folders = get_folders_with_matching_params(
-        classifier_folder / classifier_type, fixed_params_mapping
-    )
-
-    return matching_folders
-
-
-def plot_metrics(metrics: dict[str, Any]) -> Figure:
+def plot_metrics(metrics: dict[str, Any]) -> wandb.Image:
     """Return a figure containing metrics."""
     assert "accuracy_all" in metrics, "Metrics must contain 'accuracy_all'."
     assert "f1_all" in metrics, "Metrics must contain 'f1_all'."
     assert "bce_all" in metrics, "Metrics must contain 'bce_all'."
 
     budget = len(metrics["accuracy_all"])
-    fig, axs = plt.subplots(1, 2)
+    fig, axs = plt.subplots(1, 2, figsize=(15, 6))
+    fig.subplots_adjust(wspace=0.6)
     budgets = np.arange(1, budget + 1, 1)
-    axs[0].plot(
-        budgets,
-        metrics["accuracy_all"],
-        label="Accuracy",
-        marker="o",
-    )
-    axs[0].plot(
-        budgets,
-        metrics["f1_all"],
-        label="F1 Score",
-        marker="o",
-    )
+
+    # Convert to numpy arrays and handle NaN values
+    accuracy_all = np.array(metrics["accuracy_all"])
+    f1_all = np.array(metrics["f1_all"])
+    bce_all = np.array(metrics["bce_all"])
+
+    # Find valid (non-NaN) indices
+    valid_acc = ~np.isnan(accuracy_all)
+    valid_f1 = ~np.isnan(f1_all)
+    valid_bce = ~np.isnan(bce_all)
+
+    # Convert to regular Python lists for better Plotly compatibility
+    acc_x = budgets[valid_acc].tolist()
+    acc_y = accuracy_all[valid_acc].tolist()
+    f1_x = budgets[valid_f1].tolist()
+    f1_y = f1_all[valid_f1].tolist()
+    bce_x = budgets[valid_bce].tolist()
+    bce_y = bce_all[valid_bce].tolist()
+
+    axs[0].plot(acc_x, acc_y, label="Accuracy")
+    axs[0].plot(f1_x, f1_y, label="F1 Score")
     axs[0].set_xlabel("Number of Selected Features (Budget)")
-    axs[1].plot(
-        budgets,
-        metrics["bce_all"],
-        label="Binary Cross-Entropy",
-        marker="o",
-    )
+    axs[0].set_ylabel("Score")
+    axs[0].set_title("Classification Metrics")
+    axs[0].legend(loc="upper left")
+    axs[0].grid(True, alpha=0.3)
+
+    axs[1].plot(bce_x, bce_y, color="red")
     axs[1].set_xlabel("Number of Selected Features (Budget)")
-    return fig
+    axs[1].set_ylabel("Binary Cross-Entropy")
+    axs[1].set_title("Loss Metric")
+    axs[1].grid(True, alpha=0.3)
+
+    plt.tight_layout()
+
+    # Convert to WandB Image to prevent automatic Plotly conversion
+    wandb_image = wandb.Image(fig)
+    plt.close(fig)  # Close the figure to free memory
+    return wandb_image

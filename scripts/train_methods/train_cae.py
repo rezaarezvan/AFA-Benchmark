@@ -1,23 +1,32 @@
 import gc
-import wandb
-import hydra
 import logging
 from pathlib import Path
-from typing import Any, cast
-from omegaconf import OmegaConf
-import numpy as np
 from tempfile import TemporaryDirectory
-import torch
-from torch import nn
-from torchrl.modules import MLP
-from torch.utils.data import DataLoader
-from static.models import BaseModel
-from static.utils import transform_dataset
-from static.static_methods import DifferentiableSelector, ConcreteMask, StaticBaseMethod
-from afa_discriminative.datasets import prepare_datasets
-from common.utils import set_seed, load_dataset_artifact, get_class_probabilities
-from common.config_classes import CAETrainingConfig
+from typing import Any, cast
 
+import hydra
+import numpy as np
+import torch
+from omegaconf import OmegaConf
+from torch import nn
+from torch.utils.data import DataLoader
+from torchrl.modules import MLP
+
+import wandb
+from afa_discriminative.datasets import prepare_datasets
+from common.config_classes import CAETrainingConfig
+from common.utils import (
+    get_class_probabilities,
+    load_dataset_artifact,
+    set_seed,
+)
+from static.models import BaseModel
+from static.static_methods import (
+    ConcreteMask,
+    DifferentiableSelector,
+    StaticBaseMethod,
+)
+from static.utils import transform_dataset
 
 log = logging.getLogger(__name__)
 
@@ -31,7 +40,9 @@ def main(cfg: CAETrainingConfig):
     log.debug(cfg)
     print(OmegaConf.to_yaml(cfg))
     run = wandb.init(
-        config=cast(dict[str, Any], OmegaConf.to_container(cfg, resolve=True)),
+        config=cast(
+            "dict[str, Any]", OmegaConf.to_container(cfg, resolve=True)
+        ),
         job_type="training",
         tags=["CAE"],
         dir="wandb",
@@ -79,7 +90,9 @@ def main(cfg: CAETrainingConfig):
     num_extras = cfg.hard_budget - len(np.unique(ranked_features))
     remaining_features = np.setdiff1d(np.arange(d_in), ranked_features)
     ranked_features = np.sort(
-        np.concatenate([np.unique(ranked_features), remaining_features[:num_extras]])
+        np.concatenate(
+            [np.unique(ranked_features), remaining_features[:num_extras]]
+        )
     )
 
     predictors: dict[int, nn.Module] = {}
@@ -141,7 +154,9 @@ def main(cfg: CAETrainingConfig):
             },
         )
         static_method_artifact.add_dir(str(tmp_path))
-        run.log_artifact(static_method_artifact, aliases=cfg.output_artifact_aliases)
+        run.log_artifact(
+            static_method_artifact, aliases=cfg.output_artifact_aliases
+        )
 
     run.finish()
 

@@ -1,12 +1,13 @@
 import gc
 import logging
 from pathlib import Path
-from typing import Any, cast
 from tempfile import TemporaryDirectory
+from typing import Any, cast
 
 import hydra
-from omegaconf import OmegaConf
 import torch
+from omegaconf import OmegaConf
+
 import wandb
 from common.afa_methods import OptimalCubeAFAMethod
 from common.config_classes import (
@@ -14,12 +15,13 @@ from common.config_classes import (
 )
 from common.utils import load_dataset_artifact, set_seed
 
-
 log = logging.getLogger(__name__)
 
 
 @hydra.main(
-    version_base=None, config_path="../../conf/train/optimalcube", config_name="config"
+    version_base=None,
+    config_path="../../conf/train/optimalcube",
+    config_name="config",
 )
 def main(cfg: OptimalCubeTrainConfig):
     log.debug(cfg)
@@ -27,7 +29,9 @@ def main(cfg: OptimalCubeTrainConfig):
     torch.set_float32_matmul_precision("medium")
 
     run = wandb.init(
-        config=cast(dict[str, Any], OmegaConf.to_container(cfg, resolve=True)),
+        config=cast(
+            "dict[str, Any]", OmegaConf.to_container(cfg, resolve=True)
+        ),
         job_type="training",
         tags=["randomdummy"],
         dir="wandb",
@@ -45,7 +49,9 @@ def main(cfg: OptimalCubeTrainConfig):
     # Get number of classes from the dataset
     n_classes = train_dataset.labels.shape[-1]
 
-    afa_method = OptimalCubeAFAMethod(device=torch.device("cpu"), n_classes=n_classes)
+    afa_method = OptimalCubeAFAMethod(
+        device=torch.device("cpu"), n_classes=n_classes
+    )
     # Save the method to a temporary directory and load it again to ensure it is saved correctly
     with TemporaryDirectory(delete=False) as tmp_path_str:
         tmp_path = Path(tmp_path_str)
@@ -66,7 +72,9 @@ def main(cfg: OptimalCubeTrainConfig):
         )
 
         afa_method_artifact.add_dir(str(tmp_path))
-        run.log_artifact(afa_method_artifact, aliases=cfg.output_artifact_aliases)
+        run.log_artifact(
+            afa_method_artifact, aliases=cfg.output_artifact_aliases
+        )
 
     run.finish()
 

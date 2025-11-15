@@ -1,18 +1,21 @@
-import torch
-import numpy as np
-
 from itertools import chain, combinations
+
+import numpy as np
+import torch
 
 
 def powerset(iterable):
-    """Generate all possible subsets (powerset) of the iterable, excluding the empty set.
+    """
+    Generate all possible subsets (powerset) of the iterable, excluding the empty set.
     powerset([1,2,3]) --> (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)
     """
     s = list(iterable)
     return [
         list(x)
         for x in list(
-            chain.from_iterable(combinations(s, r) for r in range(1, len(s) + 1))
+            chain.from_iterable(
+                combinations(s, r) for r in range(1, len(s) + 1)
+            )
         )
     ]
 

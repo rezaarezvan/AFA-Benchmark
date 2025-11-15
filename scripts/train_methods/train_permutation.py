@@ -1,25 +1,30 @@
 import gc
-import wandb
-import hydra
 import logging
 from pathlib import Path
-from typing import Any, cast
-from omegaconf import OmegaConf
-import numpy as np
-from tqdm import tqdm
 from tempfile import TemporaryDirectory
+from typing import Any, cast
+
+import hydra
+import numpy as np
 import torch
+from omegaconf import OmegaConf
 from torch import nn
+from torch.utils.data import DataLoader
 from torchmetrics import AUROC
 from torchrl.modules import MLP
-from torch.utils.data import DataLoader
-from static.models import BaseModel
-from static.utils import transform_dataset
-from static.static_methods import StaticBaseMethod
-from afa_discriminative.datasets import prepare_datasets
-from common.utils import set_seed, load_dataset_artifact, get_class_probabilities
-from common.config_classes import PermutationTrainingConfig
+from tqdm import tqdm
 
+import wandb
+from afa_discriminative.datasets import prepare_datasets
+from common.config_classes import PermutationTrainingConfig
+from common.utils import (
+    get_class_probabilities,
+    load_dataset_artifact,
+    set_seed,
+)
+from static.models import BaseModel
+from static.static_methods import StaticBaseMethod
+from static.utils import transform_dataset
 
 log = logging.getLogger(__name__)
 
@@ -33,7 +38,9 @@ def main(cfg: PermutationTrainingConfig):
     log.debug(cfg)
     print(OmegaConf.to_yaml(cfg))
     run = wandb.init(
-        config=cast(dict[str, Any], OmegaConf.to_container(cfg, resolve=True)),
+        config=cast(
+            "dict[str, Any]", OmegaConf.to_container(cfg, resolve=True)
+        ),
         job_type="training",
         tags=["permutation"],
         dir="wandb",
@@ -82,7 +89,9 @@ def main(cfg: PermutationTrainingConfig):
     for i in tqdm(range(d_in)):
         x_val = val_dataset.features.clone()
         y_val = val_dataset.labels
-        x_val[:, i] = x_train[np.random.choice(len(x_train), size=len(x_val)), i]
+        x_val[:, i] = x_train[
+            np.random.choice(len(x_train), size=len(x_val)), i
+        ]
         with torch.no_grad():
             pred = model(x_val.to(device)).cpu()
             permutation_importance[i] = -auroc_metric(pred, y_val)
@@ -92,12 +101,20 @@ def main(cfg: PermutationTrainingConfig):
     for num in num_features:
         selected_features = ranked_features[:num]
         selected_history[num] = selected_features.tolist()
-        train_subset = transform_dataset(train_dataset, selected_features.copy())
+        train_subset = transform_dataset(
+            train_dataset, selected_features.copy()
+        )
         val_subset = transform_dataset(val_dataset, selected_features.copy())
         train_subset_loader = DataLoader(
-            train_subset, batch_size=128, shuffle=True, pin_memory=True, drop_last=True
+            train_subset,
+            batch_size=128,
+            shuffle=True,
+            pin_memory=True,
+            drop_last=True,
         )
-        val_subset_loader = DataLoader(val_subset, batch_size=1024, pin_memory=True)
+        val_subset_loader = DataLoader(
+            val_subset, batch_size=1024, pin_memory=True
+        )
 
         model = MLP(
             in_features=num,
@@ -136,7 +153,9 @@ def main(cfg: PermutationTrainingConfig):
             },
         )
         static_method_artifact.add_dir(str(tmp_path))
-        run.log_artifact(static_method_artifact, aliases=cfg.output_artifact_aliases)
+        run.log_artifact(
+            static_method_artifact, aliases=cfg.output_artifact_aliases
+        )
 
     run.finish()
 

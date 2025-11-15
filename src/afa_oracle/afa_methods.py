@@ -1,10 +1,11 @@
-import torch
 import logging
-
-from pathlib import Path
 from dataclasses import dataclass
-from afa_oracle.aaco_core import AACOOracle
+from pathlib import Path
 from typing import Self, final, override
+
+import torch
+
+from afa_oracle.aaco_core import AACOOracle
 from common.custom_types import (
     AFAMethod,
     AFASelection,
@@ -22,7 +23,9 @@ class AACOAFAMethod(AFAMethod):
     aaco_oracle: AACOOracle
     dataset_name: str
     _device: torch.device = (
-        torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+        torch.device("cuda")
+        if torch.cuda.is_available()
+        else torch.device("cpu")
     )
 
     def __post_init__(self):
@@ -54,13 +57,24 @@ class AACOAFAMethod(AFAMethod):
             obs_mask = feature_mask[i]
 
             # Get next feature from AACO oracle
+            # next_feature = self.aaco_oracle.select_next_feature(
+            #     x_obs, obs_mask, instance_idx=i
+            # )
+            # assert next_feature is not None, (
+            #     "AACO oracle must return a valid feature index"
+            # )
+            # selections.append(next_feature)
+
+            # Get next feature from AACO oracle
             next_feature = self.aaco_oracle.select_next_feature(
                 x_obs, obs_mask, instance_idx=i
             )
-            assert next_feature is not None, (
-                "AACO oracle must return a valid feature index"
-            )
-            selections.append(next_feature)
+            # Handle stop action when ACO returns None (u(x_o, o) = ∅)
+            if next_feature is None:
+                # Return stop action
+                selections.append(0)
+            else:
+                selections.append(next_feature)
 
         # Return selection tensor on original device
         selection_tensor = torch.tensor(
@@ -103,7 +117,8 @@ class AACOAFAMethod(AFAMethod):
             x_with_mask = torch.cat([x_masked, obs_mask.float()])
 
             pred = self.aaco_oracle.classifier(
-                x_with_mask.unsqueeze(0), torch.tensor([0], device=self._device)
+                x_with_mask.unsqueeze(0),
+                torch.tensor([0], device=self._device),
             )
             pred = pred.squeeze()
 
@@ -129,6 +144,22 @@ class AACOAFAMethod(AFAMethod):
         # Return predictions on original device
         return predictions.to(original_device)
 
+    @property
+    @override
+    def cost_param(self) -> float:
+        """Return the current acquisition cost"""
+        return self.aaco_oracle.acquisition_cost
+
+    @override
+    def set_cost_param(self, cost_param: float) -> None:
+        """Set the acquisition cost at eval time"""
+        self.aaco_oracle.acquisition_cost = cost_param
+
+    @property
+    @override
+    def has_builtin_classifier(self) -> bool:
+        return True
+
     @override
     def save(self, path: Path) -> None:
         """Save method state"""
@@ -153,7 +184,9 @@ class AACOAFAMethod(AFAMethod):
     def load(cls, path: Path, device: torch.device = None) -> Self:
         """Load method from saved state"""
         if device is None:
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            device = torch.device(
+                "cuda" if torch.cuda.is_available() else "cpu"
+            )
 
         # Find saved oracle file
         oracle_files = list(path.glob("aaco_oracle_*.pt"))
@@ -172,9 +205,13 @@ class AACOAFAMethod(AFAMethod):
         )
 
         # Restore fitted state
-        if oracle_state["X_train"] is not None and oracle_state["y_train"] is not None:
+        if (
+            oracle_state["X_train"] is not None
+            and oracle_state["y_train"] is not None
+        ):
             aaco_oracle.fit(
-                oracle_state["X_train"].to(device), oracle_state["y_train"].to(device)
+                oracle_state["X_train"].to(device),
+                oracle_state["y_train"].to(device),
             )
 
         method = cls(

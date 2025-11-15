@@ -206,3 +206,15 @@ cython_debug/
 /lightning_logs
 
 /multirun
+debug/soft_budget/.Rhistory
+debug/soft_budget/*.csv
+debug/soft_budget/*.png
+conf/soft_eval/lists
+indicators
+.snakemake/metadata
+.snakemake
+scripts/plotting/*.csv
+workflow/snakefiles/dummy
+.Rproj.user
+AFA-Benchmark.Rproj
+.Rhistory

@@ -1,11 +1,13 @@
-import torch
 import logging
+
+import torch
 
 log = logging.getLogger(__name__)
 
 
 class classifier_mlp:
-    """MLP classifier wrapper that adapts WrappedMaskedMLPClassifier to AACO interface
+    """
+    MLP classifier wrapper that adapts WrappedMaskedMLPClassifier to AACO interface
     Handles the conversion between AACO's hide_val masking and MLP's zero masking
     """
 
@@ -14,7 +16,8 @@ class classifier_mlp:
         self.hide_val = hide_val
 
     def predict_logits(self, X):
-        """AACO interface expects this method for compatibility
+        """
+        AACO interface expects this method for compatibility
 
         Args:
             X: tensor of shape [batch_size, features + mask] where features use hide_val for missing

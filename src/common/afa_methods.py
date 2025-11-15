@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Self, final, override
+
 import torch
 
 from afa_rl.utils import afacontext_optimal_selection
@@ -19,9 +20,17 @@ from common.registry import get_afa_classifier_class
 class RandomDummyAFAMethod(AFAMethod):
     """A dummy AFAMethod for testing purposes. Chooses a random feature to observe from the masked features."""
 
-    def __init__(self, device: torch.device, n_classes: int):
+    def __init__(
+        self, device: torch.device, n_classes: int, prob_select_0: float = 0.0
+    ):
         self._device = device
         self.n_classes = n_classes
+        self.prob_select_0 = prob_select_0
+
+    @property
+    @override
+    def has_builtin_classifier(self) -> bool:
+        return True
 
     @override
     def select(
@@ -37,20 +46,30 @@ class RandomDummyAFAMethod(AFAMethod):
         masked_features = masked_features.to(self._device)
         feature_mask = feature_mask.to(self._device)
 
-        # Sample from unobserved features uniformly
-        probs = (~feature_mask).float()
+        batch_size = masked_features.shape[0]
+        select_0_mask = (
+            torch.rand(batch_size, device=self._device) < self.prob_select_0
+        )
 
-        # Avoid division by zero
-        row_sums = probs.sum(dim=1, keepdim=True)
-        probs = torch.where(
-            row_sums > 0, probs / row_sums, probs
-        )  # normalize or leave zeros
+        # Mask for samples where all features are acquired
+        all_acquired_mask = feature_mask.sum(dim=1) == feature_mask.shape[1]
 
-        # Sample one index per row
-        sampled = torch.multinomial(probs, num_samples=1)
-        selection = sampled.squeeze(1)  # (B, 1) → (B,)
+        # Initialize selection to zeros (action 0)
+        selection = torch.zeros(
+            batch_size, dtype=torch.long, device=self._device
+        )
 
-        return selection.to(original_device)
+        # Indices where not all features are acquired and not select_0_mask
+        to_sample_mask = (~all_acquired_mask) & (~select_0_mask)
+        if to_sample_mask.any():
+            # Only sample for these indices
+            probs = (~feature_mask[to_sample_mask]).float()
+            row_sums = probs.sum(dim=1, keepdim=True)
+            probs = torch.where(row_sums > 0, probs / row_sums, probs)
+            sampled = torch.multinomial(probs, num_samples=1).squeeze(1)
+            selection[to_sample_mask] = sampled + 1
+
+        return selection.to(original_device).unsqueeze(-1)
 
     @override
     def predict(
@@ -60,23 +79,43 @@ class RandomDummyAFAMethod(AFAMethod):
         features: Features | None,
         label: Label | None,
     ) -> Label:
-        """Return a random prediction from the classes."""
+        """Return a prediction that interpolates between a random prediction and the true label, depending on the proportion of unmasked features. If label is None, fallback to random."""
         original_device = masked_features.device
 
         masked_features = masked_features.to(self._device)
         feature_mask = feature_mask.to(self._device)
 
+        batch_size = masked_features.shape[0]
+
         # Pick a random class from the classes
-        prediction = torch.randint(
+        random_pred = torch.randint(
             0,
             self.n_classes,
-            (masked_features.shape[0],),
+            (batch_size,),
             device=masked_features.device,
         )
-        # One-hot encode the prediction
-        prediction = torch.nn.functional.one_hot(
-            prediction, num_classes=self.n_classes
+        # One-hot encode the random prediction
+        random_pred = torch.nn.functional.one_hot(
+            random_pred, num_classes=self.n_classes
         ).float()
+
+        if label is None:
+            return random_pred.to(original_device)
+
+        # Compute proportion of unmasked features for each sample
+        num_features = feature_mask.shape[1]
+        unmasked = feature_mask.sum(dim=1).float()
+        prop_unmasked = unmasked / num_features  # shape: (batch_size,)
+
+        # If label is not already one-hot, assume it is one-hot
+        true_label = label.to(self._device).float()
+
+        # Interpolate: pred = prop_unmasked * true_label + (1 - prop_unmasked) * random_pred
+        # Need to expand prop_unmasked to match shape
+        prop_unmasked = prop_unmasked.unsqueeze(1)  # (batch_size, 1)
+        prediction = (
+            prop_unmasked * true_label + (1 - prop_unmasked) * random_pred
+        )
 
         return prediction.to(original_device)
 
@@ -86,6 +125,7 @@ class RandomDummyAFAMethod(AFAMethod):
         torch.save(
             {
                 "n_classes": self.n_classes,
+                "prob_select_0": self.prob_select_0,
             },
             path / "method.pt",
         )
@@ -95,7 +135,7 @@ class RandomDummyAFAMethod(AFAMethod):
     def load(cls, path: Path, device: torch.device) -> Self:
         """Load the method from a file."""
         data = torch.load(path / "method.pt")
-        return cls(device, data["n_classes"])
+        return cls(device, data["n_classes"], data.get("prob_select_0", 0.0))
 
     @override
     def to(self, device: torch.device) -> Self:
@@ -107,14 +147,28 @@ class RandomDummyAFAMethod(AFAMethod):
     def device(self) -> torch.device:
         return self._device
 
+    @property
+    @override
+    def cost_param(self) -> float:
+        # Probability of selecting 0 can be interpreted as a cost parameter
+        return self.prob_select_0
+
 
 @final
 class SequentialDummyAFAMethod(AFAMethod):
-    """A dummy AFAMethod for testing purposes. Always chooses the next feature to observe in order."""
+    """A dummy AFAMethod for testing purposes. Always chooses the next feature to observe in order, with a probability to stop."""
 
-    def __init__(self, device: torch.device, n_classes: int):
+    def __init__(
+        self, device: torch.device, n_classes: int, prob_select_0: float
+    ):
         self._device = device
         self.n_classes = n_classes
+        self.prob_select_0 = prob_select_0
+
+    @property
+    @override
+    def has_builtin_classifier(self) -> bool:
+        return True
 
     @override
     def select(
@@ -129,11 +183,26 @@ class SequentialDummyAFAMethod(AFAMethod):
         masked_features = masked_features.to(self._device)
         feature_mask = feature_mask.to(self._device)
 
-        # Choose the next unobserved feature
-        unobserved_features = (~feature_mask).nonzero(as_tuple=True)[1]
-        if unobserved_features.numel() == 0:
-            return torch.tensor(0, device=masked_features.device)
-        selection = unobserved_features[0] + 1
+        batch_size = masked_features.shape[0]
+        select_0_mask = (
+            torch.rand(batch_size, device=self._device) < self.prob_select_0
+        )
+
+        # For each sample, find the first unobserved feature (if any)
+        selection = torch.zeros(
+            batch_size, dtype=torch.long, device=self._device
+        )
+        for i in range(batch_size):
+            unobserved = (~feature_mask[i]).nonzero(as_tuple=True)[0]
+            if unobserved.numel() > 0:
+                selection[i] = unobserved[0] + 1
+            else:
+                selection[i] = 0  # fallback if all features observed
+
+        # Where select_0_mask is True, set selection to 0
+        selection = torch.where(
+            select_0_mask, torch.zeros_like(selection), selection
+        )
 
         return selection.to(original_device)
 
@@ -151,14 +220,12 @@ class SequentialDummyAFAMethod(AFAMethod):
         masked_features = masked_features.to(self._device)
         feature_mask = feature_mask.to(self._device)
 
-        # Pick a random class from the classes
         prediction = torch.randint(
             0,
             self.n_classes,
             (masked_features.shape[0],),
             device=masked_features.device,
         )
-        # One-hot encode the prediction
         prediction = torch.nn.functional.one_hot(
             prediction, num_classes=self.n_classes
         ).float()
@@ -171,6 +238,7 @@ class SequentialDummyAFAMethod(AFAMethod):
         torch.save(
             {
                 "n_classes": self.n_classes,
+                "prob_select_0": self.prob_select_0,
             },
             path / "method.pt",
         )
@@ -180,7 +248,7 @@ class SequentialDummyAFAMethod(AFAMethod):
     def load(cls, path: Path, device: torch.device) -> Self:
         """Load the method from a folder."""
         data = torch.load(path / "method.pt")
-        return cls(device, data["n_classes"])
+        return cls(device, data["n_classes"], data.get("prob_select_0", 0.0))
 
     @override
     def to(self, device: torch.device) -> Self:
@@ -191,6 +259,11 @@ class SequentialDummyAFAMethod(AFAMethod):
     @override
     def device(self) -> torch.device:
         return self._device
+
+    @property
+    @override
+    def cost_param(self) -> float:
+        return self.prob_select_0
 
 
 @final
@@ -206,6 +279,11 @@ class RandomClassificationAFAMethod(AFAMethod):
         else:
             self._device = device
             self.afa_classifier = afa_classifier.to(device)
+
+    @property
+    @override
+    def has_builtin_classifier(self) -> bool:
+        return True
 
     @override
     def select(
@@ -264,14 +342,14 @@ class RandomClassificationAFAMethod(AFAMethod):
         """Save the method to a folder."""
         self.afa_classifier.save(path / "classifier.pt")
         # Write the classifier class name to a file
-        with open(path / "classifier_class_name.txt", "w") as f:
+        with (path / "classifier_class_name.txt").open("w") as f:
             f.write(self.afa_classifier.__class__.__name__)
 
     @classmethod
     @override
     def load(cls, path: Path, device: torch.device) -> Self:
         """Load the method from a file."""
-        with open(path / "classifier_class_name.txt") as f:
+        with (path / "classifier_class_name.txt").open("r") as f:
             classifier_class_name = f.read()
 
         afa_classifier = get_afa_classifier_class(classifier_class_name).load(
@@ -354,14 +432,14 @@ class SequentialClassificationAFAMethod(AFAMethod):
         """Save the method to a folder."""
         self.afa_classifier.save(path / "classifier.pt")
         # Write the classifier class name to a file
-        with open(path / "classifier_class_name.txt", "w") as f:
+        with (path / "classifier_class_name.txt").open("w") as f:
             f.write(self.afa_classifier.__class__.__name__)
 
     @classmethod
     @override
     def load(cls, path: Path, device: torch.device) -> Self:
         """Load the method from a file."""
-        with open(path / "classifier_class_name.txt") as f:
+        with (path / "classifier_class_name.txt").open("r") as f:
             classifier_class_name = f.read()
 
         afa_classifier = get_afa_classifier_class(classifier_class_name).load(
@@ -460,7 +538,9 @@ class OptimalCubeAFAMethod(AFAMethod):
         """Chooses to observe an optimal feature for the cube dataset, or a random unobserved feature if all optimal ones are chosen."""
         original_device = masked_features.device
 
-        assert label is not None, "OptimalCubeAFAMethod assumes that label is available"
+        assert label is not None, (
+            "OptimalCubeAFAMethod assumes that label is available"
+        )
 
         masked_features = masked_features.to(self._device)
         feature_mask = feature_mask.to(self._device)
@@ -469,11 +549,15 @@ class OptimalCubeAFAMethod(AFAMethod):
         batch_size, _num_features = feature_mask.shape
         label_int = label.argmax(dim=-1)  # (B,)
 
-        selection = torch.zeros(batch_size, dtype=torch.long, device=self._device)
+        selection = torch.zeros(
+            batch_size, dtype=torch.long, device=self._device
+        )
 
         for i in range(batch_size):
             optimal_idxs = torch.arange(
-                label_int[i].item(), label_int[i].item() + 3, device=feature_mask.device
+                label_int[i].item(),
+                label_int[i].item() + 3,
+                device=feature_mask.device,
             )
             unobserved = (~feature_mask[i])[optimal_idxs]
             if unobserved.any():

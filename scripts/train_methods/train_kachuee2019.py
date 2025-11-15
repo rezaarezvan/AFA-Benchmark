@@ -1,21 +1,22 @@
 import gc
 import logging
 from pathlib import Path
-from typing import Any, cast
 from tempfile import TemporaryDirectory
+from typing import Any, cast
 
-from dacite import from_dict
 import hydra
-from omegaconf import OmegaConf
 import torch
+from dacite import from_dict
+from omegaconf import OmegaConf
 from torchrl.collectors import SyncDataCollector
 from torchrl.envs import ExplorationType, check_env_specs, set_exploration_type
-from afa_rl.agents import Agent
 from tqdm import tqdm
 
 import wandb
 from afa_rl.afa_env import AFAEnv
 from afa_rl.afa_methods import RLAFAMethod
+from afa_rl.agents import Agent
+from afa_rl.datasets import get_afa_dataset_fn
 from afa_rl.kachuee2019.agents import Kachuee2019Agent
 from afa_rl.kachuee2019.models import (
     Kachuee2019AFAClassifier,
@@ -23,12 +24,10 @@ from afa_rl.kachuee2019.models import (
     LitKachuee2019PQModule,
 )
 from afa_rl.kachuee2019.reward import get_kachuee2019_reward_fn
-from afa_rl.datasets import get_afa_dataset_fn
 from afa_rl.kachuee2019.utils import get_kachuee2019_model_from_config
 from afa_rl.utils import (
     get_eval_metrics,
 )
-from common.afa_methods import RandomDummyAFAMethod
 from common.config_classes import (
     Kachuee2019PretrainConfig,
     Kachuee2019TrainConfig,
@@ -40,9 +39,6 @@ from common.utils import (
     load_dataset_artifact,
     set_seed,
 )
-
-from eval.metrics import eval_afa_method
-from eval.utils import plot_metrics
 
 
 def load_pretrained_model_artifacts(
@@ -61,7 +57,9 @@ def load_pretrained_model_artifacts(
     )
     pretrained_model_artifact_dir = Path(pretrained_model_artifact.download())
     # The dataset dir should contain a file called model.pt
-    artifact_filenames = [f.name for f in pretrained_model_artifact_dir.iterdir()]
+    artifact_filenames = [
+        f.name for f in pretrained_model_artifact_dir.iterdir()
+    ]
     assert {"model.pt"}.issubset(artifact_filenames), (
         f"Dataset artifact must contain a model.pt file. Instead found: {artifact_filenames}"
     )
@@ -77,15 +75,17 @@ def load_pretrained_model_artifacts(
     )
 
     # Load the dataset that the pretrained model was trained on
-    train_dataset, val_dataset, test_dataset, dataset_metadata = load_dataset_artifact(
-        pretrained_model_config.dataset_artifact_name
+    train_dataset, val_dataset, test_dataset, dataset_metadata = (
+        load_dataset_artifact(pretrained_model_config.dataset_artifact_name)
     )
 
     # Get the number of features and classes from the dataset
     n_features = train_dataset.features.shape[-1]
     n_classes = train_dataset.labels.shape[-1]
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
-    log.debug(f"Class probabilities in training set: {train_class_probabilities}")
+    log.debug(
+        f"Class probabilities in training set: {train_class_probabilities}"
+    )
 
     pretrained_model = get_kachuee2019_model_from_config(
         pretrained_model_config,
@@ -114,16 +114,20 @@ log = logging.getLogger(__name__)
 
 
 @hydra.main(
-    version_base=None, config_path="../../conf/train/kachuee2019", config_name="config"
+    version_base=None,
+    config_path="../../conf/train/kachuee2019",
+    config_name="config",
 )
-def main(cfg: Kachuee2019TrainConfig):
+def main(cfg: Kachuee2019TrainConfig):  # noqa: PLR0915
     log.debug(cfg)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
 
     run = wandb.init(
-        config=cast(dict[str, Any], OmegaConf.to_container(cfg, resolve=True)),
+        config=cast(
+            "dict[str, Any]", OmegaConf.to_container(cfg, resolve=True)
+        ),
         job_type="training",
         tags=["kachuee2019"],
         dir="wandb",
@@ -133,10 +137,21 @@ def main(cfg: Kachuee2019TrainConfig):
     log.info(f"W&B run initialized: {run.name} ({run.id})")
     log.info(f"W&B run URL: {run.url}")
 
-    # Load dataset artifact
-    # train_dataset, val_dataset, _, dataset_metadata = load_dataset_artifact(
-    #     cfg.dataset_artifact_name
-    # )
+    # Two possible cases: hard budget or soft budget
+    if cfg.hard_budget is None:
+        assert cfg.cost_param is not None, (
+            "If no hard budget is specified, a cost_param must be given for soft budget training."
+        )
+        log.info("Detected soft budget case")
+    if cfg.cost_param is None:
+        assert cfg.hard_budget is not None, (
+            "If no cost_param is specified, a hard budget must be given for hard budget training."
+        )
+        log.info("Detected hard budget case")
+    assert not (cfg.hard_budget is not None and cfg.cost_param is not None), (
+        "Only one of hard_budget or cost_param can be specified, not both."
+    )
+
     # Load pretrained model and dataset from artifacts
     (
         train_dataset,
@@ -149,7 +164,9 @@ def main(cfg: Kachuee2019TrainConfig):
     pq_module = pretrained_model.pq_module.to(device)
 
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
-    log.debug(f"Class probabilities in training set: {train_class_probabilities}")
+    log.debug(
+        f"Class probabilities in training set: {train_class_probabilities}"
+    )
     class_weights = 1 / train_class_probabilities
     class_weights = (class_weights / class_weights.sum()).to(device)
     n_features = train_dataset.features.shape[-1]
@@ -159,11 +176,19 @@ def main(cfg: Kachuee2019TrainConfig):
         pq_module=pq_module,
         method=cfg.reward_method,
         mcdrop_samples=cfg.mcdrop_samples,
+        acquisition_costs=torch.zeros(n_features, device=device)
+        if cfg.cost_param is None
+        else cfg.cost_param
+        * train_dataset.get_feature_acquisition_costs().to(device),
     )
 
     # MDP expects special dataset functions
-    train_dataset_fn = get_afa_dataset_fn(train_dataset.features, train_dataset.labels)
-    val_dataset_fn = get_afa_dataset_fn(val_dataset.features, val_dataset.labels)
+    train_dataset_fn = get_afa_dataset_fn(
+        train_dataset.features, train_dataset.labels
+    )
+    val_dataset_fn = get_afa_dataset_fn(
+        val_dataset.features, val_dataset.labels
+    )
 
     train_env = AFAEnv(
         dataset_fn=train_dataset_fn,
@@ -220,15 +245,29 @@ def main(cfg: Kachuee2019TrainConfig):
                     dict_with_prefix("process_batch.", process_batch_info)
                     | dict_with_prefix("cheap_info.", agent.get_cheap_info())
                     | {
-                        "reward": td["next", "reward"].mean().item(),
+                        "reward": td["next", "reward"].mean().cpu().item(),
                         # "action value": td["action_value"].mean().item(),
-                        "chosen action value": td["chosen_action_value"].mean().item(),
+                        "chosen action value": td["chosen_action_value"]
+                        .mean()
+                        .cpu()
+                        .item(),
+                        # Average number of features selected when we stop
+                        "avg stop time": td["feature_mask"][td["action"] == 0]
+                        .sum(-1)
+                        .float()
+                        .mean()
+                        .cpu()
+                        .item(),
                         "batch_idx": batch_idx,
                     },
                 )
             )
 
-            if batch_idx != 0 and batch_idx % cfg.eval_every_n_batches == 0:
+            if (
+                batch_idx != 0
+                and cfg.eval_every_n_batches is not None
+                and batch_idx % cfg.eval_every_n_batches == 0
+            ):
                 with (
                     torch.no_grad(),
                     set_exploration_type(ExplorationType.DETERMINISTIC),
@@ -239,7 +278,9 @@ def main(cfg: Kachuee2019TrainConfig):
                         eval_env.rollout(
                             cfg.eval_max_steps, agent.get_exploitative_policy()
                         ).squeeze(0)
-                        for _ in tqdm(range(cfg.n_eval_episodes), desc="Evaluating")
+                        for _ in tqdm(
+                            range(cfg.n_eval_episodes), desc="Evaluating"
+                        )
                     ]
                     # Reset the action spec of the agent to the train env action spec
                     agent.egreedy_tdmodule._spec = train_env.action_spec  # pyright: ignore
@@ -262,49 +303,22 @@ def main(cfg: Kachuee2019TrainConfig):
         afa_method = RLAFAMethod(
             agent.get_policy().to("cpu"),
             Kachuee2019AFAClassifier(pq_module, device=torch.device("cpu")),
+            acquisition_cost=cfg.cost_param,
         )
         # Save the method to a temporary directory and load it again to ensure it is saved correctly
         with TemporaryDirectory(delete=False) as tmp_path_str:
             tmp_path = Path(tmp_path_str)
             afa_method.save(tmp_path)
             del afa_method
-            afa_method = RLAFAMethod.load(
-                tmp_path,
-                device=torch.device("cpu"),
-            )
-            if cfg.evaluate_final_performance:
-                # Check what the final performance of the method is. Costly for large datasets.
-                metrics = eval_afa_method(
-                    afa_method.select,
-                    val_dataset,
-                    cfg.hard_budget,
-                    afa_method.predict,
-                    only_n_samples=cfg.eval_only_n_samples,
-                )
-                fig_metrics = plot_metrics(metrics)
-                # Also check performance of dummy method for comparison
-                dummy_afa_method = RandomDummyAFAMethod(
-                    device=torch.device("cpu"), n_classes=n_classes
-                )
-                dummy_metrics = eval_afa_method(
-                    dummy_afa_method.select,
-                    val_dataset,
-                    cfg.hard_budget,
-                    afa_method.predict,
-                    only_n_samples=cfg.eval_only_n_samples,
-                )
-                fig_dummy_metrics = plot_metrics(dummy_metrics)
-                run.log(
-                    {
-                        "final_performance_plot": fig_metrics,
-                        "final_dummy_performance_plot": fig_dummy_metrics,
-                    }
-                )
 
             # Save the model as a WandB artifact
-            # Save the name of the afa method class as metadata
+            log.info("Creating WandB artifact for trained method")
+            if cfg.cost_param is not None:
+                budget_str = f"costparam_{cfg.cost_param}"
+            else:
+                budget_str = f"budget_{cfg.hard_budget}"
             afa_method_artifact = wandb.Artifact(
-                name=f"train_kachuee2019-{pretrained_model_config.dataset_artifact_name.split(':')[0]}-budget_{cfg.hard_budget}-seed_{cfg.seed}",
+                name=f"train_kachuee2019-{pretrained_model_config.dataset_artifact_name.split(':')[0]}-{budget_str}-seed_{cfg.seed}",
                 type="trained_method",
                 metadata={
                     "method_type": "kachuee2019",
@@ -316,7 +330,9 @@ def main(cfg: Kachuee2019TrainConfig):
             )
 
             afa_method_artifact.add_dir(str(tmp_path))
-            run.log_artifact(afa_method_artifact, aliases=cfg.output_artifact_aliases)
+            run.log_artifact(
+                afa_method_artifact, aliases=cfg.output_artifact_aliases
+            )
 
         run.finish()
 

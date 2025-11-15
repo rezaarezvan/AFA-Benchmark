@@ -1,6 +1,7 @@
 from pathlib import Path
+
 import torch
-from afa_generative.utils import *
+
 from common.custom_types import (
     AFAMethod,
     AFASelection,
@@ -11,12 +12,22 @@ from common.custom_types import (
 
 
 class Ma2018AFAMethod(AFAMethod):
-    def __init__(self, sampler, predictor, num_classes, device=torch.device("cpu")):
+    def __init__(
+        self,
+        sampler,
+        predictor,
+        num_classes,
+        device=torch.device("cpu"),
+        lambda_threshold: float = -float("inf"),
+        feature_costs: torch.Tensor | None = None,
+    ):
         super().__init__()
         self.sampler = sampler
         self.predictor = predictor
         self.num_classes = num_classes
         self._device: torch.device = device
+        self.lambda_threshold = lambda_threshold
+        self._feature_costs = feature_costs
 
     def predict(
         self,
@@ -32,12 +43,12 @@ class Ma2018AFAMethod(AFAMethod):
         zeros_mask = torch.zeros(
             B, self.num_classes, device=self._device, dtype=feature_mask.dtype
         )
-        augmented_masked_feature = torch.cat([masked_features, zeros_label], dim=-1).to(
-            self._device
-        )
-        augmented_feature_mask = torch.cat([feature_mask, zeros_mask], dim=-1).to(
-            self._device
-        )
+        augmented_masked_feature = torch.cat(
+            [masked_features, zeros_label], dim=-1
+        ).to(self._device)
+        augmented_feature_mask = torch.cat(
+            [feature_mask, zeros_mask], dim=-1
+        ).to(self._device)
 
         with torch.no_grad():
             _, _, _, z, _ = self.sampler(
@@ -59,24 +70,32 @@ class Ma2018AFAMethod(AFAMethod):
         zeros_mask = torch.zeros(
             B, self.num_classes, device=self._device, dtype=feature_mask.dtype
         )
-        augmented_masked_feature = torch.cat([masked_features, zeros_label], dim=-1).to(
-            self._device
-        )
-        augmented_feature_mask = torch.cat([feature_mask, zeros_mask], dim=-1).to(
-            self._device
-        )
+        augmented_masked_feature = torch.cat(
+            [masked_features, zeros_label], dim=-1
+        ).to(self._device)
+        augmented_feature_mask = torch.cat(
+            [feature_mask, zeros_mask], dim=-1
+        ).to(self._device)
 
         with torch.no_grad():
-            _, _, _, _, x_full = self.sampler.forward(
+            _, _, _, z_base, x_full = self.sampler.forward(
                 augmented_masked_feature, augmented_feature_mask
             )
+            base_probs = self.predictor(z_base).softmax(dim=-1)
         x_full = x_full.view(B, F)
-        x_full = torch.cat([x_full, zeros_label], dim=-1).to(self._device)
+        x_filled = masked_features.clone()
+        missing = ~feature_mask.bool()
+        x_filled[missing] = x_full[missing]
+        x_full = torch.cat([x_filled, zeros_label], dim=-1).to(self._device)
 
         feature_mask_all = augmented_feature_mask[:, :F]
-        feature_indices = torch.eye(F, device=device, dtype=feature_mask_all.dtype)
+        feature_indices = torch.eye(
+            F, device=device, dtype=feature_mask_all.dtype
+        )
         # onehot mask (BxFxF)
-        mask_features_all = feature_mask_all.unsqueeze(1) | feature_indices.unsqueeze(0)
+        mask_features_all = feature_mask_all.unsqueeze(
+            1
+        ) | feature_indices.unsqueeze(0)
         mask_features_flat = mask_features_all.reshape(B * F, F)
         mask_label_all = zeros_mask.unsqueeze(1).expand(B, F, -1)
         mask_label_flat = mask_label_all.reshape(B * F, self.num_classes)
@@ -97,16 +116,32 @@ class Ma2018AFAMethod(AFAMethod):
             preds_all = preds_all.sigmoid().view(-1, 1)
             preds_all = torch.cat([1 - preds_all, preds_all], dim=1)
 
-        mean_all = preds_all.mean(dim=0, keepdim=True)
-        kl_all = torch.sum(
-            preds_all * torch.log(preds_all / (mean_all + 1e-6) + 1e-6), dim=1
-        )
+        # mean_all = preds_all.mean(dim=0, keepdim=True)
+        # kl_all = torch.sum(
+        #     preds_all * torch.log(preds_all / (mean_all + 1e-6) + 1e-6), dim=1
+        # )
+        preds_all = preds_all.view(B, F, self.num_classes)
+        base_probs = base_probs.unsqueeze(1).expand(B, F, self.num_classes)
+        kl_all = (
+            preds_all * ((preds_all + 1e-6).log() - (base_probs + 1e-6).log())
+        ).sum(-1)
 
         scores = kl_all.view(B, F)
-        # avoid choosing the masked feature j
+        # avoid choosing the already masked features
         scores = scores.masked_fill(feature_mask_all.bool(), float("-inf"))
-        best_j = scores.argmax(dim=1)
-        return best_j
+        if self._feature_costs is not None:
+            costs = self._feature_costs.to(self._device)
+            costs = torch.clamp(costs, min=1e-12)
+            scores = scores / costs.unsqueeze(0)
+        best_scores, best_idx = scores.max(dim=1)
+        lam = self.lambda_threshold
+        stop_mask = best_scores < lam
+        stop_mask = stop_mask | (best_scores < -1e5)
+        selections = (best_idx + 1).to(torch.long)
+        selections = selections.masked_fill(stop_mask, 0)
+        return selections
+        # best_j = scores.argmax(dim=1)
+        # return best_j
 
     @classmethod
     def load(cls, path, device="cpu"):
@@ -141,3 +176,14 @@ class Ma2018AFAMethod(AFAMethod):
     @property
     def device(self) -> torch.device:
         return self._device
+
+    @property
+    def has_builtin_classifier(self) -> bool:
+        return True
+
+    @property
+    def cost_param(self) -> float | None:
+        return float(self.lambda_threshold)
+
+    def set_cost_param(self, cost_param: float) -> None:
+        self.lambda_threshold = cost_param

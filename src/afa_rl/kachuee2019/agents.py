@@ -1,9 +1,14 @@
-import torch.nn.functional as F
 from typing import Any, final, override
-from tensordict import TensorDictBase
-from tensordict.nn import TensorDictModule, TensorDictModuleBase, TensorDictSequential
-from torch import Tensor, nn, optim
+
 import torch
+import torch.nn.functional as F
+from tensordict import TensorDictBase
+from tensordict.nn import (
+    TensorDictModule,
+    TensorDictModuleBase,
+    TensorDictSequential,
+)
+from torch import Tensor, nn, optim
 from torchrl.data import (
     LazyTensorStorage,
     SamplerWithoutReplacement,
@@ -211,7 +216,9 @@ class Kachuee2019Agent(Agent):
         self.egreedy_tdmodule.step()
 
         # Compute average loss
-        process_dict = {k: v / self.cfg.num_optim for k, v in total_loss_dict.items()}
+        process_dict = {
+            k: v / self.cfg.num_optim for k, v in total_loss_dict.items()
+        }
         process_dict["td_error"] = torch.mean(torch.stack(td_errors)).item()
 
         return process_dict
@@ -225,7 +232,9 @@ class Kachuee2019Agent(Agent):
         self.module_device = device
 
         # Send modules to device
-        self.action_value_module = self.action_value_module.to(self.module_device)
+        self.action_value_module = self.action_value_module.to(
+            self.module_device
+        )
         self.greedy_tdmodule = self.greedy_tdmodule.to(self.module_device)
         self.egreedy_tdmodule = self.egreedy_tdmodule.to(self.module_device)
 
@@ -235,7 +244,9 @@ class Kachuee2019Agent(Agent):
 
     @override
     def set_replay_buffer_device(self, device: torch.device) -> None:
-        raise ValueError("set_replay_buffer_device not yet supported for Shim2018Agent")
+        raise ValueError(
+            "set_replay_buffer_device not yet supported for Shim2018Agent"
+        )
 
     # TODO: implement properly if needed
     # @override

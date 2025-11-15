@@ -1,8 +1,9 @@
-import torch
-from torch import nn
-from torch import optim
-from static.utils import restore_parameters
 from copy import deepcopy
+
+import torch
+from torch import nn, optim
+
+from static.utils import restore_parameters
 
 
 class BaseModel(nn.Module):
@@ -42,7 +43,11 @@ class BaseModel(nn.Module):
         device = next(model.parameters()).device
         opt = optim.Adam(model.parameters(), lr=lr)
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-            opt, mode=val_loss_mode, factor=factor, patience=patience, min_lr=min_lr
+            opt,
+            mode=val_loss_mode,
+            factor=factor,
+            patience=patience,
+            min_lr=min_lr,
         )
 
         # For tracking best model and early stopping.
@@ -116,7 +121,8 @@ class BaseModel(nn.Module):
         restore_parameters(model, best_model)
 
     def evaluate(self, loader, metric):
-        """Evaluate mean performance across a dataset.
+        """
+        Evaluate mean performance across a dataset.
 
         Args:
           loader:

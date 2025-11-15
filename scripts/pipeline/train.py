@@ -67,7 +67,9 @@ def parse_args():
             "Provide either --dataset-alias or --pretrain-alias, but not both."
         )
     if (args.dataset_alias is None) and (args.pretrain_alias is None):
-        parser.error("You must provide either --dataset-alias or --pretrain-alias.")
+        parser.error(
+            "You must provide either --dataset-alias or --pretrain-alias."
+        )
 
     return args, unknown
 
@@ -93,7 +95,8 @@ def main():
             pretrained_model_or_dataset_names = f"pretrained_model_artifact_name={','.join(pretrained_model_artifact_names)}"
         elif args.dataset_alias:
             dataset_artifact_names = [
-                f"{dataset}_split_{split}:{args.dataset_alias}" for split in args.split
+                f"{dataset}_split_{split}:{args.dataset_alias}"
+                for split in args.split
             ]
             pretrained_model_or_dataset_names = (
                 f"dataset_artifact_name={','.join(dataset_artifact_names)}"

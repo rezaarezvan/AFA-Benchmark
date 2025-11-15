@@ -1,11 +1,172 @@
-import torch
-from torch import nn
-import torch.nn.functional as F
-from torch import optim
-from afa_rl.utils import mask_data
-from afa_discriminative.utils import restore_parameters
 from copy import deepcopy
+import os
+import math
+
+import torch
+import torch.nn.functional as F
+from torch import nn, optim
+
 import wandb
+from afa_discriminative.utils import restore_parameters
+from afa_rl.utils import mask_data
+
+
+models_dir = "./models/pretrained_resnet_models"
+model_name = {
+    "resnet18": "resnet18-5c106cde.pth",
+}
+
+model_urls = {
+    "resnet18": "https://download.pytorch.org/models/resnet18-5c106cde.pth",
+}
+
+
+def conv3x3(in_planes, out_planes, stride=1):
+    """3x3 convolution with padding"""
+    return nn.Conv2d(
+        in_planes,
+        out_planes,
+        kernel_size=3,
+        stride=stride,
+        padding=1,
+        bias=False,
+    )
+
+
+def ResNet18Backbone(model):
+    # Remove avgpool and fc
+    backbone_modules = nn.ModuleList(model.children())[:-2]
+    return nn.Sequential(*backbone_modules), model.expansion
+
+
+def resnet18(pretrained=False, **kwargs):
+    """Constructs a ResNet-18 model.
+
+    Args:
+        pretrained (bool): If True, returns a model pre-trained on ImageNet
+    """
+    model = ResNet(BasicBlock, [2, 2, 2, 2], **kwargs)
+    if pretrained:
+        try:
+            ckpt_path = os.path.join(models_dir, model_name["resnet18"])
+            state_dict = torch.load(ckpt_path, map_location="cpu")
+        except FileNotFoundError:
+            from torch.hub import load_state_dict_from_url
+
+            state_dict = load_state_dict_from_url(
+                model_urls["resnet18"],
+                weights_only=False,
+            )
+        model.load_state_dict(state_dict)
+    return model
+
+
+def make_layer(block, in_planes, planes, num_blocks, stride, expansion):
+    strides = [stride] + [1] * (num_blocks - 1)
+    layers = []
+    for stride in strides:
+        if stride >= 1:
+            downsample = None
+
+            if stride != 1 or in_planes != planes * block.expansion:
+                downsample = nn.Sequential(
+                    nn.Conv2d(
+                        in_planes,
+                        planes * block.expansion,
+                        kernel_size=1,
+                        stride=stride,
+                        bias=False,
+                    ),
+                    nn.BatchNorm2d(planes * block.expansion),
+                )
+
+            layers.append(block(in_planes, planes, stride, downsample))
+        else:
+            if expansion == 1:
+                layers.append(UpsamplingBlock(in_planes, planes))
+            else:
+                layers.append(UpsamplingBottleneckBlock(in_planes, planes))
+        in_planes = planes * block.expansion
+    return nn.Sequential(*layers)
+
+
+class UpsamplingBlock(nn.Module):
+    """Custom residual block for performing upsampling."""
+
+    expansion = 1
+
+    def __init__(self, in_planes, planes):
+        super().__init__()
+        self.conv1 = nn.ConvTranspose2d(
+            in_planes, planes, kernel_size=4, stride=2, padding=1, bias=False
+        )
+        self.bn1 = nn.BatchNorm2d(planes)
+        self.conv2 = nn.Conv2d(
+            planes, planes, kernel_size=3, stride=1, padding=1, bias=False
+        )
+        self.bn2 = nn.BatchNorm2d(planes)
+
+        self.shortcut = nn.Sequential(
+            nn.ConvTranspose2d(
+                in_planes,
+                self.expansion * planes,
+                kernel_size=2,
+                stride=2,
+                padding=0,
+                bias=False,
+            ),
+            nn.BatchNorm2d(self.expansion * planes),
+        )
+
+    def forward(self, x):
+        out = F.relu(self.bn1(self.conv1(x)))
+        out = self.bn2(self.conv2(out))
+        out += self.shortcut(x)
+        out = F.relu(out)
+
+        return out
+
+
+class UpsamplingBottleneckBlock(nn.Module):
+    """Custom residual block for performing upsampling."""
+
+    expansion = 4
+
+    def __init__(self, in_planes, planes):
+        super().__init__()
+        self.conv1 = nn.ConvTranspose2d(
+            in_planes, planes, kernel_size=4, stride=2, padding=1, bias=False
+        )
+        self.bn1 = nn.BatchNorm2d(planes)
+        self.conv2 = nn.Conv2d(
+            planes, planes, kernel_size=3, stride=1, padding=1, bias=False
+        )
+        self.bn2 = nn.BatchNorm2d(planes)
+        self.conv3 = nn.Conv2d(
+            planes, planes * self.expansion, kernel_size=1, bias=False
+        )
+        self.bn3 = nn.BatchNorm2d(planes * self.expansion)
+
+        self.shortcut = nn.Sequential(
+            nn.ConvTranspose2d(
+                in_planes,
+                planes * self.expansion,
+                kernel_size=2,
+                stride=2,
+                padding=0,
+                bias=False,
+            ),
+            nn.BatchNorm2d(planes * self.expansion),
+        )
+
+    def forward(self, x):
+        out = F.relu(self.bn1(self.conv1(x)))
+        out = F.relu(self.bn2(self.conv2(out)))
+        out = self.bn3(self.conv3(out))
+        out += self.shortcut(x)
+        out = F.relu(out)
+
+        return out
 
 
 class MaskingPretrainer(nn.Module):
@@ -51,11 +212,17 @@ class MaskingPretrainer(nn.Module):
         device = next(model.parameters()).device
         opt = optim.Adam(model.parameters(), lr=lr)
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-            opt, mode=val_loss_mode, factor=factor, patience=patience, min_lr=min_lr
+            opt,
+            mode=val_loss_mode,
+            factor=factor,
+            patience=patience,
+            min_lr=min_lr,
         )
 
         # Determine mask size.
-        if hasattr(mask_layer, "mask_size") and (mask_layer.mask_size is not None):
+        if hasattr(mask_layer, "mask_size") and (
+            mask_layer.mask_size is not None
+        ):
             mask_size = mask_layer.mask_size
         else:
             # Must be tabular (1d data).
@@ -80,7 +247,11 @@ class MaskingPretrainer(nn.Module):
 
                 # Generate missingness.
                 p = min_mask + torch.rand(1).item() * (max_mask - min_mask)
-                _, m, _ = mask_data(x, p)
+                if x.dim() == 4:
+                    n = self.mask_layer.mask_size
+                    m = (torch.rand(x.size(0), n, device=device) < p).float()
+                else:
+                    _, m, _ = mask_data(x, p)
 
                 # Calculate loss.
                 x_masked = mask_layer(x, m)
@@ -111,7 +282,13 @@ class MaskingPretrainer(nn.Module):
                     p = min_mask + torch.rand(1).item() * (max_mask - min_mask)
 
                     # Calculate prediction.
-                    _, m, _ = mask_data(x, p)
+                    if x.dim() == 4:
+                        n = self.mask_layer.mask_size
+                        m = (
+                            torch.rand(x.size(0), n, device=device) < p
+                        ).float()
+                    else:
+                        _, m, _ = mask_data(x, p)
                     x_masked = mask_layer(x, m)
                     pred = model(x_masked)
                     pred_list.append(pred)
@@ -166,58 +343,9 @@ class MaskingPretrainer(nn.Module):
         restore_parameters(model, best_model)
         wandb.unwatch(self)
 
-    def evaluate(self, loader, metric):
-        """Evaluate mean performance across a dataset.
-
-        Args:
-          loader:
-          metric:
-
-        """
-        # Setup.
-        self.model.eval()
-        device = next(self.model.parameters()).device
-
-        # Determine mask size.
-        if hasattr(self.mask_layer, "mask_size") and (
-            self.mask_layer.mask_size is not None
-        ):
-            mask_size = self.mask_layer.mask_size
-        else:
-            # Must be tabular (1d data).
-            x, y = next(iter(loader))
-            assert len(x.shape) == 2
-            mask_size = x.shape[1]
-
-        # For calculating mean loss.
-        pred_list = []
-        label_list = []
-
-        with torch.no_grad():
-            for x, y in loader:
-                # Move to GPU.
-                x = x.to(device)
-                mask = torch.ones(len(x), mask_size, device=device)
-
-                # Calculate loss.
-                pred = self.forward(x, mask)
-                pred_list.append(pred.cpu())
-                label_list.append(y.cpu())
-
-            # Calculate metric(s).
-            y = torch.cat(label_list, 0)
-            pred = torch.cat(pred_list, 0)
-            if isinstance(metric, (tuple, list)):
-                score = [m(pred, y).item() for m in metric]
-            elif isinstance(metric, dict):
-                score = {name: m(pred, y).item() for name, m in metric.items()}
-            else:
-                score = metric(pred, y).item()
-
-        return score
-
     def forward(self, x, mask):
-        """Generate model prediction.
+        """
+        Generate model prediction.
 
         Args:
           x:
@@ -246,7 +374,8 @@ class fc_Net(nn.Module):
         output_const=1.0,
         add_const=0.0,
     ):
-        """Init method
+        """
+        Init method
         :param input_dim: The input dimensions
         :type input_dim: int
         :param output_dim: The output dimension of the network
@@ -328,7 +457,8 @@ class fc_Net(nn.Module):
                 else:
                     self.hidden.append(
                         nn.Linear(
-                            self.hidden_unit[layer_ind - 1], self.hidden_unit[layer_ind]
+                            self.hidden_unit[layer_ind - 1],
+                            self.hidden_unit[layer_ind],
                         )
                     )
 
@@ -343,7 +473,8 @@ class fc_Net(nn.Module):
                 self.out_LV = nn.Linear(self.hidden_unit[-1], self.LV_dim)
 
     def forward(self, x):
-        """The forward pass
+        """
+        The forward pass
         :param x: Input Tensor
         :type x: Tensor
         :return: output from the network
@@ -394,3 +525,201 @@ class fc_Net(nn.Module):
         if self.flag_LV:
             output = torch.cat((output, output_LV), dim=-1)
         return output
+
+
+class BasicBlock(nn.Module):
+    expansion = 1
+
+    def __init__(self, inplanes, planes, stride=1, downsample=None):
+        super(BasicBlock, self).__init__()
+        self.conv1 = conv3x3(inplanes, planes, stride)
+        self.bn1 = nn.BatchNorm2d(planes)
+        self.relu = nn.ReLU(inplace=True)
+        self.conv2 = conv3x3(planes, planes)
+        self.bn2 = nn.BatchNorm2d(planes)
+        self.downsample = downsample
+        self.stride = stride
+
+    def forward(self, x):
+        residual = x
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        out = self.conv2(out)
+        out = self.bn2(out)
+
+        if self.downsample is not None:
+            residual = self.downsample(x)
+
+        out += residual
+        out = self.relu(out)
+
+        return out
+
+
+class Bottleneck(nn.Module):
+    expansion = 4
+
+    def __init__(self, inplanes, planes, stride=1, downsample=None):
+        super(Bottleneck, self).__init__()
+        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(planes)
+        self.conv2 = nn.Conv2d(
+            planes, planes, kernel_size=3, stride=stride, padding=1, bias=False
+        )
+        self.bn2 = nn.BatchNorm2d(planes)
+        self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
+        self.bn3 = nn.BatchNorm2d(planes * 4)
+        self.relu = nn.ReLU(inplace=True)
+        self.downsample = downsample
+        self.stride = stride
+
+    def forward(self, x):
+        residual = x
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        out = self.conv2(out)
+        out = self.bn2(out)
+        out = self.relu(out)
+
+        out = self.conv3(out)
+        out = self.bn3(out)
+
+        if self.downsample is not None:
+            residual = self.downsample(x)
+
+        out += residual
+        out = self.relu(out)
+
+        return out
+
+
+class ResNet(nn.Module):
+    def __init__(self, block, layers, num_classes=1000):
+        super(ResNet, self).__init__()
+        self.inplanes = 64
+        self.conv1 = nn.Conv2d(
+            3, 64, kernel_size=7, stride=2, padding=3, bias=False
+        )
+        self.bn1 = nn.BatchNorm2d(64)
+        self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        self.layer1 = self._make_layer(block, 64, layers[0])
+        self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
+        self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
+        self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
+        # self.avgpool = nn.AvgPool2d(7, stride=1)
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.fc = nn.Linear(512 * block.expansion, num_classes)
+        self.expansion = block.expansion
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                m.weight.data.normal_(0, math.sqrt(2.0 / n))
+            elif isinstance(m, nn.BatchNorm2d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+
+    def _make_layer(self, block, planes, blocks, stride=1):
+        downsample = None
+        if stride != 1 or self.inplanes != planes * block.expansion:
+            downsample = nn.Sequential(
+                nn.Conv2d(
+                    self.inplanes,
+                    planes * block.expansion,
+                    kernel_size=1,
+                    stride=stride,
+                    bias=False,
+                ),
+                nn.BatchNorm2d(planes * block.expansion),
+            )
+
+        layers = []
+        layers.append(block(self.inplanes, planes, stride, downsample))
+        self.inplanes = planes * block.expansion
+        for i in range(1, blocks):
+            layers.append(block(self.inplanes, planes))
+
+        return nn.Sequential(*layers)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+
+        x = self.avgpool(x)
+        x = x.view(x.size(0), -1)
+        x = self.fc(x)
+
+        return x
+
+
+class Predictor(nn.Module):
+    def __init__(self, backbone, expansion, num_classes=10):
+        super(Predictor, self).__init__()
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+
+        self.conv = nn.Conv2d(512, 256, kernel_size=3)
+        self.bn = nn.BatchNorm2d(256)
+        self.relu = nn.ReLU(inplace=True)
+        self.fc = nn.Linear(256 * expansion, num_classes)
+        self.backbone = backbone
+
+    def forward(self, x):
+        x = self.backbone(x)
+        x = self.relu(self.bn(self.conv(x)))
+        # print(x.shape)
+        x = self.avgpool(x)
+        x = x.view(x.size(0), -1)
+        x = self.fc(x)
+        return x
+
+
+class ConvNet(nn.Module):
+    def __init__(self, backbone, expansion=1, block_layer_stride=0.5):
+        super(ConvNet, self).__init__()
+        self.backbone = backbone
+        if expansion == 1:
+            # BasicBlock
+            self.block_layer = make_layer(
+                BasicBlock,
+                512,
+                256,
+                2,
+                stride=block_layer_stride,
+                expansion=expansion,
+            )
+            self.conv = nn.Conv2d(256, 1, 1)
+        else:
+            # Bottleneck block
+            # BasicBlock
+            self.block_layer = make_layer(
+                Bottleneck,
+                2048,
+                512,
+                2,
+                stride=block_layer_stride,
+                expansion=expansion,
+            )
+            self.conv = nn.Conv2d(2048, 1, 1)
+        self.flatten = nn.Flatten()
+
+    def forward(self, x):
+        x = self.backbone(x)
+        x = self.block_layer(x)
+        # print(x.shape)
+        x = self.conv(x)
+        x = self.flatten(x)
+        return x

@@ -1,19 +1,26 @@
-import torch
-from torch import nn
-import numpy as np
-from torch import optim
-from copy import deepcopy
-import wandb
 import os
+from copy import deepcopy
 from pathlib import Path
+
+import numpy as np
+import torch
+from torch import nn, optim
+
+import wandb
+from afa_discriminative.models import (
+    ConvNet,
+    Predictor,
+    ResNet18Backbone,
+    fc_Net,
+    resnet18,
+)
 from afa_discriminative.utils import (
-    restore_parameters,
-    make_onehot,
+    ConcreteSelector,
     get_entropy,
     ind_to_onehot,
-    ConcreteSelector,
+    make_onehot,
+    restore_parameters,
 )
-from afa_discriminative.models import fc_Net
 from common.custom_types import (
     AFAMethod,
     AFASelection,
@@ -24,7 +31,8 @@ from common.custom_types import (
 
 
 class GreedyDynamicSelection(nn.Module):
-    """Greedy adaptive feature selection.
+    """
+    Greedy adaptive feature selection.
 
     Args:
       selector:
@@ -64,6 +72,7 @@ class GreedyDynamicSelection(nn.Module):
         temp_steps=5,
         argmax=False,
         verbose=True,
+        feature_costs=None,
     ):
         """Train model to perform greedy adaptive feature selection."""
         wandb.watch(self, log="all", log_freq=100)
@@ -87,13 +96,18 @@ class GreedyDynamicSelection(nn.Module):
         val_loss_fn.to(device)
 
         # Determine mask size.
-        if hasattr(mask_layer, "mask_size") and (mask_layer.mask_size is not None):
+        if hasattr(mask_layer, "mask_size") and (
+            mask_layer.mask_size is not None
+        ):
             mask_size = mask_layer.mask_size
         else:
             # Must be tabular (1d data).
             x, y = next(iter(val_loader))
             assert len(x.shape) == 2
             mask_size = x.shape[1]
+        if feature_costs is None:
+            feature_costs = torch.ones(mask_size, device=device)
+        log_cost = torch.log(feature_costs)
 
         # For tracking best models with zero temperature.
         best_val = None
@@ -108,16 +122,24 @@ class GreedyDynamicSelection(nn.Module):
 
             # Set up optimizer and lr scheduler.
             opt = optim.Adam(
-                set(list(predictor.parameters()) + list(selector.parameters())), lr=lr
+                set(
+                    list(predictor.parameters()) + list(selector.parameters())
+                ),
+                lr=lr,
             )
             scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-                opt, mode=val_loss_mode, factor=factor, patience=patience, min_lr=min_lr
+                opt,
+                mode=val_loss_mode,
+                factor=factor,
+                patience=patience,
+                min_lr=min_lr,
             )
 
             # For tracking best models and early stopping.
             best_selector = deepcopy(selector)
             best_predictor = deepcopy(predictor)
             num_bad_epochs = 0
+            epoch = 0
 
             for epoch in range(nepochs):
                 # Switch models to training mode.
@@ -130,7 +152,9 @@ class GreedyDynamicSelection(nn.Module):
                     y = y.to(device)
 
                     # Setup.
-                    m = torch.zeros(len(x), mask_size, dtype=x.dtype, device=device)
+                    m = torch.zeros(
+                        len(x), mask_size, dtype=x.dtype, device=device
+                    )
                     selector.zero_grad()
                     predictor.zero_grad()
 
@@ -138,9 +162,12 @@ class GreedyDynamicSelection(nn.Module):
                         # Evaluate selector model.
                         x_masked = mask_layer(x, m)
                         logits = selector(x_masked).flatten(1)
+                        # since not a probability, do exp(logits)/cost <-> logits / log_cost
+                        logits_cost = logits - log_cost
 
                         # Get selections.
-                        soft = selector_layer(logits, temp)
+                        # soft = selector_layer(logits, temp)
+                        soft = selector_layer(logits_cost, temp)
                         m_soft = torch.max(m, soft)
 
                         # Evaluate predictor model.
@@ -154,7 +181,10 @@ class GreedyDynamicSelection(nn.Module):
 
                         # Update mask, ensure no repeats.
                         m = torch.max(
-                            m, make_onehot(selector_layer(logits - 1e6 * m, 1e-6))
+                            m,
+                            make_onehot(
+                                selector_layer(logits_cost - 1e6 * m, 1e-6)
+                            ),
                         )
 
                     # Take gradient step.
@@ -177,19 +207,25 @@ class GreedyDynamicSelection(nn.Module):
                         y = y.to(device)
 
                         # Setup.
-                        m = torch.zeros(len(x), mask_size, dtype=x.dtype, device=device)
+                        m = torch.zeros(
+                            len(x), mask_size, dtype=x.dtype, device=device
+                        )
 
                         for _ in range(max_features):
                             # Evaluate selector model.
                             x_masked = mask_layer(x, m)
                             logits = selector(x_masked).flatten(1)
+                            logits_cost = logits - log_cost
+                            logits_cost = logits_cost - 1e6 * m
 
                             # Get selections, ensure no repeats.
-                            logits = logits - 1e6 * m
+                            # logits = logits - 1e6 * m
                             if argmax:
-                                soft = selector_layer(logits, temp, deterministic=True)
+                                soft = selector_layer(
+                                    logits_cost, temp, deterministic=True
+                                )
                             else:
-                                soft = selector_layer(logits, temp)
+                                soft = selector_layer(logits_cost, temp)
                             m_soft = torch.max(m, soft)
 
                             # For calculating temp = 0 loss.
@@ -270,6 +306,7 @@ class GreedyDynamicSelection(nn.Module):
         restore_parameters(predictor, best_zerotemp_predictor)
         wandb.unwatch(self)
 
+    # TODO need to add feature costs here if we want to evaluate manually
     def forward(self, x, max_features, argmax=True):
         """Make predictions using selected features."""
         # Setup.
@@ -280,7 +317,9 @@ class GreedyDynamicSelection(nn.Module):
         device = next(predictor.parameters()).device
 
         # Determine mask size.
-        if hasattr(mask_layer, "mask_size") and (mask_layer.mask_size is not None):
+        if hasattr(mask_layer, "mask_size") and (
+            mask_layer.mask_size is not None
+        ):
             mask_size = self.mask_layer.mask_size
         else:
             # Must be tabular (1d data).
@@ -340,13 +379,41 @@ class GreedyDynamicSelection(nn.Module):
 
 
 class Covert2023AFAMethod(AFAMethod):
-    def __init__(self, selector, predictor, device=torch.device("cpu")):
+    def __init__(
+        self,
+        selector,
+        predictor,
+        device=torch.device("cpu"),
+        lambda_threshold: float = -float("inf"),
+        feature_costs: torch.Tensor | None = None,
+        modality: str | None = "tabular",
+        n_patches: int | None = None,
+    ):
         super().__init__()
 
         # Set up models and mask layer.
         self.selector = selector
         self.predictor = predictor
         self._device: torch.device = device
+        self.lambda_threshold = lambda_threshold
+        self._feature_costs = feature_costs
+        self.modality = modality
+        # for image selection
+        self.n_patches = n_patches
+        self.image_size: int | None = None
+        self.patch_size: int | None = None
+        self.mask_width: int | None = None
+
+    def _flat_mask_to_patch_mask(self, feature_mask: torch.Tensor):
+        assert feature_mask.dim() == 4
+        B, C, H, W = feature_mask.shape
+        ps = self.patch_size
+        assert ps is not None
+        ph = H // ps
+        pw = W // ps
+        fm = feature_mask.view(B, C, ph, ps, pw, ps)
+        patch_revealed = fm.any(dim=(1, 3, 5))
+        return patch_revealed.reshape(B, ph * pw)
 
     def predict(
         self,
@@ -355,9 +422,11 @@ class Covert2023AFAMethod(AFAMethod):
         features=None,
         label=None,
     ) -> Label:
-        x_masked = torch.cat([masked_features, feature_mask], dim=1)
-        predictor = self.predictor
-        pred = predictor(x_masked)
+        if self.modality == "tabular":
+            x_masked = torch.cat([masked_features, feature_mask], dim=1)
+            pred = self.predictor(x_masked)
+        else:
+            pred = self.predictor(masked_features)
         return pred.softmax(dim=-1)
 
     def select(
@@ -367,66 +436,144 @@ class Covert2023AFAMethod(AFAMethod):
         features=None,
         label=None,
     ) -> AFASelection:
-        selector = self.selector
-        x_masked = torch.cat([masked_features, feature_mask], dim=1)
-        logits = selector(x_masked).flatten(1)
-        logits = logits - 1e6 * feature_mask
-        next_feature_idx = logits.argmax(dim=1)
-        return next_feature_idx
+        if self.modality == "tabular":
+            x_masked = torch.cat([masked_features, feature_mask], dim=1)
+            logits = self.selector(x_masked).flatten(1)
+            logits = logits - 1e6 * feature_mask
+        else:
+            logits = self.selector(masked_features)
+            assert logits.dim() == 2, (
+                f"Selector must return [B, N], got {logits.shape}"
+            )
+            patch_mask = self._flat_mask_to_patch_mask(feature_mask).float()
+            logits = logits - 1e6 * patch_mask
+
+        if self._feature_costs is not None:
+            costs = self._feature_costs.to(self._device)
+            costs = torch.clamp(costs, min=1e-12)
+            scores = logits / costs.unsqueeze(0)
+        else:
+            scores = logits
+        best_scores, best_idx = scores.max(dim=1)
+        lam = self.lambda_threshold
+        stop_mask = best_scores < lam
+        # all masked
+        stop_mask = stop_mask | (best_scores < -1e5)
+
+        selections = (best_idx + 1).to(dtype=torch.long)
+        # 0 = stop
+        selections = selections.masked_fill(stop_mask, 0)
+        return selections
+        # next_feature_idx = logits.argmax(dim=1)
+        # return next_feature_idx
 
     @classmethod
     def load(cls, path, device="cpu"):
         checkpoint = torch.load(path / "model.pt", map_location=device)
         arch = checkpoint["architecture"]
-        d_in = arch["d_in"]
-        d_out = arch["d_out"]
-        selector_hidden_layers = arch["selector_hidden_layers"]
-        predictor_hidden_layers = arch["predictor_hidden_layers"]
-        dropout = arch["dropout"]
-        predictor = fc_Net(
-            input_dim=d_in * 2,
-            output_dim=d_out,
-            hidden_layer_num=len(predictor_hidden_layers),
-            hidden_unit=predictor_hidden_layers,
-            activations="ReLU",
-            drop_out_rate=dropout,
-            flag_drop_out=True,
-            flag_only_output_layer=False,
-        )
-        selector = fc_Net(
-            input_dim=d_in * 2,
-            output_dim=d_in,
-            hidden_layer_num=len(selector_hidden_layers),
-            hidden_unit=selector_hidden_layers,
-            activations="ReLU",
-            drop_out_rate=dropout,
-            flag_drop_out=True,
-            flag_only_output_layer=False,
-        )
+        # tabular
+        if "predictor_hidden_layers" in arch:
+            d_in = arch["d_in"]
+            d_out = arch["d_out"]
+            selector_hidden_layers = arch["selector_hidden_layers"]
+            predictor_hidden_layers = arch["predictor_hidden_layers"]
+            dropout = arch["dropout"]
+            predictor = fc_Net(
+                input_dim=d_in * 2,
+                output_dim=d_out,
+                hidden_layer_num=len(predictor_hidden_layers),
+                hidden_unit=predictor_hidden_layers,
+                activations="ReLU",
+                drop_out_rate=dropout,
+                flag_drop_out=True,
+                flag_only_output_layer=False,
+            )
+            selector = fc_Net(
+                input_dim=d_in * 2,
+                output_dim=d_in,
+                hidden_layer_num=len(selector_hidden_layers),
+                hidden_unit=selector_hidden_layers,
+                activations="ReLU",
+                drop_out_rate=dropout,
+                flag_drop_out=True,
+                flag_only_output_layer=False,
+            )
 
-        model = cls(selector, predictor, device)
-        model.selector.load_state_dict(checkpoint["selector_state_dict"])
-        model.predictor.load_state_dict(checkpoint["predictor_state_dict"])
-        model.selector.eval()
-        model.predictor.eval()
-        return model.to(device)
+            model = cls(selector, predictor, device)
+            model.selector.load_state_dict(checkpoint["selector_state_dict"])
+            model.predictor.load_state_dict(checkpoint["predictor_state_dict"])
+            model.selector.eval()
+            model.predictor.eval()
+            return model.to(device)
+
+        backbone = arch["backbone"]
+        if backbone == "resnet18":
+            d_out = arch["d_out"]
+            base = resnet18(pretrained=False)
+            backbone_net, expansion = ResNet18Backbone(base)
+            predictor = Predictor(backbone_net, expansion, d_out)
+            selector = ConvNet(backbone_net, 1, 0.5)
+
+            model = cls(
+                selector=selector,
+                predictor=predictor,
+                device=device,
+                modality="image",
+                n_patches=int(arch["mask_width"]) ** 2,
+            )
+
+            model.mask_width = int(arch["mask_width"])
+            model.patch_size = int(arch["patch_size"])
+            model.image_size = int(arch["image_size"])
+
+            model.selector.load_state_dict(checkpoint["selector_state_dict"])
+            model.predictor.load_state_dict(checkpoint["predictor_state_dict"])
+            model.selector.eval()
+            model.predictor.eval()
+            return model.to(device)
+        raise ValueError("Unrecognized checkpoint format")
 
     def save(self, path: Path):
         os.makedirs(path, exist_ok=True)
-        torch.save(
-            {
-                "selector_state_dict": self.selector.state_dict(),
-                "predictor_state_dict": self.predictor.state_dict(),
-                "architecture": {
-                    "d_in": self.selector.output_dim,
-                    "d_out": self.predictor.output_dim,
-                    "selector_hidden_layers": [128, 128],
-                    "predictor_hidden_layers": [128, 128],
-                    "dropout": 0.3,
-                },
-            },
-            os.path.join(path, "model.pt"),
-        )
+        if self.modality == "tabular":
+            arch = {
+                "d_in": self.selector.output_dim,
+                "d_out": self.predictor.output_dim,
+                "selector_hidden_layers": [128, 128],
+                "predictor_hidden_layers": [128, 128],
+                "dropout": 0.3,
+                "model_type": "tabular",
+            }
+        else:
+            arch = {
+                "backbone": "resnet18",
+                "image_size": getattr(self, "image_size", 224),
+                "patch_size": getattr(self, "patch_size", 16),
+                "mask_width": getattr(self, "mask_width", 14),
+                "d_out": self.predictor.fc.out_features,
+                "model_type": "image",
+            }
+        payload = {
+            "selector_state_dict": self.selector.state_dict(),
+            "predictor_state_dict": self.predictor.state_dict(),
+            "architecture": arch,
+        }
+        torch.save(payload, os.path.join(path, "model.pt"))
+
+        # torch.save(
+        #     {
+        #         "selector_state_dict": self.selector.state_dict(),
+        #         "predictor_state_dict": self.predictor.state_dict(),
+        #         "architecture": {
+        #             "d_in": self.selector.output_dim,
+        #             "d_out": self.predictor.output_dim,
+        #             "selector_hidden_layers": [128, 128],
+        #             "predictor_hidden_layers": [128, 128],
+        #             "dropout": 0.3,
+        #         },
+        #     },
+        #     os.path.join(path, "model.pt"),
+        # )
 
     def to(self, device):
         self.selector = self.selector.to(device)
@@ -437,6 +584,17 @@ class Covert2023AFAMethod(AFAMethod):
     @property
     def device(self) -> torch.device:
         return self._device
+
+    @property
+    def has_builtin_classifier(self) -> bool:
+        return True
+
+    @property
+    def cost_param(self) -> float | None:
+        return float(self.lambda_threshold)
+
+    def set_cost_param(self, cost_param: float) -> None:
+        self.lambda_threshold = cost_param
 
 
 class CMIEstimator(nn.Module):
@@ -449,20 +607,6 @@ class CMIEstimator(nn.Module):
         self.value_network = value_network
         self.predictor = predictor
         self.mask_layer = mask_layer
-
-    def set_stopping_criterion(self, budget=None, lam=None, confidence=None):
-        """Set parameters for stopping criterion."""
-        if sum([budget is None, lam is None, confidence is None]) != 2:
-            raise ValueError("Must specify exactly one of budget, lam, and confidence")
-        if budget is not None:
-            self.budget = budget
-            self.mode = "budget"
-        elif lam is not None:
-            self.lam = lam
-            self.mode = "penalized"
-        elif confidence is not None:
-            self.confidence = confidence
-            self.mode = "confidence"
 
     def fit(
         self,
@@ -486,6 +630,7 @@ class CMIEstimator(nn.Module):
         verbose=True,
     ):
         wandb.watch(self, log="all", log_freq=100)
+        user_supplied_val_metric = val_loss_fn is not None
         if val_loss_fn is None:
             val_loss_fn = loss_fn
             val_loss_mode = "min"
@@ -504,7 +649,9 @@ class CMIEstimator(nn.Module):
         val_loss_fn = val_loss_fn.to(device)
         value_network = value_network.to(device)
 
-        if hasattr(mask_layer, "mask_size") and (mask_layer.mask_size is not None):
+        if hasattr(mask_layer, "mask_size") and (
+            mask_layer.mask_size is not None
+        ):
             mask_size = mask_layer.mask_size
         else:
             # Must be tabular (1d data).
@@ -518,10 +665,17 @@ class CMIEstimator(nn.Module):
             feature_costs = torch.tensor(feature_costs).to(device)
 
         opt = optim.Adam(
-            set(list(value_network.parameters()) + list(predictor.parameters())), lr=lr
+            set(
+                list(value_network.parameters()) + list(predictor.parameters())
+            ),
+            lr=lr,
         )
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-            opt, mode=val_loss_mode, factor=factor, patience=patience, min_lr=min_lr
+            opt,
+            mode=val_loss_mode,
+            factor=factor,
+            patience=patience,
+            min_lr=min_lr,
         )
 
         # For tracking best models and early stopping.
@@ -544,7 +698,9 @@ class CMIEstimator(nn.Module):
                 y = y.to(device)
 
                 # Setup.
-                m = torch.zeros(len(x), mask_size, dtype=x.dtype, device=device)
+                m = torch.zeros(
+                    len(x), mask_size, dtype=x.dtype, device=device
+                )
                 value_network.zero_grad()
                 predictor.zero_grad()
                 value_network_loss_total = 0
@@ -553,7 +709,9 @@ class CMIEstimator(nn.Module):
                 # Predictor loss with no features.
                 x_masked = self.mask_layer(x, m)
                 pred_without_next_feature = predictor(x_masked)
-                loss_without_next_feature = loss_fn(pred_without_next_feature, y)
+                loss_without_next_feature = loss_fn(
+                    pred_without_next_feature, y
+                )
                 pred_loss = loss_without_next_feature.mean()
                 pred_loss_total += pred_loss.detach()
 
@@ -565,16 +723,21 @@ class CMIEstimator(nn.Module):
                     # Estimate CMI using value network.
                     x_masked = mask_layer(x, m)
                     if cmi_scaling == "bounded":
-                        entropy = get_entropy(pred_without_next_feature).unsqueeze(1)
+                        entropy = get_entropy(
+                            pred_without_next_feature
+                        ).unsqueeze(1)
                         pred_cmi = value_network(x_masked).sigmoid() * entropy
                     elif cmi_scaling == "positive":
-                        pred_cmi = torch.nn.functional.softplus(value_network(x_masked))
+                        pred_cmi = torch.nn.functional.softplus(
+                            value_network(x_masked)
+                        )
                     else:
                         pred_cmi = value_network(x_masked)
 
                     best = torch.argmax(pred_cmi / feature_costs, dim=1)
                     random = torch.tensor(
-                        np.random.choice(mask_size, size=len(x)), device=x.device
+                        np.random.choice(mask_size, size=len(x)),
+                        device=x.device,
                     )
                     exploit = (torch.rand(len(x), device=x.device) > eps).int()
                     actions = exploit * best + (1 - exploit) * random
@@ -586,7 +749,10 @@ class CMIEstimator(nn.Module):
                     loss_with_next_feature = loss_fn(pred_with_next_feature, y)
 
                     # Value network loss.
-                    delta = loss_without_next_feature - loss_with_next_feature.detach()
+                    delta = (
+                        loss_without_next_feature
+                        - loss_with_next_feature.detach()
+                    )
                     value_network_loss = nn.functional.mse_loss(
                         pred_cmi[torch.arange(len(x)), actions], delta
                     )
@@ -623,7 +789,9 @@ class CMIEstimator(nn.Module):
                     y = y.to(device)
 
                     # Setup.
-                    m = torch.zeros(len(x), mask_size, dtype=x.dtype, device=device)
+                    m = torch.zeros(
+                        len(x), mask_size, dtype=x.dtype, device=device
+                    )
                     x_masked = self.mask_layer(x, m)
                     pred = predictor(x_masked)
                     val_preds[0].append(pred)
@@ -633,7 +801,9 @@ class CMIEstimator(nn.Module):
                         x_masked = mask_layer(x, m)
                         if cmi_scaling == "bounded":
                             entropy = get_entropy(pred).unsqueeze(1)
-                            pred_cmi = value_network(x_masked).sigmoid() * entropy
+                            pred_cmi = (
+                                value_network(x_masked).sigmoid() * entropy
+                            )
                         elif cmi_scaling == "positive":
                             pred_cmi = torch.nn.functional.softplus(
                                 value_network(x_masked)
@@ -646,7 +816,9 @@ class CMIEstimator(nn.Module):
                         best_feature_index = torch.argmax(
                             pred_cmi / feature_costs, dim=1
                         )
-                        m = torch.max(m, ind_to_onehot(best_feature_index, mask_size))
+                        m = torch.max(
+                            m, ind_to_onehot(best_feature_index, mask_size)
+                        )
 
                         # Make prediction.
                         x_masked = self.mask_layer(x, m)
@@ -665,13 +837,22 @@ class CMIEstimator(nn.Module):
                 val_loss_final = pred_losses[-1]
                 val_perf_final = val_scores[-1]
 
-            wandb.log(
-                {
-                    "cmi_estimator/train_loss": total_loss / (max_features + 1),
-                    "cmi_estimator/val_loss": val_loss_mean,
-                    "cmi_estimator/val_accuracy": val_perf_mean,
-                }
-            )
+            log_payload = {
+                "cmi_estimator/train_loss": total_loss / (max_features + 1),
+            }
+            if user_supplied_val_metric:
+                log_payload["cmi_estimator/val_accuracy"] = val_perf_mean
+            else:
+                log_payload["cmi_estimator/val_loss"] = val_loss_mean
+            # wandb.log(
+            #     {
+            #         "cmi_estimator/train_loss": total_loss
+            #         / (max_features + 1),
+            #         "cmi_estimator/val_loss": val_loss_mean,
+            #         "cmi_estimator/val_accuracy": val_perf_mean,
+            #     }
+            # )
+            wandb.log(log_payload)
 
             # Print progress.
             if verbose:
@@ -715,13 +896,40 @@ class CMIEstimator(nn.Module):
 
 
 class Gadgil2023AFAMethod(AFAMethod):
-    def __init__(self, value_network, predictor, device=torch.device("cpu")):
+    def __init__(
+        self,
+        value_network,
+        predictor,
+        device=torch.device("cpu"),
+        lambda_threshold: float = -float("inf"),
+        feature_costs: torch.Tensor | None = None,
+        modality: str | None = "tabular",
+        n_patches: int | None = None,
+    ):
         super().__init__()
 
         # Save network modules.
         self.value_network = value_network
         self.predictor = predictor
         self._device: torch.device = device
+        self.lambda_threshold = lambda_threshold
+        self._feature_costs = feature_costs
+        self.modality = modality
+        self.n_patches = n_patches
+        self.image_size: int | None = None
+        self.patch_size: int | None = None
+        self.mask_width: int | None = None
+
+    def _flat_mask_to_patch_mask(self, feature_mask: torch.Tensor):
+        assert feature_mask.dim() == 4
+        B, C, H, W = feature_mask.shape
+        ps = self.patch_size
+        assert ps is not None
+        ph = H // ps
+        pw = W // ps
+        fm = feature_mask.view(B, C, ph, ps, pw, ps)
+        patch_revealed = fm.any(dim=(1, 3, 5))
+        return patch_revealed.reshape(B, ph * pw)
 
     def predict(
         self,
@@ -730,9 +938,11 @@ class Gadgil2023AFAMethod(AFAMethod):
         features=None,
         label=None,
     ) -> Label:
-        x_masked = torch.cat([masked_features, feature_mask], dim=1)
-        predictor = self.predictor
-        pred = predictor(x_masked)
+        if self.modality == "tabular":
+            x_masked = torch.cat([masked_features, feature_mask], dim=1)
+            pred = self.predictor(x_masked)
+        else:
+            pred = self.predictor(masked_features)
         return pred.softmax(dim=-1)
 
     def select(
@@ -742,72 +952,147 @@ class Gadgil2023AFAMethod(AFAMethod):
         features=None,
         label=None,
     ) -> AFASelection:
-        x_masked = torch.cat([masked_features, feature_mask], dim=1)
-        pred = self.predict(masked_features, feature_mask)
-        entropy = get_entropy(pred).unsqueeze(1)
-        value_network = self.value_network
-        pred_cmi = value_network(x_masked).sigmoid() * entropy
-        pred_cmi -= 1e6 * feature_mask
-        next_feature_idx = torch.argmax(pred_cmi, dim=1)
+        if self.modality == "tabular":
+            x_masked = torch.cat([masked_features, feature_mask], dim=1)
+            pred = self.predict(masked_features, feature_mask)
+            entropy = get_entropy(pred).unsqueeze(1)
+            pred_cmi = self.value_network(x_masked).sigmoid() * entropy
+            pred_cmi -= 1e6 * feature_mask
+        else:
+            pred = self.predictor(masked_features)
+            entropy = get_entropy(pred).unsqueeze(1)
+            pred_cmi = self.value_network(masked_features).sigmoid() * entropy
+            patch_mask = self._flat_mask_to_patch_mask(feature_mask).float()
+            pred_cmi = pred_cmi - 1e6 * patch_mask
 
-        return next_feature_idx
+        if self._feature_costs is not None:
+            costs = self._feature_costs.to(self._device)
+            costs = torch.clamp(costs, min=1e-12)
+            scores = pred_cmi / costs.unsqueeze(0)
+        else:
+            scores = pred_cmi
+        best_scores, best_idx = scores.max(dim=1)
+        lam = self.lambda_threshold
+        stop_mask = best_scores < lam
+        stop_mask = stop_mask | (best_scores < -1e5)
+
+        selections = (best_idx + 1).to(torch.long)
+        selections = selections.masked_fill(stop_mask, 0)
+        return selections
+        # next_feature_idx = torch.argmax(pred_cmi, dim=1)
+        # return next_feature_idx
 
     @classmethod
     def load(cls, path, device="cpu"):
         checkpoint = torch.load(path / "model.pt", map_location=device)
         arch = checkpoint["architecture"]
-        d_in = arch["d_in"]
-        d_out = arch["d_out"]
-        value_network_hidden_layers = arch["value_network_hidden_layers"]
-        predictor_hidden_layers = arch["predictor_hidden_layers"]
-        dropout = arch["dropout"]
-        predictor = fc_Net(
-            input_dim=d_in * 2,
-            output_dim=d_out,
-            hidden_layer_num=len(predictor_hidden_layers),
-            hidden_unit=predictor_hidden_layers,
-            activations="ReLU",
-            drop_out_rate=dropout,
-            flag_drop_out=True,
-            flag_only_output_layer=False,
-        )
-        value_network = fc_Net(
-            input_dim=d_in * 2,
-            output_dim=d_in,
-            hidden_layer_num=len(value_network_hidden_layers),
-            hidden_unit=value_network_hidden_layers,
-            activations="ReLU",
-            drop_out_rate=dropout,
-            flag_drop_out=True,
-            flag_only_output_layer=False,
-        )
-        # Tie weights
-        value_network.hidden[0] = predictor.hidden[0]
-        value_network.hidden[1] = predictor.hidden[1]
+        if "predictor_hidden_layers" in arch:
+            d_in = arch["d_in"]
+            d_out = arch["d_out"]
+            value_network_hidden_layers = arch["value_network_hidden_layers"]
+            predictor_hidden_layers = arch["predictor_hidden_layers"]
+            dropout = arch["dropout"]
+            predictor = fc_Net(
+                input_dim=d_in * 2,
+                output_dim=d_out,
+                hidden_layer_num=len(predictor_hidden_layers),
+                hidden_unit=predictor_hidden_layers,
+                activations="ReLU",
+                drop_out_rate=dropout,
+                flag_drop_out=True,
+                flag_only_output_layer=False,
+            )
+            value_network = fc_Net(
+                input_dim=d_in * 2,
+                output_dim=d_in,
+                hidden_layer_num=len(value_network_hidden_layers),
+                hidden_unit=value_network_hidden_layers,
+                activations="ReLU",
+                drop_out_rate=dropout,
+                flag_drop_out=True,
+                flag_only_output_layer=False,
+            )
+            # Tie weights
+            value_network.hidden[0] = predictor.hidden[0]
+            value_network.hidden[1] = predictor.hidden[1]
 
-        model = cls(value_network, predictor, device)
-        model.value_network.load_state_dict(checkpoint["value_network_state_dict"])
-        model.predictor.load_state_dict(checkpoint["predictor_state_dict"])
-        model.value_network.eval()
-        model.predictor.eval()
-        return model.to(device)
+            model = cls(value_network, predictor, device)
+            model.value_network.load_state_dict(
+                checkpoint["value_network_state_dict"]
+            )
+            model.predictor.load_state_dict(checkpoint["predictor_state_dict"])
+            model.value_network.eval()
+            model.predictor.eval()
+            return model.to(device)
+
+        backbone = arch["backbone"]
+        if backbone == "resnet18":
+            d_out = arch["d_out"]
+            base = resnet18(pretrained=False)
+            backbone_net, expansion = ResNet18Backbone(base)
+            predictor = Predictor(backbone_net, expansion, d_out)
+            value_network = ConvNet(backbone_net, 1, 0.5)
+
+            model = cls(
+                value_network=value_network,
+                predictor=predictor,
+                device=device,
+                modality="image",
+                n_patches=int(arch["mask_width"]) ** 2,
+            )
+            model.mask_width = int(arch["mask_width"])
+            model.patch_size = int(arch["patch_size"])
+            model.image_size = int(arch["image_size"])
+
+            model.value_network.load_state_dict(
+                checkpoint["value_network_state_dict"]
+            )
+            model.predictor.load_state_dict(checkpoint["predictor_state_dict"])
+            model.value_network.eval()
+            model.predictor.eval()
+            return model.to(device)
+        raise ValueError("Unrecognized checkpoint format")
 
     def save(self, path: Path):
         os.makedirs(path, exist_ok=True)
-        torch.save(
-            {
-                "value_network_state_dict": self.value_network.state_dict(),
-                "predictor_state_dict": self.predictor.state_dict(),
-                "architecture": {
-                    "d_in": self.value_network.output_dim,
-                    "d_out": self.predictor.output_dim,
-                    "value_network_hidden_layers": [128, 128],
-                    "predictor_hidden_layers": [128, 128],
-                    "dropout": 0.3,
-                },
-            },
-            os.path.join(path, "model.pt"),
-        )
+        if self.modality == "tabular":
+            arch = {
+                "d_in": self.value_network.output_dim,
+                "d_out": self.predictor.output_dim,
+                "value_network_hidden_layers": [128, 128],
+                "predictor_hidden_layers": [128, 128],
+                "dropout": 0.3,
+                "model_type": "tabular",
+            }
+        else:
+            arch = {
+                "backbone": "resnet18",
+                "image_size": getattr(self, "image_size", 224),
+                "patch_size": getattr(self, "patch_size", 16),
+                "mask_width": getattr(self, "mask_width", 14),
+                "d_out": self.predictor.fc.out_features,
+                "model_type": "image",
+            }
+        payload = {
+            "value_network_state_dict": self.value_network.state_dict(),
+            "predictor_state_dict": self.predictor.state_dict(),
+            "architecture": arch,
+        }
+        torch.save(payload, os.path.join(path, "model.pt"))
+        # torch.save(
+        #     {
+        #         "value_network_state_dict": self.value_network.state_dict(),
+        #         "predictor_state_dict": self.predictor.state_dict(),
+        #         "architecture": {
+        #             "d_in": self.value_network.output_dim,
+        #             "d_out": self.predictor.output_dim,
+        #             "value_network_hidden_layers": [128, 128],
+        #             "predictor_hidden_layers": [128, 128],
+        #             "dropout": 0.3,
+        #         },
+        #     },
+        #     os.path.join(path, "model.pt"),
+        # )
 
     def to(self, device):
         self.value_network = self.value_network.to(device)
@@ -818,3 +1103,14 @@ class Gadgil2023AFAMethod(AFAMethod):
     @property
     def device(self) -> torch.device:
         return self._device
+
+    @property
+    def has_builtin_classifier(self) -> bool:
+        return True
+
+    @property
+    def cost_param(self) -> float | None:
+        return float(self.lambda_threshold)
+
+    def set_cost_param(self, cost_param: float) -> None:
+        self.lambda_threshold = cost_param

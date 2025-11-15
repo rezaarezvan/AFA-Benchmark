@@ -1,8 +1,8 @@
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
-from hydra.core.config_store import ConfigStore
 
+from hydra.core.config_store import ConfigStore
 
 cs = ConfigStore.instance()
 
@@ -222,16 +222,19 @@ class Shim2018AgentConfig:
 class Shim2018TrainConfig:
     pretrained_model_artifact_name: str
     n_agents: int
-    hard_budget: int
+    hard_budget: int | None
+    cost_param: float | None  # how much each feature costs
     agent: Shim2018AgentConfig
     n_batches: int  # how many batches to train the agent
     batch_size: int  # batch size for collector
-    eval_every_n_batches: int  # how often to evaluate the agent
-    eval_max_steps: int  # maximum allowed number of steps in an evaluation episode
+    eval_every_n_batches: int | None  # how often to evaluate the agent
+    eval_max_steps: (
+        int  # maximum allowed number of steps in an evaluation episode
+    )
     n_eval_episodes: int  # how many episodes to average over in evaluation
 
     device: str
-    seed: int
+    seed: int | None
     pretrained_model_lr: float
     activate_joint_training_after_n_batches: int
     output_artifact_aliases: list[str]
@@ -247,9 +250,13 @@ cs.store(name="train_shim2018", node=Shim2018TrainConfig)
 @dataclass
 class Ma2018PointNetConfig:
     identity_size: int = 20
-    identity_network_num_cells: list[int] = field(default_factory=lambda: [20, 20])
+    identity_network_num_cells: list[int] = field(
+        default_factory=lambda: [20, 20]
+    )
     output_size: int = 40
-    feature_map_encoder_num_cells: list[int] = field(default_factory=lambda: [500])
+    feature_map_encoder_num_cells: list[int] = field(
+        default_factory=lambda: [500]
+    )
     max_embedding_norm: float = 1.0
 
 
@@ -257,10 +264,14 @@ class Ma2018PointNetConfig:
 class Ma2018PartialVAEConfig:
     lr: float = 1e-3
     patience: int = 5
-    encoder_num_cells: list[int] = field(default_factory=lambda: [500, 500, 200])
+    encoder_num_cells: list[int] = field(
+        default_factory=lambda: [500, 500, 200]
+    )
     latent_size: int = 20
     kl_scaling_factor: float = 0.1
-    decoder_num_cells: list[int] = field(default_factory=lambda: [200, 500, 500])
+    decoder_num_cells: list[int] = field(
+        default_factory=lambda: [200, 500, 500]
+    )
 
 
 @dataclass
@@ -275,7 +286,7 @@ class Ma2018ClassifierConfig:
 @dataclass
 class Ma2018PretrainingConfig:
     dataset_artifact_name: str
-    output_artifact_aliases: list[str] = field(default_factory=lambda: [])
+    output_artifact_aliases: list[str] = field(default_factory=list)
 
     batch_size: int = 128
     seed: int = 42
@@ -287,9 +298,15 @@ class Ma2018PretrainingConfig:
     max_mask: float = 0.9
     epochs: int = 1000
 
-    pointnet: Ma2018PointNetConfig = field(default_factory=Ma2018PointNetConfig)
-    partial_vae: Ma2018PartialVAEConfig = field(default_factory=Ma2018PartialVAEConfig)
-    classifier: Ma2018ClassifierConfig = field(default_factory=Ma2018ClassifierConfig)
+    pointnet: Ma2018PointNetConfig = field(
+        default_factory=Ma2018PointNetConfig
+    )
+    partial_vae: Ma2018PartialVAEConfig = field(
+        default_factory=Ma2018PartialVAEConfig
+    )
+    classifier: Ma2018ClassifierConfig = field(
+        default_factory=Ma2018ClassifierConfig
+    )
 
 
 cs.store(name="pretrain_ma2018", node=Ma2018PretrainingConfig)
@@ -301,7 +318,7 @@ class Ma2018TrainingConfig:
     hard_budget: int
     device: str = "cuda"
     seed: int = 42
-    output_artifact_aliases: list[str] = field(default_factory=lambda: [])
+    output_artifact_aliases: list[str] = field(default_factory=list)
 
 
 cs.store(name="train_ma2018", node=Ma2018TrainingConfig)
@@ -310,7 +327,7 @@ cs.store(name="train_ma2018", node=Ma2018TrainingConfig)
 @dataclass
 class Covert2023PretrainingConfig:
     dataset_artifact_name: str
-    output_artifact_aliases: list[str] = field(default_factory=lambda: [])
+    output_artifact_aliases: list[str] = field(default_factory=list)
 
     batch_size: int = 128
     seed: int = 42
@@ -332,9 +349,30 @@ cs.store(name="pretrain_covert2023", node=Covert2023PretrainingConfig)
 
 
 @dataclass
+class Covert2023Pretraining2DConfig:
+    dataset_artifact_name: str
+    output_artifact_aliases: list[str] = field(default_factory=list)
+
+    batch_size: int = 128
+    seed: int = 42
+    device: str = "cuda"
+    lr: float = 1e-5
+    nepochs: int = 50
+    patience: int = 2
+    min_masking_probability: float = 0.0
+    max_masking_probability: float = 0.9
+
+    image_size: int = 224
+    patch_size: int = 16
+
+
+cs.store(name="pretrain_covert2023", node=Covert2023Pretraining2DConfig)
+
+
+@dataclass
 class Covert2023TrainingConfig:
     pretrained_model_artifact_name: str
-    output_artifact_aliases: list[str] = field(default_factory=lambda: [])
+    output_artifact_aliases: list[str] = field(default_factory=list)
 
     batch_size: int = 128
     lr: float = 1e-3
@@ -355,9 +393,27 @@ cs.store(name="train_covert2023", node=Covert2023TrainingConfig)
 
 
 @dataclass
+class Covert2023Training2DConfig:
+    pretrained_model_artifact_name: str
+    output_artifact_aliases: list[str] = field(default_factory=list)
+
+    batch_size: int = 128
+    lr: float = 1e-5
+    min_lr: float = 1e-8
+    hard_budget: int = 20
+    nepochs: int = 50
+    patience: int = 3
+    device: str = "cuda"
+    seed: int = 42
+
+
+cs.store(name="train_covert2023", node=Covert2023Training2DConfig)
+
+
+@dataclass
 class Gadgil2023PretrainingConfig:
     dataset_artifact_name: str
-    output_artifact_aliases: list[str] = field(default_factory=lambda: [])
+    output_artifact_aliases: list[str] = field(default_factory=list)
 
     batch_size: int = 128
     seed: int = 42
@@ -379,9 +435,30 @@ cs.store(name="pretrain_gadgil2023", node=Gadgil2023PretrainingConfig)
 
 
 @dataclass
+class Gadgil2023Pretraining2DConfig:
+    dataset_artifact_name: str
+    output_artifact_aliases: list[str] = field(default_factory=list)
+
+    batch_size: int = 128
+    seed: int = 42
+    device: str = "cuda"
+    lr: float = 1e-5
+    nepochs: int = 50
+    patience: int = 2
+    min_masking_probability: float = 0.0
+    max_masking_probability: float = 0.9
+
+    image_size: int = 224
+    patch_size: int = 16
+
+
+cs.store(name="pretrain_gadgil2023", node=Gadgil2023Pretraining2DConfig)
+
+
+@dataclass
 class Gadgil2023TrainingConfig:
     pretrained_model_artifact_name: str
-    output_artifact_aliases: list[str] = field(default_factory=lambda: [])
+    output_artifact_aliases: list[str] = field(default_factory=list)
 
     batch_size: int = 128
     lr: float = 1e-3
@@ -405,6 +482,27 @@ cs.store(name="train_gadgil2023", node=Gadgil2023TrainingConfig)
 
 
 @dataclass
+class Gadgil2023Training2DConfig:
+    pretrained_model_artifact_name: str
+    output_artifact_aliases: list[str] = field(default_factory=list)
+
+    batch_size: int = 128
+    lr: float = 1e-5
+    min_lr: float = 1e-8
+    hard_budget: int = 20
+    nepochs: int = 250
+    patience: int = 3
+    eps: float = 0.05
+    eps_decay: float = 0.2
+    eps_steps: int = 10
+    device: str = "cuda"
+    seed: int = 42
+
+
+cs.store(name="train_gadgil2023", node=Gadgil2023Training2DConfig)
+
+
+@dataclass
 class StaticSelectorConfig:
     lr: float = 1e-3
     nepochs: int = 250
@@ -422,15 +520,19 @@ class StaticClassifierConfig:
 @dataclass
 class CAETrainingConfig:
     dataset_artifact_name: str
-    output_artifact_aliases: list[str] = field(default_factory=lambda: [])
+    output_artifact_aliases: list[str] = field(default_factory=list)
 
     batch_size: int = 128
     hard_budget: int = 20
     device: str = "cuda"
     seed: int = 42
 
-    selector: StaticSelectorConfig = field(default_factory=StaticSelectorConfig)
-    classifier: StaticClassifierConfig = field(default_factory=StaticClassifierConfig)
+    selector: StaticSelectorConfig = field(
+        default_factory=StaticSelectorConfig
+    )
+    classifier: StaticClassifierConfig = field(
+        default_factory=StaticClassifierConfig
+    )
 
 
 cs.store(name="train_cae", node=CAETrainingConfig)
@@ -439,15 +541,19 @@ cs.store(name="train_cae", node=CAETrainingConfig)
 @dataclass
 class PermutationTrainingConfig:
     dataset_artifact_name: str
-    output_artifact_aliases: list[str] = field(default_factory=lambda: [])
+    output_artifact_aliases: list[str] = field(default_factory=list)
 
     batch_size: int = 128
     hard_budget: int = 20
     device: str = "cuda"
     seed: int = 42
 
-    selector: StaticSelectorConfig = field(default_factory=StaticSelectorConfig)
-    classifier: StaticClassifierConfig = field(default_factory=StaticClassifierConfig)
+    selector: StaticSelectorConfig = field(
+        default_factory=StaticSelectorConfig
+    )
+    classifier: StaticClassifierConfig = field(
+        default_factory=StaticClassifierConfig
+    )
 
 
 cs.store(name="train_permutation", node=PermutationTrainingConfig)
@@ -458,9 +564,26 @@ cs.store(name="train_permutation", node=PermutationTrainingConfig)
 @dataclass
 class RandomDummyTrainConfig:
     dataset_artifact_name: str
-    hard_budget: int  # not used, but pretend that it is
+    hard_budget: int | None  # not used, but pretend that it is
+    device: str
     seed: int
     output_artifact_aliases: list[str]
+    cost_param: float
+
+
+cs.store(name="train_randomdummy", node=RandomDummyTrainConfig)
+
+# sequentialdummy
+
+
+@dataclass
+class SequentialDummyTrainConfig:
+    dataset_artifact_name: str
+    hard_budget: int | None  # not used, but pretend that it is
+    device: str
+    seed: int | None
+    output_artifact_aliases: list[str]
+    cost_param: float
 
 
 cs.store(name="train_randomdummy", node=RandomDummyTrainConfig)
@@ -512,17 +635,22 @@ class Zannone2019AgentConfig:
 class Zannone2019TrainConfig:
     pretrained_model_artifact_name: str
     n_agents: int
-    hard_budget: int
+    hard_budget: int | None
+    cost_param: float | None
     agent: Zannone2019AgentConfig
     n_batches: int  # how many batches to train the agent
     batch_size: int  # batch size for collector
-    eval_every_n_batches: int  # how often to evaluate the agent
-    eval_max_steps: int  # maximum allowed number of steps in an evaluation episode
+    eval_every_n_batches: int | None  # how often to evaluate the agent
+    eval_max_steps: (
+        int  # maximum allowed number of steps in an evaluation episode
+    )
     n_eval_episodes: int  # how many episodes to average over in evaluation
     n_generated_samples: (
         int  # how many artificial samples to generate using pretrained model
     )
-    generation_batch_size: int  # which batch size to use for artificial data generation
+    generation_batch_size: (
+        int  # which batch size to use for artificial data generation
+    )
 
     device: str
     seed: int
@@ -573,12 +701,15 @@ class Kachuee2019TrainConfig:
 
     pretrained_model_artifact_name: str
     n_agents: int
-    hard_budget: int
+    hard_budget: int | None
+    cost_param: float | None
     agent: Kachuee2019AgentConfig
     n_batches: int  # how many batches to train the agent
     batch_size: int  # batch size for collector
-    eval_every_n_batches: int  # how often to evaluate the agent
-    eval_max_steps: int  # maximum allowed number of steps in an evaluation episode
+    eval_every_n_batches: int | None  # how often to evaluate the agent
+    eval_max_steps: (
+        int  # maximum allowed number of steps in an evaluation episode
+    )
     n_eval_episodes: int  # how many episodes to average over in evaluation
 
     device: str
@@ -609,6 +740,8 @@ class AACOTrainConfig:
     output_artifact_aliases: list[str]
     seed: int = 42
     device: str = "cpu"
+    cost_param: float | None = None
+    hard_budget: float | None = None
 
 
 # --- TRAINING CLASSIFIERS ---
@@ -623,7 +756,9 @@ class TrainMaskedMLPClassifierConfig:
     limit_val_batches: int | None
     min_masking_probability: float
     max_masking_probability: float
-    eval_only_n_samples: int | None  # if specified, only evaluate on this many samples
+    eval_only_n_samples: (
+        int | None
+    )  # if specified, only evaluate on this many samples
     lr: float
     seed: int
     device: str
@@ -633,7 +768,34 @@ class TrainMaskedMLPClassifierConfig:
     evaluate_final_performance: bool
 
 
-cs.store(name="train_masked_mlp_classifier", node=TrainMaskedMLPClassifierConfig)
+cs.store(
+    name="train_masked_mlp_classifier", node=TrainMaskedMLPClassifierConfig
+)
+
+
+@dataclass
+class TrainMaskedViTClassifierConfig:
+    dataset_artifact_name: str
+    batch_size: int
+    epochs: int
+    min_masking_probability: float
+    max_masking_probability: float
+
+    model_name: str
+    image_size: int
+    patch_size: int
+    patience: int
+    min_lr: float
+
+    lr: float
+    seed: int
+    device: str
+    output_artifact_aliases: list[str]
+
+
+cs.store(
+    name="train_masked_vit_classifier", node=TrainMaskedViTClassifierConfig
+)
 
 
 # --- EVALUATION ---
@@ -647,12 +809,43 @@ class EvalConfig:
     seed: int
     device: str
     output_artifact_aliases: list[str]
-    eval_only_n_samples: int | None  # if specified, only evaluate on this many samples
+    eval_only_n_samples: (
+        int | None
+    )  # if specified, only evaluate on this many samples
     batch_size: int
     dataset_split: str  # use "validation" or "testing"
+    budget: int | None = (
+        None  # if specified, override the budget from training
+    )
 
 
 cs.store(name="eval", node=EvalConfig)
+
+
+@dataclass
+class SoftEvalConfig:
+    trained_method_artifact_name: str
+    cost_param: (
+        float | None
+    )  # Some AFAMethods don't need a cost parameter during training, but need it during evaluation
+    # if None, use the method's classifier
+    trained_classifier_artifact_name: str  # has to be given
+    seed: int | None
+    device: str
+    output_artifact_aliases: list[str]
+    eval_only_n_samples: (
+        int | None
+    )  # if specified, only evaluate on this many samples
+    dataset_split: str  # use "validation" or "testing"
+    batch_size: int
+    budget: int | None = (
+        None  # if specified, override the budget from training
+    )
+    # whether to validate that the method and classifier artifacts are trained on the exact same dataset
+    validate_artifacts: bool = True
+
+
+cs.store(name="soft-eval", node=SoftEvalConfig)
 
 # --- MISC ---
 
@@ -674,7 +867,9 @@ class EvaluationTimeCalculationConfig:
     max_workers: int
 
 
-cs.store(name="evaluation_time_calculation", node=EvaluationTimeCalculationConfig)
+cs.store(
+    name="evaluation_time_calculation", node=EvaluationTimeCalculationConfig
+)
 
 
 @dataclass
@@ -703,13 +898,12 @@ class MetricConfig:
 
 @dataclass
 class PlotConfig:
-    eval_artifact_yaml_list: str  # path to a YAML config file which contains a list of evaluation artifacts to use
+    # path to a YAML config file which contains a list of evaluation artifacts to use
+    eval_artifact_yaml_list: str
     metric_keys_and_descriptions: list[
         MetricConfig
     ]  # Inner list has two elements: [metric_key, description]
-    max_workers: (
-        int  # how many parallel workers to use for loading evaluation artifacts
-    )
+    max_workers: int  # how many parallel workers to use for loading evaluation artifacts
 
 
 cs.store(name="plot", node=PlotConfig)

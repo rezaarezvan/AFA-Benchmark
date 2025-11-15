@@ -1,43 +1,50 @@
 """Evaluate a single AFA method on a dataset, using a trained classifier if specified."""
 
-from matplotlib import pyplot as plt
 import logging
+from collections import Counter
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any
 
 import hydra
 import torch
-import wandb
+from matplotlib import pyplot as plt
+from omegaconf import OmegaConf
 
+import wandb
 from common.config_classes import EvalConfig
 from common.custom_types import (
     AFAClassifier,
-    AFAPredictFn,
     AFADataset,
     AFAMethod,
+    AFAPredictFn,
 )
-
+from common.afa_uncoverings import get_image_patch_uncover_fn
 from common.registry import get_afa_classifier_class, get_afa_method_class
 from common.utils import load_dataset_artifact, set_seed
-
-from omegaconf import OmegaConf
-
-from eval.metrics import eval_afa_method
+from eval.hard_budget import eval_afa_method
 from eval.utils import plot_metrics
 
 
 def load_trained_method_artifacts(
     artifact_name: str, device: torch.device | None = None
 ) -> tuple[
-    AFADataset, AFADataset, AFADataset, AFAMethod, dict[str, Any]  # method metadata
+    AFADataset,
+    AFADataset,
+    AFADataset,
+    AFAMethod,
+    dict[str, Any],  # method metadata
 ]:
     """Load a trained afa method and the dataset it was trained on, from a WandB artifact."""
     if device is None:
         device = torch.device("cpu")
-    trained_method_artifact = wandb.use_artifact(artifact_name, type="trained_method")
+    trained_method_artifact = wandb.use_artifact(
+        artifact_name, type="trained_method"
+    )
     trained_method_artifact_dir = Path(trained_method_artifact.download())
-    method_class = get_afa_method_class(trained_method_artifact.metadata["method_type"])
+    method_class = get_afa_method_class(
+        trained_method_artifact.metadata["method_type"]
+    )
     log.debug(
         f"Loading trained AFA method of class {method_class.__name__} from artifact {artifact_name}"
     )
@@ -67,7 +74,9 @@ def load_trained_classifier_artifact(
     trained_classifier_artifact = wandb.use_artifact(
         artifact_name, type="trained_classifier"
     )
-    trained_classifier_artifact_dir = Path(trained_classifier_artifact.download())
+    trained_classifier_artifact_dir = Path(
+        trained_classifier_artifact.download()
+    )
     classifier_class_name = trained_classifier_artifact.metadata[
         "classifier_class_name"
     ]
@@ -86,7 +95,8 @@ def validate_artifacts(
     trained_method_artifact_name: str,
     trained_classifier_artifact_name: str,
 ) -> None:
-    """Validate that the trained method and classifier artifacts are compatible.
+    """
+    Validate that the trained method and classifier artifacts are compatible.
 
     They should have been trained on the same dataset.
     """
@@ -116,15 +126,17 @@ def validate_artifacts(
 log = logging.getLogger(__name__)
 
 
-@hydra.main(version_base=None, config_path="../../conf/eval", config_name="config")
-def main(cfg: EvalConfig) -> None:
+@hydra.main(
+    version_base=None, config_path="../../conf/eval", config_name="config"
+)
+def main(cfg: EvalConfig) -> None:  # noqa: PLR0915
     log.debug(cfg)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
 
     run = wandb.init(
         job_type="evaluation",
-        config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore
+        config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore[reportArgumentType]
         dir="wandb",
     )
 
@@ -143,18 +155,19 @@ def main(cfg: EvalConfig) -> None:
     elif cfg.dataset_split == "testing":
         dataset = test_dataset
     else:
-        raise ValueError(
-            f"cfg.dataset_split should either be 'validation' or 'testing', not {cfg.dataset_split}"
-        )
+        msg = f"cfg.dataset_split should either be 'validation' or 'testing', not {cfg.dataset_split}"
+        raise ValueError(msg)
     log.info("Loaded trained AFA method and dataset from artifacts")
 
     # Load a classifier if it was specified
     if cfg.trained_classifier_artifact_name:
         validate_artifacts(
-            cfg.trained_method_artifact_name, cfg.trained_classifier_artifact_name
+            cfg.trained_method_artifact_name,
+            cfg.trained_classifier_artifact_name,
         )
         afa_predict_fn, classifier_metadata = load_trained_classifier_artifact(
-            cfg.trained_classifier_artifact_name, device=torch.device(cfg.device)
+            cfg.trained_classifier_artifact_name,
+            device=torch.device(cfg.device),
         )
         classifier_type = classifier_metadata["classifier_type"]
         log.info("Loaded external classifier")
@@ -169,17 +182,36 @@ def main(cfg: EvalConfig) -> None:
     # Use the same hard budget during evaluation as during training
     # Note that this can be None, in which case we will use the maximum number of features in the dataset
     # during evaluation
-    if hasattr(cfg, "budget") and cfg.budget is not None:
-        log.info(f"Using explicitly provided budget: {cfg.budget}")
+    # Any method can still choose to stop acquiring features earlier than the hard budget
+    if hasattr(cfg, "budget") and getattr(cfg, "budget", None) is not None:
         eval_budget = cfg.budget
-    elif method_metadata["budget"] is None:
+        assert type(eval_budget) is int
+        log.info(f"Using explicitly provided budget: {eval_budget}")
+    elif method_metadata.get("budget") is None:
         log.info("Using maximum number of features in the dataset as budget")
         eval_budget = val_dataset.n_features
     else:
         log.info("Using same budget as during training")
-        eval_budget = method_metadata["budget"]
+        eval_budget = int(method_metadata["budget"])
+
+    modality = getattr(afa_method, "modality", "tabular")
+    image_patch_size = getattr(afa_method, "patch_size", 1)
+    afa_uncover_fn = None
+    if modality == "image":
+        x, _ = dataset[0]
+        assert x.ndim == 3
+        C, H, W = x.shape
+        afa_uncover_fn = get_image_patch_uncover_fn(
+            image_side_length=H, n_channels=C, patch_size=image_patch_size
+        )
+        log.info(
+            f"Image modality detected, patch size={image_patch_size}, image_size=({C}, {H}, {W})."
+        )
+    else:
+        log.info(f"Tabular modality detected.")
 
     # Do the evaluation
+    log.info(f"Starting evaluation with budget {eval_budget}")
     metrics = eval_afa_method(
         afa_method.select,
         dataset,
@@ -188,20 +220,59 @@ def main(cfg: EvalConfig) -> None:
         only_n_samples=cfg.eval_only_n_samples,
         batch_size=cfg.batch_size,
         device=torch.device(cfg.device),
+        afa_uncover_fn=afa_uncover_fn,
+        patch_size=image_patch_size,
+    )
+
+    # Log early stopping statistics
+    # TODO do we need the step info in hard budget evaluation?
+    log.info(f"Average steps taken: {metrics['average_steps']:.2f}")
+    log.info(f"Maximum steps taken: {metrics['actual_steps'].max()}")
+    log.info(f"Minimum steps taken: {metrics['actual_steps'].min()}")
+    stopped_early = (metrics["actual_steps"] < eval_budget).sum()
+    total_samples = len(metrics["actual_steps"])
+    log.info(
+        f"Samples that stopped early: {stopped_early}/{total_samples} ({100 * stopped_early / total_samples:.1f}%)"
     )
 
     fig = plot_metrics(metrics)
+
+    # Create action distribution plot - simplified for Plotly compatibility
     action_fig, action_ax = plt.subplots()
-    action_ax.plot(
-        torch.arange(metrics["action_distribution"].shape[-1]),
-        metrics["action_distribution"].cpu(),
+    action_data = metrics["action_distribution"].cpu().numpy()
+    feature_indices = list(range(len(action_data)))
+    action_ax.plot(feature_indices, action_data)
+    action_ax.set_xlabel(
+        "Patch index" if modality == "image" else "Feature index"
     )
-    action_ax.set_xlabel("Feature index")
     action_ax.set_ylabel("Action probability")
+    action_ax.set_title("Action Distribution")
+
+    # Create steps distribution plot - ultra-simplified for Plotly
+    steps_fig, steps_ax = plt.subplots()
+    actual_steps = metrics["actual_steps"].cpu().numpy()
+
+    # Use Counter to get step distribution
+
+    step_counts = Counter(actual_steps)
+    steps = sorted(step_counts.keys())
+    counts = [step_counts[step] for step in steps]
+
+    # Simple bar plot without any fancy features
+    steps_ax.bar(steps, counts)
+    steps_ax.set_xlabel("Number of steps taken")
+    steps_ax.set_ylabel("Number of samples")
+    steps_ax.set_title(
+        f"Steps Distribution (Mean: {float(metrics['average_steps']):.1f})"
+    )
+
     run.log(
         {
             "metrics_plot": fig,
             "action_plot": action_fig,
+            "steps_distribution_plot": steps_fig,
+            "average_steps": metrics["average_steps"],
+            "early_stopping_rate": float(stopped_early) / total_samples,
         }
     )
 
@@ -215,13 +286,18 @@ def main(cfg: EvalConfig) -> None:
             "budget": eval_budget,
             "seed": method_metadata["seed"],
             "classifier_type": classifier_type,
+            "average_steps": float(metrics["average_steps"]),
+            "early_stopping_rate": float(stopped_early) / total_samples,
+            "supports_early_stopping": True,
         },
     )
     with NamedTemporaryFile("w", delete=False) as f:
         metrics_save_path = Path(f.name)
         torch.save(metrics, metrics_save_path)
     eval_results_artifact.add_file(str(metrics_save_path), name="metrics.pt")
-    run.log_artifact(eval_results_artifact, aliases=cfg.output_artifact_aliases)
+    run.log_artifact(
+        eval_results_artifact, aliases=cfg.output_artifact_aliases
+    )
     run.finish()
 
 

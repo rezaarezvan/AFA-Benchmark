@@ -1,8 +1,9 @@
 from pathlib import Path
+
 from common.registry import (
     AFA_DATASET_PATH_REGISTRY,
-    TRAINING_REGISTRY,
     EVALUATION_REGISTRY,
+    TRAINING_REGISTRY,
 )
 
 
@@ -19,7 +20,10 @@ def test_registry():
             )
 
     # Check that each trained afa method path listed in TRAINING_REGISTRY exists
-    for (afa_method_name, train_data_path), model_path in TRAINING_REGISTRY.items():
+    for (
+        afa_method_name,
+        train_data_path,
+    ), model_path in TRAINING_REGISTRY.items():
         model_path = Path(model_path)
         assert model_path.exists(), f"Model path {model_path} does not exist."
         assert model_path.is_file(), f"Model path {model_path} is not a file."
@@ -31,7 +35,10 @@ def test_registry():
     )
 
     # Check that each evaluation result path listed in EVALUATION_REGISTRY exists
-    for (model_path, val_data_path), eval_results_path in EVALUATION_REGISTRY.items():
+    for (
+        model_path,
+        val_data_path,
+    ), eval_results_path in EVALUATION_REGISTRY.items():
         eval_results_path = Path(eval_results_path)
         assert eval_results_path.exists(), (
             f"Evaluation results path {eval_results_path} does not exist."
@@ -42,6 +49,8 @@ def test_registry():
         assert eval_results_path.suffix == ".pt", (
             f"Evaluation results path {eval_results_path} does not have .pt suffix."
         )
-    assert len(set(EVALUATION_REGISTRY.values())) == len(EVALUATION_REGISTRY), (
+    assert len(set(EVALUATION_REGISTRY.values())) == len(
+        EVALUATION_REGISTRY
+    ), (
         "Duplicate model paths in EVALUATION_REGISTRY. Please check the registry."
     )

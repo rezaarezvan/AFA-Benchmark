@@ -1,5 +1,6 @@
 from jaxtyping import Float
 from torch import Tensor
+
 from afa_rl.shim2018.models import (
     LitShim2018EmbedderClassifier,
     ReadProcessEncoder,
@@ -16,7 +17,8 @@ def get_shim2018_model_from_config(
     class_probabiities: Float[Tensor, "n_classes"],
 ) -> LitShim2018EmbedderClassifier:
     encoder = ReadProcessEncoder(
-        set_element_size=n_features + 1,  # state contains one value and one index
+        set_element_size=n_features
+        + 1,  # state contains one value and one index
         output_size=cfg.encoder.output_size,
         reading_block_cells=tuple(cfg.encoder.reading_block_cells),
         writing_block_cells=tuple(cfg.encoder.writing_block_cells),

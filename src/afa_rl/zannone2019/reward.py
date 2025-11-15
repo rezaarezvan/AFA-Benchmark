@@ -1,7 +1,6 @@
-from jaxtyping import Bool
-
 import torch
 import torch.nn.functional as F
+from jaxtyping import Bool
 from torch import Tensor
 
 from afa_rl.custom_types import (
@@ -21,23 +20,27 @@ from common.custom_types import (
 
 
 def get_zannone2019_reward_fn(
-    pretrained_model: Zannone2019PretrainingModel, weights: Tensor
+    pretrained_model: Zannone2019PretrainingModel,
+    weights: Tensor,
+    acquisition_costs: torch.Tensor,
 ) -> AFARewardFn:
-    """The reward function for zannone2019.
-
-    The agent receives a reward at each step of the episode, equal to the negative classification loss.
-    """
+    """The reward function for zannone2019."""
 
     def f(
         _masked_features: MaskedFeatures,
-        _feature_mask: FeatureMask,
+        feature_mask: FeatureMask,
         new_masked_features: MaskedFeatures,
         new_feature_mask: FeatureMask,
         _afa_selection: AFASelection,
         _features: Features,
         label: Label,
-        _done: Bool[Tensor, "*batch 1"],
+        done: Bool[Tensor, "*batch 1"],
     ) -> AFAReward:
+        # Acquisition cost per feature
+        newly_acquired = (new_feature_mask & ~feature_mask).to(torch.float32)
+        reward = -(newly_acquired * acquisition_costs).sum(dim=-1)
+        reward = reward.squeeze(-1)
+
         # We don't get to observe the label
         new_augmented_masked_features = torch.cat(
             [new_masked_features, torch.zeros_like(label)], dim=-1
@@ -49,7 +52,11 @@ def get_zannone2019_reward_fn(
             new_augmented_masked_features, new_augmented_feature_mask
         )
         logits = pretrained_model.classifier(mu)
-        reward = -F.cross_entropy(logits, label, weight=weights, reduction="none")
+        predictions = logits.argmax(dim=-1, keepdim=True)
+        integer_label = label.argmax(dim=-1, keepdim=True)
+        reward = reward + (predictions == integer_label).to(
+            torch.float32
+        ).squeeze(-1)
 
         return reward
 

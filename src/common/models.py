@@ -3,14 +3,24 @@ from typing import final, override
 import lightning as pl
 import torch
 import torch.nn.functional as F
+import torch.optim as optim
+from copy import deepcopy
 from jaxtyping import Float
 from torch import Tensor, nn
 from torchrl.modules import MLP
 
+import wandb
+
 from afa_rl.utils import (
     mask_data,
 )
-from common.custom_types import FeatureMask, MaskedFeatures, Features, Label, Logits
+from common.custom_types import (
+    FeatureMask,
+    Features,
+    Label,
+    Logits,
+    MaskedFeatures,
+)
 
 
 @final
@@ -59,7 +69,8 @@ class LitMaskedMLPClassifier(pl.LightningModule):
     def forward(
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
     ) -> Logits:
-        """Forward.
+        """
+        Forward.
 
         Args:
             masked_features: currently observed features, with zeros for missing features
@@ -72,16 +83,22 @@ class LitMaskedMLPClassifier(pl.LightningModule):
         return self.classifier(masked_features, feature_mask)
 
     @override
-    def training_step(self, batch: tuple[Tensor, Tensor], batch_idx: int):
+    def training_step(
+        self, batch: tuple[Tensor, Tensor], batch_idx: int
+    ) -> torch.Tensor:
         features: Features = batch[0]
         label: Label = batch[1]
 
-        masking_probability = self.min_masking_probability + torch.rand(1).item() * (
+        masking_probability = self.min_masking_probability + torch.rand(
+            1
+        ).item() * (
             self.max_masking_probability - self.min_masking_probability
         )
         self.log("masking_probability", masking_probability, sync_dist=True)
 
-        masked_features, feature_mask, _ = mask_data(features, p=masking_probability)
+        masked_features, feature_mask, _ = mask_data(
+            features, p=masking_probability
+        )
 
         logits = self(masked_features, feature_mask)
         loss = F.cross_entropy(
@@ -91,17 +108,24 @@ class LitMaskedMLPClassifier(pl.LightningModule):
         return loss
 
     def _get_loss_and_acc(
-        self, masked_features: MaskedFeatures, feature_mask: FeatureMask, y: Tensor
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        y: Tensor,
     ) -> tuple[Tensor, Tensor]:
         logits = self(masked_features, feature_mask)
-        loss = F.cross_entropy(logits, y, weight=self.class_weight.to(logits.device))
+        loss = F.cross_entropy(
+            logits, y, weight=self.class_weight.to(logits.device)
+        )
         predicted_class = torch.argmax(logits, dim=1)
         true_class = torch.argmax(y, dim=1)
         acc = (predicted_class == true_class).float().mean()
         return loss, acc
 
     @override
-    def validation_step(self, batch: tuple[Tensor, Tensor], batch_idx: int):
+    def validation_step(
+        self, batch: tuple[Tensor, Tensor], batch_idx: int
+    ) -> None:
         feature_values, y = batch
 
         # Mask features with minimum probability -> see many features (observations)
@@ -110,7 +134,9 @@ class LitMaskedMLPClassifier(pl.LightningModule):
             > self.min_masking_probability
         )
         feature_values_many_observations = feature_values.clone()
-        feature_values_many_observations[feature_mask_many_observations == 0] = 0
+        feature_values_many_observations[
+            feature_mask_many_observations == 0
+        ] = 0
         loss_many_observations, acc_many_observations = self._get_loss_and_acc(
             feature_values_many_observations, feature_mask_many_observations, y
         )
@@ -131,7 +157,7 @@ class LitMaskedMLPClassifier(pl.LightningModule):
         self.log("val_acc_few_observations", acc_few_observations)
 
     @override
-    def configure_optimizers(self):
+    def configure_optimizers(self) -> torch.optim.Optimizer:
         return torch.optim.Adam(self.parameters(), lr=self.lr)
 
 
@@ -172,3 +198,143 @@ class MaskedMLPClassifier(nn.Module):
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
     ) -> Logits:
         return self.forward(masked_features, feature_mask)
+
+
+class MaskedViTClassifier(nn.Module):
+    def __init__(self, backbone, num_classes: int = 10):
+        super().__init__()
+        feat_dim = getattr(
+            backbone, "embed_dim", getattr(backbone, "num_features", None)
+        )
+        if feat_dim is None:
+            raise AttributeError(
+                "Backbone must expose embed_dim or num_features."
+            )
+        self.backbone = backbone
+        self.fc = nn.Linear(feat_dim, num_classes)
+
+    @override
+    def forward(
+        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+    ) -> Logits:
+        x = masked_features
+        feats = self.backbone.forward_features(x)
+        pooled = self.backbone.forward_head(feats, pre_logits=True)
+        logits = self.fc(pooled)
+        return logits
+
+    # @override
+    # def __call__(
+    #     self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+    # ) -> Logits:
+    #     return self.forward(masked_features, feature_mask)
+
+
+class MaskedViTTrainer(nn.Module):
+    def __init__(self, model: nn.Module, mask_layer):
+        super().__init__()
+        self.model = model
+        self.mask_layer = mask_layer
+
+    def fit(
+        self,
+        train_loader,
+        val_loader,
+        lr: float,
+        nepochs: int,
+        loss_fn,
+        val_loss_fn=None,
+        val_loss_mode=None,
+        factor: float = 0.2,
+        patience: int = 2,
+        min_lr: float = 1e-6,
+        min_mask: float = 0.1,
+        max_mask: float = 0.9,
+        tag: str = "eval_loss",
+    ):
+        wandb.watch(self.model, log="all", log_freq=100)
+
+        assert val_loss_fn is not None
+        assert val_loss_mode in ["min", "max"]
+
+        model = self.model
+        device = next(model.parameters()).device
+        opt = optim.Adam(model.parameters(), lr=lr)
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+            opt,
+            mode=val_loss_mode,
+            factor=factor,
+            patience=patience,
+            min_lr=min_lr,
+        )
+
+        def better(a, b):
+            return (a < b) if val_loss_mode == "min" else (a > b)
+
+        best_state = None
+        best_metric = None
+
+        for epoch in range(nepochs):
+            model.train()
+            total_loss = 0.0
+
+            for x, y in train_loader:
+                x = x.to(device)
+                y = y.to(device)
+
+                # Random mask ratio
+                p = min_mask + torch.rand(1).item() * (max_mask - min_mask)
+                n = self.mask_layer.mask_size
+                m = (torch.rand(x.size(0), n, device=device) < p).float()
+
+                x_masked = self.mask_layer(x, m)
+                logits = model(x_masked, m)
+                loss = loss_fn(logits, y)
+
+                opt.zero_grad()
+                loss.backward()
+                opt.step()
+
+                total_loss += loss.item()
+
+            avg_train_loss = total_loss / len(train_loader)
+
+            model.eval()
+            with torch.no_grad():
+                all_preds, all_labels = [], []
+                for x, y in val_loader:
+                    x = x.to(device)
+                    y = y.to(device)
+                    p = min_mask + torch.rand(1).item() * (max_mask - min_mask)
+                    n = self.mask_layer.mask_size
+                    m = (torch.rand(x.size(0), n, device=device) < p).float()
+                    x_masked = self.mask_layer(x, m)
+                    logits = model(x_masked, m)
+                    all_preds.append(logits)
+                    all_labels.append(y)
+
+                y_full = torch.cat(all_labels)
+                preds_full = torch.cat(all_preds)
+                val_loss = val_loss_fn(preds_full, y_full).item()
+
+            wandb.log(
+                {
+                    "train_loss": avg_train_loss,
+                    f"{tag}": val_loss,
+                },
+                step=epoch,
+            )
+
+            scheduler.step(val_loss)
+
+            if (best_metric is None) or better(val_loss, best_metric):
+                best_metric = val_loss
+                best_state = deepcopy(model.state_dict())
+
+        if best_state:
+            model.load_state_dict(best_state)
+        wandb.unwatch(self.model)
+
+    def forward(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        x_masked = self.mask_layer(x, mask)
+        return self.model(x_masked, mask)
