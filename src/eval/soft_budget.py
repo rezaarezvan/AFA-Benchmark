@@ -133,7 +133,9 @@ def eval_soft_budget_afa_method(
                         batch_features[just_finished_indices],
                         batch_label[just_finished_indices],
                     )
-                    external_prediction = torch.argmax(external_prediction, dim=-1)
+                    external_prediction = torch.argmax(
+                        external_prediction, dim=-1
+                    )
                 else:
                     external_prediction = None
 
@@ -156,20 +158,28 @@ def eval_soft_budget_afa_method(
                         C, H, W = fm.shape[-3], fm.shape[-2], fm.shape[-1]
                         assert H % patch_size == 0 and W % patch_size == 0
                         ph, pw = H // patch_size, W // patch_size
-                        patch_revealed = fm.view(C, ph, patch_size, pw, patch_size).any(dim=(0, 2, 4))
+                        patch_revealed = fm.view(
+                            C, ph, patch_size, pw, patch_size
+                        ).any(dim=(0, 2, 4))
                         patches_chosen = int(patch_revealed.sum().item())
                         features_chosen_val = patches_chosen
                         acquisition_cost_val = float(patches_chosen)
                     else:
                         features_chosen_val = int(fm.sum().item())
                         acquisition_cost_val = float(
-                            (acquisition_costs.flatten() * fm.flatten().float()).sum().item()
+                            (
+                                acquisition_costs.flatten()
+                                * fm.flatten().float()
+                            )
+                            .sum()
+                            .item()
                         )
-                    
+
                     row = {
                         "features_chosen": features_chosen_val,
-                        "predicted_label_external": None if external_prediction is None
-                            else external_prediction[i].item(),
+                        "predicted_label_external": None
+                        if external_prediction is None
+                        else external_prediction[i].item(),
                         # "true_label": batch_label[idx].argmax().item(),
                         "true_label": int(batch_label[idx].item()),
                         "predicted_label_builtin": None

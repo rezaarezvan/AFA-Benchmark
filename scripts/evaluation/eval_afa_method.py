@@ -193,7 +193,7 @@ def main(cfg: EvalConfig) -> None:  # noqa: PLR0915
     else:
         log.info("Using same budget as during training")
         eval_budget = int(method_metadata["budget"])
-    
+
     modality = getattr(afa_method, "modality", "tabular")
     image_patch_size = getattr(afa_method, "patch_size", 1)
     afa_uncover_fn = None
@@ -204,7 +204,9 @@ def main(cfg: EvalConfig) -> None:  # noqa: PLR0915
         afa_uncover_fn = get_image_patch_uncover_fn(
             image_side_length=H, n_channels=C, patch_size=image_patch_size
         )
-        log.info(f"Image modality detected, patch size={image_patch_size}, image_size=({C}, {H}, {W}).")
+        log.info(
+            f"Image modality detected, patch size={image_patch_size}, image_size=({C}, {H}, {W})."
+        )
     else:
         log.info(f"Tabular modality detected.")
 

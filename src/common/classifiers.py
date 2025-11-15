@@ -203,13 +203,17 @@ class WrappedMaskedMLPClassifier(AFAClassifier):
         self._device = device
         self.module = self.module.to(device)
         return self
-    
+
 
 @final
 class WrappedMaskedViTClassifier(AFAClassifier):
     def __init__(
-        self, module: MaskedViTClassifier, device: torch.device,
-        pretrained_model_name: str, image_size: int, patch_size: int,
+        self,
+        module: MaskedViTClassifier,
+        device: torch.device,
+        pretrained_model_name: str,
+        image_size: int,
+        patch_size: int,
     ):
         self.module = module.to(device)
         self.module.eval()
@@ -237,7 +241,7 @@ class WrappedMaskedViTClassifier(AFAClassifier):
             probs = logits.softmax(dim=-1)
 
         return probs.to(original_device)
-    
+
     @override
     def save(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -250,7 +254,7 @@ class WrappedMaskedViTClassifier(AFAClassifier):
             "patch_size": self.patch_size,
         }
         torch.save(checkpoint, path)
-    
+
     @override
     @classmethod
     def load(cls, path: Path, device: torch.device) -> Self:
@@ -261,23 +265,27 @@ class WrappedMaskedViTClassifier(AFAClassifier):
         patch_size = int(checkpoint["patch_size"])
 
         backbone = timm.create_model(name, pretrained=False)
-        module = MaskedViTClassifier(backbone=backbone, num_classes=num_classes)
+        module = MaskedViTClassifier(
+            backbone=backbone, num_classes=num_classes
+        )
         module.load_state_dict(checkpoint["state_dict"])
         module.eval()
 
         return cls(
-            module=module, device=device, pretrained_model_name=name,
-            image_size=image_size, patch_size=patch_size,
+            module=module,
+            device=device,
+            pretrained_model_name=name,
+            image_size=image_size,
+            patch_size=patch_size,
         )
 
     @property
     @override
     def device(self) -> torch.device:
         return self._device
-    
+
     @override
     def to(self, device: torch.device) -> Self:
         self._device = device
         self.module = self.module.to(device)
         return self
-

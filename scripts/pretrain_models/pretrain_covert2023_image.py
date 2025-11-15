@@ -52,10 +52,17 @@ def main(cfg: Covert2023Pretraining2DConfig):
         cfg.dataset_artifact_name
     )
     train_loader = DataLoader(
-        train_dataset, batch_size=cfg.batch_size, shuffle=True, pin_memory=True, drop_last=True # type: ignore
+        train_dataset,
+        batch_size=cfg.batch_size,
+        shuffle=True,
+        pin_memory=True,
+        drop_last=True,  # type: ignore
     )
     val_loader = DataLoader(
-        val_dataset, batch_size=cfg.batch_size, shuffle=False, pin_memory=True # type: ignore
+        val_dataset,
+        batch_size=cfg.batch_size,
+        shuffle=False,
+        pin_memory=True,  # type: ignore
     )
     d_out = train_dataset.n_classes
     # train_class_probabilities = get_class_probabilities(train_dataset.labels)

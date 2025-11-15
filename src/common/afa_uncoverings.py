@@ -1,4 +1,5 @@
 """Different types of AFAUncoverFn."""
+
 import torch
 from torch.nn import functional as F
 
@@ -72,9 +73,7 @@ def get_image_patch_uncover_fn(
         stop = sel == 0
         # avoid -1 for one hot
         sel = torch.where(stop, torch.ones_like(sel), sel)
-        afa_selection_1d = F.one_hot(
-            sel - 1, num_classes=afa_selection_size
-        )
+        afa_selection_1d = F.one_hot(sel - 1, num_classes=afa_selection_size)
         afa_selection_1d[stop] = 0
 
         # Convert to low-dimensional image mask
@@ -85,10 +84,9 @@ def get_image_patch_uncover_fn(
         )
 
         # Add batch dimension and channel dimension, expand channels
-        afa_selection_low_dim_image = (
-            afa_selection_low_dim_image.unsqueeze(1)
-            .expand(-1, n_channels, -1, -1)
-        )
+        afa_selection_low_dim_image = afa_selection_low_dim_image.unsqueeze(
+            1
+        ).expand(-1, n_channels, -1, -1)
 
         # Upscale image mask, converting between float and bool
         afa_selection_image = F.interpolate(

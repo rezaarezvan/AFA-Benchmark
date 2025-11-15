@@ -121,7 +121,7 @@ def main(cfg: Covert2023TrainingConfig):
         loss_fn=nn.CrossEntropyLoss(weight=class_weights),
         patience=cfg.patience,
         verbose=True,
-        feature_costs=train_dataset.get_feature_acquisition_costs().to(device)
+        feature_costs=train_dataset.get_feature_acquisition_costs().to(device),
     )
 
     afa_method = Covert2023AFAMethod(gdfs.selector.cpu(), gdfs.predictor.cpu())

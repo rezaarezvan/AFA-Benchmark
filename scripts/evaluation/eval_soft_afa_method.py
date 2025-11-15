@@ -11,7 +11,10 @@ import torch
 from omegaconf import OmegaConf
 
 import wandb
-from common.afa_uncoverings import one_based_index_uncover_fn, get_image_patch_uncover_fn
+from common.afa_uncoverings import (
+    one_based_index_uncover_fn,
+    get_image_patch_uncover_fn,
+)
 from common.config_classes import SoftEvalConfig
 from common.custom_types import (
     AFAClassifier,
@@ -172,7 +175,9 @@ def main(cfg: SoftEvalConfig) -> None:
         )
         log.info("Loaded external classifier")
     else:
-        log.info("No external classifier provided; using builtin predictor only.")
+        log.info(
+            "No external classifier provided; using builtin predictor only."
+        )
 
     # Some methods need to have the cost parameter set during evaluation
     if hasattr(afa_method, "set_cost_param"):
@@ -229,7 +234,9 @@ def main(cfg: SoftEvalConfig) -> None:
 
     # Save results as wandb artifact
     trained_base = cfg.trained_method_artifact_name.split(":")[0]
-    trained_base_cost = re.sub(r"-budget_[^-]+", f"-costparam_{cfg.cost_param}", trained_base)
+    trained_base_cost = re.sub(
+        r"-budget_[^-]+", f"-costparam_{cfg.cost_param}", trained_base
+    )
     eval_results_artifact = wandb.Artifact(
         name=f"{trained_base_cost}-{cfg.trained_classifier_artifact_name.split(':')[0] if cfg.trained_classifier_artifact_name else 'builtin'}",
         type="soft_eval_results",

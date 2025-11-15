@@ -122,7 +122,9 @@ class Ma2018AFAMethod(AFAMethod):
         # )
         preds_all = preds_all.view(B, F, self.num_classes)
         base_probs = base_probs.unsqueeze(1).expand(B, F, self.num_classes)
-        kl_all = (preds_all * ((preds_all + 1e-6).log() - (base_probs + 1e-6).log())).sum(-1)
+        kl_all = (
+            preds_all * ((preds_all + 1e-6).log() - (base_probs + 1e-6).log())
+        ).sum(-1)
 
         scores = kl_all.view(B, F)
         # avoid choosing the already masked features

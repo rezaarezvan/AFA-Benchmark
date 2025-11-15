@@ -85,13 +85,19 @@ def main(cfg: Gadgil2023Training2DConfig):
     #     train_dataset, val_dataset, cfg.batch_size
     # )
     train_loader = DataLoader(
-        train_dataset, batch_size=cfg.batch_size, shuffle=True, pin_memory=True, drop_last=True # type: ignore
+        train_dataset,
+        batch_size=cfg.batch_size,
+        shuffle=True,
+        pin_memory=True,
+        drop_last=True,  # type: ignore
     )
     val_loader = DataLoader(
-        val_dataset, batch_size=cfg.batch_size, shuffle=False, pin_memory=True # type: ignore
+        val_dataset,
+        batch_size=cfg.batch_size,
+        shuffle=False,
+        pin_memory=True,  # type: ignore
     )
     d_out = train_dataset.n_classes
-
 
     base = resnet18(pretrained=True)
     backbone, expansion = ResNet18Backbone(base)

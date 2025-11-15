@@ -210,12 +210,15 @@ def eval_afa_method(
                 )
             else:
                 feature_mask[
-                    torch.arange(feature_mask.shape[0], device=device), selections
+                    torch.arange(feature_mask.shape[0], device=device),
+                    selections,
                 ] = True
                 masked_features[
-                    torch.arange(feature_mask.shape[0], device=device), selections
+                    torch.arange(feature_mask.shape[0], device=device),
+                    selections,
                 ] = features[
-                    torch.arange(feature_mask.shape[0], device=device), selections
+                    torch.arange(feature_mask.shape[0], device=device),
+                    selections,
                 ]
             # Store a copy of the feature mask in history
             feature_mask_history[i] = feature_mask.clone()
@@ -236,7 +239,7 @@ def eval_afa_method(
                     device=device,
                 )
             prediction_history[i] = predictions
-        
+
         assert prediction_history is not None
 
         # Add the feature mask history and prediction history of this batch to the overall history
@@ -265,11 +268,11 @@ def eval_afa_method(
             t.permute(1, 0, 2) for t in feature_mask_history_all
         ]  # list[Tensor[batch_size,budget,n_classes]] (n_batches)
     else:
-        raise ValueError(f"Unexpected feature_mask_history_all[0].dim() = "
-                         f"{feature_mask_history_all[0].dim()}.")
-    feature_mask_history_tensor: Tensor = torch.cat(
-        temp
-    )
+        raise ValueError(
+            f"Unexpected feature_mask_history_all[0].dim() = "
+            f"{feature_mask_history_all[0].dim()}."
+        )
+    feature_mask_history_tensor: Tensor = torch.cat(temp)
     if feature_mask_history_tensor.dim() == 5:
         last_mask = feature_mask_history_tensor[:, -1]
         _, C, H, W = last_mask.shape
@@ -305,8 +308,7 @@ def eval_afa_method(
         pass
     else:
         raise ValueError(
-            f"Unexpected labels_tensor.dim() = "
-            f"{labels_tensor.dim()}"
+            f"Unexpected labels_tensor.dim() = {labels_tensor.dim()}"
         )
 
     log.info("Aggregating metrics...")

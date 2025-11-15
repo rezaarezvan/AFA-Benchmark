@@ -1268,7 +1268,9 @@ class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         # msg = "Missing feature acquisition costs for DiabetesDataset."
         # raise NotImplementedError(msg)
         if self.feature_costs is None:
-            raise ValueError("Missing feature acquisition costs for DiabetesDataset. Generate or load costs first.")
+            raise ValueError(
+                "Missing feature acquisition costs for DiabetesDataset. Generate or load costs first."
+            )
         else:
             return self.feature_costs
 
@@ -1836,7 +1838,7 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         self.load_subdirs = load_subdirs
         self.seed = seed
         self.image_size = image_size
-        self.split_role = split_role # "train" | "val" | "test"
+        self.split_role = split_role  # "train" | "val" | "test"
         self.indices: torch.Tensor | None = None
         self.transform = None
         # self.samples: list[str] | None = None
@@ -1883,8 +1885,12 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
     def generate_data(self) -> None:
         torch.manual_seed(self.seed)
-        use_train_aug = (self.split_role == "train")
-        self.transform = self._train_transform() if use_train_aug else self._eval_transform()
+        use_train_aug = self.split_role == "train"
+        self.transform = (
+            self._train_transform()
+            if use_train_aug
+            else self._eval_transform()
+        )
 
         root = self._root()
         sub_datasets: list[ImageFolder] = []
@@ -1894,9 +1900,12 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 raise FileNotFoundError(f"Expected subdir '{sub}' at {d}")
             sub_datasets.append(ImageFolder(str(d), transform=None))
 
-        self.samples = [path for ds in sub_datasets for (path, _) in ds.samples]
+        self.samples = [
+            path for ds in sub_datasets for (path, _) in ds.samples
+        ]
         self.targets = torch.tensor(
-            [y for ds in sub_datasets for (_, y) in ds.samples], dtype=torch.long
+            [y for ds in sub_datasets for (_, y) in ds.samples],
+            dtype=torch.long,
         )
         self.indices = torch.arange(len(self.samples), dtype=torch.long)
 

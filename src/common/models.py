@@ -198,17 +198,21 @@ class MaskedMLPClassifier(nn.Module):
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
     ) -> Logits:
         return self.forward(masked_features, feature_mask)
-    
+
 
 class MaskedViTClassifier(nn.Module):
     def __init__(self, backbone, num_classes: int = 10):
         super().__init__()
-        feat_dim = getattr(backbone, "embed_dim", getattr(backbone, "num_features", None))
+        feat_dim = getattr(
+            backbone, "embed_dim", getattr(backbone, "num_features", None)
+        )
         if feat_dim is None:
-            raise AttributeError("Backbone must expose embed_dim or num_features.")
+            raise AttributeError(
+                "Backbone must expose embed_dim or num_features."
+            )
         self.backbone = backbone
         self.fc = nn.Linear(feat_dim, num_classes)
-    
+
     @override
     def forward(
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
@@ -218,7 +222,7 @@ class MaskedViTClassifier(nn.Module):
         pooled = self.backbone.forward_head(feats, pre_logits=True)
         logits = self.fc(pooled)
         return logits
-    
+
     # @override
     # def __call__(
     #     self, masked_features: MaskedFeatures, feature_mask: FeatureMask
@@ -231,7 +235,7 @@ class MaskedViTTrainer(nn.Module):
         super().__init__()
         self.model = model
         self.mask_layer = mask_layer
-    
+
     def fit(
         self,
         train_loader,
@@ -239,8 +243,8 @@ class MaskedViTTrainer(nn.Module):
         lr: float,
         nepochs: int,
         loss_fn,
-        val_loss_fn = None,
-        val_loss_mode = None,
+        val_loss_fn=None,
+        val_loss_mode=None,
         factor: float = 0.2,
         patience: int = 2,
         min_lr: float = 1e-6,
@@ -257,12 +261,16 @@ class MaskedViTTrainer(nn.Module):
         device = next(model.parameters()).device
         opt = optim.Adam(model.parameters(), lr=lr)
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-            opt, mode=val_loss_mode, factor=factor, patience=patience, min_lr=min_lr
+            opt,
+            mode=val_loss_mode,
+            factor=factor,
+            patience=patience,
+            min_lr=min_lr,
         )
 
         def better(a, b):
             return (a < b) if val_loss_mode == "min" else (a > b)
-        
+
         best_state = None
         best_metric = None
 
@@ -288,7 +296,7 @@ class MaskedViTTrainer(nn.Module):
                 opt.step()
 
                 total_loss += loss.item()
-            
+
             avg_train_loss = total_loss / len(train_loader)
 
             model.eval()
@@ -304,11 +312,11 @@ class MaskedViTTrainer(nn.Module):
                     logits = model(x_masked, m)
                     all_preds.append(logits)
                     all_labels.append(y)
-                
+
                 y_full = torch.cat(all_labels)
                 preds_full = torch.cat(all_preds)
                 val_loss = val_loss_fn(preds_full, y_full).item()
-            
+
             wandb.log(
                 {
                     "train_loss": avg_train_loss,
@@ -322,12 +330,11 @@ class MaskedViTTrainer(nn.Module):
             if (best_metric is None) or better(val_loss, best_metric):
                 best_metric = val_loss
                 best_state = deepcopy(model.state_dict())
-        
+
         if best_state:
             model.load_state_dict(best_state)
         wandb.unwatch(self.model)
-    
+
     def forward(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         x_masked = self.mask_layer(x, mask)
         return self.model(x_masked, mask)
-

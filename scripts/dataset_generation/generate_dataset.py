@@ -52,7 +52,9 @@ def generate_and_save_split(
 
     if dataset_type == "diabetes":
         g = torch.Generator().manual_seed(seed)
-        cast(Any, dataset).feature_costs = 1.0 + 9.0 * torch.rand(dataset.n_features, generator=g)
+        cast(Any, dataset).feature_costs = 1.0 + 9.0 * torch.rand(
+            dataset.n_features, generator=g
+        )
 
     # Calculate split sizes
     total_size = len(dataset)
