@@ -19,6 +19,7 @@ from common.custom_types import (
     AFAMethod,
     AFAPredictFn,
 )
+from common.afa_uncoverings import get_image_patch_uncover_fn
 from common.registry import get_afa_classifier_class, get_afa_method_class
 from common.utils import load_dataset_artifact, set_seed
 from eval.hard_budget import eval_afa_method
@@ -192,6 +193,20 @@ def main(cfg: EvalConfig) -> None:  # noqa: PLR0915
     else:
         log.info("Using same budget as during training")
         eval_budget = int(method_metadata["budget"])
+    
+    modality = getattr(afa_method, "modality", "tabular")
+    image_patch_size = getattr(afa_method, "patch_size", 1)
+    afa_uncover_fn = None
+    if modality == "image":
+        x, _ = dataset[0]
+        assert x.ndim == 3
+        C, H, W = x.shape
+        afa_uncover_fn = get_image_patch_uncover_fn(
+            image_side_length=H, n_channels=C, patch_size=image_patch_size
+        )
+        log.info(f"Image modality detected, patch size={image_patch_size}, image_size=({C}, {H}, {W}).")
+    else:
+        log.info(f"Tabular modality detected.")
 
     # Do the evaluation
     log.info(f"Starting evaluation with budget {eval_budget}")
@@ -203,9 +218,12 @@ def main(cfg: EvalConfig) -> None:  # noqa: PLR0915
         only_n_samples=cfg.eval_only_n_samples,
         batch_size=cfg.batch_size,
         device=torch.device(cfg.device),
+        afa_uncover_fn=afa_uncover_fn,
+        patch_size=image_patch_size,
     )
 
     # Log early stopping statistics
+    # TODO do we need the step info in hard budget evaluation?
     log.info(f"Average steps taken: {metrics['average_steps']:.2f}")
     log.info(f"Maximum steps taken: {metrics['actual_steps'].max()}")
     log.info(f"Minimum steps taken: {metrics['actual_steps'].min()}")
@@ -222,7 +240,9 @@ def main(cfg: EvalConfig) -> None:  # noqa: PLR0915
     action_data = metrics["action_distribution"].cpu().numpy()
     feature_indices = list(range(len(action_data)))
     action_ax.plot(feature_indices, action_data)
-    action_ax.set_xlabel("Feature index")
+    action_ax.set_xlabel(
+        "Patch index" if modality == "image" else "Feature index"
+    )
     action_ax.set_ylabel("Action probability")
     action_ax.set_title("Action Distribution")
 
