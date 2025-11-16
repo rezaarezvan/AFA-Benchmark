@@ -14,7 +14,10 @@ from afabench.eval.utils import plot_metrics
 from afabench.eval.hard_budget import eval_afa_method
 from afabench.common.config_classes import EvalConfig
 from afabench.common.utils import load_dataset_artifact, set_seed
-from afabench.common.afa_uncoverings import get_image_patch_uncover_fn
+from afabench.common.afa_uncoverings import (
+    one_based_index_uncover_fn, 
+    get_image_patch_uncover_fn,
+)
 from afabench.common.registry import (
     get_afa_classifier_class,
     get_afa_method_class,
@@ -150,8 +153,7 @@ def main(cfg: EvalConfig) -> None:  # noqa: PLR0915
 
     run = wandb.init(
         job_type="evaluation",
-        # pyright: ignore[reportArgumentType]
-        config=OmegaConf.to_container(cfg, resolve=True),
+        config=OmegaConf.to_container(cfg, resolve=True), # pyright: ignore[reportArgumentType]
         dir="extra/wandb",
     )
 
@@ -228,6 +230,7 @@ def main(cfg: EvalConfig) -> None:  # noqa: PLR0915
         )
     else:
         log.info(f"Tabular modality detected.")
+        afa_uncover_fn = one_based_index_uncover_fn
 
     # Do the evaluation
     log.info(f"Starting evaluation with budget {eval_budget}")
@@ -245,16 +248,16 @@ def main(cfg: EvalConfig) -> None:  # noqa: PLR0915
 
     # Log early stopping statistics
     # TODO do we need the step info in hard budget evaluation?
-    log.info(f"Average steps taken: {metrics['average_steps']:.2f}")
-    log.info(f"Maximum steps taken: {metrics['actual_steps'].max()}")
-    log.info(f"Minimum steps taken: {metrics['actual_steps'].min()}")
-    stopped_early = (metrics["actual_steps"] < eval_budget).sum()
-    total_samples = len(metrics["actual_steps"])
-    log.info(
-        f"Samples that stopped early: {stopped_early}/{total_samples} ({
-            100 * stopped_early / total_samples:.1f
-        }%)"
-    )
+    # log.info(f"Average steps taken: {metrics['average_steps']:.2f}")
+    # log.info(f"Maximum steps taken: {metrics['actual_steps'].max()}")
+    # log.info(f"Minimum steps taken: {metrics['actual_steps'].min()}")
+    # stopped_early = (metrics["actual_steps"] < eval_budget).sum()
+    # total_samples = len(metrics["actual_steps"])
+    # log.info(
+    #     f"Samples that stopped early: {stopped_early}/{total_samples} ({
+    #         100 * stopped_early / total_samples:.1f
+    #     }%)"
+    # )
 
     fig = plot_metrics(metrics)
 
@@ -270,30 +273,30 @@ def main(cfg: EvalConfig) -> None:  # noqa: PLR0915
     action_ax.set_title("Action Distribution")
 
     # Create steps distribution plot - ultra-simplified for Plotly
-    steps_fig, steps_ax = plt.subplots()
-    actual_steps = metrics["actual_steps"].cpu().numpy()
+    # steps_fig, steps_ax = plt.subplots()
+    # actual_steps = metrics["actual_steps"].cpu().numpy()
 
     # Use Counter to get step distribution
 
-    step_counts = Counter(actual_steps)
-    steps = sorted(step_counts.keys())
-    counts = [step_counts[step] for step in steps]
+    # step_counts = Counter(actual_steps)
+    # steps = sorted(step_counts.keys())
+    # counts = [step_counts[step] for step in steps]
 
-    # Simple bar plot without any fancy features
-    steps_ax.bar(steps, counts)
-    steps_ax.set_xlabel("Number of steps taken")
-    steps_ax.set_ylabel("Number of samples")
-    steps_ax.set_title(
-        f"Steps Distribution (Mean: {float(metrics['average_steps']):.1f})"
-    )
+    # # Simple bar plot without any fancy features
+    # steps_ax.bar(steps, counts)
+    # steps_ax.set_xlabel("Number of steps taken")
+    # steps_ax.set_ylabel("Number of samples")
+    # steps_ax.set_title(
+    #     f"Steps Distribution (Mean: {float(metrics['average_steps']):.1f})"
+    # )
 
     run.log(
         {
             "metrics_plot": fig,
             "action_plot": action_fig,
-            "steps_distribution_plot": steps_fig,
-            "average_steps": metrics["average_steps"],
-            "early_stopping_rate": float(stopped_early) / total_samples,
+            # "steps_distribution_plot": steps_fig,
+            # "average_steps": metrics["average_steps"],
+            # "early_stopping_rate": float(stopped_early) / total_samples,
         }
     )
 
@@ -311,9 +314,9 @@ def main(cfg: EvalConfig) -> None:  # noqa: PLR0915
             "budget": eval_budget,
             "seed": method_metadata["seed"],
             "classifier_type": classifier_type,
-            "average_steps": float(metrics["average_steps"]),
-            "early_stopping_rate": float(stopped_early) / total_samples,
-            "supports_early_stopping": True,
+            # "average_steps": float(metrics["average_steps"]),
+            # "early_stopping_rate": float(stopped_early) / total_samples,
+            # "supports_early_stopping": True,
         },
     )
     with NamedTemporaryFile("w", delete=False) as f:

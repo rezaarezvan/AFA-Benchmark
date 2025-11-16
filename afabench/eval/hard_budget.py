@@ -138,8 +138,8 @@ def eval_afa_method(
     labels_all: list[Label] = []  # (n_batches)
 
     dataloader = DataLoader(
-        dataset, batch_size=batch_size, shuffle=False
-    )  # basedpyright: ignore
+        dataset, batch_size=batch_size, shuffle=False # type: ignore
+    )
 
     # Loop over the dataset
     n_evaluated_samples = 0
@@ -200,7 +200,7 @@ def eval_afa_method(
             ).squeeze(-1)
 
             # Update the feature mask and masked features
-            if afa_uncover_fn is not None and features.dim() > 2:
+            if afa_uncover_fn is not None:
                 selections = selections.reshape(-1)
                 masked_features, feature_mask = afa_uncover_fn(
                     masked_features=masked_features,
@@ -209,6 +209,7 @@ def eval_afa_method(
                     afa_selection=selections,
                 )
             else:
+                # 0-based indexing, use one_based_index_uncover_fn for tabular dataset instead
                 feature_mask[
                     torch.arange(feature_mask.shape[0], device=device),
                     selections,
