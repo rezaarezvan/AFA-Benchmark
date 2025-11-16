@@ -384,17 +384,17 @@ class RandomPatchClassificationAFAMethod(AFAMethod):
         else:
             self._device = device
             self.afa_classifier = afa_classifier.to(device)
-        
+
         assert image_side_length % patch_size == 0
         self.image_side_length = image_side_length
         self.patch_size = patch_size
         self.low_dim_side = image_side_length // patch_size
-        self.n_patches = self.low_dim_side ** 2
-    
+        self.n_patches = self.low_dim_side**2
+
     @property
     def has_builtin_classifier(self) -> bool:
         return True
-    
+
     @override
     def select(
         self,
@@ -430,9 +430,11 @@ class RandomPatchClassificationAFAMethod(AFAMethod):
 
         # 1-based index
         # TODO check the index tabular random selection class and hard budget evaluation function
-        selection = torch.multinomial(patch_probs, num_samples=1).squeeze(1) + 1
+        selection = (
+            torch.multinomial(patch_probs, num_samples=1).squeeze(1) + 1
+        )
         return selection.to(original_device)
-    
+
     @override
     def predict(
         self,

@@ -138,7 +138,9 @@ def eval_afa_method(
     labels_all: list[Label] = []  # (n_batches)
 
     dataloader = DataLoader(
-        dataset, batch_size=batch_size, shuffle=False # type: ignore
+        dataset,
+        batch_size=batch_size,
+        shuffle=False,  # type: ignore
     )
 
     # Loop over the dataset

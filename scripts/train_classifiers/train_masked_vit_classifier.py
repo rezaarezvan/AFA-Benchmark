@@ -40,7 +40,7 @@ def main(cfg: TrainMaskedViTClassifierConfig) -> None:
     run = wandb.init(
         group="train_masked_vit_classifier",
         job_type="train_classifier",
-        config=OmegaConf.to_container(cfg, resolve=True), # pyright: ignore[reportArgumentType]
+        config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore[reportArgumentType]
         dir="extra/wandb",
     )
     log.info(f"W&B run initialized: {run.name} ({run.id})")
@@ -51,17 +51,17 @@ def main(cfg: TrainMaskedViTClassifierConfig) -> None:
     )
     d_out = train_dataset.n_classes
     train_loader = DataLoader(
-        train_dataset, # type: ignore
+        train_dataset,  # type: ignore
         batch_size=cfg.batch_size,
         shuffle=True,
         pin_memory=True,
-        drop_last=True,  
+        drop_last=True,
     )
     val_loader = DataLoader(
-        val_dataset, # type: ignore
+        val_dataset,  # type: ignore
         batch_size=cfg.batch_size,
         shuffle=False,
-        pin_memory=True,  
+        pin_memory=True,
     )
     backbone = timm.create_model(cfg.model_name, pretrained=True)
     model = MaskedViTClassifier(backbone=backbone, num_classes=d_out)

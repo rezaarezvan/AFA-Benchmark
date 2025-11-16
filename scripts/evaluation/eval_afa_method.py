@@ -15,7 +15,7 @@ from afabench.eval.hard_budget import eval_afa_method
 from afabench.common.config_classes import EvalConfig
 from afabench.common.utils import load_dataset_artifact, set_seed
 from afabench.common.afa_uncoverings import (
-    one_based_index_uncover_fn, 
+    one_based_index_uncover_fn,
     get_image_patch_uncover_fn,
 )
 from afabench.common.registry import (
@@ -153,7 +153,7 @@ def main(cfg: EvalConfig) -> None:  # noqa: PLR0915
 
     run = wandb.init(
         job_type="evaluation",
-        config=OmegaConf.to_container(cfg, resolve=True), # pyright: ignore[reportArgumentType]
+        config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore[reportArgumentType]
         dir="extra/wandb",
     )
 
