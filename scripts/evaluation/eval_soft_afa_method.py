@@ -155,8 +155,7 @@ def main(cfg: SoftEvalConfig) -> None:
 
     run = wandb.init(
         job_type="evaluation",
-        # pyright: ignore[reportArgumentType]
-        config=OmegaConf.to_container(cfg, resolve=True),
+        config=OmegaConf.to_container(cfg, resolve=True), # pyright: ignore[reportArgumentType]
         dir="extra/wandb",
     )
 

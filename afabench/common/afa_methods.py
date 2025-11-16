@@ -370,6 +370,93 @@ class RandomClassificationAFAMethod(AFAMethod):
         return self._device
 
 
+class RandomPatchClassificationAFAMethod(AFAMethod):
+    def __init__(
+        self,
+        afa_classifier: AFAClassifier,
+        image_side_length: int,
+        patch_size: int,
+        device: torch.device | None = None,
+    ):
+        if device is None:
+            self._device = afa_classifier.device
+            self.afa_classifier = afa_classifier
+        else:
+            self._device = device
+            self.afa_classifier = afa_classifier.to(device)
+        
+        assert image_side_length % patch_size == 0
+        self.image_side_length = image_side_length
+        self.patch_size = patch_size
+        self.low_dim_side = image_side_length // patch_size
+        self.n_patches = self.low_dim_side ** 2
+    
+    @property
+    def has_builtin_classifier(self) -> bool:
+        return True
+    
+    @override
+    def select(
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        features: Features | None,
+        label: Label | None,
+    ) -> AFASelection:
+        """
+        Randomly select an unseen patch (1-based index in [1, n_patches])
+        """
+        original_device = masked_features.device
+        feature_mask = feature_mask.to(self._device)
+        # 4D image
+        assert feature_mask.dim() == 4
+        B, C, H, W = feature_mask.shape
+        ph = H // self.patch_size
+        pw = W // self.patch_size
+        assert ph == self.low_dim_side and pw == self.low_dim_side
+        fm = feature_mask.view(
+            B,
+            C,
+            ph,
+            self.patch_size,
+            pw,
+            self.patch_size,
+        )
+        patch_revealed = fm.any(dim=(1, 3, 5))
+        patch_probs = (~patch_revealed).view(B, -1).float()
+        row_sums = patch_probs.sum(dim=1, keepdim=True)
+        assert torch.all(row_sums > 0)
+        patch_probs = patch_probs / row_sums
+
+        # 1-based index
+        # TODO check the index tabular random selection class and hard budget evaluation function
+        selection = torch.multinomial(patch_probs, num_samples=1).squeeze(1) + 1
+        return selection.to(original_device)
+    
+    @override
+    def predict(
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        features: Features | None,
+        label: Label | None,
+    ) -> Label:
+        """Return a prediction using the classifier."""
+        original_device = masked_features.device
+
+        if features is not None:
+            features = features.to(self._device)
+        if label is not None:
+            label = label.to(self._device)
+
+        return self.afa_classifier(
+            masked_features.to(self._device),
+            feature_mask.to(self._device),
+            features,
+            label,
+        ).to(original_device)
+
+
 @final
 class SequentialClassificationAFAMethod(AFAMethod):
     """An AFAMethod that selects features sequentially and uses a trained classifier to predict labels."""

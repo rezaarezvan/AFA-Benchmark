@@ -302,6 +302,8 @@ class MaskedViTTrainer(nn.Module):
             model.eval()
             with torch.no_grad():
                 all_preds, all_labels = [], []
+                correct = 0
+                total = 0
                 for x, y in val_loader:
                     x = x.to(device)
                     y = y.to(device)
@@ -313,14 +315,20 @@ class MaskedViTTrainer(nn.Module):
                     all_preds.append(logits)
                     all_labels.append(y)
 
+                    preds = logits.argmax(dim=1)
+                    correct += (preds == y).sum().item()
+                    total += y.size(0)
+
                 y_full = torch.cat(all_labels)
                 preds_full = torch.cat(all_preds)
                 val_loss = val_loss_fn(preds_full, y_full).item()
+                val_accuracy = correct / total
 
             wandb.log(
                 {
                     "train_loss": avg_train_loss,
-                    f"{tag}": val_loss,
+                    "val_loss": val_loss,
+                    "val_accuracy": val_accuracy,
                 },
                 step=epoch,
             )

@@ -40,8 +40,7 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
     run = wandb.init(
         group="train_masked_mlp_classifier",
         job_type="train_classifier",
-        # pyright: ignore[reportArgumentType]
-        config=OmegaConf.to_container(cfg, resolve=True),
+        config=OmegaConf.to_container(cfg, resolve=True), # pyright: ignore[reportArgumentType]
         dir="extra/wandb",
     )
 
@@ -99,8 +98,7 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
         pass
     finally:
         # Convert lightning model to a classifier that implements the AFAClassifier interface
-        # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
-        best_checkpoint = trainer.checkpoint_callback.best_model_path
+        best_checkpoint = trainer.checkpoint_callback.best_model_path # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
         best_lit_model = LitMaskedMLPClassifier.load_from_checkpoint(
             best_checkpoint,
             n_features=n_features,
