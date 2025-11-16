@@ -74,7 +74,7 @@ class AACOAFAMethod(AFAMethod):
                 # Return stop action
                 selections.append(0)
             else:
-                selections.append(next_feature)
+                selections.append(next_feature + 1)
 
         # Return selection tensor on original device
         selection_tensor = torch.tensor(
