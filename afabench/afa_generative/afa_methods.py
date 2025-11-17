@@ -20,6 +20,7 @@ class Ma2018AFAMethod(AFAMethod):
         device=torch.device("cpu"),
         lambda_threshold: float = -float("inf"),
         feature_costs: torch.Tensor | None = None,
+        num_mc_samples: int = 128,
     ):
         super().__init__()
         self.sampler = sampler
@@ -28,6 +29,14 @@ class Ma2018AFAMethod(AFAMethod):
         self._device: torch.device = device
         self.lambda_threshold = lambda_threshold
         self._feature_costs = feature_costs
+        self.num_mc_samples = num_mc_samples
+
+    def _logits_to_probs(self, logits: torch.Tensor) -> torch.Tensor:
+        if logits.ndim == 2 and logits.size(1) > 1:
+            return logits.softmax(dim=1)
+        else:
+            probs = logits.sigmoid().view(-1, 1)
+            return torch.cat([1 - probs, probs], dim=1)
 
     def predict(
         self,
@@ -50,12 +59,17 @@ class Ma2018AFAMethod(AFAMethod):
             [feature_mask, zeros_mask], dim=-1
         ).to(self._device)
 
+        probs_list = []
         with torch.no_grad():
-            _, _, _, z, _ = self.sampler(
-                augmented_masked_feature, augmented_feature_mask
-            )
-
-        return self.predictor(z).softmax(dim=-1)
+            for _ in range(self.num_mc_samples):
+                _, _, _, z, _ = self.sampler(
+                    augmented_masked_feature, augmented_feature_mask
+                )
+                logits = self.predictor(z)
+                probs = logits.softmax(dim=-1)
+                probs_list.append(probs)
+        probs_mean = torch.stack(probs_list, dim=0).mean(dim=0)
+        return probs_mean
 
     def select(
         self,
@@ -65,6 +79,8 @@ class Ma2018AFAMethod(AFAMethod):
         label=None,
     ) -> AFASelection:
         device = self._device
+        masked_features = masked_features.to(self._device)
+        feature_mask = feature_mask.to(self._device)
         B, F = masked_features.shape
         zeros_label = torch.zeros(B, self.num_classes, device=self._device)
         zeros_mask = torch.zeros(
@@ -78,10 +94,9 @@ class Ma2018AFAMethod(AFAMethod):
         ).to(self._device)
 
         with torch.no_grad():
-            _, _, _, z_base, x_full = self.sampler.forward(
+            _, _, _, _, x_full = self.sampler.forward(
                 augmented_masked_feature, augmented_feature_mask
             )
-            base_probs = self.predictor(z_base).softmax(dim=-1)
         x_full = x_full.view(B, F)
         x_filled = masked_features.clone()
         missing = ~feature_mask.bool()
@@ -105,28 +120,27 @@ class Ma2018AFAMethod(AFAMethod):
         x_rep = x_full.unsqueeze(1).expand(B, F, F + self.num_classes)
         x_masks = x_rep.reshape(B * F, F + self.num_classes) * mask_tests
 
+        preds_mc = []
         with torch.no_grad():
-            _, _, _, z_all, _ = self.sampler(x_masks, mask_tests)
-            preds_all = self.predictor(z_all)
-
-        if preds_all.ndim == 2 and preds_all.size(1) > 1:
-            if not ((preds_all >= 0) & (preds_all <= 1)).all():
-                preds_all = preds_all.softmax(dim=1)
-        else:
-            preds_all = preds_all.sigmoid().view(-1, 1)
-            preds_all = torch.cat([1 - preds_all, preds_all], dim=1)
-
-        # mean_all = preds_all.mean(dim=0, keepdim=True)
-        # kl_all = torch.sum(
-        #     preds_all * torch.log(preds_all / (mean_all + 1e-6) + 1e-6), dim=1
-        # )
-        preds_all = preds_all.view(B, F, self.num_classes)
-        base_probs = base_probs.unsqueeze(1).expand(B, F, self.num_classes)
+            for _ in range(self.num_mc_samples):
+                _, _, _, z_all, _ = self.sampler(x_masks, mask_tests)
+                logits_all = self.predictor(z_all)
+                probs_all = self._logits_to_probs(logits_all)
+                preds_mc.append(probs_all)
+        preds_all = torch.stack(preds_mc, dim=0)
+        # S: num_mc_samples
+        S, BF, C = preds_all.shape
+        # 1/n Σ p(y|x_s, x_i^j)
+        mean_preds = preds_all.mean(dim=0)
+        # KL(p_s || mean), (S, B*F)
         kl_all = (
-            preds_all * ((preds_all + 1e-6).log() - (base_probs + 1e-6).log())
-        ).sum(-1)
+            preds_all * (
+                (preds_all + 1e-6).log() - (mean_preds.unsqueeze(0) + 1e-6).log()
+            )
+        ).sum(dim=-1)
+        kl_mean_flat = kl_all.mean(dim=0)
 
-        scores = kl_all.view(B, F)
+        scores = kl_mean_flat.view(B, F)
         # avoid choosing the already masked features
         scores = scores.masked_fill(feature_mask_all.bool(), float("-inf"))
         if self._feature_costs is not None:
