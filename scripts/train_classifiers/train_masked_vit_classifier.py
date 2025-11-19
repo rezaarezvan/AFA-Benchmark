@@ -13,7 +13,7 @@ from tempfile import NamedTemporaryFile
 from afabench.afa_discriminative.utils import MaskLayer2d
 from afabench.common.classifiers import WrappedMaskedViTClassifier
 from afabench.common.models import MaskedViTClassifier, MaskedViTTrainer
-from afabench.common.afa_methods import RandomClassificationAFAMethod
+from afabench.common.afa_methods import RandomPatchClassificationAFAMethod
 from afabench.common.config_classes import TrainMaskedViTClassifierConfig
 
 from afabench.eval.utils import plot_metrics
@@ -99,14 +99,18 @@ def main(cfg: TrainMaskedViTClassifierConfig) -> None:
         n_channels=3,
         patch_size=cfg.patch_size,
     )
-    afa_method = RandomClassificationAFAMethod(
-        afa_classifier=wrapped_classifier, device=torch.device("cpu")
+    afa_method = RandomPatchClassificationAFAMethod(
+        afa_classifier=wrapped_classifier, 
+        image_side_length=cfg.image_size,
+        patch_size=cfg.patch_size,
+        device=torch.device("cpu")
     )
     metrics = eval_afa_method(
         afa_select_fn=afa_method.select,
         dataset=val_dataset,
-        budget=n_features,
+        budget=afa_method.n_patches,
         afa_predict_fn=afa_method.predict,
+        only_n_samples=cfg.only_n_samples,
         batch_size=cfg.batch_size,
         device=torch.device(cfg.device),
         afa_uncover_fn=afa_uncover_fn,

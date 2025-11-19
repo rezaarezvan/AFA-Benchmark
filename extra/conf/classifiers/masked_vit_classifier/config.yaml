@@ -13,6 +13,7 @@ dataset_artifact_name: "cube_split_1:tmp"
 output_artifact_aliases: ["tmp"]
 batch_size: 128
 epochs: 100
+only_n_samples: 128
 
 min_masking_probability: 0.0
 max_masking_probability: 0.9

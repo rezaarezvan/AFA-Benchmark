@@ -94,8 +94,8 @@ def get_image_patch_uncover_fn(
             mode="nearest-exact",
         ).bool()
 
-        print(f"{afa_selection_image.shape}")
-        print(f"{feature_mask.shape}")
+        # print(f"{afa_selection_image.shape}")
+        # print(f"{feature_mask.shape}")
 
         # Convert image mask to feature mask and add to previous feature mask
         # new_feature_mask = feature_mask + afa_selection_image.flatten(

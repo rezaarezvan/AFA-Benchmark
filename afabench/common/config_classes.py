@@ -779,6 +779,7 @@ class TrainMaskedViTClassifierConfig:
     epochs: int
     min_masking_probability: float
     max_masking_probability: float
+    only_n_samples: int
 
     model_name: str
     image_size: int

@@ -457,6 +457,53 @@ class RandomPatchClassificationAFAMethod(AFAMethod):
             features,
             label,
         ).to(original_device)
+    
+    @override
+    def save(self, path: Path) -> None:
+        path.mkdir(parents=True, exist_ok=True)
+        self.afa_classifier.save(path / "classifier.pt")
+        # Write the classifier class name to a file
+        with (path / "classifier_class_name.txt").open("w") as f:
+            f.write(self.afa_classifier.__class__.__name__)
+
+        torch.save(
+            {
+                "image_side_length": self.image_side_length,
+                "patch_size": self.patch_size,
+            },
+            path / "config.pt",
+        )
+
+    @classmethod
+    @override
+    def load(cls, path: Path, device: torch.device) -> Self:
+        """Load the method from a file."""
+        with (path / "classifier_class_name.txt").open("r") as f:
+            classifier_class_name = f.read()
+
+        afa_classifier = get_afa_classifier_class(classifier_class_name).load(
+            path / "classifier.pt", device
+        )
+        cfg = torch.load(path / "config.pt")
+        image_side_length = int(cfg["image_side_length"])
+        patch_size = int(cfg["patch_size"])
+        return cls(
+            afa_classifier=afa_classifier,
+            image_side_length=image_side_length,
+            patch_size=patch_size,
+            device=device,
+        )
+    
+    @override
+    def to(self, device: torch.device) -> Self:
+        self._device = device
+        self.afa_classifier.to(self._device)
+        return self
+
+    @property
+    @override
+    def device(self) -> torch.device:
+        return self._device
 
 
 @final
