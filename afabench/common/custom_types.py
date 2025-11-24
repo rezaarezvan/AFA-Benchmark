@@ -20,6 +20,9 @@ class AFADataset(Protocol):
     Datasets that can be used for evaluating AFA methods.
 
     Notably, the __init__ constructor should *not* generate data. Instead, generate_data() should be called. This makes it possible to call load if deterministic data is desired.
+
+    The constructor is expected to accept the following parameters:
+        - seed: int | None
     """
 
     # Used by AFADatasetFn
@@ -47,12 +50,12 @@ class AFADataset(Protocol):
         ...
 
     def save(self, path: Path) -> None:
-        """Save the dataset to a file. The file should be in a format that can be loaded by the dataset. This enables deterministic loading of datasets."""
+        """Save the dataset to a file or folder. The file/folder should be in a format that can be loaded by the dataset. This enables deterministic loading of datasets."""
         ...
 
     @classmethod
     def load(cls, path: Path) -> Self:
-        """Load the dataset from a file. The file should contain the dataset in a format that can be loaded by the dataset. This enables deterministic loading of datasets."""
+        """Load the dataset from a file/folder. The file/folder should contain the dataset in a format that can be loaded by the dataset. This enables deterministic loading of datasets."""
         ...
 
     def get_feature_acquisition_costs(self) -> Tensor:

@@ -86,6 +86,7 @@ def generate_and_save_split(
         }
     )
     # Save metadata
+    print(f"Saving metadata to {save_path / 'metadata.json'}")
     with (save_path / "metadata.json").open("w") as f:
         json.dump(metadata, f)
 
@@ -96,23 +97,22 @@ def generate_and_save_split(
     config_name="config",
 )
 def main(cfg: DatasetGenerationConfig) -> None:
-    for seed in cfg.seeds:
-        for instance_idx in cfg.instance_indices:
-            dataset_class = get_afa_dataset_class(cfg.dataset.type)
-            generate_and_save_split(
-                dataset_class=dataset_class,
-                split_ratio=cfg.split_ratio,
-                seed_for_split=seed,  # use same instance for splitting as for data generation
-                save_path=Path(cfg.save_path),
-                dataset_kwargs=(
-                    dict(cfg.dataset.kwargs)
-                    | {"seed": seed, "instance_idx": instance_idx}
-                ),
-                metadata_to_save={
-                    "dataset_type": cfg.dataset.type,
-                    "instance_idx": instance_idx,
-                },
-            )
+    for instance_idx, seed in zip(
+        cfg.instance_indices, cfg.seeds, strict=True
+    ):
+        dataset_class = get_afa_dataset_class(cfg.dataset.type)
+        generate_and_save_split(
+            dataset_class=dataset_class,
+            split_ratio=cfg.split_ratio,
+            # use same instance for splitting as for data generation
+            seed_for_split=seed,
+            save_path=Path(cfg.save_path) / str(instance_idx),
+            dataset_kwargs=dict(cfg.dataset.kwargs) | {"seed": seed},
+            metadata_to_save={
+                "dataset_type": cfg.dataset.type,
+                "instance_idx": instance_idx,
+            },
+        )
 
 
 if __name__ == "__main__":

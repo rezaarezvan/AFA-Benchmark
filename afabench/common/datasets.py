@@ -138,15 +138,15 @@ class CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
     def __init__(
         self,
-        n_samples: int = 20000,
         seed: int = 123,
+        n_samples: int = 20000,
         non_informative_feature_mean: float = 0.5,
         informative_feature_std: float = 0.1,
         non_informative_feature_std: float = 0.3,
     ):
         super().__init__()
-        self.n_samples = n_samples
         self.seed = seed
+        self.n_samples = n_samples
         self.non_informative_feature_mean = non_informative_feature_mean
         self.non_informative_feature_std = non_informative_feature_std
         self.informative_feature_std = informative_feature_std
@@ -182,14 +182,14 @@ class CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         ).flip(-1)
 
         # Initialize feature blocks
-        X_cube = torch.normal(
+        x_cube = torch.normal(
             mean=self.non_informative_feature_mean,
             std=self.non_informative_feature_std,
             size=(self.n_samples, self.n_cube_features),
             generator=self.rng,
         )
 
-        X_dummy = torch.normal(
+        x_dummy = torch.normal(
             mean=self.non_informative_feature_mean,
             std=self.non_informative_feature_std,
             size=(self.n_samples, self.n_dummy_features),
@@ -203,7 +203,7 @@ class CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
             # Cube features: 3 bumps
             idxs = [(lbl + j) for j in range(3)]
-            X_cube[i, idxs] = (
+            x_cube[i, idxs] = (
                 torch.normal(
                     mean=0.0,
                     std=self.informative_feature_std,
@@ -214,7 +214,7 @@ class CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             )
 
         # Concatenate all features
-        self.features = torch.cat([X_cube, X_dummy], dim=1)
+        self.features = torch.cat([x_cube, x_dummy], dim=1)
         assert self.features.shape[1] == self.n_features
 
         # Labels
