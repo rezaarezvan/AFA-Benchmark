@@ -1,3 +1,5 @@
+"""Generate multiple instances of a dataset, see dataset_generation.md."""
+
 import json
 import logging
 from datetime import UTC, datetime
