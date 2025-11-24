@@ -1,5 +1,4 @@
 import torch
-
 from torch import nn
 
 from afabench.afa_rl.zannone2019.models import PointNet

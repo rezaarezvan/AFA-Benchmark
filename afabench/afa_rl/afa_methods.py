@@ -1,15 +1,14 @@
-import torch
-
 from dataclasses import (
     dataclass,
 )
 from pathlib import Path
 from typing import Self, final, override
 
+import torch
 from tensordict import TensorDict
 from tensordict.nn import TensorDictModuleBase
-from torchrl.modules import ProbabilisticActor
 from torchrl.envs import ExplorationType, set_exploration_type
+from torchrl.modules import ProbabilisticActor
 
 from afabench.common.custom_types import (
     AFAClassifier,

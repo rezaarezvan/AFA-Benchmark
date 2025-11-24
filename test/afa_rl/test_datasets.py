@@ -1,6 +1,7 @@
+from unittest import TestCase
+
 import torch
 
-from unittest import TestCase
 from afabench.afa_rl.datasets import get_wrapped_batch
 
 

@@ -1,33 +1,32 @@
 import gc
+import logging
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from typing import Any, cast
+
+import hydra
+import numpy as np
 import torch
 import wandb
-import hydra
-import logging
-import numpy as np
-
-from torch import nn
-from pathlib import Path
-from typing import Any, cast
-from torchrl.modules import MLP
 from omegaconf import OmegaConf
-from tempfile import TemporaryDirectory
+from torch import nn
 from torch.utils.data import DataLoader
+from torchrl.modules import MLP
 
-from afabench.static.models import BaseModel
-from afabench.static.utils import transform_dataset
-from afabench.common.config_classes import CAETrainingConfig
 from afabench.afa_discriminative.datasets import prepare_datasets
-
+from afabench.common.config_classes import CAETrainingConfig
 from afabench.common.utils import (
     get_class_probabilities,
     load_dataset_artifact,
     set_seed,
 )
+from afabench.static.models import BaseModel
 from afabench.static.static_methods import (
     ConcreteMask,
     DifferentiableSelector,
     StaticBaseMethod,
 )
+from afabench.static.utils import transform_dataset
 
 log = logging.getLogger(__name__)
 

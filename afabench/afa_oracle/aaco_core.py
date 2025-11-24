@@ -1,9 +1,10 @@
-import torch
 import logging
+
+import torch
 import torch.nn.functional as F
 
-from afabench.common.utils import get_class_probabilities, load_classifier
 from afabench.afa_oracle.mask_generator import random_mask_generator
+from afabench.common.utils import get_class_probabilities, load_classifier
 
 log = logging.getLogger(__name__)
 

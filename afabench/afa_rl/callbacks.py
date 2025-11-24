@@ -1,6 +1,6 @@
+import lightning as pl
 import torch
 import wandb
-import lightning as pl
 
 
 class ImageLoggerCallback(pl.Callback):

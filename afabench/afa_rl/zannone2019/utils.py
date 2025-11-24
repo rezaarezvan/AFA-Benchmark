@@ -1,15 +1,15 @@
-from torch import Tensor
 from jaxtyping import Float
+from torch import Tensor
 from torchrl.modules import MLP
 
 from afabench.afa_rl.utils import str_to_activation_class_mapping
-from afabench.common.config_classes import Zannone2019PretrainConfig
 from afabench.afa_rl.zannone2019.models import (
     PartialVAE,
     PointNet,
     PointNetType,
     Zannone2019PretrainingModel,
 )
+from afabench.common.config_classes import Zannone2019PretrainConfig
 
 
 def get_zannone2019_model_from_config(

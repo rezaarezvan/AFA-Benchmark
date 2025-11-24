@@ -1,12 +1,12 @@
-import torch
-import lightning as pl
-import torch.nn.functional as F
-
 from enum import Enum
 from pathlib import Path
+from typing import Self, final, override
+
+import lightning as pl
+import torch
+import torch.nn.functional as F
 from jaxtyping import Float
 from torch import Tensor, nn
-from typing import Self, final, override
 
 from afabench.afa_rl.utils import mask_data
 from afabench.common.custom_types import (

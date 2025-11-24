@@ -1,20 +1,19 @@
 import gc
+import logging
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from typing import Any, cast
+
+import hydra
 import torch
 import wandb
-import hydra
-import logging
-
-from pathlib import Path
-from typing import Any, cast
 from omegaconf import OmegaConf
-from tempfile import TemporaryDirectory
 
 from afabench.common.afa_methods import OptimalCubeAFAMethod
-from afabench.common.utils import load_dataset_artifact, set_seed
-
 from afabench.common.config_classes import (
     OptimalCubeTrainConfig,
 )
+from afabench.common.utils import load_dataset_artifact, set_seed
 
 log = logging.getLogger(__name__)
 

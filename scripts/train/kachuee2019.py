@@ -1,31 +1,30 @@
 import gc
-import wandb
-import torch
-import hydra
 import logging
-
-from tqdm import tqdm
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any, cast
+
+import hydra
+import torch
+import wandb
 from dacite import from_dict
 from omegaconf import OmegaConf
-from tempfile import TemporaryDirectory
 from torchrl.collectors import SyncDataCollector
 from torchrl.envs import ExplorationType, check_env_specs, set_exploration_type
+from tqdm import tqdm
 
 from afabench import SAVE_PATH
-from afabench.afa_rl.agents import Agent
 from afabench.afa_rl.afa_env import AFAEnv
 from afabench.afa_rl.afa_methods import RLAFAMethod
+from afabench.afa_rl.agents import Agent
 from afabench.afa_rl.datasets import get_afa_dataset_fn
 from afabench.afa_rl.kachuee2019.agents import Kachuee2019Agent
-from afabench.afa_rl.kachuee2019.reward import get_kachuee2019_reward_fn
-from afabench.afa_rl.kachuee2019.utils import get_kachuee2019_model_from_config
-
 from afabench.afa_rl.kachuee2019.models import (
     Kachuee2019AFAClassifier,
     Kachuee2019AFAPredictFn,
 )
+from afabench.afa_rl.kachuee2019.reward import get_kachuee2019_reward_fn
+from afabench.afa_rl.kachuee2019.utils import get_kachuee2019_model_from_config
 from afabench.afa_rl.utils import (
     get_eval_metrics,
 )

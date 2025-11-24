@@ -1,11 +1,11 @@
-import torch
-
 from typing import Any, Protocol
+
+import torch
 from tensordict import TensorDictBase
-from torchrl.modules import ProbabilisticActor
 from tensordict.nn import (
     TensorDictModuleBase,
 )
+from torchrl.modules import ProbabilisticActor
 
 
 class Agent(Protocol):

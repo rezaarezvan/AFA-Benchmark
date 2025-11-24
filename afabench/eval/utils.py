@@ -1,8 +1,8 @@
-import wandb
-import numpy as np
-import matplotlib.pyplot as plt
-
 from typing import Any
+
+import matplotlib.pyplot as plt
+import numpy as np
+import wandb
 
 
 def plot_metrics(metrics: dict[str, Any]) -> wandb.Image:

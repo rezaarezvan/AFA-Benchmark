@@ -1,5 +1,6 @@
 configfile: "extra/workflow/conf/aaco_soft_budget.yaml"
 
+
 # Configurable base directory for results - users can change this
 BASE_DIR = config.get("base_dir", "extra/result")
 
@@ -21,6 +22,7 @@ SMOKE_TEST = config["smoke_test"]
 METHODS = ["aaco"]
 DATASETS = list(DATASET_ARTIFACT_ALIASES.keys())
 
+
 def get_cost_params(dataset: str):
     """Get cost parameters for AACO on a specific dataset."""
     if dataset in COST_PARAMS_PER_METHOD["aaco"]:
@@ -28,9 +30,11 @@ def get_cost_params(dataset: str):
     else:
         return COST_PARAMS_PER_METHOD["aaco"].get("default", [0.05])
 
+
 def get_batch_size(dataset: str):
     """Get batch size for a specific dataset."""
     return EVAL_BATCH_SIZE_PER_DATASET.get(dataset, 128)
+
 
 # Main rule to run complete soft budget pipeline
 rule soft_budget:
@@ -39,6 +43,7 @@ rule soft_budget:
         f"result/soft_budget/plot1.pdf",
         f"result/soft_budget/plot2.pdf",
         f"result/soft_budget/plot3.pdf",
+
 
 rule soft_budget_train_all:
     input:
@@ -50,6 +55,7 @@ rule soft_budget_train_all:
             for seed in SEEDS
         ],
 
+
 rule soft_budget_eval_all:
     input:
         [
@@ -59,6 +65,7 @@ rule soft_budget_eval_all:
             for cost_param in get_cost_params(dataset)
             for seed in SEEDS
         ],
+
 
 # Training rule for AACO (no pretraining needed)
 rule train_soft_budget_aaco:
@@ -83,6 +90,7 @@ rule train_soft_budget_aaco:
             +experiment_id={EXPERIMENT_ID} \
             device={TRAIN_DEVICE}
         """
+
 
 # Evaluation rule for AACO
 rule eval_soft_budget_aaco:
@@ -112,6 +120,7 @@ rule eval_soft_budget_aaco:
             batch_size={params.batch_size}
         """
 
+
 # Add dataset split column to results
 rule add_dataset_split_col_to_soft_budget_eval_result:
     input:
@@ -124,6 +133,7 @@ rule add_dataset_split_col_to_soft_budget_eval_result:
         """
         Rscript scripts/misc/add_dataset_split_col.R {input} {output} {wildcards.dataset_split}
         """
+
 
 # Combine all evaluation results
 rule combine_soft_budget_eval_results:
@@ -143,6 +153,7 @@ rule combine_soft_budget_eval_results:
         """
         Rscript scripts/misc/combine_soft_budget_results.R {input} {output}
         """
+
 
 # Generate plots from combined results
 rule soft_budget_plot:

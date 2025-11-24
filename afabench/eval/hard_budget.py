@@ -1,13 +1,13 @@
-import torch
 import logging
-import numpy as np
-import torch.nn.functional as F
-
-from tqdm import tqdm
 from typing import Any
+
+import numpy as np
+import torch
+import torch.nn.functional as F
+from sklearn.metrics import accuracy_score, f1_score
 from torch import Tensor
 from torch.utils.data import DataLoader
-from sklearn.metrics import accuracy_score, f1_score
+from tqdm import tqdm
 
 from afabench.common.custom_types import (
     AFADataset,

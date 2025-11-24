@@ -1,13 +1,12 @@
 import torch
-
-from torch import Tensor
 from jaxtyping import Bool
+from torch import Tensor
 
-from afabench.afa_rl.kachuee2019.models import Kachuee2019PQModule
 from afabench.afa_rl.custom_types import (
     AFAReward,
     AFARewardFn,
 )
+from afabench.afa_rl.kachuee2019.models import Kachuee2019PQModule
 from afabench.common.custom_types import (
     AFASelection,
     FeatureMask,

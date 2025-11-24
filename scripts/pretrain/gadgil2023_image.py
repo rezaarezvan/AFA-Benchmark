@@ -1,19 +1,16 @@
 import gc
-import wandb
+import logging
+from datetime import datetime
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
 import hydra
 import torch
-import logging
-
-from torch import nn
-from pathlib import Path
-from datetime import datetime
+import wandb
 from omegaconf import OmegaConf
-from torchmetrics import Accuracy
-from tempfile import TemporaryDirectory
+from torch import nn
 from torch.utils.data import DataLoader
-
-from afabench.afa_discriminative.utils import MaskLayer2d
-from afabench.common.config_classes import Gadgil2023Pretraining2DConfig
+from torchmetrics import Accuracy
 
 from afabench.afa_discriminative.models import (
     MaskingPretrainer,
@@ -21,7 +18,8 @@ from afabench.afa_discriminative.models import (
     ResNet18Backbone,
     resnet18,
 )
-
+from afabench.afa_discriminative.utils import MaskLayer2d
+from afabench.common.config_classes import Gadgil2023Pretraining2DConfig
 from afabench.common.utils import (
     load_dataset_artifact,
     set_seed,

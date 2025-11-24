@@ -1,6 +1,8 @@
+from abc import ABC, abstractmethod
+
 from jaxtyping import Float
 from torch import Tensor, nn
-from abc import ABC, abstractmethod
+
 from afabench.common.custom_types import FeatureMask, Logits, MaskedFeatures
 
 type Embedding = Float[Tensor, "*batch embedding_size"]

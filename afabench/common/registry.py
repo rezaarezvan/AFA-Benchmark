@@ -43,17 +43,23 @@ def get_afa_method_class(name: str) -> type[AFAMethod]:  # noqa: PLR0911
 
         return Gadgil2023AFAMethod
     if name == "Ma2018AFAMethod":
-        from afabench.afa_generative.afa_methods import Ma2018AFAMethod  # noqa: PLC0415
+        from afabench.afa_generative.afa_methods import (
+            Ma2018AFAMethod,
+        )
 
         return Ma2018AFAMethod
 
     if name == "AACOAFAMethod":
-        from afabench.afa_oracle.afa_methods import AACOAFAMethod  # noqa: PLC0415
+        from afabench.afa_oracle.afa_methods import (
+            AACOAFAMethod,
+        )
 
         return AACOAFAMethod
 
     if name == "StaticBaseMethod":
-        from afabench.static.static_methods import StaticBaseMethod  # noqa: PLC0415
+        from afabench.static.static_methods import (
+            StaticBaseMethod,
+        )
 
         return StaticBaseMethod
     if name == "SequentialDummyAFAMethod":
@@ -63,11 +69,15 @@ def get_afa_method_class(name: str) -> type[AFAMethod]:  # noqa: PLR0911
 
         return SequentialDummyAFAMethod
     if name == "RandomDummyAFAMethod":
-        from afabench.common.afa_methods import RandomDummyAFAMethod  # noqa: PLC0415
+        from afabench.common.afa_methods import (
+            RandomDummyAFAMethod,
+        )
 
         return RandomDummyAFAMethod
     if name == "OptimalCubeAFAMethod":
-        from afabench.common.afa_methods import OptimalCubeAFAMethod  # noqa: PLC0415
+        from afabench.common.afa_methods import (
+            OptimalCubeAFAMethod,
+        )
 
         return OptimalCubeAFAMethod
     msg = f"Unknown AFA method: {name}"
@@ -103,7 +113,9 @@ def get_afa_dataset_class(name: str) -> type[AFADataset]:  # noqa: C901, PLR0911
 
         return CubeSimpleDataset
     if name == "cubeOnlyInformative":
-        from afabench.common.datasets import CubeOnlyInformativeDataset  # noqa: PLC0415
+        from afabench.common.datasets import (
+            CubeOnlyInformativeDataset,
+        )
 
         return CubeOnlyInformativeDataset
     if name == "shim2018cube":
@@ -121,7 +133,9 @@ def get_afa_dataset_class(name: str) -> type[AFADataset]:  # noqa: C901, PLR0911
 
         return AFAContextRandomInsertDataset
     if name == "ContextSelectiveXOR":
-        from afabench.common.datasets import ContextSelectiveXORDataset  # noqa: PLC0415
+        from afabench.common.datasets import (
+            ContextSelectiveXORDataset,
+        )
 
         return ContextSelectiveXORDataset
     if name == "MNIST":
@@ -141,7 +155,9 @@ def get_afa_dataset_class(name: str) -> type[AFADataset]:  # noqa: C901, PLR0911
 
         return MiniBooNEDataset
     if name == "FashionMNIST":
-        from afabench.common.datasets import FashionMNISTDataset  # noqa: PLC0415
+        from afabench.common.datasets import (
+            FashionMNISTDataset,
+        )
 
         return FashionMNISTDataset
     if name == "bank_marketing":

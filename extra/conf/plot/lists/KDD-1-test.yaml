@@ -28,7 +28,3 @@ eval_artifact_names:
   - train_zannone2019-FashionMNIST_split_5-budget_10-seed_42-builtin:KDD-model-free
   - train_zannone2019-FashionMNIST_split_5-budget_20-seed_42-builtin:KDD-model-free
   - train_zannone2019-FashionMNIST_split_5-budget_30-seed_42-builtin:KDD-model-free
-
-
-
-

@@ -1,8 +1,7 @@
 import torch
-
 from torch import nn
-from torch.utils.data import TensorDataset
 from torch.distributions import RelaxedOneHotCategorical
+from torch.utils.data import TensorDataset
 
 from afabench.common.custom_types import AFADataset
 

@@ -1,13 +1,13 @@
-from torch import Tensor
 from jaxtyping import Float
+from torch import Tensor
 
-from afabench.common.config_classes import Shim2018PretrainConfig
 from afabench.afa_rl.shim2018.models import (
     LitShim2018EmbedderClassifier,
     ReadProcessEncoder,
     Shim2018Embedder,
     Shim2018MLPClassifier,
 )
+from afabench.common.config_classes import Shim2018PretrainConfig
 
 
 def get_shim2018_model_from_config(

@@ -1,29 +1,28 @@
+from typing import Any, final, override
+
 import torch
 import torch.nn.functional as F
-
-from torch import Tensor, nn, optim
 from tensordict import TensorDictBase
-from typing import Any, final, override
-from torchrl.modules import EGreedyModule, QValueModule
-from torchrl.objectives import DQNLoss, SoftUpdate, ValueEstimators
-
 from tensordict.nn import (
     TensorDictModule,
     TensorDictModuleBase,
     TensorDictSequential,
 )
+from torch import Tensor, nn, optim
 from torchrl.data import (
     LazyTensorStorage,
     SamplerWithoutReplacement,
     TensorDictReplayBuffer,
     TensorSpec,
 )
+from torchrl.modules import EGreedyModule, QValueModule
+from torchrl.objectives import DQNLoss, SoftUpdate, ValueEstimators
 
 from afabench.afa_rl.agents import Agent
-from afabench.afa_rl.utils import module_norm
-from afabench.common.custom_types import MaskedFeatures
 from afabench.afa_rl.kachuee2019.models import Kachuee2019PQModule
+from afabench.afa_rl.utils import module_norm
 from afabench.common.config_classes import Kachuee2019AgentConfig
+from afabench.common.custom_types import MaskedFeatures
 
 
 @final

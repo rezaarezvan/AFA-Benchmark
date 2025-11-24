@@ -1,7 +1,7 @@
-import torch
-import numpy as np
-
 from itertools import chain, combinations
+
+import numpy as np
+import torch
 
 
 def powerset(iterable):

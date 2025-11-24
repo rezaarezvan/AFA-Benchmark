@@ -1,15 +1,14 @@
-import os
 import math
-import torch
-import wandb
-import torch.nn.functional as F
-
+import os
 from copy import deepcopy
+
+import torch
+import torch.nn.functional as F
+import wandb
 from torch import nn, optim
 
-from afabench.afa_rl.utils import mask_data
 from afabench.afa_discriminative.utils import restore_parameters
-
+from afabench.afa_rl.utils import mask_data
 
 models_dir = "./models/pretrained_resnet_models"
 model_name = {
@@ -40,7 +39,8 @@ def ResNet18Backbone(model):
 
 
 def resnet18(pretrained=False, **kwargs):
-    """Constructs a ResNet-18 model.
+    """
+    Constructs a ResNet-18 model.
 
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
@@ -81,11 +81,10 @@ def make_layer(block, in_planes, planes, num_blocks, stride, expansion):
                 )
 
             layers.append(block(in_planes, planes, stride, downsample))
+        elif expansion == 1:
+            layers.append(UpsamplingBlock(in_planes, planes))
         else:
-            if expansion == 1:
-                layers.append(UpsamplingBlock(in_planes, planes))
-            else:
-                layers.append(UpsamplingBottleneckBlock(in_planes, planes))
+            layers.append(UpsamplingBottleneckBlock(in_planes, planes))
         in_planes = planes * block.expansion
     return nn.Sequential(*layers)
 

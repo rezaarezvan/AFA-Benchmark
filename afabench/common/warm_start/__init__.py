@@ -8,10 +8,10 @@ from afabench.common.warm_start.strategies import (
 )
 
 __all__ = [
-    "WarmStartStrategy",
     "FixedRandomStrategy",
-    "RandomPerEpisodeStrategy",
+    "LeastInformativeStrategy",
     "ManualStrategy",
     "MutualInformationStrategy",
-    "LeastInformativeStrategy",
+    "RandomPerEpisodeStrategy",
+    "WarmStartStrategy",
 ]

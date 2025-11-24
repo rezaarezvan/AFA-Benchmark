@@ -1,11 +1,9 @@
-import timm
-import torch
-
-from torch import nn
 from pathlib import Path
 from typing import Self, final, override
 
-from afabench.common.models import MaskedMLPClassifier, MaskedViTClassifier
+import timm
+import torch
+from torch import nn
 
 from afabench.common.custom_types import (
     AFAClassifier,
@@ -15,6 +13,7 @@ from afabench.common.custom_types import (
     Logits,
     MaskedFeatures,
 )
+from afabench.common.models import MaskedMLPClassifier, MaskedViTClassifier
 
 
 @final

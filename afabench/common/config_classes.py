@@ -1,6 +1,7 @@
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
-from dataclasses import dataclass, field
+
 from hydra.core.config_store import ConfigStore
 
 cs = ConfigStore.instance()

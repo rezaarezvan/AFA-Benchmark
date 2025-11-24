@@ -1,13 +1,11 @@
 import os
-import torch
-import numpy as np
-
-from pathlib import Path
 from copy import deepcopy
+from pathlib import Path
+
+import numpy as np
+import torch
 from torch import nn, optim
 from torch.distributions import RelaxedOneHotCategorical
-
-from afabench.static.utils import restore_parameters
 
 from afabench.common.custom_types import (
     AFAMethod,
@@ -16,6 +14,7 @@ from afabench.common.custom_types import (
     Label,
     MaskedFeatures,
 )
+from afabench.static.utils import restore_parameters
 
 
 class ConcreteMask(nn.Module):
@@ -194,9 +193,7 @@ class DifferentiableSelector(nn.Module):
                         } total){'-' * 8}"
                     )
                     print(
-                        f"Val loss = {val_loss:.4f}, Zero-temp loss = {
-                            val_hard_loss:.4f
-                        }\n"
+                        f"Val loss = {val_loss:.4f}, Zero-temp loss = {val_hard_loss:.4f }\n"
                     )
 
                 # Update scheduler.

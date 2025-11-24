@@ -1,28 +1,23 @@
 import json
-import wandb
+import logging
+from pathlib import Path
+
 import hydra
 import torch
-import logging
-
-from pathlib import Path
+import wandb
 from omegaconf import OmegaConf
 
-from afabench.common.config_classes import SoftEvalConfig
-from afabench.eval.soft_budget import eval_soft_budget_afa_method
-
-
-from afabench.common.utils import (
-    load_trained_method,
-    load_trained_classifier,
-    set_seed,
-    save_artifact,
-)
-
 from afabench.common.afa_uncoverings import (
-    one_based_index_uncover_fn,
     get_image_patch_uncover_fn,
+    one_based_index_uncover_fn,
 )
-
+from afabench.common.config_classes import SoftEvalConfig
+from afabench.common.utils import (
+    load_trained_classifier,
+    load_trained_method,
+    set_seed,
+)
+from afabench.eval.soft_budget import eval_soft_budget_afa_method
 
 log = logging.getLogger(__name__)
 

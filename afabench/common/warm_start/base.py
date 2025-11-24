@@ -1,7 +1,7 @@
+from abc import ABC, abstractmethod
+
 import numpy as np
 
-from typing import Optional
-from abc import ABC, abstractmethod
 from afabench.common.custom_types import Features, Label
 
 
@@ -12,7 +12,7 @@ class WarmStartStrategy(ABC):
     Subclasses must implement select_features() to define feature selection logic.
     """
 
-    def __init__(self, seed: Optional[int] = None):
+    def __init__(self, seed: int | None = None):
         """
         Initialize the warm-start strategy.
 
@@ -27,8 +27,8 @@ class WarmStartStrategy(ABC):
         self,
         n_features_total: int,
         n_features_select: int,
-        train_features: Optional[Features] = None,
-        train_labels: Optional[Label] = None,
+        train_features: Features | None = None,
+        train_labels: Label | None = None,
     ) -> list[int]:
         """
         Select which features to provide as warm-start.
@@ -47,7 +47,6 @@ class WarmStartStrategy(ABC):
         Raises:
             ValueError: If required data is not provided for data-dependent strategies
         """
-        pass
 
     def __repr__(self) -> str:
         """String representation for logging."""

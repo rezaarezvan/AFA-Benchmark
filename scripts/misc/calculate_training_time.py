@@ -1,15 +1,14 @@
+import logging
+from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
+from tempfile import NamedTemporaryFile
+
+import hydra
+import numpy as np
 import torch
 import wandb
-import hydra
-import logging
-import numpy as np
-
-from pathlib import Path
 from omegaconf import OmegaConf
-from collections import defaultdict
-from tempfile import NamedTemporaryFile
-from concurrent.futures import ThreadPoolExecutor, as_completed
-
 
 from afabench.common.config_classes import TrainingTimeCalculationConfig
 

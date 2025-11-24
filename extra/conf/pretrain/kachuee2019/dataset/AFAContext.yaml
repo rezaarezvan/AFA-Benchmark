@@ -10,4 +10,3 @@ max_masking_probability: 0.9
 pq_module:
   n_hiddens: [64,32,16] # kachuee2019 implementation for Diabetes
   p_dropout: 0.5 # kachuee2019 implementation
-

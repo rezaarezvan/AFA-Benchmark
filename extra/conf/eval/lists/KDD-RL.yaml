@@ -425,4 +425,3 @@ physionet:
       - train_zannone2019-physionet_split_5-budget_10-seed_42:KDD
       - train_zannone2019-physionet_split_5-budget_15-seed_42:KDD
     trained_classifier_artifact_name: "masked_mlp_classifier-physionet_split_5:KDD"
-

@@ -1,38 +1,39 @@
 {
-    "include": ["afabench", "scripts"],
+  "include": ["afabench", "scripts"],
 
-    "exclude": ["**/node_modules", "**/__pycache__"],
+  "exclude": ["**/node_modules", "**/__pycache__"],
 
-    "strict": [],
+  "strict": [],
 
-    "ignore": [],
+  "ignore": [],
 
-    "defineConstant": {
-        "DEBUG": true
-    },
+  "defineConstant": {
+    "DEBUG": true
+  },
 
-    "stubPath": "afabench/stubs",
+  // "stubPath": "src/stubs",
 
-    "verboseOutput": false,
+  "verboseOutput": false,
 
-    "extraPaths": [],
+  "extraPaths": [],
 
-    "useLibraryCodeForTypes": true,
+  "useLibraryCodeForTypes": true,
 
-    "typeCheckingMode": "recommended",
+  "typeCheckingMode": "recommended",
 
-    "reportAny": false,
-    "reportUnusedCallResult": false,
-    "reportExplicitAny": false,
-    "reportMissingParameterType": false,
-    "reportUnusedVariable": false,
-    "reportUnusedParameter": false,
-    "reportUndefinedVariable": false,
-    "reportMissingTypeStubs": false,
-    "reportPrivateUsage": false,
+  "reportAny": false,
+  "reportUnusedCallResult": false,
+  "reportExplicitAny": false,
+  "reportMissingParameterType": false,
+  "reportUnusedVariable": false,
+  "reportUnusedParameter": false,
+  "reportUndefinedVariable": false,
+  "reportMissingTypeStubs": false,
+  "reportPrivateUsage": false,
+  "reportImplicitStringConcatenation": false,
 
-    "reportUnknownParameterType": false,
-    "reportUnknownMemberType": false,
-    "reportUnknownVariableType": false,
-    "reportUnknownArgumentType": false
+  "reportUnknownParameterType": false,
+  "reportUnknownMemberType": false,
+  "reportUnknownVariableType": false,
+  "reportUnknownArgumentType": false
 }

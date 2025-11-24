@@ -1,10 +1,10 @@
 import os
-import wandb
-import torch
-import numpy as np
-
-from pathlib import Path
 from copy import deepcopy
+from pathlib import Path
+
+import numpy as np
+import torch
+import wandb
 from torch import nn, optim
 
 from afabench.afa_discriminative.models import (
@@ -266,9 +266,7 @@ class GreedyDynamicSelection(nn.Module):
                         } total){'-' * 8}"
                     )
                     print(
-                        f"Val loss = {val_loss:.4f}, Zero-temp loss = {
-                            val_hard_loss:.4f
-                        }\n"
+                        f"Val loss = {val_loss:.4f}, Zero-temp loss = {val_hard_loss:.4f }\n"
                     )
 
                 # Update scheduler.

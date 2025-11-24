@@ -1,20 +1,19 @@
-import yaml
-import torch
-import hydra
-import wandb
 import logging
 import tempfile
-import numpy as np
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-
-from typing import Any
-from pathlib import Path
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
+from typing import Any
 
-from omegaconf import OmegaConf
+import hydra
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
+import wandb
+import yaml
 from matplotlib.ticker import MaxNLocator
+from omegaconf import OmegaConf
 
 from afabench.common.config_classes import PlotConfig
 

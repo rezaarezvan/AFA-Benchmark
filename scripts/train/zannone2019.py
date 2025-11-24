@@ -1,41 +1,40 @@
 import gc
+import logging
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from typing import Any, cast
+
+import hydra
+import matplotlib
 import torch
 import wandb
-import hydra
-import logging
-import matplotlib
-
-from tqdm import tqdm
-from pathlib import Path
-from typing import Any, cast
 from dacite import from_dict
+from matplotlib import pyplot as plt
 from omegaconf import OmegaConf
 from torch.nn import functional as F
-from matplotlib import pyplot as plt
-from tempfile import TemporaryDirectory
 from torchrl.collectors import SyncDataCollector
 from torchrl.envs import ExplorationType, check_env_specs, set_exploration_type
+from tqdm import tqdm
 
 from afabench import SAVE_PATH
-from afabench.afa_rl.agents import Agent
 from afabench.afa_rl.afa_env import AFAEnv
-from afabench.afa_rl.utils import get_eval_metrics
-from afabench.common.custom_types import AFADataset
 from afabench.afa_rl.afa_methods import RLAFAMethod
+from afabench.afa_rl.agents import Agent
 from afabench.afa_rl.datasets import get_afa_dataset_fn
+from afabench.afa_rl.utils import get_eval_metrics
 from afabench.afa_rl.zannone2019.agents import Zannone2019Agent
-from afabench.common.config_classes import (
-    Zannone2019PretrainConfig,
-    Zannone2019TrainConfig,
-)
-from afabench.afa_rl.zannone2019.reward import get_zannone2019_reward_fn
-from afabench.afa_rl.zannone2019.utils import get_zannone2019_model_from_config
-
 from afabench.afa_rl.zannone2019.models import (
     Zannone2019AFAClassifier,
     Zannone2019AFAPredictFn,
     Zannone2019PretrainingModel,
 )
+from afabench.afa_rl.zannone2019.reward import get_zannone2019_reward_fn
+from afabench.afa_rl.zannone2019.utils import get_zannone2019_model_from_config
+from afabench.common.config_classes import (
+    Zannone2019PretrainConfig,
+    Zannone2019TrainConfig,
+)
+from afabench.common.custom_types import AFADataset
 from afabench.common.utils import (
     dict_with_prefix,
     get_class_probabilities,

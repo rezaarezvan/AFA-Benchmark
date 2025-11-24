@@ -1,20 +1,19 @@
+import logging
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+import hydra
 import torch
 import wandb
-import hydra
-import logging
-
-from pathlib import Path
 from omegaconf import OmegaConf
-from tempfile import TemporaryDirectory
 
 from afabench import SAVE_PATH
 from afabench.afa_oracle import create_aaco_method
 from afabench.common.config_classes import AACOTrainConfig
-
 from afabench.common.utils import (
     load_dataset,
-    set_seed,
     save_artifact,
+    set_seed,
 )
 
 log = logging.getLogger(__name__)

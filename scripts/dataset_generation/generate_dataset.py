@@ -1,20 +1,18 @@
-import torch
-import wandb
-import hydra
 import logging
-
 from pathlib import Path
 from time import strftime
+
+import hydra
+import torch
 from torch.utils.data import random_split
 
-from afabench.common.custom_types import AFADataset
-from afabench.common.registry import get_afa_dataset_class
-from afabench.common.utils import save_artifact, get_artifact_path
 from afabench.common.config_classes import (
     DatasetGenerationConfig,
     SplitRatioConfig,
 )
-
+from afabench.common.custom_types import AFADataset
+from afabench.common.registry import get_afa_dataset_class
+from afabench.common.utils import get_artifact_path, save_artifact
 
 log = logging.getLogger(__name__)
 

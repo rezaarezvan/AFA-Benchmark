@@ -1,27 +1,26 @@
+import logging
+from pathlib import Path
+
+import hydra
+import lightning as pl
 import torch
 import wandb
-import hydra
-import logging
-import lightning as pl
-
-from pathlib import Path
-from omegaconf import OmegaConf
-from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
+from lightning.pytorch.loggers import WandbLogger
+from omegaconf import OmegaConf
 
-from afabench.eval.utils import plot_metrics
-from afabench.eval.hard_budget import eval_afa_method
-from afabench.common.models import LitMaskedMLPClassifier
 from afabench.afa_rl.datasets import DataModuleFromDatasets
-from afabench.common.classifiers import WrappedMaskedMLPClassifier
 from afabench.common.afa_methods import RandomClassificationAFAMethod
+from afabench.common.classifiers import WrappedMaskedMLPClassifier
 from afabench.common.config_classes import TrainMaskedMLPClassifierConfig
-
+from afabench.common.models import LitMaskedMLPClassifier
 from afabench.common.utils import (
     get_class_probabilities,
     load_dataset,
     set_seed,
 )
+from afabench.eval.hard_budget import eval_afa_method
+from afabench.eval.utils import plot_metrics
 
 log = logging.getLogger(__name__)
 

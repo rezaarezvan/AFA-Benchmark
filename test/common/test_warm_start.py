@@ -1,6 +1,6 @@
-import torch
-import pytest
 import numpy as np
+import pytest
+import torch
 
 from afabench.common.warm_start import (
     FixedRandomStrategy,

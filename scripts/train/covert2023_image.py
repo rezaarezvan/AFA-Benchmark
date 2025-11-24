@@ -1,19 +1,16 @@
 import gc
+import logging
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from typing import Any, cast
+
+import hydra
 import torch
 import wandb
-import hydra
-import logging
-
-from torch import nn
-from pathlib import Path
-from typing import Any, cast
 from dacite import from_dict
 from omegaconf import OmegaConf
-from tempfile import TemporaryDirectory
+from torch import nn
 from torch.utils.data import DataLoader
-
-
-from afabench.afa_discriminative.utils import MaskLayer2d
 
 from afabench.afa_discriminative.afa_methods import (
     Covert2023AFAMethod,
@@ -25,6 +22,7 @@ from afabench.afa_discriminative.models import (
     ResNet18Backbone,
     resnet18,
 )
+from afabench.afa_discriminative.utils import MaskLayer2d
 from afabench.common.config_classes import (
     Covert2023Pretraining2DConfig,
     Covert2023Training2DConfig,

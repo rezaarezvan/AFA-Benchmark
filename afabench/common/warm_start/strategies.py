@@ -1,10 +1,9 @@
-import torch
 import numpy as np
+import torch
+from sklearn.feature_selection import mutual_info_classif
 
-from typing import Optional
 from afabench.common.custom_types import Features, Label
 from afabench.common.warm_start.base import WarmStartStrategy
-from sklearn.feature_selection import mutual_info_classif
 
 
 class FixedRandomStrategy(WarmStartStrategy):
@@ -12,16 +11,16 @@ class FixedRandomStrategy(WarmStartStrategy):
     Select random features once and reuse them across all episodes.
     """
 
-    def __init__(self, seed: Optional[int] = None):
+    def __init__(self, seed: int | None = None):
         super().__init__(seed)
-        self._cached_features: Optional[list[int]] = None
+        self._cached_features: list[int] | None = None
 
     def select_features(
         self,
         n_features_total: int,
         n_features_select: int,
-        train_features: Optional[Features] = None,
-        train_labels: Optional[Label] = None,
+        train_features: Features | None = None,
+        train_labels: Label | None = None,
     ) -> list[int]:
         # Select once and cache
         if self._cached_features is None:
@@ -41,8 +40,8 @@ class RandomPerEpisodeStrategy(WarmStartStrategy):
         self,
         n_features_total: int,
         n_features_select: int,
-        train_features: Optional[Features] = None,
-        train_labels: Optional[Label] = None,
+        train_features: Features | None = None,
+        train_labels: Label | None = None,
     ) -> list[int]:
         # Select new features each time
         return self.rng.choice(
@@ -55,7 +54,7 @@ class ManualStrategy(WarmStartStrategy):
     Use explicitly specified feature indices.
     """
 
-    def __init__(self, feature_indices: list[int], seed: Optional[int] = None):
+    def __init__(self, feature_indices: list[int], seed: int | None = None):
         super().__init__(seed)
         self.feature_indices = feature_indices
 
@@ -63,8 +62,8 @@ class ManualStrategy(WarmStartStrategy):
         self,
         n_features_total: int,
         n_features_select: int,
-        train_features: Optional[Features] = None,
-        train_labels: Optional[Label] = None,
+        train_features: Features | None = None,
+        train_labels: Label | None = None,
     ) -> list[int]:
         assert len(self.feature_indices) == n_features_select, f"Expected {
             n_features_select
@@ -80,16 +79,16 @@ class MutualInformationStrategy(WarmStartStrategy):
     Select features with highest mutual information with target labels.
     """
 
-    def __init__(self, seed: Optional[int] = None):
+    def __init__(self, seed: int | None = None):
         super().__init__(seed)
-        self._cached_ranking: Optional[np.ndarray] = None
+        self._cached_ranking: np.ndarray | None = None
 
     def select_features(
         self,
         n_features_total: int,
         n_features_select: int,
-        train_features: Optional[Features] = None,
-        train_labels: Optional[Label] = None,
+        train_features: Features | None = None,
+        train_labels: Label | None = None,
     ) -> list[int]:
         assert train_features is not None and train_labels is not None, f"{
             self.__class__.__name__
@@ -125,16 +124,16 @@ class LeastInformativeStrategy(WarmStartStrategy):
     Useful for robustness testing - how well do methods perform with poor initialization?
     """
 
-    def __init__(self, seed: Optional[int] = None):
+    def __init__(self, seed: int | None = None):
         super().__init__(seed)
-        self._cached_ranking: Optional[np.ndarray] = None
+        self._cached_ranking: np.ndarray | None = None
 
     def select_features(
         self,
         n_features_total: int,
         n_features_select: int,
-        train_features: Optional[Features] = None,
-        train_labels: Optional[Label] = None,
+        train_features: Features | None = None,
+        train_labels: Label | None = None,
     ) -> list[int]:
         assert train_features is not None and train_labels is not None, f"{
             self.__class__.__name__

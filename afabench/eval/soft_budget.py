@@ -1,9 +1,9 @@
-import torch
 import logging
-import pandas as pd
 
-from tqdm import tqdm
+import pandas as pd
+import torch
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 from afabench.common.custom_types import (
     AFADataset,
@@ -56,9 +56,9 @@ def eval_soft_budget_afa_method(
 
     # Optionally subset the dataset
     if only_n_samples is not None:
-        dataset = torch.utils.data.Subset(dataset, range(only_n_samples)) # pyright: ignore[reportAssignmentType, reportArgumentType]
+        dataset = torch.utils.data.Subset(dataset, range(only_n_samples))  # pyright: ignore[reportAssignmentType, reportArgumentType]
 
-    dataloader = DataLoader(dataset, batch_size=batch_size) # pyright: ignore[reportArgumentType]
+    dataloader = DataLoader(dataset, batch_size=batch_size)  # pyright: ignore[reportArgumentType]
 
     data_rows = []
 

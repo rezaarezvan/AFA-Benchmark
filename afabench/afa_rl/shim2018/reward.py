@@ -1,15 +1,13 @@
 import torch
-
 from jaxtyping import Bool
 from torch import Tensor
 from torch.nn import functional as F
-
-from afabench.afa_rl.shim2018.models import LitShim2018EmbedderClassifier
 
 from afabench.afa_rl.custom_types import (
     AFAReward,
     AFARewardFn,
 )
+from afabench.afa_rl.shim2018.models import LitShim2018EmbedderClassifier
 from afabench.common.custom_types import (
     AFASelection,
     FeatureMask,

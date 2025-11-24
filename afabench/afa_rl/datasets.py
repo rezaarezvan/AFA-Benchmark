@@ -1,13 +1,13 @@
 import math
-import torch
-import lightning as pl
-
 from typing import final
-from torch import Tensor
+
+import lightning as pl
+import torch
 from jaxtyping import Shaped
+from torch import Tensor
 from torch.nn import functional as F
-from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, Dataset, random_split
+from torchvision import datasets, transforms
 
 from afabench.afa_rl.custom_types import AFADatasetFn
 from afabench.common.custom_types import (

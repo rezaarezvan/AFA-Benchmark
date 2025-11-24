@@ -1,23 +1,22 @@
-import os
 import json
-import torch
-import shutil
+import os
 import random
-import numpy as np
-
-from typing import Any
-from pathlib import Path
-from torch import Tensor, nn
-from jaxtyping import Bool, Float
+import shutil
 from collections.abc import Generator
 from contextlib import contextmanager
+from pathlib import Path
+from typing import Any
 
-from afabench.common.custom_types import AFADataset, AFAMethod, AFAClassifier
+import numpy as np
+import torch
+from jaxtyping import Bool, Float
+from torch import Tensor, nn
 
+from afabench.common.custom_types import AFAClassifier, AFADataset, AFAMethod
 from afabench.common.registry import (
+    get_afa_classifier_class,
     get_afa_dataset_class,
     get_afa_method_class,
-    get_afa_classifier_class,
 )
 
 
@@ -129,18 +128,17 @@ def get_artifact_path(
     if artifact_type == "dataset":
         return base_dir / "data" / artifact_name
     # extra/result/{classifier_name}/
-    elif artifact_type == "classifier":
+    if artifact_type == "classifier":
         return base_dir / "classifiers" / artifact_name
     # extra/result/{method_name}/train/{artifact_name}
-    elif artifact_type == "trained_method":
+    if artifact_type == "trained_method":
         method_name = artifact_name.split("-")[0]
         return base_dir / method_name / "train" / artifact_name
     # extra/result/{method_name}/pretrain/{artifact_name}
-    elif artifact_type == "pretrained_model":
+    if artifact_type == "pretrained_model":
         method_name = artifact_name.split("-")[0]
         return base_dir / method_name / "pretrain" / artifact_name
-    else:
-        raise ValueError(f"Unknown artifact type: {artifact_type}")
+    raise ValueError(f"Unknown artifact type: {artifact_type}")
 
 
 def load_dataset(

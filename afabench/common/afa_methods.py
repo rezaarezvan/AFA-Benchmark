@@ -1,11 +1,9 @@
-import torch
-
 from pathlib import Path
 from typing import Self, final, override
 
-from afabench.common.registry import get_afa_classifier_class
-from afabench.afa_rl.utils import afacontext_optimal_selection
+import torch
 
+from afabench.afa_rl.utils import afacontext_optimal_selection
 from afabench.common.custom_types import (
     AFAClassifier,
     AFAMethod,
@@ -15,6 +13,7 @@ from afabench.common.custom_types import (
     Label,
     MaskedFeatures,
 )
+from afabench.common.registry import get_afa_classifier_class
 
 
 @final
@@ -457,7 +456,7 @@ class RandomPatchClassificationAFAMethod(AFAMethod):
             features,
             label,
         ).to(original_device)
-    
+
     @override
     def save(self, path: Path) -> None:
         path.mkdir(parents=True, exist_ok=True)
@@ -493,7 +492,7 @@ class RandomPatchClassificationAFAMethod(AFAMethod):
             patch_size=patch_size,
             device=device,
         )
-    
+
     @override
     def to(self, device: torch.device) -> Self:
         self._device = device

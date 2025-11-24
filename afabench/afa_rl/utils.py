@@ -1,13 +1,13 @@
-import torch
-import wandb
-
-from typing import Any
-from torch import Tensor, nn
 from collections import defaultdict
 from collections.abc import Callable
+from typing import Any
+
+import torch
+import wandb
 from jaxtyping import Float, Integer
-from torch.nn import functional as F
 from tensordict import TensorDictBase
+from torch import Tensor, nn
+from torch.nn import functional as F
 
 from afabench.afa_rl.custom_types import FeatureSet
 from afabench.common.custom_types import (
@@ -354,9 +354,7 @@ def check_masked_classifier_performance(
         #     f"Masked classifier accuracy with 50% features: {accuracy_half.item() * 100:.2f}%"
         # )
         print(
-            f"Masked classifier accuracy with optimal features: {
-                accuracy_optimal.item() * 100:.2f
-            }%"
+            f"Masked classifier accuracy with optimal features: {accuracy_optimal.item() * 100:.2f }%"
         )
         # print(f"Average cross-entropy loss with 50% features: {loss_half.item():.4f}")
 

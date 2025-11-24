@@ -1,9 +1,9 @@
-import torch
-
 from pathlib import Path
-from torch import Tensor
 from typing import ClassVar, Protocol, Self
+
+import torch
 from jaxtyping import Bool, Float, Integer
+from torch import Tensor
 
 # AFA datasets return features and labels
 type Features = Float[Tensor, "*batch n_features"]

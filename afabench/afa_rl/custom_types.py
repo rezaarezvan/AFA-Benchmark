@@ -1,9 +1,9 @@
-import torch
-
-from torch import Tensor
-from typing import Protocol
 from collections.abc import Callable
+from typing import Protocol
+
+import torch
 from jaxtyping import Bool, Float, Integer
+from torch import Tensor
 
 from afabench.common.custom_types import (
     AFASelection,

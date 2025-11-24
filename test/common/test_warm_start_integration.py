@@ -1,5 +1,5 @@
-import torch
 import pytest
+import torch
 
 from afabench.afa_rl.afa_env import AFAEnv
 from afabench.common.datasets import CubeDataset

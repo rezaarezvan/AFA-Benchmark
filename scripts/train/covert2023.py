@@ -1,26 +1,24 @@
 import gc
-import wandb
-import torch
-import hydra
 import logging
-
-from torch import nn
 from pathlib import Path
-from typing import Any, cast
-from omegaconf import OmegaConf
 from tempfile import TemporaryDirectory
+from typing import Any, cast
+
+import hydra
+import torch
+import wandb
+from omegaconf import OmegaConf
+from torch import nn
 
 from afabench import SAVE_PATH
 from afabench.afa_discriminative.afa_methods import (
     Covert2023AFAMethod,
     GreedyDynamicSelection,
 )
+from afabench.afa_discriminative.datasets import prepare_datasets
 from afabench.afa_discriminative.models import fc_Net
 from afabench.afa_discriminative.utils import MaskLayer
-from afabench.afa_discriminative.datasets import prepare_datasets
-
 from afabench.common.config_classes import Covert2023TrainingConfig
-
 from afabench.common.utils import (
     get_class_probabilities,
     load_pretrained_model,

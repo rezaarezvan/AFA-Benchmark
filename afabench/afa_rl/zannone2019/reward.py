@@ -1,14 +1,12 @@
 import torch
-
-from torch import Tensor
 from jaxtyping import Bool
-
-from afabench.afa_rl.zannone2019.models import Zannone2019PretrainingModel
+from torch import Tensor
 
 from afabench.afa_rl.custom_types import (
     AFAReward,
     AFARewardFn,
 )
+from afabench.afa_rl.zannone2019.models import Zannone2019PretrainingModel
 from afabench.common.custom_types import (
     AFASelection,
     FeatureMask,

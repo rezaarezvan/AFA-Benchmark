@@ -1,31 +1,27 @@
 import gc
+import logging
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from typing import Any, cast
+
+import hydra
 import torch
 import wandb
-import hydra
-import logging
-
-from torch import nn
-from pathlib import Path
-from typing import Any, cast
-from dacite import from_dict
 from omegaconf import OmegaConf
+from torch import nn
 from torchmetrics import Accuracy
-from tempfile import TemporaryDirectory
 
 from afabench import SAVE_PATH
-from afabench.afa_discriminative.models import fc_Net
-from afabench.afa_discriminative.utils import MaskLayer
-from afabench.afa_discriminative.datasets import prepare_datasets
 from afabench.afa_discriminative.afa_methods import (
     CMIEstimator,
     Gadgil2023AFAMethod,
 )
-
+from afabench.afa_discriminative.datasets import prepare_datasets
+from afabench.afa_discriminative.models import fc_Net
+from afabench.afa_discriminative.utils import MaskLayer
 from afabench.common.config_classes import (
-    Gadgil2023PretrainingConfig,
     Gadgil2023TrainingConfig,
 )
-
 from afabench.common.utils import (
     get_class_probabilities,
     load_pretrained_model,

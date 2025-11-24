@@ -1,12 +1,12 @@
-import torch
-import lightning as pl
-import torch.nn.functional as F
-
 from pathlib import Path
+from typing import Self, final, override
+
+import lightning as pl
+import torch
+import torch.nn.functional as F
 from jaxtyping import Float
 from torch import Tensor, nn
 from torchrl.modules import MLP
-from typing import Self, final, override
 
 from afabench.afa_rl.shim2018.custom_types import (
     Embedder,

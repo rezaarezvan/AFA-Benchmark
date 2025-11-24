@@ -1,9 +1,9 @@
-import torch
 import logging
-
-from pathlib import Path
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Self, final, override
+
+import torch
 
 from afabench.afa_oracle.aaco_core import AACOOracle
 from afabench.common.custom_types import (

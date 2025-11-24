@@ -1,39 +1,38 @@
 import gc
-import torch
-import wandb
-import hydra
 import logging
-
-from tqdm import tqdm
-from torch import optim
 from pathlib import Path
-from dacite import from_dict
-from omegaconf import OmegaConf
-from torch.nn import functional as F
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, cast
+
+import hydra
+import torch
+import wandb
+from dacite import from_dict
+from omegaconf import OmegaConf
+from torch import optim
+from torch.nn import functional as F
 from torchrl.collectors import SyncDataCollector
 from torchrl.envs import ExplorationType, check_env_specs, set_exploration_type
+from tqdm import tqdm
 
 from afabench import SAVE_PATH
 from afabench.afa_rl.afa_env import AFAEnv
 from afabench.afa_rl.afa_methods import RLAFAMethod
 from afabench.afa_rl.datasets import get_afa_dataset_fn
 from afabench.afa_rl.shim2018.agents import Shim2018Agent
-from afabench.afa_rl.shim2018.reward import get_shim2018_reward_fn
-from afabench.afa_rl.shim2018.utils import get_shim2018_model_from_config
-from afabench.common.config_classes import (
-    Shim2018PretrainConfig,
-    Shim2018TrainConfig,
-)
-
 from afabench.afa_rl.shim2018.models import (
     Shim2018AFAClassifier,
     Shim2018AFAPredictFn,
 )
+from afabench.afa_rl.shim2018.reward import get_shim2018_reward_fn
+from afabench.afa_rl.shim2018.utils import get_shim2018_model_from_config
 from afabench.afa_rl.utils import (
     get_eval_metrics,
     module_norm,
+)
+from afabench.common.config_classes import (
+    Shim2018PretrainConfig,
+    Shim2018TrainConfig,
 )
 from afabench.common.utils import (
     dict_with_prefix,

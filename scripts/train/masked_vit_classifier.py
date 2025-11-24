@@ -1,28 +1,27 @@
-import torch
-import wandb
-import timm
-import hydra
 import logging
-
-from torch import nn
 from pathlib import Path
-from omegaconf import OmegaConf
-from torch.utils.data import DataLoader
 from tempfile import NamedTemporaryFile
 
-from afabench.afa_discriminative.utils import MaskLayer2d
-from afabench.common.classifiers import WrappedMaskedViTClassifier
-from afabench.common.models import MaskedViTClassifier, MaskedViTTrainer
-from afabench.common.afa_methods import RandomPatchClassificationAFAMethod
-from afabench.common.config_classes import TrainMaskedViTClassifierConfig
+import hydra
+import timm
+import torch
+import wandb
+from omegaconf import OmegaConf
+from torch import nn
+from torch.utils.data import DataLoader
 
-from afabench.eval.utils import plot_metrics
-from afabench.eval.hard_budget import eval_afa_method
+from afabench.afa_discriminative.utils import MaskLayer2d
+from afabench.common.afa_methods import RandomPatchClassificationAFAMethod
 from afabench.common.afa_uncoverings import get_image_patch_uncover_fn
+from afabench.common.classifiers import WrappedMaskedViTClassifier
+from afabench.common.config_classes import TrainMaskedViTClassifierConfig
+from afabench.common.models import MaskedViTClassifier, MaskedViTTrainer
 from afabench.common.utils import (
     load_dataset_artifact,
     set_seed,
 )
+from afabench.eval.hard_budget import eval_afa_method
+from afabench.eval.utils import plot_metrics
 
 log = logging.getLogger(__name__)
 
@@ -100,10 +99,10 @@ def main(cfg: TrainMaskedViTClassifierConfig) -> None:
         patch_size=cfg.patch_size,
     )
     afa_method = RandomPatchClassificationAFAMethod(
-        afa_classifier=wrapped_classifier, 
+        afa_classifier=wrapped_classifier,
         image_side_length=cfg.image_size,
         patch_size=cfg.patch_size,
-        device=torch.device("cpu")
+        device=torch.device("cpu"),
     )
     metrics = eval_afa_method(
         afa_select_fn=afa_method.select,

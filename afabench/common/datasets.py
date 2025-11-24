@@ -1,20 +1,20 @@
 import os
-import torch
-import zipfile
 import urllib.request
-import pandas as pd
-
-from PIL import Image
-from pathlib import Path
-from torch import Tensor
-from ucimlrepo import fetch_ucirepo
-from torch.utils.data import Dataset
+import zipfile
 from collections.abc import Callable
-from torch.nn import functional as F
+from pathlib import Path
 from typing import Self, final, override
+
+import pandas as pd
+import torch
+from PIL import Image
+from sklearn.preprocessing import LabelEncoder
+from torch import Tensor
+from torch.nn import functional as F
+from torch.utils.data import Dataset
 from torchvision import datasets, transforms
 from torchvision.datasets import ImageFolder
-from sklearn.preprocessing import LabelEncoder
+from ucimlrepo import fetch_ucirepo
 
 from afabench.common.custom_types import (
     AFADataset,
@@ -1148,8 +1148,7 @@ class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             raise ValueError(
                 "Missing feature acquisition costs for DiabetesDataset. Generate or load costs first."
             )
-        else:
-            return self.feature_costs
+        return self.feature_costs
 
 
 @final

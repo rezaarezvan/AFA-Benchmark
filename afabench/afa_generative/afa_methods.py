@@ -1,6 +1,6 @@
-import torch
-
 from pathlib import Path
+
+import torch
 
 from afabench.common.custom_types import (
     AFAMethod,
@@ -34,9 +34,8 @@ class Ma2018AFAMethod(AFAMethod):
     def _logits_to_probs(self, logits: torch.Tensor) -> torch.Tensor:
         if logits.ndim == 2 and logits.size(1) > 1:
             return logits.softmax(dim=1)
-        else:
-            probs = logits.sigmoid().view(-1, 1)
-            return torch.cat([1 - probs, probs], dim=1)
+        probs = logits.sigmoid().view(-1, 1)
+        return torch.cat([1 - probs, probs], dim=1)
 
     def predict(
         self,
@@ -147,9 +146,8 @@ class Ma2018AFAMethod(AFAMethod):
         mean_preds = preds_all.mean(dim=0)
         # KL(p_s || mean), (S, B*F)
         kl_all = (
-            preds_all * (
-                (preds_all + 1e-6).log() - (base_probs_flat + 1e-6).log()
-            )
+            preds_all
+            * ((preds_all + 1e-6).log() - (base_probs_flat + 1e-6).log())
         ).sum(dim=-1)
         kl_mean_flat = kl_all.mean(dim=0)
 

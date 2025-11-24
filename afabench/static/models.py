@@ -1,8 +1,8 @@
-import torch
-
 from copy import deepcopy
-from torch import nn, optim
+
+import torch
 from static.utils import restore_parameters
+from torch import nn, optim
 
 
 class BaseModel(nn.Module):

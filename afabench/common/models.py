@@ -1,15 +1,13 @@
-import torch
-import wandb
-import lightning as pl
-import torch.optim as optim
-import torch.nn.functional as F
-
 from copy import deepcopy
-from jaxtyping import Float
-from torch import Tensor, nn
-from torchrl.modules import MLP
 from typing import final, override
 
+import lightning as pl
+import torch
+import torch.nn.functional as F
+import wandb
+from jaxtyping import Float
+from torch import Tensor, nn, optim
+from torchrl.modules import MLP
 
 from afabench.afa_rl.utils import (
     mask_data,

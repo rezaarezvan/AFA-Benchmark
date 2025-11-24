@@ -1,23 +1,22 @@
-import torch
-
-from torch import Tensor, nn, optim
-from tensordict import TensorDictBase
 from typing import Any, final, override
-from torchrl.modules import MLP, EGreedyModule, QValueModule
-from torchrl.objectives import DQNLoss, SoftUpdate, ValueEstimators
 
+import torch
+from tensordict import TensorDictBase
 from tensordict.nn import (
     TensorDictModule,
     TensorDictModuleBase,
     TensorDictSequential,
 )
+from torch import Tensor, nn, optim
 from torchrl.data import (
     TensorSpec,
 )
+from torchrl.modules import MLP, EGreedyModule, QValueModule
+from torchrl.objectives import DQNLoss, SoftUpdate, ValueEstimators
 
 from afabench.afa_rl.agents import Agent
-from afabench.afa_rl.utils import module_norm
 from afabench.afa_rl.shim2018.models import Shim2018Embedder
+from afabench.afa_rl.utils import module_norm
 from afabench.common.config_classes import Shim2018AgentConfig
 from afabench.common.custom_types import FeatureMask, MaskedFeatures
 

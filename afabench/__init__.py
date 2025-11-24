@@ -9,4 +9,4 @@ SAVE_PATH = (
     / Path(sys.argv[0]).parent.name
 )
 SAVE_PATH.mkdir(parents=True, exist_ok=True)
-__all__ = ["SAVE_PATH", "PLOT_PATH"]
+__all__ = ["PLOT_PATH", "SAVE_PATH"]

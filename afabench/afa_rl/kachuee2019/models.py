@@ -1,15 +1,14 @@
-import torch
-import lightning as pl
-import torch.nn.functional as F
-
-from torch import nn
 from pathlib import Path
-from jaxtyping import Float
 from typing import Self, final, override
+
+import lightning as pl
+import torch
+import torch.nn.functional as F
+from jaxtyping import Float
+from torch import nn
 
 from afabench.afa_rl.utils import mask_data
 from afabench.common.config_classes import Kachuee2019PQModuleConfig
-
 from afabench.common.custom_types import (
     AFAClassifier,
     AFAPredictFn,

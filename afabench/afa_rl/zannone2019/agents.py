@@ -1,17 +1,14 @@
-import torch
-
-from jaxtyping import Bool
-from torch import Tensor, nn, optim
-from tensordict import TensorDictBase
 from typing import Any, final, override
-from torchrl.objectives.value import GAE
-from torchrl.objectives import ClipPPOLoss
-from torch.distributions import Categorical
 
+import torch
+from jaxtyping import Bool
+from tensordict import TensorDictBase
 from tensordict.nn import (
     TensorDictModule,
     TensorDictSequential,
 )
+from torch import Tensor, nn, optim
+from torch.distributions import Categorical
 from torchrl.data import (
     LazyTensorStorage,
     SamplerWithoutReplacement,
@@ -22,6 +19,8 @@ from torchrl.modules import (
     MLP,
     ProbabilisticActor,
 )
+from torchrl.objectives import ClipPPOLoss
+from torchrl.objectives.value import GAE
 
 from afabench.afa_rl.agents import Agent
 from afabench.afa_rl.utils import module_norm

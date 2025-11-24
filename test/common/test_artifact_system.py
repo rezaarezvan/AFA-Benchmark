@@ -1,20 +1,19 @@
 import json
-import torch
-import pytest
 import shutil
 import tempfile
-
 from pathlib import Path
 
+import pytest
+import torch
 
 from afabench.common.datasets import CubeDataset
 from afabench.common.utils import (
-    save_artifact,
-    load_artifact_metadata,
+    build_artifact_name,
     get_artifact_path,
+    load_artifact_metadata,
     load_dataset,
     parse_artifact_name,
-    build_artifact_name,
+    save_artifact,
 )
 
 

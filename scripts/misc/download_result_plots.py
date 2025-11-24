@@ -1,11 +1,11 @@
+import logging
 import re
+import shutil
+from pathlib import Path
+
+import hydra
 import torch
 import wandb
-import hydra
-import shutil
-import logging
-
-from pathlib import Path
 
 from afabench.common.config_classes import PlotDownloadConfig
 

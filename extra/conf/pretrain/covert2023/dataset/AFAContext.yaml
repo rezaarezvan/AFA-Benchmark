@@ -11,4 +11,3 @@ flag_drop_out: True
 flag_only_output_layer: False
 min_masking_probability: 0.0
 max_masking_probability: 0.9
-

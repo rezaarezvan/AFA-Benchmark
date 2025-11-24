@@ -1,20 +1,19 @@
 import gc
-import wandb
-import hydra
-import torch
 import logging
-
-from torch import nn
 from pathlib import Path
-from omegaconf import OmegaConf
 from tempfile import TemporaryDirectory
 
-from afabench import SAVE_PATH
-from afabench.afa_discriminative.utils import MaskLayer
-from afabench.afa_discriminative.datasets import prepare_datasets
-from afabench.common.config_classes import Covert2023PretrainingConfig
-from afabench.afa_discriminative.models import MaskingPretrainer, fc_Net
+import hydra
+import torch
+import wandb
+from omegaconf import OmegaConf
+from torch import nn
 
+from afabench import SAVE_PATH
+from afabench.afa_discriminative.datasets import prepare_datasets
+from afabench.afa_discriminative.models import MaskingPretrainer, fc_Net
+from afabench.afa_discriminative.utils import MaskLayer
+from afabench.common.config_classes import Covert2023PretrainingConfig
 from afabench.common.utils import (
     get_class_probabilities,
     load_dataset,

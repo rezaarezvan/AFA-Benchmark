@@ -1,34 +1,32 @@
-import hydra
-import wandb
-import torch
 import logging
-import matplotlib.pyplot as plt
-
-from typing import Any
 from pathlib import Path
-from omegaconf import OmegaConf
-from collections import Counter
 from tempfile import NamedTemporaryFile
+from typing import Any
 
-from afabench.eval.utils import plot_metrics
-from afabench.eval.hard_budget import eval_afa_method
-from afabench.common.config_classes import EvalConfig
-from afabench.common.utils import load_dataset_artifact, set_seed
+import hydra
+import matplotlib.pyplot as plt
+import torch
+import wandb
+from omegaconf import OmegaConf
+
 from afabench.common.afa_uncoverings import (
-    one_based_index_uncover_fn,
     get_image_patch_uncover_fn,
+    one_based_index_uncover_fn,
 )
-from afabench.common.registry import (
-    get_afa_classifier_class,
-    get_afa_method_class,
-)
-
+from afabench.common.config_classes import EvalConfig
 from afabench.common.custom_types import (
     AFAClassifier,
     AFADataset,
     AFAMethod,
     AFAPredictFn,
 )
+from afabench.common.registry import (
+    get_afa_classifier_class,
+    get_afa_method_class,
+)
+from afabench.common.utils import load_dataset_artifact, set_seed
+from afabench.eval.hard_budget import eval_afa_method
+from afabench.eval.utils import plot_metrics
 
 
 def load_trained_method_artifacts(
@@ -229,7 +227,7 @@ def main(cfg: EvalConfig) -> None:  # noqa: PLR0915
             }, image_size=({C}, {H}, {W})."
         )
     else:
-        log.info(f"Tabular modality detected.")
+        log.info("Tabular modality detected.")
         afa_uncover_fn = one_based_index_uncover_fn
 
     # Do the evaluation

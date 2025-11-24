@@ -1,15 +1,15 @@
-import os
 import copy
-import wandb
+import logging
+import os
+from pathlib import Path
+from tempfile import NamedTemporaryFile
+from time import strftime
+
 import hydra
 import torch
-import logging
-
-from pathlib import Path
-from time import strftime
-from wandb.sdk.wandb_run import Run
-from tempfile import NamedTemporaryFile
+import wandb
 from torch.utils.data import random_split
+from wandb.sdk.wandb_run import Run
 
 from afabench.common.config_classes import (
     DatasetGenerationConfig,

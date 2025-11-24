@@ -1,21 +1,20 @@
 import gc
+import logging
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from typing import Any, cast
+
+import hydra
 import torch
 import wandb
-import hydra
-import logging
-
-from pathlib import Path
-from typing import Any, cast
 from omegaconf import OmegaConf
-from tempfile import TemporaryDirectory
 
 from afabench import SAVE_PATH
-from afabench.common.utils import load_dataset, set_seed, save_artifact
 from afabench.common.afa_methods import RandomDummyAFAMethod
-
 from afabench.common.config_classes import (
     RandomDummyTrainConfig,
 )
+from afabench.common.utils import load_dataset, save_artifact, set_seed
 
 log = logging.getLogger(__name__)
 

@@ -1,32 +1,30 @@
 import gc
+import logging
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from typing import Any, cast
+
+import hydra
+import numpy as np
 import torch
 import wandb
-import hydra
-import logging
-import numpy as np
-
+from omegaconf import OmegaConf
 from torch import nn
-from tqdm import tqdm
-from pathlib import Path
-from typing import Any, cast
+from torch.utils.data import DataLoader
 from torchmetrics import AUROC
 from torchrl.modules import MLP
-from omegaconf import OmegaConf
-from tempfile import TemporaryDirectory
-from torch.utils.data import DataLoader
+from tqdm import tqdm
 
-
-from afabench.static.models import BaseModel
-from afabench.static.utils import transform_dataset
-from afabench.static.static_methods import StaticBaseMethod
 from afabench.afa_discriminative.datasets import prepare_datasets
 from afabench.common.config_classes import PermutationTrainingConfig
-
 from afabench.common.utils import (
     get_class_probabilities,
     load_dataset_artifact,
     set_seed,
 )
+from afabench.static.models import BaseModel
+from afabench.static.static_methods import StaticBaseMethod
+from afabench.static.utils import transform_dataset
 
 log = logging.getLogger(__name__)
 

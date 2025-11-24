@@ -1,5 +1,5 @@
-from torch import Tensor
 from jaxtyping import Float
+from torch import Tensor
 
 from afabench.afa_rl.kachuee2019.models import (
     Kachuee2019PQModule,

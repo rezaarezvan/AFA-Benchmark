@@ -1,26 +1,25 @@
 import gc
-import wandb
-import hydra
-import torch
 import logging
-import lightning as pl
-
 from pathlib import Path
-from omegaconf import OmegaConf
 from tempfile import TemporaryDirectory
-from lightning.pytorch.loggers import WandbLogger
+
+import hydra
+import lightning as pl
+import torch
+import wandb
 from lightning.pytorch.callbacks import ModelCheckpoint
+from lightning.pytorch.loggers import WandbLogger
+from omegaconf import OmegaConf
 
 from afabench import SAVE_PATH
 from afabench.afa_rl.datasets import DataModuleFromDatasets
-from afabench.common.config_classes import Shim2018PretrainConfig
 from afabench.afa_rl.shim2018.utils import get_shim2018_model_from_config
-
+from afabench.common.config_classes import Shim2018PretrainConfig
 from afabench.common.utils import (
     get_class_probabilities,
     load_dataset,
-    set_seed,
     save_artifact,
+    set_seed,
 )
 
 log = logging.getLogger(__name__)
