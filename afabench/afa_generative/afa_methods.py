@@ -94,9 +94,16 @@ class Ma2018AFAMethod(AFAMethod):
         ).to(self._device)
 
         with torch.no_grad():
-            _, _, _, _, x_full = self.sampler.forward(
-                augmented_masked_feature, augmented_feature_mask
-            )
+            base_probs_list = []
+            for _ in range(self.num_mc_samples):
+                _, _, _, z_base, x_full = self.sampler.forward(
+                    augmented_masked_feature, augmented_feature_mask
+                )
+                logits_base = self.predictor(z_base)
+                probs_base = self._logits_to_probs(logits_base)
+                base_probs_list.append(probs_base)
+        base_probs = torch.stack(base_probs_list, dim=0).mean(dim=0)
+
         x_full = x_full.view(B, F)
         x_filled = masked_features.clone()
         missing = ~feature_mask.bool()
@@ -131,11 +138,17 @@ class Ma2018AFAMethod(AFAMethod):
         # S: num_mc_samples
         S, BF, C = preds_all.shape
         # 1/n Σ p(y|x_s, x_i^j)
+        base_probs_flat = (
+            base_probs.unsqueeze(1)
+            .expand(B, F, C)
+            .reshape(1, B * F, C)
+            .expand(S, B * F, C)
+        )
         mean_preds = preds_all.mean(dim=0)
         # KL(p_s || mean), (S, B*F)
         kl_all = (
             preds_all * (
-                (preds_all + 1e-6).log() - (mean_preds.unsqueeze(0) + 1e-6).log()
+                (preds_all + 1e-6).log() - (base_probs_flat + 1e-6).log()
             )
         ).sum(dim=-1)
         kl_mean_flat = kl_all.mean(dim=0)

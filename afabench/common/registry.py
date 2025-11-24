@@ -197,7 +197,7 @@ def get_afa_classifier_class(name: str) -> type[AFAClassifier]:
 
         return WrappedMaskedMLPClassifier
 
-    if name == "WrappedMaskedVitClassifier":
+    if name == "WrappedMaskedViTClassifier":
         from afabench.common.classifiers import (
             WrappedMaskedViTClassifier,
         )

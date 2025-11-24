@@ -56,11 +56,9 @@ def eval_soft_budget_afa_method(
 
     # Optionally subset the dataset
     if only_n_samples is not None:
-        # pyright: ignore[reportAssignmentType, reportArgumentType]
-        dataset = torch.utils.data.Subset(dataset, range(only_n_samples))
+        dataset = torch.utils.data.Subset(dataset, range(only_n_samples)) # pyright: ignore[reportAssignmentType, reportArgumentType]
 
-    # pyright: ignore[reportArgumentType]
-    dataloader = DataLoader(dataset, batch_size=batch_size)
+    dataloader = DataLoader(dataset, batch_size=batch_size) # pyright: ignore[reportArgumentType]
 
     data_rows = []
 
