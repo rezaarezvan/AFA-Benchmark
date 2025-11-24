@@ -16,6 +16,7 @@ class SplitRatioConfig:
     test: float  # ratio of test data
 
 
+# Names of datasets, to avoid having to type out class names
 class DatasetType(str, Enum):
     cube = "cube"
     MNIST = "MNIST"
@@ -32,17 +33,15 @@ class DatasetType(str, Enum):
 @dataclass
 class DatasetConfig:
     type: DatasetType
-    kwargs: dict[str, Any] = field(default_factory=dict)
+    kwargs: dict[str, Any]
 
 
 @dataclass
 class DatasetGenerationConfig:
-    data_dir: str
-    split_idx: list[int]
-    seeds: list[int]
-    split_ratio: SplitRatioConfig
-    # Small float added to standard deviation to avoid division by zero
-    epsilon: float
+    save_path: str  # where to save the splits
+    instance_indices: list[int]  # we will save multiple instances at once
+    seeds: list[int]  # one seed per dataset instance
+    split_ratio: SplitRatioConfig  # how to split train/val/test
     dataset: DatasetConfig
 
 

@@ -1,6 +1,8 @@
+import json
 import logging
+from datetime import UTC, datetime
 from pathlib import Path
-from time import strftime
+from typing import Any
 
 import hydra
 import torch
@@ -12,24 +14,30 @@ from afabench.common.config_classes import (
 )
 from afabench.common.custom_types import AFADataset
 from afabench.common.registry import get_afa_dataset_class
-from afabench.common.utils import get_artifact_path, save_artifact
 
 log = logging.getLogger(__name__)
 
 
 def generate_and_save_split(
     dataset_class: type[AFADataset],
-    dataset_type: str,
-    split_idx: int,
     split_ratio: SplitRatioConfig,
-    seed: int,
-    base_dir: Path = Path("extra"),
-    epsilon: float = 1e-8,
-    **dataset_kwargs,
-):
-    """Generate and save a single train/val/test split."""
+    seed_for_split: int,
+    save_path: Path,
+    dataset_kwargs: dict[str, Any],
+    metadata_to_save: dict[str, Any],
+) -> None:
+    """
+    Generate and save a single train/val/test split.
+
+    Args:
+        dataset_class: The dataset class to instantiate.
+        split_ratio: The ratio for splitting the dataset into train/val/test.
+        seed_for_split: Seed used during splitting.
+        save_path: Path to save the generated dataset splits. Will create separate files for each split.
+        dataset_kwargs: Keyword arguments to pass to the dataset class constructor.
+        metadata_to_save: Additional metadata to save alongside the dataset.
+    """
     # Generate full dataset
-    dataset_kwargs["seed"] = seed
     dataset = dataset_class(**dataset_kwargs)
     dataset.generate_data()
 
@@ -42,7 +50,7 @@ def generate_and_save_split(
     train_subset, val_subset, test_subset = random_split(
         dataset,  # pyright: ignore[reportArgumentType]
         [train_size, val_size, test_size],
-        generator=torch.Generator().manual_seed(seed),
+        generator=torch.Generator().manual_seed(seed_for_split),
     )
 
     # Create split datasets
@@ -58,61 +66,28 @@ def generate_and_save_split(
     test_dataset.features = dataset.features[test_subset.indices]
     test_dataset.labels = dataset.labels[test_subset.indices]
 
-    # Normalize if needed
-    if dataset_kwargs.get("normalize", False):
-        mean = train_dataset.features.mean(dim=0)
-        std = train_dataset.features.std(dim=0)
-        for ds in (train_dataset, val_dataset, test_dataset):
-            ds.features = (ds.features - mean) / (std + epsilon)
-
-    # Save to temporary location
-    temp_dir = (
-        Path("tmp")
-        / f"{dataset_type}_split_{split_idx}_{strftime('%Y%m%d_%H%M%S')}"
-    )
-    temp_dir.mkdir(parents=True, exist_ok=True)
-
-    train_path = temp_dir / "train.pt"
-    val_path = temp_dir / "val.pt"
-    test_path = temp_dir / "test.pt"
+    # Save
+    save_path.mkdir(parents=True, exist_ok=True)
+    train_path = save_path / "train.pt"
+    val_path = save_path / "val.pt"
+    test_path = save_path / "test.pt"
 
     train_dataset.save(train_path)
     val_dataset.save(val_path)
     test_dataset.save(test_path)
 
     # Prepare metadata
-    metadata = dataset_kwargs | {
-        "dataset_type": dataset_type,
-        "split_idx": split_idx,
-        "seed": seed,
-        "generated_at": strftime("%Y-%m-%d %H:%M:%S"),
-    }
-
-    # Save to filesystem using new artifact system
-    artifact_name = f"{dataset_type}/{dataset_type}_split_{split_idx}"
-    artifact_dir = get_artifact_path("dataset", artifact_name, base_dir)
-
-    save_artifact(
-        artifact_dir=artifact_dir,
-        files={
-            "train.pt": train_path,
-            "val.pt": val_path,
-            "test.pt": test_path,
-        },
-        metadata=metadata,
+    metadata = (
+        dataset_kwargs
+        | metadata_to_save
+        | {
+            "seed_for_split": seed_for_split,
+            "generated_at": datetime.now(UTC).isoformat(),
+        }
     )
-
-    # Clean up temp files
-    import shutil
-
-    shutil.rmtree(temp_dir)
-
-    log.info(f"Saved {dataset_type} split {split_idx} to {artifact_dir}")
-    log.info(
-        f"Train: {len(train_dataset)}, Val: {len(val_dataset)}, Test: {
-            len(test_dataset)
-        }"
-    )
+    # Save metadata
+    with (save_path / "metadata.json").open("w") as f:
+        json.dump(metadata, f)
 
 
 @hydra.main(
@@ -121,24 +96,23 @@ def generate_and_save_split(
     config_name="config",
 )
 def main(cfg: DatasetGenerationConfig) -> None:
-    # Optional: still init wandb for logging metrics
-    # run = wandb.run or wandb.init(job_type="data_generation", dir="extra/wandb")
-
     for seed in cfg.seeds:
-        for split_idx in cfg.split_idx:
+        for instance_idx in cfg.instance_indices:
             dataset_class = get_afa_dataset_class(cfg.dataset.type)
             generate_and_save_split(
                 dataset_class=dataset_class,
-                dataset_type=cfg.dataset.type,
-                split_idx=split_idx,
                 split_ratio=cfg.split_ratio,
-                seed=seed,
-                base_dir=Path(cfg.data_dir),
-                **cfg.dataset.kwargs,
+                seed_for_split=seed,  # use same instance for splitting as for data generation
+                save_path=Path(cfg.save_path),
+                dataset_kwargs=(
+                    dict(cfg.dataset.kwargs)
+                    | {"seed": seed, "instance_idx": instance_idx}
+                ),
+                metadata_to_save={
+                    "dataset_type": cfg.dataset.type,
+                    "instance_idx": instance_idx,
+                },
             )
-
-    # if run:
-    #     run.finish()
 
 
 if __name__ == "__main__":
