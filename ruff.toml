@@ -77,6 +77,9 @@ ignore = [
 
   # (PGH)
   "PGH004", # blanket-noqa. Very convenient to use on LLM generated files.
+
+  # (F)
+  "F722", # forward-annotation-syntax-error. Allows us to use jaxtyping to annotate shapes.
 ]
 
 
