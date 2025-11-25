@@ -14,6 +14,16 @@ DATASETS_TO_TEST = [
     ("diabetes", {"root": "extra/data/misc/diabetes.csv"}),
     ("miniboone", {"root": "extra/data/misc/miniboone.csv"}),
     ("physionet", {"root": "extra/data/misc/physionet.csv"}),
+    (
+        "imagenette",
+        {
+            "data_root": "extra/data/",
+            "variant_dir": "imagenette2-320",
+            "load_subdirs": ("val",),
+            "image_size": 224,
+            "split_role": "val",
+        },
+    ),
 ]
 
 

@@ -1,8 +1,10 @@
+import tarfile
 import urllib.request
 import zipfile
 from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Self, final, override
+from typing import ClassVar, Self, final, override
+from urllib.parse import urlparse
 
 import pandas as pd
 import torch
@@ -1265,6 +1267,10 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     A subset of 10 easily classified classes from Imagenet.
     """
 
+    IMAGENETTE_URL: ClassVar[str] = (
+        "https://s3.amazonaws.com/fast-ai-imageclas/imagenette2-320.tgz"
+    )
+
     @override
     def create_subset(self, indices: Sequence[int]) -> Self:
         return default_create_subset(self, indices)
@@ -1348,11 +1354,34 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             ]
         )
 
+    def _download_imagenette(self, root: Path) -> None:
+        root_parent = root.parent
+        root_parent.mkdir(parents=True, exist_ok=True)
+        archive_path = root_parent / f"{self.variant_dir}.tgz"
+
+        parsed = urlparse(self.IMAGENETTE_URL)
+        if parsed.scheme not in ("http", "https"):
+            msg = f"Invalid URL scheme in IMAGENETTE_URL: {parsed.scheme}"
+            raise ValueError(msg)
+
+        if not archive_path.exists():
+            print(
+                f"Downloading Imagenette from {self.IMAGENETTE_URL} to {archive_path}"
+            )
+            urllib.request.urlretrieve(self.IMAGENETTE_URL, archive_path) # noqa: S310
+
+        print(f"Extracting {archive_path} to {root_parent}")
+        with tarfile.open(archive_path, "r:gz") as tar:
+            tar.extractall(path=root_parent, filter="data")
+
     def _root(self) -> Path:
         root = Path(self.data_root) / self.variant_dir
+        if (not root.exists()) or (not any(root.iterdir())):
+            self._download_imagenette(root)
+
         if not root.exists():
             msg = (
-                f"Imagenette folder not found at {root}. "
+                f"Imagenette folder not found at {root} after attempted download. "
                 f"Expected '{self.variant_dir}' with train/ and val/ subdirs."
             )
             raise FileNotFoundError(msg)
