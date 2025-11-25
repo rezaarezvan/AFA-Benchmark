@@ -34,7 +34,7 @@ def generate_and_save_split(
         dataset_class: The dataset class to instantiate.
         split_ratio: The ratio for splitting the dataset into train/val/test.
         seed_for_split: Seed used during splitting.
-        save_path: Path to save the generated dataset splits. Will create separate files for each split.
+        save_path: Path to save the generated dataset splits. Will create separate folders for each split instance.
         dataset_kwargs: Keyword arguments to pass to the dataset class constructor.
         metadata_to_save: Additional metadata to save alongside the dataset.
     """
