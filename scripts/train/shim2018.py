@@ -36,7 +36,7 @@ from afabench.common.config_classes import (
 )
 from afabench.common.utils import (
     dict_with_prefix,
-    get_class_probabilities,
+    get_class_frequencies,
     load_pretrained_model,
     set_seed,
 )
@@ -126,7 +126,7 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
     # Get dimensions
     n_features = train_dataset.features.shape[-1]
     n_classes = train_dataset.labels.shape[-1]
-    train_class_probabilities = get_class_probabilities(train_dataset.labels)
+    train_class_probabilities = get_class_frequencies(train_dataset.labels)
     log.debug(
         f"Class probabilities in training set: {train_class_probabilities}"
     )

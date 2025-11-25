@@ -1,52 +1,63 @@
+from collections.abc import Sequence
 from pathlib import Path
-from typing import ClassVar, Protocol, Self
+from typing import Protocol, Self
 
 import torch
-from jaxtyping import Bool, Float, Integer
+from jaxtyping import Bool, Integer
 from torch import Tensor
 
-# AFA datasets return features and labels
-type Features = Float[Tensor, "*batch n_features"]
-# We use float here since in general we can have probabilities, not only one-hot
-type Label = Float[Tensor, "*batch n_classes"]
 # We need to be able to distinguish between samples, e.g., for tracking performance per sample
 type SampleIndex = Integer[Tensor, "*batch 1"]
 
-type Logits = Float[Tensor, "*batch model_output_size"]
+type Logits = Tensor
 
 
 class AFADataset(Protocol):
     """
     Datasets that can be used for evaluating AFA methods.
 
-    Notably, the __init__ constructor should *not* generate data. Instead, generate_data() should be called. This makes it possible to call load if deterministic data is desired.
+    The constructor should generate data immediately. For deterministic loading,
+    use the load() class method which bypasses __init__ using __new__.
 
     The constructor is expected to accept the following parameters:
         - seed: int | None
     """
 
-    # Used by AFADatasetFn
-    features: Features  # batched
-    labels: Label  # batched
-
-    # Used by evaluation scripts to avoid loading the dataset
-    n_classes: ClassVar[int]
-    n_features: ClassVar[int]
-
-    def generate_data(self) -> None:
-        """Generate data."""
+    @property
+    def feature_shape(self) -> torch.Size:
+        """Return the shape of features (excluding batch dimension)."""
         ...
 
-    def __getitem__(self, idx: int) -> tuple[Features, Label]:
-        """Return a single sample from the dataset. The index of the sample in the dataset should also be returned."""
+    @property
+    def label_shape(self) -> torch.Size:
+        """Return the shape of labels (excluding batch dimension)."""
+        ...
+
+    @classmethod
+    def accepts_seed(cls) -> bool:
+        """Return whether the dataset constructor accepts a seed parameter."""
+        ...
+
+    def create_subset(self, indices: Sequence[int]) -> Self:
+        """
+        Return a new dataset instance containing only the specified indices.
+
+        Implementers must provide this method. For in-memory datasets with
+        `features` and `labels` attributes, you may inherit from
+        `SubsettableMixin` to get a default implementation.
+        """
+        ...
+
+    def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
+        """Return a single sample from the dataset as (features, label)."""
         ...
 
     def __len__(self) -> int: ...
 
     def get_all_data(
         self,
-    ) -> tuple[Features, Label]:
-        """Return all of the data in the dataset. Useful for batched computations."""
+    ) -> tuple[Tensor, Tensor]:
+        """Return all of the data in the dataset as (features, labels). Useful for batched computations."""
         ...
 
     def save(self, path: Path) -> None:
@@ -59,12 +70,14 @@ class AFADataset(Protocol):
         ...
 
     def get_feature_acquisition_costs(self) -> Tensor:
-        """Return the acquisition costs for each feature as a 1D tensor of shape (n_features,)."""
-        return torch.ones(self.n_features)  # Default: all features have cost 1
+        """Return the acquisition costs for each feature as a 1D tensor of shape (feature_shape[0],)."""
+        return torch.ones(
+            self.feature_shape[0]
+        )  # Default: all features have cost 1
 
 
-type MaskedFeatures = Integer[Tensor, "*batch n_features"]
-type FeatureMask = Bool[Tensor, "*batch n_features"]
+type MaskedFeatures = Tensor
+type FeatureMask = Bool[Tensor, "*batch *feature_shape"]
 
 # Outputs of AFA methods, representing which feature to collect next, or to stop acquiring features (0)
 type AFASelection = Integer[Tensor, "*batch 1"]
@@ -77,8 +90,8 @@ class AFAMethod(Protocol):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features | None,
-        label: Label | None,
+        features: Tensor | None,
+        label: Tensor | None,
     ) -> AFASelection:
         """Return the 0-based index of the feature to be collected."""
         ...
@@ -87,9 +100,9 @@ class AFAMethod(Protocol):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features | None,
-        label: Label | None,
-    ) -> Label:
+        features: Tensor | None,
+        label: Tensor | None,
+    ) -> Tensor:
         """Return the predicted label for the features that have been observed so far."""
         ...
 
@@ -137,9 +150,9 @@ class AFAClassifier(Protocol):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features | None,
-        label: Label | None,
-    ) -> Label:
+        features: Tensor | None,
+        label: Tensor | None,
+    ) -> Tensor:
         """Return the predicted label for the features that have been observed so far."""
         ...
 
@@ -168,8 +181,8 @@ class AFASelectFn(Protocol):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features | None,
-        label: Label | None,
+        features: Tensor | None,
+        label: Tensor | None,
     ) -> AFASelection: ...
 
 
@@ -179,9 +192,9 @@ class AFAPredictFn(Protocol):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features | None,
-        label: Label | None,
-    ) -> Label: ...
+        features: Tensor | None,
+        label: Tensor | None,
+    ) -> Tensor: ...
 
 
 # Feature uncover interface assumed during evaluation. Applicable in scenarios where a single AFA action might uncover multiple features.
@@ -190,6 +203,6 @@ class AFAUncoverFn(Protocol):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features,
+        features: Tensor,
         afa_selection: AFASelection,
     ) -> tuple[FeatureMask, MaskedFeatures]: ...

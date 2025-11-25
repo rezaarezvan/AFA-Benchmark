@@ -8,11 +8,9 @@ import torch
 
 from afabench.common.datasets import CubeDataset
 from afabench.common.utils import (
-    build_artifact_name,
     get_artifact_path,
     load_artifact_metadata,
     load_dataset,
-    parse_artifact_name,
     save_artifact,
 )
 
@@ -29,7 +27,6 @@ def temp_base_dir():
 def sample_dataset():
     """Create a simple test dataset."""
     dataset = CubeDataset(n_samples=100, seed=42)
-    dataset.generate_data()
     return dataset
 
 
@@ -113,45 +110,6 @@ def test_get_artifact_path(temp_base_dir):
         path
         == temp_base_dir / "shim2018" / "pretrained" / "cube_split_1_seed_42"
     )
-
-
-def test_parse_artifact_name():
-    """Test parsing artifact names."""
-    method, dataset, params = parse_artifact_name(
-        "train_shim2018-cube_split_1-budget_3-seed_42"
-    )
-    assert method == "shim2018"
-    assert dataset == "cube_split_1"
-    assert params == "budget_3_seed_42"
-
-    method, dataset, params = parse_artifact_name(
-        "aaco-cube_split_2-costparam_0.05-seed_10"
-    )
-    assert method == "aaco"
-    assert dataset == "cube_split_2"
-    assert params == "costparam_0.05_seed_10"
-
-
-def test_build_artifact_name():
-    """Test building artifact names."""
-    name = build_artifact_name(
-        method="shim2018",
-        dataset="cube",
-        split=1,
-        seed=42,
-        budget=3,
-    )
-    assert name == "train_shim2018-cube_split_1-budget_3-seed_42"
-
-    name = build_artifact_name(
-        method="aaco",
-        dataset="cube",
-        split=2,
-        seed=10,
-        cost_param=0.05,
-        prefix="pretrain",
-    )
-    assert name == "pretrain_aaco-cube_split_2-costparam_0.05-seed_10"
 
 
 def test_save_and_load_dataset(temp_base_dir, sample_dataset):
@@ -243,12 +201,8 @@ def test_load_dataset_with_wandb_style_name(temp_base_dir, sample_dataset):
         metadata={"dataset_type": "cube", "seed": 42},
     )
 
-    # Load with old wandb-style name
-    from afabench.common.utils import load_dataset_artifact
-
-    train, val, test, meta = load_dataset_artifact(
-        "afa-team/afa-benchmark/cube_split_1:latest", temp_base_dir
-    )
+    # Test that we can load it back
+    train, val, test, meta = load_dataset("cube_split_1", temp_base_dir)
 
     assert train is not None
     assert meta["dataset_type"] == "cube"

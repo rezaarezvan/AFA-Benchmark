@@ -16,7 +16,7 @@ from afabench.afa_rl.datasets import DataModuleFromDatasets
 from afabench.afa_rl.zannone2019.utils import get_zannone2019_model_from_config
 from afabench.common.config_classes import Zannone2019PretrainConfig
 from afabench.common.utils import (
-    get_class_probabilities,
+    get_class_frequencies,
     load_dataset,
     save_artifact,
     set_seed,
@@ -67,7 +67,7 @@ def main(cfg: Zannone2019PretrainConfig) -> None:
     log.info(f"Features: {n_features}, Classes: {n_classes}")
     log.info(f"Training samples: {len(train_dataset)}")
 
-    train_class_probabilities = get_class_probabilities(train_dataset.labels)
+    train_class_probabilities = get_class_frequencies(train_dataset.labels)
     log.debug(
         f"Class probabilities in training set: {train_class_probabilities}"
     )

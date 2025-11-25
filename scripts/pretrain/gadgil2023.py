@@ -16,7 +16,7 @@ from afabench.afa_discriminative.models import MaskingPretrainer, fc_Net
 from afabench.afa_discriminative.utils import MaskLayer
 from afabench.common.config_classes import Gadgil2023PretrainingConfig
 from afabench.common.utils import (
-    get_class_probabilities,
+    get_class_frequencies,
     load_dataset,
     save_artifact,
     set_seed,
@@ -49,7 +49,8 @@ def main(cfg: Gadgil2023PretrainingConfig):
     dataset_type = dataset_metadata["dataset_type"]
     split = dataset_metadata["split_idx"]
 
-    train_class_probabilities = get_class_probabilities(train_dataset.labels)
+    _, train_labels = train_dataset.get_all_data()
+    train_class_probabilities = get_class_frequencies(train_labels)
     class_weights = len(train_class_probabilities) / (
         len(train_class_probabilities) * train_class_probabilities
     )

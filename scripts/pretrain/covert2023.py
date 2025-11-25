@@ -15,7 +15,7 @@ from afabench.afa_discriminative.models import MaskingPretrainer, fc_Net
 from afabench.afa_discriminative.utils import MaskLayer
 from afabench.common.config_classes import Covert2023PretrainingConfig
 from afabench.common.utils import (
-    get_class_probabilities,
+    get_class_frequencies,
     load_dataset,
     save_artifact,
     set_seed,
@@ -29,12 +29,12 @@ log = logging.getLogger(__name__)
     config_path="../../extra/conf/pretrain/covert2023",
     config_name="config",
 )
-def main(cfg: Covert2023PretrainingConfig):
+def main(cfg: Covert2023PretrainingConfig) -> None:
     log.debug(cfg)
     run = wandb.init(
         group="pretrain_covert2023",
         job_type="pretraining",
-        config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore
+        config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore[reportArgumentType]
         tags=["GDFS"],
         dir="extra/wandb",
     )
@@ -43,13 +43,14 @@ def main(cfg: Covert2023PretrainingConfig):
     device = torch.device(cfg.device)
 
     train_dataset, val_dataset, _, dataset_metadata = load_dataset(
-        cfg.dataset_artifact_name
+        cfg.dataset_artifact_name, base_dir=Path("extra")
     )
 
     dataset_type = dataset_metadata["dataset_type"]
     split = dataset_metadata["split_idx"]
 
-    train_class_probabilities = get_class_probabilities(train_dataset.labels)
+    _, train_labels = train_dataset.get_all_data()
+    train_class_probabilities = get_class_frequencies(train_labels)
     class_weights = len(train_class_probabilities) / (
         len(train_class_probabilities) * train_class_probabilities
     )

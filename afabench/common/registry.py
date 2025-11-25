@@ -27,17 +27,17 @@ def get_afa_method_class(name: str) -> type[AFAMethod]:  # noqa: PLR0911
     Note that several method types can have the same AFAMethod class, like the RL methods. A dictionary is not used since it could lead to circular imports.
     """
     if name == "RLAFAMethod":
-        from afabench.afa_rl.afa_methods import RLAFAMethod  # noqa: PLC0415
+        from afabench.afa_rl.afa_methods import RLAFAMethod
 
         return RLAFAMethod
     if name == "Covert2023AFAMethod":
-        from afabench.afa_discriminative.afa_methods import (  # noqa: PLC0415
+        from afabench.afa_discriminative.afa_methods import (
             Covert2023AFAMethod,
         )
 
         return Covert2023AFAMethod
     if name == "Gadgil2023AFAMethod":
-        from afabench.afa_discriminative.afa_methods import (  # noqa: PLC0415
+        from afabench.afa_discriminative.afa_methods import (
             Gadgil2023AFAMethod,
         )
 
@@ -63,7 +63,7 @@ def get_afa_method_class(name: str) -> type[AFAMethod]:  # noqa: PLR0911
 
         return StaticBaseMethod
     if name == "SequentialDummyAFAMethod":
-        from afabench.common.afa_methods import (  # noqa: PLC0415
+        from afabench.common.afa_methods import (
             SequentialDummyAFAMethod,
         )
 
@@ -105,78 +105,64 @@ AFA_DATASET_TYPES = {
 
 def get_afa_dataset_class(name: str) -> type[AFADataset]:  # noqa: C901, PLR0911
     if name == "cube":
-        from afabench.common.datasets import CubeDataset  # noqa: PLC0415
+        from afabench.common.datasets.datasets import (
+            CubeDataset,
+        )
 
         return CubeDataset
-    if name == "cubeSimple":
-        from afabench.common.datasets import CubeSimpleDataset  # noqa: PLC0415
-
-        return CubeSimpleDataset
-    if name == "cubeOnlyInformative":
-        from afabench.common.datasets import (
-            CubeOnlyInformativeDataset,
-        )
-
-        return CubeOnlyInformativeDataset
-    if name == "shim2018cube":
-        from common.datasets import Shim2018CubeDataset  # noqa: PLC0415
-
-        return Shim2018CubeDataset
     if name == "AFAContext":
-        from afabench.common.datasets import AFAContextDataset  # noqa: PLC0415
+        from afabench.common.datasets.datasets import (
+            AFAContextDataset,
+        )
 
         return AFAContextDataset
-    if name == "AFAContextRandomInsert":
-        from afabench.common.datasets import (  # noqa: PLC0415
-            AFAContextRandomInsertDataset,
-        )
-
-        return AFAContextRandomInsertDataset
-    if name == "ContextSelectiveXOR":
-        from afabench.common.datasets import (
-            ContextSelectiveXORDataset,
-        )
-
-        return ContextSelectiveXORDataset
     if name == "MNIST":
-        from afabench.common.datasets import MNISTDataset  # noqa: PLC0415
+        from afabench.common.datasets.datasets import (
+            MNISTDataset,
+        )
 
         return MNISTDataset
     if name == "diabetes":
-        from afabench.common.datasets import DiabetesDataset  # noqa: PLC0415
+        from afabench.common.datasets.datasets import (
+            DiabetesDataset,
+        )
 
         return DiabetesDataset
     if name == "physionet":
-        from afabench.common.datasets import PhysionetDataset  # noqa: PLC0415
+        from afabench.common.datasets.datasets import (
+            PhysionetDataset,
+        )
 
         return PhysionetDataset
     if name == "miniboone":
-        from afabench.common.datasets import MiniBooNEDataset  # noqa: PLC0415
+        from afabench.common.datasets.datasets import (
+            MiniBooNEDataset,
+        )
 
         return MiniBooNEDataset
     if name == "FashionMNIST":
-        from afabench.common.datasets import (
+        from afabench.common.datasets.datasets import (
             FashionMNISTDataset,
         )
 
         return FashionMNISTDataset
     if name == "bank_marketing":
-        from afabench.common.datasets import BankMarketingDataset
+        from afabench.common.datasets.datasets import BankMarketingDataset
 
         return BankMarketingDataset
 
     if name == "ckd":
-        from afabench.common.datasets import CKDDataset
+        from afabench.common.datasets.datasets import CKDDataset
 
         return CKDDataset
 
     if name == "actg":
-        from afabench.common.datasets import ACTG175Dataset
+        from afabench.common.datasets.datasets import ACTG175Dataset
 
         return ACTG175Dataset
 
     if name == "imagenette":
-        from afabench.common.datasets import ImagenetteDataset
+        from afabench.common.datasets.datasets import ImagenetteDataset
 
         return ImagenetteDataset
 
@@ -193,21 +179,21 @@ AFA_CLASSIFIER_TYPES = {
 }
 
 
-def get_afa_classifier_class(name: str) -> type[AFAClassifier]:
+def get_afa_classifier_class(name: str) -> type[AFAClassifier]:  # noqa: PLR0911
     if name == "randomdummy":
-        from afabench.common.classifiers import (  # noqa: PLC0415
+        from afabench.common.classifiers import (
             RandomDummyAFAClassifier,
         )
 
         return RandomDummyAFAClassifier
     if name == "uniformdummy":
-        from afabench.common.classifiers import (  # noqa: PLC0415
+        from afabench.common.classifiers import (
             UniformDummyAFAClassifier,
         )
 
         return UniformDummyAFAClassifier
     if name == "WrappedMaskedMLPClassifier":
-        from afabench.common.classifiers import (  # noqa: PLC0415
+        from afabench.common.classifiers import (
             WrappedMaskedMLPClassifier,
         )
 
@@ -220,19 +206,19 @@ def get_afa_classifier_class(name: str) -> type[AFAClassifier]:
 
         return WrappedMaskedViTClassifier
     if name == "Shim2018AFAClassifier":
-        from afabench.afa_rl.shim2018.models import (  # noqa: PLC0415
+        from afabench.afa_rl.shim2018.models import (
             Shim2018AFAClassifier,
         )
 
         return Shim2018AFAClassifier
     if name == "Zannone2019AFAClassifier":
-        from afabench.afa_rl.zannone2019.models import (  # noqa: PLC0415
+        from afabench.afa_rl.zannone2019.models import (
             Zannone2019AFAClassifier,
         )
 
         return Zannone2019AFAClassifier
     if name == "Kachuee2019AFAClassifier":
-        from afabench.afa_rl.kachuee2019.models import (  # noqa: PLC0415
+        from afabench.afa_rl.kachuee2019.models import (
             Kachuee2019AFAClassifier,
         )
 

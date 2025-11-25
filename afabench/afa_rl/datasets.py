@@ -1,5 +1,6 @@
 import math
-from typing import final
+from collections.abc import Sequence
+from typing import Self, final
 
 import lightning as pl
 import torch
@@ -185,7 +186,6 @@ class Zannone2019CubeDataset(Dataset):
             self.non_informative_feature_variance
         )
 
-    def generate_data(self) -> None:
         rng = torch.Generator()
         rng.manual_seed(self.seed)
         # Each coordinate is drawn from a Bernoulli distribution with p=0.5, which is the same as uniform
@@ -233,6 +233,21 @@ class Zannone2019CubeDataset(Dataset):
         # Convert labels to one-hot encoding
         self.labels = torch.nn.functional.one_hot(labels, num_classes=8)
 
+    def get_subset(self, indices: Sequence[int]) -> Self:
+        """Return a new dataset instance containing only the specified indices."""
+        import copy
+
+        # Create a deep copy of the dataset
+        subset = copy.deepcopy(self)
+
+        # Filter data to only include specified indices
+        indices_list = list(indices)
+        subset.features = subset.features[indices_list]
+        subset.labels = subset.labels[indices_list]
+        subset.data_points = len(indices)
+
+        return subset
+
     def __getitem__(self, idx: int) -> tuple[MaskedFeatures, FeatureMask]:
         return self.features[idx], self.labels[idx]
 
@@ -259,7 +274,20 @@ class Zannone2019CubeDataset(Dataset):
     @staticmethod
     def load(path: str) -> "Zannone2019CubeDataset":
         data = torch.load(path)
-        dataset = Zannone2019CubeDataset(**data["config"])
-        dataset.features = data["features"]
-        dataset.labels = data["labels"]
-        return dataset
+        # Create instance without calling __init__
+        obj = Zannone2019CubeDataset.__new__(Zannone2019CubeDataset)
+        obj.n_features = data["config"]["n_features"]
+        obj.data_points = data["config"]["data_points"]
+        obj.seed = data["config"]["seed"]
+        obj.non_informative_feature_mean = 0.5
+        obj.informative_feature_variance = 0.1
+        obj.non_informative_feature_variance = 0.3
+        obj._informative_feature_std = math.sqrt(
+            obj.informative_feature_variance
+        )
+        obj._non_informative_feature_std = math.sqrt(
+            obj.non_informative_feature_variance
+        )
+        obj.features = data["features"]
+        obj.labels = data["labels"]
+        return obj

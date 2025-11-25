@@ -7,8 +7,7 @@ from afabench.common.custom_types import AFADataset
 
 
 def transform_dataset(dataset: AFADataset, selected_features):
-    x = dataset.features
-    y = dataset.labels
+    x, y = dataset.get_all_data()
     x_selected = x[:, selected_features]
     return TensorDataset(x_selected, y)
 

@@ -15,7 +15,6 @@ from afabench.common.warm_start import (
 def cube_dataset():
     """Generate CUBE dataset locally."""
     dataset = CubeDataset(n_samples=100, seed=42)
-    dataset.generate_data()
     return dataset
 
 

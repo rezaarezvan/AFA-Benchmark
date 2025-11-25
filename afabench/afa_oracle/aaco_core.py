@@ -4,7 +4,7 @@ import torch
 import torch.nn.functional as F
 
 from afabench.afa_oracle.mask_generator import random_mask_generator
-from afabench.common.utils import get_class_probabilities, load_classifier
+from afabench.common.utils import get_class_frequencies, load_classifier
 
 log = logging.getLogger(__name__)
 
@@ -106,7 +106,7 @@ class AACOOracle:
         """Fit the oracle on training data"""
         self.X_train = X_train.to(self.device)
         self.y_train = y_train.to(self.device)
-        train_class_probabilities = get_class_probabilities(self.y_train)
+        train_class_probabilities = get_class_frequencies(self.y_train)
         self.class_weights = len(train_class_probabilities) / (
             len(train_class_probabilities) * train_class_probabilities
         )

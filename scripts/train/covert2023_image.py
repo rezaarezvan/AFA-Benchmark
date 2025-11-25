@@ -91,7 +91,7 @@ def main(cfg: Covert2023Training2DConfig):
         shuffle=False,
         pin_memory=True,  # type: ignore
     )
-    d_out = train_dataset.n_classes
+    d_out = train_dataset.label_shape[0]
     # train_class_probabilities = get_class_probabilities(train_dataset.labels)
     # class_weights = len(train_class_probabilities) / (
     #     len(train_class_probabilities) * train_class_probabilities

@@ -100,7 +100,7 @@ def main(cfg: Gadgil2023Training2DConfig):
         shuffle=False,
         pin_memory=True,  # type: ignore
     )
-    d_out = train_dataset.n_classes
+    d_out = train_dataset.label_shape[0]
 
     base = resnet18(pretrained=True)
     backbone, expansion = ResNet18Backbone(base)

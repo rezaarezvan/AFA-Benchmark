@@ -206,7 +206,7 @@ def main(cfg: EvalConfig) -> None:  # noqa: PLR0915
         log.info(f"Using explicitly provided budget: {eval_budget}")
     elif method_metadata.get("budget") is None:
         log.info("Using maximum number of features in the dataset as budget")
-        eval_budget = val_dataset.n_features
+        eval_budget = val_dataset.feature_shape[0]
     else:
         log.info("Using same budget as during training")
         eval_budget = int(method_metadata["budget"])

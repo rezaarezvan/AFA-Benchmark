@@ -9,8 +9,7 @@ from typing import Any
 
 import numpy as np
 import torch
-from jaxtyping import Bool, Float
-from torch import Tensor, nn
+from torch import nn
 
 from afabench.common.custom_types import AFAClassifier, AFADataset, AFAMethod
 from afabench.common.registry import (
@@ -36,26 +35,23 @@ def set_seed(seed: int | None) -> int:
     return seed
 
 
-def get_class_probabilities(
-    labels: Bool[Tensor, "*batch n_classes"],
-) -> Float[Tensor, "n_classes"]:
-    """Return the class probabilities for a given set of labels."""
-    class_counts = labels.float().sum(dim=0)
+def get_class_frequencies(labels: torch.Tensor) -> torch.Tensor:
+    """
+    Return the class frequencies for a given set of labels.
+
+    Args:
+        labels: a (*batch_size, n_classes) boolean tensor.
+
+    Returns:
+        A (n_classes,) float tensor of class probabilities.
+    """
+    assert labels.shape[-1] > 1, (
+        f"Expected multi-class labels, got shape {labels.shape}"
+    )
+    class_counts = labels.flatten(0, -2).float().sum(dim=0)
     class_probabilities = class_counts / class_counts.sum()
+    assert class_probabilities.ndim == 1
     return class_probabilities
-
-
-def get_folders_with_matching_params(
-    folder: Path, mapping: dict[str, Any]
-) -> list[Path]:
-    """Get all folders in a given folder that have a matching params.yml file."""
-    matching_folders = [
-        f
-        for f in folder.iterdir()
-        if yaml_file_matches_mapping(f / "params.yml", mapping)
-    ]
-
-    return matching_folders
 
 
 @contextmanager
@@ -68,11 +64,6 @@ def eval_mode(*models: nn.Module) -> Generator[None, None, None]:
     finally:
         for model, mode in zip(models, was_training, strict=False):
             model.train(mode)
-
-
-def dict_with_prefix(prefix: str, d: dict[str, Any]) -> dict[str, Any]:
-    """Return a dictionary with all keys prefixed by ."""
-    return {f"{prefix}{k}": v for k, v in d.items()}
 
 
 def save_artifact(
@@ -91,7 +82,7 @@ def save_artifact(
     artifact_dir.mkdir(parents=True, exist_ok=True)
 
     # Save metadata
-    with open(artifact_dir / "metadata.json", "w") as f:
+    with open(artifact_dir / "metadata.json", "w") as f:  # noqa: PTH123
         json.dump(metadata, f, indent=2)
 
     # Copy files
@@ -115,14 +106,14 @@ def load_artifact_metadata(artifact_dir: Path) -> dict[str, Any]:
     metadata_path = artifact_dir / "metadata.json"
     assert metadata_path.exists(), f"No metadata.json found in {artifact_dir}"
 
-    with open(metadata_path) as f:
+    with open(metadata_path) as f:  # noqa: PTH123
         return json.load(f)
 
 
 def get_artifact_path(
     artifact_type: str,
     artifact_name: str,
-    base_dir: Path = Path("extra"),
+    base_dir: Path,
 ) -> Path:
     # extra/data/{dataset_name}/{dataset_name}_split_{i}
     if artifact_type == "dataset":
@@ -138,12 +129,13 @@ def get_artifact_path(
     if artifact_type == "pretrained_model":
         method_name = artifact_name.split("-")[0]
         return base_dir / method_name / "pretrain" / artifact_name
-    raise ValueError(f"Unknown artifact type: {artifact_type}")
+    msg = f"Unknown artifact type: {artifact_type}"
+    raise ValueError(msg)
 
 
 def load_dataset(
     dataset_path: str | Path,
-    base_dir: Path = Path("extra"),
+    base_dir: Path,
 ) -> tuple[AFADataset, AFADataset, AFADataset, dict[str, Any]]:
     """
     Load train, validation, and test datasets from local filesystem.
@@ -166,11 +158,10 @@ def load_dataset(
 
     missing = set(required_files) - set(artifact_filenames)
     if missing:
-        raise FileNotFoundError(
-            f"Dataset at {dataset_path} missing: {missing}. Found: {
-                artifact_filenames
-            }"
-        )
+        msg = f"Dataset at {dataset_path} missing: {missing}. Found: {
+            artifact_filenames
+        }"
+        raise FileNotFoundError(msg)
 
     # Load metadata and datasets
     metadata = load_artifact_metadata(dataset_path)
@@ -185,8 +176,8 @@ def load_dataset(
 
 def load_classifier(
     classifier_artifact_name: str,
+    base_dir: Path,
     device: torch.device | None = None,
-    base_dir: Path = Path("extra"),
 ) -> AFAClassifier:
     """Load classifier for given dataset and split."""
     if device is None:
@@ -200,7 +191,8 @@ def load_classifier(
     )
 
     if not classifier_path.exists():
-        raise FileNotFoundError(f"Classifier not found: {classifier_path}")
+        msg = f"Classifier not found: {classifier_path}"
+        raise FileNotFoundError(msg)
 
     metadata = load_artifact_metadata(classifier_path)
     classifier_class_name = metadata["classifier_class_name"]
@@ -215,8 +207,8 @@ def load_classifier(
 
 def load_trained_classifier(
     artifact_name: str,
+    base_dir: Path,
     device: torch.device | None = None,
-    base_dir: Path = Path("extra"),
 ) -> tuple[AFAClassifier, dict[str, Any]]:
     """Load trained classifier from filesystem."""
     if device is None:
@@ -239,8 +231,8 @@ def load_trained_classifier(
 
 def load_trained_method(
     artifact_name: str,
+    base_dir: Path,
     device: torch.device | None = None,
-    base_dir: Path = Path("extra/result"),  # Changed from "extra"
 ) -> tuple[AFADataset, AFADataset, AFADataset, AFAMethod, dict[str, Any]]:
     """Load trained AFA method and dataset."""
     if device is None:
@@ -275,20 +267,18 @@ def load_trained_method(
 
     # Load dataset
     train_dataset, val_dataset, test_dataset, _ = load_dataset(
-        metadata["dataset_artifact_name"]
+        metadata["dataset_artifact_name"], base_dir=base_dir
     )
 
     return train_dataset, val_dataset, test_dataset, method, metadata
 
 
-def load_pretrained_model(
+def load_pretrained_model(  # noqa: ANN201
     artifact_name: str,
+    base_dir: Path,
     device: torch.device | None = None,
-    base_dir: Path = Path("extra/result"),
 ):
-    """
-    Load pretrained model checkpoint and associated dataset.
-    """
+    """Load pretrained model checkpoint and associated dataset."""
     if device is None:
         device = torch.device("cpu")
 
@@ -304,25 +294,28 @@ def load_pretrained_model(
     # extra/result/<method_name>/pretrain/<artifact_subfolder>
     search_dir = base_dir / method_name / stage
     if not search_dir.exists():
-        raise FileNotFoundError(f"Pretraining folder not found: {search_dir}")
+        msg = f"Pretraining folder not found: {search_dir}"
+        raise FileNotFoundError(msg)
 
     artifact_sub = artifact_name.split(f"{method_name}_", 1)[-1]
     method_path = search_dir / artifact_sub
 
     metadata_path = method_path / "metadata.json"
     if not metadata_path.exists():
-        raise FileNotFoundError(f"No metadata.json found in {method_path}")
+        msg = f"No metadata.json found in {method_path}"
+        raise FileNotFoundError(msg)
 
     metadata = load_artifact_metadata(method_path)
     pretrain_cfg = metadata.get("pretrain_config", {})
 
     model_pt_path = method_path / "model.pt"
     if not model_pt_path.exists():
-        raise FileNotFoundError(f"Missing model.pt at {model_pt_path}")
+        msg = f"Missing model.pt at {model_pt_path}"
+        raise FileNotFoundError(msg)
 
     # Load dataset
     train_dataset, val_dataset, test_dataset, dataset_metadata = load_dataset(
-        metadata["dataset_artifact_name"]
+        metadata["dataset_artifact_name"], base_dir=base_dir
     )
 
     return (

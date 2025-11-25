@@ -1,4 +1,3 @@
-import copy
 import logging
 import os
 from pathlib import Path
@@ -17,22 +16,6 @@ from afabench.common.config_classes import (
 )
 from afabench.common.custom_types import AFADataset
 from afabench.common.registry import get_afa_dataset_class
-
-
-def create_split_dataset(original_dataset, subset):
-    """Create a new dataset instance for a split by copying the original dataset and replacing features/labels."""
-    # Create a deep copy of the original dataset
-    new_dataset = copy.deepcopy(original_dataset)
-
-    # Get the indices from the subset
-    indices = subset.indices
-
-    # Replace features and labels with the subset
-    new_dataset.features = original_dataset.features[indices]
-    new_dataset.labels = original_dataset.labels[indices]
-    new_dataset.indices = original_dataset.indices[indices]
-
-    return new_dataset
 
 
 def generate_and_save_split(
@@ -54,7 +37,6 @@ def generate_and_save_split(
     train_kwargs = {**dataset_kwargs, "load_subdirs": ("train",)}
 
     dataset = dataset_class(**train_kwargs)
-    dataset.generate_data()
 
     # Calculate split sizes
     # Split ONLY into train/val from the official train pool
@@ -66,14 +48,15 @@ def generate_and_save_split(
         [train_size, val_size],
         generator=torch.Generator().manual_seed(seed),
     )
-    train_dataset = create_split_dataset(dataset, train_subset)
-    val_dataset = create_split_dataset(dataset, val_subset)
+
+    # Create subset datasets using the original dataset
+    train_dataset = dataset.create_subset(list(train_subset.indices))
+    val_dataset = dataset.create_subset(list(val_subset.indices))
 
     # Load official val/ as the fixed test set
     test_kwargs = dict(dataset_kwargs)
     test_kwargs = {**test_kwargs, "load_subdirs": ("val",)}
     test_dataset = dataset_class(**test_kwargs)
-    test_dataset.generate_data()
 
     # Create dataset directory
     dataset_dir = data_dir / dataset_type
@@ -81,10 +64,11 @@ def generate_and_save_split(
 
     # Save splits locally
     train_path = dataset_dir / f"train_split_{split_idx}.pt"
-    train_dataset.save(train_path)
     val_path = dataset_dir / f"val_split_{split_idx}.pt"
-    val_dataset.save(val_path)
     test_path = dataset_dir / f"test_split_{split_idx}.pt"
+
+    train_dataset.save(train_path)
+    val_dataset.save(val_path)
     test_dataset.save(test_path)
 
     # Also save as wandb artifact

@@ -23,7 +23,7 @@ from afabench.common.config_classes import (
     Gadgil2023TrainingConfig,
 )
 from afabench.common.utils import (
-    get_class_probabilities,
+    get_class_frequencies,
     load_pretrained_model,
     save_artifact,
     set_seed,
@@ -69,7 +69,7 @@ def main(cfg: Gadgil2023TrainingConfig):
     split = dataset_metadata["split_idx"]
 
     # Prepare loaders
-    train_class_probabilities = get_class_probabilities(train_dataset.labels)
+    train_class_probabilities = get_class_frequencies(train_dataset.labels)
     class_weights = (
         len(train_class_probabilities)
         / (len(train_class_probabilities) * train_class_probabilities)

@@ -16,7 +16,7 @@ from torchrl.modules import MLP
 from afabench.afa_discriminative.datasets import prepare_datasets
 from afabench.common.config_classes import CAETrainingConfig
 from afabench.common.utils import (
-    get_class_probabilities,
+    get_class_frequencies,
     load_dataset_artifact,
     set_seed,
 )
@@ -53,7 +53,7 @@ def main(cfg: CAETrainingConfig):
     train_dataset, val_dataset, _, dataset_metadata = load_dataset_artifact(
         cfg.dataset_artifact_name
     )
-    train_class_probabilities = get_class_probabilities(train_dataset.labels)
+    train_class_probabilities = get_class_frequencies(train_dataset.labels)
     class_weights = len(train_class_probabilities) / (
         len(train_class_probabilities) * train_class_probabilities
     )

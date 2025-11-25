@@ -48,7 +48,7 @@ def main(cfg: TrainMaskedViTClassifierConfig) -> None:
     train_dataset, val_dataset, _, dataset_metadata = load_dataset_artifact(
         cfg.dataset_artifact_name
     )
-    d_out = train_dataset.n_classes
+    d_out = train_dataset.label_shape[0]
     train_loader = DataLoader(
         train_dataset,  # type: ignore
         batch_size=cfg.batch_size,

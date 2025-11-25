@@ -15,7 +15,7 @@ from afabench.common.classifiers import WrappedMaskedMLPClassifier
 from afabench.common.config_classes import TrainMaskedMLPClassifierConfig
 from afabench.common.models import LitMaskedMLPClassifier
 from afabench.common.utils import (
-    get_class_probabilities,
+    get_class_frequencies,
     load_dataset,
     set_seed,
 )
@@ -56,7 +56,7 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
     n_features = train_dataset.features.shape[-1]
     n_classes = train_dataset.labels.shape[-1]
 
-    train_class_probabilities = get_class_probabilities(train_dataset.labels)
+    train_class_probabilities = get_class_frequencies(train_dataset.labels)
     log.debug(f"Class probabilities: {train_class_probabilities}")
 
     lit_model = LitMaskedMLPClassifier(
