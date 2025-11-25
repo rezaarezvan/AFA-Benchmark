@@ -19,8 +19,7 @@ class AFADataset(Protocol):
     The constructor should generate data immediately. For deterministic loading,
     use the load() class method which bypasses __init__ using __new__.
 
-    The constructor is expected to accept the following parameters:
-        - seed: int | None
+    If the dataset is synthetic, accepts_seed() should return True. In that case, the constructor should also accept a `seed` argument.
     """
 
     @property
