@@ -1368,7 +1368,7 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             print(
                 f"Downloading Imagenette from {self.IMAGENETTE_URL} to {archive_path}"
             )
-            urllib.request.urlretrieve(self.IMAGENETTE_URL, archive_path) # noqa: S310
+            urllib.request.urlretrieve(self.IMAGENETTE_URL, archive_path)  # noqa: S310
 
         print(f"Extracting {archive_path} to {root_parent}")
         with tarfile.open(archive_path, "r:gz") as tar:
