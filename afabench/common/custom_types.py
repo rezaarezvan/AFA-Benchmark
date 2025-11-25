@@ -42,8 +42,7 @@ class AFADataset(Protocol):
         Return a new dataset instance containing only the specified indices.
 
         Implementers must provide this method. For in-memory datasets with
-        `features` and `labels` attributes, you may inherit from
-        `SubsettableMixin` to get a default implementation.
+        `features` and `labels` attributes, you may use the `default_create_subset` function.
         """
         ...
 
