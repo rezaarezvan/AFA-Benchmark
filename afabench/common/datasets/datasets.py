@@ -1,6 +1,5 @@
 import tarfile
 import urllib.request
-import zipfile
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import ClassVar, Self, final, override
@@ -901,30 +900,24 @@ class BankMarketingDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     def accepts_seed(cls) -> bool:
         return False
 
-    def __init__(
-        self,
-        root: str = "extra/data/misc/bank_marketing.csv",
-    ):
+    def __init__(self, path: str):
         super().__init__()
-        self.root = root
-        if not Path(self.root).exists():
-            self._download_dataset()
+        self.path = path
 
-        df_dataset = pd.read_csv(self.root, sep=";")
+        if not Path(self.path).exists():
+            self._fetch_and_save()
 
-        # Process data
-        target_col = "y" if "y" in df_dataset.columns else "deposit"
-        features_df = df_dataset.drop(columns=[target_col])
-        target_series = df_dataset[target_col].replace({"yes": 1, "no": 0})
+        df = pd.read_csv(self.path, sep=";")
+        target_col = "y" if "y" in df.columns else "deposit"
+        features_df = df.drop(columns=[target_col])
+        target_series = df[target_col].replace({"yes": 1, "no": 0})
 
-        # Encode categoricals
         for col in features_df.columns:
             if features_df[col].dtype == "object":
                 le = LabelEncoder()
                 features_df[col] = le.fit_transform(
                     features_df[col].astype(str)
                 )
-
         features_df = features_df.fillna(features_df.mean())
 
         self.features = torch.tensor(features_df.values, dtype=torch.float32)
@@ -932,27 +925,16 @@ class BankMarketingDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             torch.tensor(target_series.values, dtype=torch.long),
             num_classes=self.label_shape[0],
         ).float()
-
-        # Store actual n_features as instance variable
         self.n_features = self.features.shape[1]
         self.feature_names = features_df.columns.tolist()
 
-        # Clean up raw CSV
-        Path(self.root).unlink()
-
-    def _download_dataset(self) -> None:
-        Path(self.root).mkdir(parents=True, exist_ok=True)
-        url = "https://archive.ics.uci.edu/ml/machine-learning-databases/00222/bank.zip"
-        zip_path = Path(self.root).parent / "bank.zip"
-
-        urllib.request.urlretrieve(url, zip_path)  # noqa: S310
-        with zipfile.ZipFile(zip_path, "r") as zip_ref:
-            csv_file = next(
-                f for f in zip_ref.namelist() if f.endswith("bank-full.csv")
-            )
-            zip_ref.extract(csv_file, Path(self.root).parent)
-            (Path(self.root).parent / csv_file).rename(self.root)
-        zip_path.unlink()
+    def _fetch_and_save(self) -> None:
+        Path(self.path).parent.mkdir(parents=True, exist_ok=True)
+        bank_data = fetch_ucirepo(id=222)
+        df = pd.concat(
+            [bank_data.data.features, bank_data.data.targets], axis=1
+        )
+        df.to_csv(self.path, sep=";", index=False)
 
     @override
     def __getitem__(self, idx: int):
@@ -973,7 +955,7 @@ class BankMarketingDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 "features": self.features,
                 "labels": self.labels,
                 "feature_names": self.feature_names,
-                "config": {"root": self.root},
+                "config": {"path": self.path},
             },
             path,
         )
@@ -982,9 +964,8 @@ class BankMarketingDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     @override
     def load(cls, path: Path) -> Self:
         data = torch.load(path)
-        # Create instance without calling __init__
         obj = cls.__new__(cls)
-        obj.root = data["config"]["root"]
+        obj.path = data["config"]["path"]
         obj.features = data["features"]
         obj.labels = data["labels"]
         obj.feature_names = data["feature_names"]
@@ -994,13 +975,6 @@ class BankMarketingDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
 @final
 class CKDDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
-    """
-    Chronic Kidney Disease dataset from UCI Machine Learning Repository.
-
-    Binary classification task to predict CKD (chronic kidney disease) vs non-CKD.
-    Dataset contains 400 patient records with 24 clinical features.
-    """
-
     @override
     def create_subset(self, indices: Sequence[int]) -> Self:
         return default_create_subset(self, indices)
@@ -1020,65 +994,49 @@ class CKDDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     def accepts_seed(cls) -> bool:
         return False
 
-    def __init__(
-        self,
-        root: str = "extra/data/ckd/chronic_kidney_disease.csv",
-    ):
+    def __init__(self, path: str):
         super().__init__()
-        self.root = root
-        # Fetch dataset (ID 336 is Chronic Kidney Disease)
-        ckd_data = fetch_ucirepo(id=336)
+        self.path = path
 
-        # Get features and targets as pandas DataFrames
-        # Make copies to avoid SettingWithCopyWarning
-        features_df = ckd_data.data.features.copy()  # pyright: ignore[reportOptionalMemberAccess]
-        target_df = ckd_data.data.targets.copy()  # pyright: ignore[reportOptionalMemberAccess]
+        if not Path(self.path).exists():
+            self._fetch_and_save()
 
-        # Process target - convert 'ckd'/'notckd' to 1/0
-        # Handle potential whitespace and different capitalizations
-        target_series = (
-            target_df.iloc[:, 0].astype(str).str.strip().str.lower()
-        )
-        target_series = target_series.map({"ckd": 1, "notckd": 0})
+        df = pd.read_csv(self.path)
+        features_df = df.iloc[:, :-1].copy()
+        target_series = df.iloc[:, -1]
 
-        # Handle any NaN values in target (shouldn't happen, but just in case)
-        if target_series.isna().any():
-            unique_vals = target_df.iloc[:, 0].unique()
-            msg = (
-                f"Found NaN values in target after mapping. "
-                f"Unique values in original target: {unique_vals}"
-            )
-            raise ValueError(msg)
-
-        # Handle missing values and encode categorical columns
         for col in features_df.columns:
             if features_df[col].dtype == "object":
-                # Use label encoding for categorical variables
                 le = LabelEncoder()
-                # Handle NaN values before label encoding
                 mask = features_df[col].notna()
                 if mask.any():
                     features_df.loc[mask, col] = le.fit_transform(
                         features_df.loc[mask, col].astype(str)
                     )
-
-        # Convert all columns to numeric
         for col in features_df.columns:
             features_df[col] = pd.to_numeric(features_df[col], errors="coerce")
-
-        # Fill missing values with mean
         features_df = features_df.fillna(features_df.mean())
 
-        # Convert to tensors
         self.features = torch.tensor(features_df.values, dtype=torch.float32)
         self.labels = torch.nn.functional.one_hot(
             torch.tensor(target_series.values, dtype=torch.long),
             num_classes=self.label_shape[0],
         ).float()
-
-        # Update n_features based on actual data
         self.n_features = self.features.shape[1]
         self.feature_names = features_df.columns.tolist()
+
+    def _fetch_and_save(self) -> None:
+        Path(self.path).parent.mkdir(parents=True, exist_ok=True)
+        ckd_data = fetch_ucirepo(id=336)
+        features_df = ckd_data.data.features.copy()
+        target_df = ckd_data.data.targets.copy()
+        target_series = (
+            target_df.iloc[:, 0].astype(str).str.strip().str.lower()
+        )
+        target_series = target_series.map({"ckd": 1, "notckd": 0})
+        df = features_df.copy()
+        df["target"] = target_series.to_numpy()
+        df.to_csv(self.path, index=False)
 
     @override
     def __getitem__(self, idx: int):
@@ -1099,7 +1057,7 @@ class CKDDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 "features": self.features,
                 "labels": self.labels,
                 "feature_names": self.feature_names,
-                "config": {"root": self.root},
+                "config": {"path": self.path},
             },
             path,
         )
@@ -1108,9 +1066,8 @@ class CKDDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     @override
     def load(cls, path: Path) -> Self:
         data = torch.load(path)
-        # Create instance without calling __init__
         obj = cls.__new__(cls)
-        obj.root = data["config"]["root"]
+        obj.path = data["config"]["path"]
         obj.features = data["features"]
         obj.labels = data["labels"]
         obj.feature_names = data["feature_names"]
@@ -1120,15 +1077,6 @@ class CKDDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
 @final
 class ACTG175Dataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
-    """
-    AIDS Clinical Trials Group Study 175 dataset from UCI Machine Learning Repository.
-
-    Binary classification task to predict death within a certain time window.
-    Dataset contains 2,139 HIV-infected patients with 23 clinical features.
-
-    From the famous ACTG 175 clinical trial comparing different HIV treatments.
-    """
-
     @override
     def create_subset(self, indices: Sequence[int]) -> Self:
         return default_create_subset(self, indices)
@@ -1148,78 +1096,46 @@ class ACTG175Dataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     def accepts_seed(cls) -> bool:
         return False
 
-    def __init__(
-        self,
-        root: str = "extra/data/actg175/actg175.csv",
-    ):
+    def __init__(self, path: str):
         super().__init__()
-        self.root = root
-        # Fetch dataset (ID 890 is AIDS Clinical Trials Group Study 175)
-        actg_data = fetch_ucirepo(id=890)
+        self.path = path
 
-        # Get features and targets as pandas DataFrames
-        # Make copies to avoid SettingWithCopyWarning
-        features_df = actg_data.data.features.copy()  # pyright: ignore[reportOptionalMemberAccess]
-        target_df = actg_data.data.targets.copy()  # pyright: ignore[reportOptionalMemberAccess]
+        if not Path(self.path).exists():
+            self._fetch_and_save()
 
-        # Process target - binary classification for death
-        # The target variable in ACTG175 is typically 'cid' (censor indicator for death)
-        # or we may need to check what column name is used
-        # Get the first (and likely only) target column
-        target_col = target_df.columns[0]
-        target_series = target_df[target_col]
+        df = pd.read_csv(self.path)
+        features_df = df.iloc[:, :-1].copy()
+        target_series = df.iloc[:, -1]
 
-        # Convert to binary (0/1) if not already
-        if target_series.dtype == "object":
-            # Map string values to binary
-            unique_vals = target_series.unique()
-            if len(unique_vals) == 2:
-                # Create mapping for binary classification
-                target_series = target_series.map(
-                    {unique_vals[0]: 0, unique_vals[1]: 1}
-                )
-        else:
-            # Ensure it's 0/1
-            target_series = target_series.astype(int)
-
-        # Handle any NaN values in target
-        if target_series.isna().any():
-            msg = (
-                f"Found NaN values in target. "
-                f"Target column: {target_col}, "
-                f"Unique values: {target_df[target_col].unique()}"
-            )
-            raise ValueError(msg)
-
-        # Handle missing values and encode categorical columns
         for col in features_df.columns:
             if features_df[col].dtype == "object":
-                # Use label encoding for categorical variables
                 le = LabelEncoder()
-                # Handle NaN values before label encoding
                 mask = features_df[col].notna()
                 if mask.any():
                     features_df.loc[mask, col] = le.fit_transform(
                         features_df.loc[mask, col].astype(str)
                     )
-
-        # Convert all columns to numeric
         for col in features_df.columns:
             features_df[col] = pd.to_numeric(features_df[col], errors="coerce")
-
-        # Fill missing values with mean
         features_df = features_df.fillna(features_df.mean())
 
-        # Convert to tensors
         self.features = torch.tensor(features_df.values, dtype=torch.float32)
         self.labels = torch.nn.functional.one_hot(
             torch.tensor(target_series.values, dtype=torch.long),
             num_classes=self.label_shape[0],
         ).float()
-
-        # Update n_features based on actual data
         self.n_features = self.features.shape[1]
         self.feature_names = features_df.columns.tolist()
+
+    def _fetch_and_save(self) -> None:
+        Path(self.path).parent.mkdir(parents=True, exist_ok=True)
+        actg_data = fetch_ucirepo(id=890)
+        features_df = actg_data.data.features.copy()
+        target_df = actg_data.data.targets.copy()
+        target_series = target_df.iloc[:, 0].astype(int)
+        df = features_df.copy()
+        df["target"] = target_series.to_numpy()
+        df.to_csv(self.path, index=False)
 
     @override
     def __getitem__(self, idx: int):
@@ -1240,7 +1156,7 @@ class ACTG175Dataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 "features": self.features,
                 "labels": self.labels,
                 "feature_names": self.feature_names,
-                "config": {"root": self.root},
+                "config": {"path": self.path},
             },
             path,
         )
@@ -1249,9 +1165,8 @@ class ACTG175Dataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     @override
     def load(cls, path: Path) -> Self:
         data = torch.load(path)
-        # Create instance without calling __init__
         obj = cls.__new__(cls)
-        obj.root = data["config"]["root"]
+        obj.path = data["config"]["path"]
         obj.features = data["features"]
         obj.labels = data["labels"]
         obj.feature_names = data["feature_names"]
@@ -1366,7 +1281,9 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
         if not archive_path.exists():
             print(
-                f"Downloading Imagenette from {self.IMAGENETTE_URL} to {archive_path}"
+                f"Downloading Imagenette from {self.IMAGENETTE_URL} to {
+                    archive_path
+                }"
             )
             urllib.request.urlretrieve(self.IMAGENETTE_URL, archive_path)  # noqa: S310
 
@@ -1381,7 +1298,9 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
         if not root.exists():
             msg = (
-                f"Imagenette folder not found at {root} after attempted download. "
+                f"Imagenette folder not found at {
+                    root
+                } after attempted download. "
                 f"Expected '{self.variant_dir}' with train/ and val/ subdirs."
             )
             raise FileNotFoundError(msg)

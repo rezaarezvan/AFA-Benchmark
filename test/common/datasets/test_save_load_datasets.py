@@ -24,6 +24,9 @@ DATASETS_TO_TEST = [
             "split_role": "val",
         },
     ),
+    ("bank_marketing", {"path": "extra/data/misc/bank_marketing.csv"}),
+    ("ckd", {"path": "extra/data/misc/ckd.csv"}),
+    ("actg", {"path": "extra/data/misc/actg175.csv"}),
 ]
 
 
