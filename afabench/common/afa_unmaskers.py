@@ -3,22 +3,22 @@ from torch.nn import functional as F
 
 from afabench.common.custom_types import (
     AFASelection,
-    AFAUncoverFn,
+    AFAUnmaskFn,
     FeatureMask,
     Features,
     MaskedFeatures,
 )
 
 
-# Implements AFAUncoverFn
-def one_based_index_uncover_fn(
+# Implements AFAUnmaskFn
+def one_based_index_unmask_fn(
     masked_features: MaskedFeatures,  # noqa: ARG001
     feature_mask: FeatureMask,
     features: Features,
     afa_selection: AFASelection,
 ) -> tuple[MaskedFeatures, FeatureMask]:
     """
-    Uncover the features assuming `afa_selection` are 1-based indices of the features to uncover.
+    Unmasks the features assuming `afa_selection` are 1-based indices of the features to uncover.
 
     afa_selection == 0 is ignored.
     """
@@ -35,11 +35,11 @@ def one_based_index_uncover_fn(
     return new_masked_features, new_feature_mask
 
 
-def get_image_patch_uncover_fn(
+def get_image_patch_unmask_fn(
     image_side_length: int, n_channels: int, patch_size: int
-) -> AFAUncoverFn:
+) -> AFAUnmaskFn:
     """
-    Return an AFAUncoverFn that uncovers features in an image patch.
+    Return an AFAUnmaskFn that unmasks features in an image patch.
 
     Args:
         image_side_length (int): The side length of the image.
@@ -47,7 +47,7 @@ def get_image_patch_uncover_fn(
         patch_size (int): The size of the patch.
 
     Returns:
-        AFAUncoverFn: An AFAUncoverFn that uncovers features in an image patch.
+        AFAUnmaskFn: An AFAUnmaskFn that unmasks features in an image patch.
     """
     assert image_side_length % patch_size == 0, (
         "Image side length must be divisible by patch size"

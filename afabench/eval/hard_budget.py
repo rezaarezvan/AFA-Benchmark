@@ -13,7 +13,7 @@ from afabench.common.custom_types import (
     AFADataset,
     AFAPredictFn,
     AFASelectFn,
-    AFAUncoverFn,
+    AFAUnmaskFn,
     Label,
 )
 
@@ -107,7 +107,7 @@ def eval_afa_method(
     only_n_samples: int | None = None,
     batch_size: int = 1,
     device: torch.device | None = None,
-    afa_uncover_fn: AFAUncoverFn | None = None,
+    afa_uncover_fn: AFAUnmaskFn | None = None,
     patch_size: int = 1,
 ) -> dict[str, Any]:
     """

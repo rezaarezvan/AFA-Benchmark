@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 
 from afabench.afa_discriminative.utils import MaskLayer2d
 from afabench.common.afa_methods import RandomPatchClassificationAFAMethod
-from afabench.common.afa_uncoverings import get_image_patch_uncover_fn
+from afabench.common.afa_unmaskers import get_image_patch_unmask_fn
 from afabench.common.classifiers import WrappedMaskedViTClassifier
 from afabench.common.config_classes import TrainMaskedViTClassifierConfig
 from afabench.common.models import MaskedViTClassifier, MaskedViTTrainer
@@ -93,7 +93,7 @@ def main(cfg: TrainMaskedViTClassifierConfig) -> None:
         image_size=cfg.image_size,
         patch_size=cfg.patch_size,
     )
-    afa_uncover_fn = get_image_patch_uncover_fn(
+    afa_uncover_fn = get_image_patch_unmask_fn(
         image_side_length=cfg.image_size,
         n_channels=3,
         patch_size=cfg.patch_size,

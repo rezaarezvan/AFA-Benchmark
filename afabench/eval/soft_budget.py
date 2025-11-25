@@ -9,7 +9,7 @@ from afabench.common.custom_types import (
     AFADataset,
     AFAPredictFn,
     AFASelectFn,
-    AFAUncoverFn,
+    AFAUnmaskFn,
 )
 
 log = logging.getLogger(__name__)
@@ -18,7 +18,7 @@ log = logging.getLogger(__name__)
 def eval_soft_budget_afa_method(
     afa_select_fn: AFASelectFn,
     dataset: AFADataset,  # also assumed to subclass torch Dataset
-    afa_uncover_fn: AFAUncoverFn,
+    afa_uncover_fn: AFAUnmaskFn,
     external_afa_predict_fn: AFAPredictFn | None = None,
     builtin_afa_predict_fn: AFAPredictFn | None = None,
     only_n_samples: int | None = None,

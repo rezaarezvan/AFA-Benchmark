@@ -3,13 +3,18 @@ from pathlib import Path
 from typing import Protocol, Self
 
 import torch
-from jaxtyping import Bool, Integer
+from jaxtyping import Bool, Float, Integer
 from torch import Tensor
 
-# We need to be able to distinguish between samples, e.g., for tracking performance per sample
-type SampleIndex = Integer[Tensor, "*batch 1"]
+type Features = Float[Tensor, "*batch *feature_shape"]
+# MaskedFeatures are similar to Features, but are 0 where FeatureMask is False
+type MaskedFeatures = Float[Tensor, "*batch *feature_shape"]
+type FeatureMask = Bool[Tensor, "*batch *feature_shape"]
+# We allow arbitrary labels
+type Label = Float[Tensor, "*batch *label_shape"]
 
-type Logits = Tensor
+# Outputs of AFA methods, representing which feature to collect next, or to stop acquiring features (0)
+type AFASelection = Integer[Tensor, "*batch 1"]
 
 
 class AFADataset(Protocol):
@@ -46,7 +51,7 @@ class AFADataset(Protocol):
         """
         ...
 
-    def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
+    def __getitem__(self, idx: int) -> tuple[Features, Label]:
         """Return a single sample from the dataset as (features, label)."""
         ...
 
@@ -54,7 +59,7 @@ class AFADataset(Protocol):
 
     def get_all_data(
         self,
-    ) -> tuple[Tensor, Tensor]:
+    ) -> tuple[Features, Label]:
         """Return all of the data in the dataset as (features, labels). Useful for batched computations."""
         ...
 
@@ -74,13 +79,6 @@ class AFADataset(Protocol):
         )  # Default: all features have cost 1
 
 
-type MaskedFeatures = Tensor
-type FeatureMask = Bool[Tensor, "*batch *feature_shape"]
-
-# Outputs of AFA methods, representing which feature to collect next, or to stop acquiring features (0)
-type AFASelection = Integer[Tensor, "*batch 1"]
-
-
 class AFAMethod(Protocol):
     """An AFA method is an object that can decide which features to collect next (or stop collecting features) and also do predictions with the features it has seen so far."""
 
@@ -88,10 +86,10 @@ class AFAMethod(Protocol):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Tensor | None,
-        label: Tensor | None,
+        # features: Tensor | None,
+        # label: Tensor | None,
     ) -> AFASelection:
-        """Return the 0-based index of the feature to be collected."""
+        """Return an AFA selection based on observed features."""
         ...
 
     def predict(
@@ -148,9 +146,9 @@ class AFAClassifier(Protocol):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Tensor | None,
-        label: Tensor | None,
-    ) -> Tensor:
+        # features: Tensor | None,
+        # label: Tensor | None,
+    ) -> Label:
         """Return the predicted label for the features that have been observed so far."""
         ...
 
@@ -179,8 +177,8 @@ class AFASelectFn(Protocol):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Tensor | None,
-        label: Tensor | None,
+        # features: Tensor | None,
+        # label: Tensor | None,
     ) -> AFASelection: ...
 
 
@@ -190,17 +188,23 @@ class AFAPredictFn(Protocol):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Tensor | None,
-        label: Tensor | None,
-    ) -> Tensor: ...
+    ) -> Label: ...
 
 
-# Feature uncover interface assumed during evaluation. Applicable in scenarios where a single AFA action might uncover multiple features.
-class AFAUncoverFn(Protocol):
+# Feature unmasking interface assumed during evaluation. Applicable in scenarios where a single AFA action might uncover multiple features.
+class AFAUnmaskFn(Protocol):
     def __call__(
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
         features: Tensor,
         afa_selection: AFASelection,
+    ) -> tuple[FeatureMask, MaskedFeatures]: ...
+
+
+# Protocol for different mask initialization strategies
+class AFAInitializeFn(Protocol):
+    def __call__(
+        self,
+        features: Tensor,
     ) -> tuple[FeatureMask, MaskedFeatures]: ...

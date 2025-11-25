@@ -800,47 +800,30 @@ cs.store(
 
 @dataclass
 class EvalConfig:
-    trained_method_artifact_name: str
-    # if None, use the method's classifier
-    trained_classifier_artifact_name: str | None
-    seed: int
+    # Which method to evaluate
+    method_artifact_path: str
+    # Which unmasker to use
+    unmasker_artifact_path: str
+    # Which initializer to use
+    initializer_artifact_path: str
+    # Which dataset instance to use
+    dataset_artifact_path: str
+    # Which split of the instance to use. Should be one of "train", "val" or "test"
+    dataset_split: str
+    # Also save results for predictions using an external classifier
+    classifier_artifact_path: str | None
+    seed: int | None
     device: str
-    output_artifact_aliases: list[str]
-    eval_only_n_samples: (
-        int | None
-    )  # if specified, only evaluate on this many samples
+    # Make it possible to only evaluate a subset of the dataset, for debugging purposes
+    eval_only_n_samples: int | None
     batch_size: int
-    dataset_split: str  # use "validation" or "testing"
-    budget: int | None = (
-        None  # if specified, override the budget from training
-    )
+    # Set a hard budget during evaluation
+    hard_budget: int | None = None
+    # Whether to log to wandb
+    use_wandb: bool = False
 
 
 cs.store(name="eval", node=EvalConfig)
-
-
-@dataclass
-class SoftEvalConfig:
-    trained_method_artifact_name: str
-    cost_param: (
-        float | None
-    )  # Some AFAMethods don't need a cost parameter during training, but need it during evaluation
-    # if None, use the method's classifier
-    trained_classifier_artifact_name: str  # has to be given
-    seed: int | None
-    device: str
-    eval_only_n_samples: (
-        int | None
-    )  # if specified, only evaluate on this many samples
-    dataset_split: str  # use "validation" or "testing"
-    batch_size: int
-    budget: int | None = (
-        None  # if specified, override the budget from training
-    )
-    experiment_id: str | None = None
-
-
-cs.store(name="soft-eval", node=SoftEvalConfig)
 
 # --- MISC ---
 
