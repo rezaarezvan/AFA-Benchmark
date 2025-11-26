@@ -10,6 +10,7 @@ type Features = Float[Tensor, "*batch *feature_shape"]
 # MaskedFeatures are similar to Features, but are 0 where FeatureMask is False
 type MaskedFeatures = Float[Tensor, "*batch *feature_shape"]
 type FeatureMask = Bool[Tensor, "*batch *feature_shape"]
+type SelectionMask = Bool[Tensor, "*batch *selection_shape"]
 # We allow arbitrary labels
 type Label = Float[Tensor, "*batch *label_shape"]
 
@@ -86,8 +87,7 @@ class AFAMethod(Protocol):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        # features: Tensor | None,
-        # label: Tensor | None,
+        selection_mask: SelectionMask | None = None,
     ) -> AFASelection:
         """Return an AFA selection based on observed features."""
         ...
@@ -96,8 +96,6 @@ class AFAMethod(Protocol):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Tensor | None,
-        label: Tensor | None,
     ) -> Tensor:
         """Return the predicted label for the features that have been observed so far."""
         ...
@@ -146,8 +144,6 @@ class AFAClassifier(Protocol):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        # features: Tensor | None,
-        # label: Tensor | None,
     ) -> Label:
         """Return the predicted label for the features that have been observed so far."""
         ...
@@ -177,8 +173,7 @@ class AFASelectFn(Protocol):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        # features: Tensor | None,
-        # label: Tensor | None,
+        selection_mask: SelectionMask | None = None,
     ) -> AFASelection: ...
 
 

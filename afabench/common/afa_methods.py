@@ -12,20 +12,35 @@ from afabench.common.custom_types import (
     Features,
     Label,
     MaskedFeatures,
+    SelectionMask,
 )
 from afabench.common.registry import get_afa_classifier_class
 
 
 @final
 class RandomDummyAFAMethod(AFAMethod):
-    """A dummy AFAMethod for testing purposes. Chooses a random feature to observe from the masked features."""
+    """A dummy AFAMethod for testing purposes. Makes random AFA selections."""
 
     def __init__(
-        self, device: torch.device, n_classes: int, prob_select_0: float = 0.0
+        self,
+        n_classes: int,
+        prob_select_0: float = 0.0,
+        device: torch.device | None = None,
     ):
-        self._device = device
+        """
+        Initialize.
+
+        Args:
+            n_classes: The number of classes for prediction.
+            prob_select_0: The probability of selecting 0 (stop) at each time step.
+            device: Which device to use.
+        """
         self.n_classes = n_classes
         self.prob_select_0 = prob_select_0
+        if device is None:
+            self._device = torch.device("cpu")
+        else:
+            self._device = device
 
     @property
     @override
@@ -37,87 +52,66 @@ class RandomDummyAFAMethod(AFAMethod):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features | None,
-        label: Label | None,
+        selection_mask: SelectionMask | None = None,
     ) -> AFASelection:
-        """Chooses to observe a random feature from the masked features (or stop collecting features)."""
+        """Chooses a random AFA selection."""
+        # Requires the selection mask to be given so that we don't
+        # repeat selections
+        assert selection_mask is not None, (
+            "RandomDummyAFAMethod requires selection_mask to be provided"
+        )
+        assert masked_features.ndim == 2, (
+            "RandomDummyAFAMethod only supports 1D masked features with 1D batch size"
+        )
         original_device = masked_features.device
-
         masked_features = masked_features.to(self._device)
         feature_mask = feature_mask.to(self._device)
 
-        batch_size = masked_features.shape[0]
-        select_0_mask = (
-            torch.rand(batch_size, device=self._device) < self.prob_select_0
+        selection = torch.full(
+            (masked_features.shape[0], 1),
+            torch.nan,
+            dtype=torch.long,
+            device=masked_features.device,
         )
-
-        # Mask for samples where all features are acquired
-        all_acquired_mask = feature_mask.sum(dim=1) == feature_mask.shape[1]
-
-        # Initialize selection to zeros (action 0)
-        selection = torch.zeros(
-            batch_size, dtype=torch.long, device=self._device
+        will_select_0 = (
+            torch.rand(masked_features.shape[0], device=masked_features.device)
+            < self.prob_select_0
         )
-
-        # Indices where not all features are acquired and not select_0_mask
-        to_sample_mask = (~all_acquired_mask) & (~select_0_mask)
-        if to_sample_mask.any():
-            # Only sample for these indices
-            probs = (~feature_mask[to_sample_mask]).float()
-            row_sums = probs.sum(dim=1, keepdim=True)
-            probs = torch.where(row_sums > 0, probs / row_sums, probs)
-            sampled = torch.multinomial(probs, num_samples=1).squeeze(1)
-            selection[to_sample_mask] = sampled + 1
-
-        return selection.to(original_device).unsqueeze(-1)
+        selection[will_select_0] = 0
+        # For the remaining ones, only do selections that have not been done yet
+        selection[~will_select_0] = torch.multinomial(
+            selection_mask[~will_select_0].float(),
+            num_samples=1,
+        )
+        selection = selection.to(original_device)
+        return selection
 
     @override
     def predict(
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features | None,
-        label: Label | None,
     ) -> Label:
-        """Return a prediction that interpolates between a random prediction and the true label, depending on the proportion of unmasked features. If label is None, fallback to random."""
+        """Output a random prediction."""
         original_device = masked_features.device
-
         masked_features = masked_features.to(self._device)
         feature_mask = feature_mask.to(self._device)
 
         batch_size = masked_features.shape[0]
 
         # Pick a random class from the classes
-        random_pred = torch.randint(
+        random_class_onehot = torch.randint(
             0,
             self.n_classes,
             (batch_size,),
             device=masked_features.device,
         )
         # One-hot encode the random prediction
-        random_pred = torch.nn.functional.one_hot(
-            random_pred, num_classes=self.n_classes
+        random_class_onehot = torch.nn.functional.one_hot(
+            random_class_onehot, num_classes=self.n_classes
         ).float()
-
-        if label is None:
-            return random_pred.to(original_device)
-
-        # Compute proportion of unmasked features for each sample
-        num_features = feature_mask.shape[1]
-        unmasked = feature_mask.sum(dim=1).float()
-        prop_unmasked = unmasked / num_features  # shape: (batch_size,)
-
-        # If label is not already one-hot, assume it is one-hot
-        true_label = label.to(self._device).float()
-
-        # Interpolate: pred = prop_unmasked * true_label + (1 - prop_unmasked) * random_pred
-        # Need to expand prop_unmasked to match shape
-        prop_unmasked = prop_unmasked.unsqueeze(1)  # (batch_size, 1)
-        prediction = (
-            prop_unmasked * true_label + (1 - prop_unmasked) * random_pred
-        )
-
-        return prediction.to(original_device)
+        random_class_onehot = random_class_onehot.to(original_device)
+        return random_class_onehot
 
     @override
     def save(self, path: Path) -> None:
@@ -135,7 +129,11 @@ class RandomDummyAFAMethod(AFAMethod):
     def load(cls, path: Path, device: torch.device) -> Self:
         """Load the method from a file."""
         data = torch.load(path / "method.pt")
-        return cls(device, data["n_classes"], data.get("prob_select_0", 0.0))
+        obj = cls.__new__(cls)
+        obj.n_classes = data["n_classes"]
+        obj.prob_select_0 = data["prob_select_0"]
+        obj._device = device  # noqa: SLF001
+        return obj
 
     @override
     def to(self, device: torch.device) -> Self:
@@ -159,7 +157,10 @@ class SequentialDummyAFAMethod(AFAMethod):
     """A dummy AFAMethod for testing purposes. Always chooses the next feature to observe in order, with a probability to stop."""
 
     def __init__(
-        self, device: torch.device, n_classes: int, prob_select_0: float
+        self,
+        device: torch.device,
+        n_classes: int,
+        prob_select_0: float,
     ):
         self._device = device
         self.n_classes = n_classes
@@ -175,9 +176,16 @@ class SequentialDummyAFAMethod(AFAMethod):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features | None,
-        label: Label | None,
+        selection_mask: SelectionMask | None = None,
     ) -> AFASelection:
+        # Requires the selection mask to be given so that we don't
+        # repeat selections and know which selection to perform next
+        assert selection_mask is not None, (
+            "SequentialDummyAFAMethod requires selection_mask to be provided"
+        )
+        assert masked_features.ndim == 2, (
+            "SequentialDummyAFAMethod only supports 1D masked features with 1D batch size"
+        )
         original_device = masked_features.device
 
         masked_features = masked_features.to(self._device)
@@ -188,16 +196,16 @@ class SequentialDummyAFAMethod(AFAMethod):
             torch.rand(batch_size, device=self._device) < self.prob_select_0
         )
 
-        # For each sample, find the first unobserved feature (if any)
-        selection = torch.zeros(
-            batch_size, dtype=torch.long, device=self._device
+        # For each sample, find the first unperformed selection (if any)
+        selection = torch.full(
+            (batch_size,), torch.nan, dtype=torch.long, device=self._device
         )
         for i in range(batch_size):
-            unobserved = (~feature_mask[i]).nonzero(as_tuple=True)[0]
-            if unobserved.numel() > 0:
-                selection[i] = unobserved[0] + 1
+            unperformed = (~selection_mask[i]).nonzero(as_tuple=True)[0]
+            if unperformed.numel() > 0:
+                selection[i] = unperformed[0] + 1
             else:
-                selection[i] = 0  # fallback if all features observed
+                selection[i] = 0  # fallback if all selections are performed
 
         # Where select_0_mask is True, set selection to 0
         selection = torch.where(
@@ -211,26 +219,27 @@ class SequentialDummyAFAMethod(AFAMethod):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features | None,
-        label: Label | None,
     ) -> Label:
-        """Return a random prediction from the classes."""
+        """Output a random prediction."""
         original_device = masked_features.device
-
         masked_features = masked_features.to(self._device)
         feature_mask = feature_mask.to(self._device)
 
-        prediction = torch.randint(
+        batch_size = masked_features.shape[0]
+
+        # Pick a random class from the classes
+        random_class_onehot = torch.randint(
             0,
             self.n_classes,
-            (masked_features.shape[0],),
+            (batch_size,),
             device=masked_features.device,
         )
-        prediction = torch.nn.functional.one_hot(
-            prediction, num_classes=self.n_classes
+        # One-hot encode the random prediction
+        random_class_onehot = torch.nn.functional.one_hot(
+            random_class_onehot, num_classes=self.n_classes
         ).float()
-
-        return prediction.to(original_device)
+        random_class_onehot = random_class_onehot.to(original_device)
+        return random_class_onehot
 
     @override
     def save(self, path: Path) -> None:
@@ -248,7 +257,10 @@ class SequentialDummyAFAMethod(AFAMethod):
     def load(cls, path: Path, device: torch.device) -> Self:
         """Load the method from a folder."""
         data = torch.load(path / "method.pt")
-        return cls(device, data["n_classes"], data.get("prob_select_0", 0.0))
+        obj = cls.__new__(cls)
+        obj.n_classes = data["n_classes"]
+        obj.prob_select_0 = data["prob_select_0"]
+        return obj
 
     @override
     def to(self, device: torch.device) -> Self:
