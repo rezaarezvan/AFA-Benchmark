@@ -1,7 +1,9 @@
+from afabench.common.afa_initializers.base import AFAInitializer
 from afabench.common.custom_types import (
     AFAClassifier,
     AFADataset,
     AFAMethod,
+    AFAUnmaskFn,
 )
 
 AFA_METHOD_TYPES = {
@@ -225,3 +227,86 @@ def get_afa_classifier_class(name: str) -> type[AFAClassifier]:  # noqa: PLR0911
         return Kachuee2019AFAClassifier
     msg = f"Unknown AFA classifier: {name}"
     raise ValueError(msg)
+
+
+AFA_UNMASKER_TYPES = {"one_based_index", "image_patch"}
+
+
+def get_afa_unmasker(name: str, **kwargs) -> AFAUnmaskFn:
+    """
+    Get unmasker function by name.
+
+    Args:
+        name: "one_based_index" or "image_patch"
+        **kwargs: For image_patch: image_side_length, n_channels, patch_size
+    """
+    if name == "one_based_index":
+        from afabench.common.afa_unmaskers import one_based_index_unmask_fn
+
+        return one_based_index_unmask_fn
+
+    if name == "image_patch":
+        from afabench.common.afa_unmaskers import get_image_patch_unmask_fn
+
+        return get_image_patch_unmask_fn(
+            image_side_length=kwargs["image_side_length"],
+            n_channels=kwargs["n_channels"],
+            patch_size=kwargs["patch_size"],
+        )
+
+    raise ValueError(f"Unknown unmasker: {name}")
+
+
+AFA_INITIALIZER_TYPES = {
+    "zero",
+    "fixed_random",
+    "random_per_episode",
+    "manual",
+    "mutual_information",
+    "least_informative",
+}
+
+
+def get_afa_initializer(name: str, **kwargs) -> AFAInitializer:
+    """
+    Get initializer by name.
+
+    Args:
+        name: Initializer type
+        **kwargs: seed (optional), feature_indices (for manual)
+    """
+    seed = kwargs.get("seed")
+
+    if name == "zero":
+        from afabench.common.afa_initializers import ZeroInitializer
+
+        return ZeroInitializer(seed=seed)
+
+    if name == "fixed_random":
+        from afabench.common.afa_initializers import FixedRandomStrategy
+
+        return FixedRandomStrategy(seed=seed)
+
+    if name == "random_per_episode":
+        from afabench.common.afa_initializers import RandomPerEpisodeStrategy
+
+        return RandomPerEpisodeStrategy(seed=seed)
+
+    if name == "manual":
+        from afabench.common.afa_initializers import ManualStrategy
+
+        return ManualStrategy(
+            feature_indices=kwargs["feature_indices"], seed=seed
+        )
+
+    if name == "mutual_information":
+        from afabench.common.afa_initializers import MutualInformationStrategy
+
+        return MutualInformationStrategy(seed=seed)
+
+    if name == "least_informative":
+        from afabench.common.afa_initializers import LeastInformativeStrategy
+
+        return LeastInformativeStrategy(seed=seed)
+
+    raise ValueError(f"Unknown initializer: {name}")

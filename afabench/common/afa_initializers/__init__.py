@@ -5,6 +5,7 @@ from afabench.common.afa_initializers.strategies import (
     ManualStrategy,
     MutualInformationStrategy,
     RandomPerEpisodeStrategy,
+    ZeroInitializer,
 )
 
 __all__ = [
@@ -14,4 +15,5 @@ __all__ = [
     "ManualStrategy",
     "MutualInformationStrategy",
     "RandomPerEpisodeStrategy",
+    "ZeroInitializer",
 ]

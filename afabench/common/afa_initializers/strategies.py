@@ -160,3 +160,18 @@ class LeastInformativeStrategy(AFAInitializer):
             self._cached_ranking = np.argsort(mi_scores)
 
         return self._cached_ranking[:n_features_select].tolist()
+
+
+class ZeroInitializer(AFAInitializer):
+    """
+    Cold-start initializer that selects no features.
+    """
+
+    def select_features(
+        self,
+        n_features_total: int,
+        n_features_select: int,
+        train_features: Features | None = None,
+        train_labels: Label | None = None,
+    ) -> list[int]:
+        return []
