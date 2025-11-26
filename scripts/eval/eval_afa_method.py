@@ -9,6 +9,7 @@ import wandb
 from omegaconf import OmegaConf
 
 from afabench.common.config_classes import EvalConfig
+from afabench.common.custom_types import AFAClassifier, AFADataset, AFAMethod
 from afabench.common.utils import (
     set_seed,
 )
@@ -29,25 +30,29 @@ def load(
     AFAMethod, AFAUnmasker, AFAInitializer, AFADataset, AFAClassifier | None
 ]:
     # Load method
-    method = load_method_artifact(method_artifact_path)
+    method: AFAMethod = load_method_artifact(method_artifact_path)
     log.info(f"Loaded AFA method from {method_artifact_path}")
 
     # Load unmasker
-    unmasker = load_unmasker_artifact(unmasker_artifact_path)
+    unmasker: AFAUnmasker = load_unmasker_artifact(unmasker_artifact_path)
     log.info(f"Loaded unmasker from {unmasker_artifact_path}")
 
     # Load initializer
-    initializer = load_initializer_artifact(initializer_artifact_path)
+    initializer: AFAInitializer = load_initializer_artifact(
+        initializer_artifact_path
+    )
     log.info(f"Loaded initializer from {initializer_artifact_path}")
 
     # Load dataset
-    dataset = load_dataset_artifact(dataset_artifact_path, dataset_split)
+    dataset: AFADataset = load_dataset_artifact(
+        dataset_artifact_path, dataset_split
+    )
     log.info(f"Loaded dataset from {dataset_artifact_path}")
 
     # Load external classifier if specified
     if classifier_artifact_path is not None:
         device = torch.device("cpu") if device is None else device
-        classifier = load_classifier_artifact(
+        classifier: AFAClassifier = load_classifier_artifact(
             classifier_artifact_path, device=device
         )
         log.info(
@@ -133,6 +138,7 @@ def main(cfg: EvalConfig) -> None:
         batch_size=cfg.batch_size,
         patch_size=image_patch_size,
     )
+    # TODO: pivot long for two classifier types
     # Add columns to conform to expected format (snake_case)
     df_eval["method"] = method_metadata["method_type"]
     df_eval["training_seed"] = method_metadata["seed"]

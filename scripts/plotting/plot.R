@@ -12,8 +12,8 @@ read_csv_safe <- function(path) {
     dataset = col_factor(),
     selections_performed = col_integer(),
     features_observed = col_integer(),
-    predicted_label = col_factor(),
-    true_label = col_factor(),
+    predicted_class = col_factor(),
+    true_class = col_factor(),
     train_seed = col_integer(),
     eval_seed = col_integer(),
     train_hard_budget = col_integer(),
@@ -43,8 +43,8 @@ generate_dummy_data <- function(n = 100) {
     dataset = factor(sample(datasets, n, replace = TRUE)),
     selections_performed = sample(1:n_features, n, replace = TRUE),
     features_observed = selections_performed,
-    predicted_label = factor(sample(0:(n_classes - 1), n, replace = TRUE)),
-    true_label = factor(sample(0:(n_classes - 1), n, replace = TRUE)),
+    predicted_class = factor(sample(0:(n_classes - 1), n, replace = TRUE)),
+    true_class = factor(sample(0:(n_classes - 1), n, replace = TRUE)),
     train_seed = sample(train_seeds, n, replace = TRUE),
     eval_seed = sample(eval_seeds, n, replace = TRUE),
     train_hard_budget = as.integer(sample(train_hard_budgets, n, replace = TRUE)),
@@ -112,7 +112,7 @@ df_hard_budget <- df |>
     .add = TRUE
   ) |>
   # Now we can calculate metrics
-  class_metrics(truth=true_label, estimate=predicted_label) |>
+  class_metrics(truth=true_class, estimate=predicted_class) |>
   # tibble is automatically ungrouped after calculating metrics
   # Calculate mean and std of metrics
   group_by(
@@ -178,7 +178,7 @@ df_soft_budget <- df |>
     .add = TRUE
   ) |>
   # Now we can calculate metrics
-  class_metrics(truth=true_label, estimate=predicted_label) |>
+  class_metrics(truth=true_class, estimate=predicted_class) |>
   # tibble is automatically ungrouped after calculating metrics
   # Calculate mean and std of metrics
   group_by(
