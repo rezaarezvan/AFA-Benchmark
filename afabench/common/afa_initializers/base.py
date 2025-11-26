@@ -5,7 +5,7 @@ import numpy as np
 from afabench.common.custom_types import Features, Label
 
 
-class WarmStartStrategy(ABC):
+class AFAInitializer(ABC):
     """
     Abstract base class for selecting initial features in warm-start scenarios.
 

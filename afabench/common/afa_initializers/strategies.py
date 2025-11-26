@@ -2,11 +2,11 @@ import numpy as np
 import torch
 from sklearn.feature_selection import mutual_info_classif
 
+from afabench.common.afa_initializers.base import AFAInitializer
 from afabench.common.custom_types import Features, Label
-from afabench.common.warm_start.base import WarmStartStrategy
 
 
-class FixedRandomStrategy(WarmStartStrategy):
+class FixedRandomStrategy(AFAInitializer):
     """
     Select random features once and reuse them across all episodes.
     """
@@ -31,7 +31,7 @@ class FixedRandomStrategy(WarmStartStrategy):
         return self._cached_features
 
 
-class RandomPerEpisodeStrategy(WarmStartStrategy):
+class RandomPerEpisodeStrategy(AFAInitializer):
     """
     Select different random features for each episode.
     """
@@ -49,7 +49,7 @@ class RandomPerEpisodeStrategy(WarmStartStrategy):
         ).tolist()
 
 
-class ManualStrategy(WarmStartStrategy):
+class ManualStrategy(AFAInitializer):
     """
     Use explicitly specified feature indices.
     """
@@ -74,7 +74,7 @@ class ManualStrategy(WarmStartStrategy):
         return f"ManualStrategy(features={self.feature_indices})"
 
 
-class MutualInformationStrategy(WarmStartStrategy):
+class MutualInformationStrategy(AFAInitializer):
     """
     Select features with highest mutual information with target labels.
     """
@@ -117,7 +117,7 @@ class MutualInformationStrategy(WarmStartStrategy):
         return self._cached_ranking[:n_features_select].tolist()
 
 
-class LeastInformativeStrategy(WarmStartStrategy):
+class LeastInformativeStrategy(AFAInitializer):
     """
     Select features with LOWEST mutual information (adversarial baseline).
 

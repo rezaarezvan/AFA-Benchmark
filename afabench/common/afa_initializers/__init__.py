@@ -1,5 +1,5 @@
-from afabench.common.warm_start.base import WarmStartStrategy
-from afabench.common.warm_start.strategies import (
+from afabench.common.afa_initializers.base import AFAInitializer
+from afabench.common.afa_initializers.strategies import (
     FixedRandomStrategy,
     LeastInformativeStrategy,
     ManualStrategy,
@@ -8,10 +8,10 @@ from afabench.common.warm_start.strategies import (
 )
 
 __all__ = [
+    "AFAInitializer",
     "FixedRandomStrategy",
     "LeastInformativeStrategy",
     "ManualStrategy",
     "MutualInformationStrategy",
     "RandomPerEpisodeStrategy",
-    "WarmStartStrategy",
 ]
