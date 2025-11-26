@@ -60,7 +60,7 @@ class AFADataset(Protocol):
     def get_all_data(
         self,
     ) -> tuple[Features, Label]:
-        """Return all of the data in the dataset as (features, labels). Useful for batched computations."""
+        """Return all of the data in the dataset as (features, labels). Useful for testing purposes to compare dataset contents."""
         ...
 
     def save(self, path: Path) -> None:
