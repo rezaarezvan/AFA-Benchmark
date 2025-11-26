@@ -56,7 +56,7 @@ def single_afa_step(
     )
 
     # Translate into which unmasked features using the unmasker
-    new_feature_mask, masked_features = afa_unmask_fn(
+    new_feature_mask, new_masked_features = afa_unmask_fn(
         feature_mask=feature_mask,
         masked_features=masked_features,
         afa_selection=active_afa_selection,
@@ -66,7 +66,7 @@ def single_afa_step(
     # Allow classifiers to make predictions using new masked features
     if external_afa_predict_fn is not None:
         external_prediction = external_afa_predict_fn(
-            masked_features=masked_features,
+            masked_features=new_masked_features,
             feature_mask=new_feature_mask,
         )
     else:
@@ -74,16 +74,16 @@ def single_afa_step(
 
     if builtin_afa_predict_fn is not None:
         builtin_prediction = builtin_afa_predict_fn(
-            masked_features=masked_features,
+            masked_features=new_masked_features,
             feature_mask=new_feature_mask,
         )
     else:
         builtin_prediction = None
 
     return (
-        masked_features,
-        new_feature_mask,
         active_afa_selection,
+        new_masked_features,
+        new_feature_mask,
         external_prediction,
         builtin_prediction,
     )
