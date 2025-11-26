@@ -214,7 +214,10 @@ def process_batch(
         just_finished_mask = (
             active_afa_selection == 0
         ) | active_new_feature_mask.flatten(start_dim=1).all(dim=1)
-        # TODO: hard budget
+        # Check if selection budget is reached
+        for active_idx, selection_list in enumerate(selections_performed):
+            if len(selection_list) >= (selection_budget or float("inf")):
+                just_finished_mask[active_idx] = True
         active_indices = active_indices[~just_finished_mask]
 
     return pd.DataFrame(df_batch_rows)
