@@ -10,7 +10,7 @@ read_csv_safe <- function(path) {
     method = col_factor(),
     classifier = col_factor(),
     dataset = col_factor(),
-    actions_taken = col_integer(),
+    selections_performed = col_integer(),
     features_observed = col_integer(),
     predicted_label = col_factor(),
     true_label = col_factor(),
@@ -41,8 +41,8 @@ generate_dummy_data <- function(n = 100) {
     afa_method = factor(sample(methods, n, replace = TRUE)),
     classifier = factor(sample(classifiers, n, replace = TRUE)),
     dataset = factor(sample(datasets, n, replace = TRUE)),
-    actions_taken = sample(1:n_features, n, replace = TRUE),
-    features_observed = sample(1:n_features, n, replace = TRUE),
+    selections_performed = sample(1:n_features, n, replace = TRUE),
+    features_observed = selections_performed,
     predicted_label = factor(sample(0:(n_classes - 1), n, replace = TRUE)),
     true_label = factor(sample(0:(n_classes - 1), n, replace = TRUE)),
     train_seed = sample(train_seeds, n, replace = TRUE),
@@ -101,7 +101,7 @@ df_hard_budget <- df |>
   ) |>
   select(
     -features_observed,
-    -actions_taken
+    -selections_performed
   ) |>
   # Also group over train_seed, eval_seed and eval_hard_budget before calculating metrics.
   # eval_hard_budget will become the x-axis
@@ -163,9 +163,9 @@ df_soft_budget <- df |>
   select(
     -eval_hard_budget
   ) |>
-  # This time we care about predictions at every step, but we focus on the number of features observed instead of actions taken
+  # This time we care about predictions at every step, but we focus on the number of features observed instead of selections performed
   select(
-    -actions_taken
+    -selections_performed
   ) |>
   # Also group over (train_seed, eval_seed, train_soft_budget_param, eval_soft_budget_param, features_observed) before calculating metrics.
   # eval_hard_budget will become the x-axis

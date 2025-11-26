@@ -4,7 +4,7 @@ This is what `plot.R` expects.
 - `afa_method` (str): name of the AFA method, e.g. "ODIN-MFRL" or "EDDI"
 - `classifier` (str|null): which classifier is used to make the predictions. If null, the AFA method's builtin method is assumed to be used.
 - `dataset` (str): name of the dataset that the method is evaluated on, e.g. "cube" or "MNIST"
-- `actions_taken` (int): how many AFA actions the method has taken for the current sample
+- `selections_performed` (int): how many AFA selections the method has performed for the current sample
 - `features_observed` (int): how many features the method has observed for the current sample
 - `predicted_label` (int): predicted class
 - `true_label` (int): true class
@@ -16,4 +16,4 @@ This is what `plot.R` expects.
 - `eval_soft_budget_param` (float|null): some parameter provided during evaluation that influences a method's tendency to stop feature collection early (if applicable)
 
 Note:
-- `actions_taken` and `features_observed` is *usually* the same, but not always. For example, we can imagine a scenario where multiple features are unmasked after each AFA action.
+- `selections_performed` and `features_observed` is *usually* the same, but not always. For example, we can imagine a scenario where multiple features are unmasked after each AFA action.
