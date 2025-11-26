@@ -212,12 +212,16 @@ def process_batch(
         # - selection budget reached
         # - all features unmasked
         just_finished_mask = (
-            active_afa_selection == 0
+            active_afa_selection.squeeze(-1) == 0
         ) | active_new_feature_mask.flatten(start_dim=1).all(dim=1)
         # Check if selection budget is reached
         for active_idx, selection_list in enumerate(selections_performed):
             if len(selection_list) >= (selection_budget or float("inf")):
                 just_finished_mask[active_idx] = True
+        # Update feature mask and masked features
+        masked_features[active_indices] = active_new_masked_features
+        feature_mask[active_indices] = active_new_feature_mask
+        # Filter out finished samples
         active_indices = active_indices[~just_finished_mask]
 
     return pd.DataFrame(df_batch_rows)
