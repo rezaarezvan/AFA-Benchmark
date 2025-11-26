@@ -92,6 +92,19 @@ def load_artifact_metadata(artifact_dir: Path) -> dict[str, Any]:
         return json.load(f)
 
 
+def load_pretrained_model(
+    path: Path,
+    device: torch.device | None = None,
+) -> tuple[Any, dict[str, Any]]:
+    """Load pretrained model checkpoint. Returns (model_path, metadata)."""
+    device = device or torch.device("cpu")
+    metadata = load_artifact_metadata(path)
+    model_path = path / "model.pt"
+    if not model_path.exists():
+        raise FileNotFoundError(f"No model.pt in {path}")
+    return model_path, metadata
+
+
 def load_method_artifact(
     path: Path,
     device: torch.device | None = None,
