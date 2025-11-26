@@ -907,10 +907,10 @@ class BankMarketingDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         if not Path(self.path).exists():
             self._fetch_and_save()
 
-        df = pd.read_csv(self.path, sep=";")
-        target_col = "y" if "y" in df.columns else "deposit"
-        features_df = df.drop(columns=[target_col])
-        target_series = df[target_col].replace({"yes": 1, "no": 0})
+        df_data = pd.read_csv(self.path, sep=";")
+        target_col = "y" if "y" in df_data.columns else "deposit"
+        features_df = df_data.drop(columns=[target_col])
+        target_series = df_data[target_col].replace({"yes": 1, "no": 0})
 
         for col in features_df.columns:
             if features_df[col].dtype == "object":
@@ -931,10 +931,11 @@ class BankMarketingDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     def _fetch_and_save(self) -> None:
         Path(self.path).parent.mkdir(parents=True, exist_ok=True)
         bank_data = fetch_ucirepo(id=222)
-        df = pd.concat(
-            [bank_data.data.features, bank_data.data.targets], axis=1
+        df_data = pd.concat(
+            [bank_data.data.features, bank_data.data.targets],  # pyright: ignore[reportOptionalMemberAccess]
+            axis=1,
         )
-        df.to_csv(self.path, sep=";", index=False)
+        df_data.to_csv(self.path, sep=";", index=False)
 
     @override
     def __getitem__(self, idx: int):
@@ -1001,9 +1002,9 @@ class CKDDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         if not Path(self.path).exists():
             self._fetch_and_save()
 
-        df = pd.read_csv(self.path)
-        features_df = df.iloc[:, :-1].copy()
-        target_series = df.iloc[:, -1]
+        df_data = pd.read_csv(self.path)
+        features_df = df_data.iloc[:, :-1].copy()
+        target_series = df_data.iloc[:, -1]
 
         for col in features_df.columns:
             if features_df[col].dtype == "object":
@@ -1028,15 +1029,15 @@ class CKDDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     def _fetch_and_save(self) -> None:
         Path(self.path).parent.mkdir(parents=True, exist_ok=True)
         ckd_data = fetch_ucirepo(id=336)
-        features_df = ckd_data.data.features.copy()
-        target_df = ckd_data.data.targets.copy()
+        features_df = ckd_data.data.features.copy()  # pyright: ignore[reportOptionalMemberAccess]
+        target_df = ckd_data.data.targets.copy()  # pyright: ignore[reportOptionalMemberAccess]
         target_series = (
             target_df.iloc[:, 0].astype(str).str.strip().str.lower()
         )
         target_series = target_series.map({"ckd": 1, "notckd": 0})
-        df = features_df.copy()
-        df["target"] = target_series.to_numpy()
-        df.to_csv(self.path, index=False)
+        df_data = features_df.copy()
+        df_data["target"] = target_series.to_numpy()
+        df_data.to_csv(self.path, index=False)
 
     @override
     def __getitem__(self, idx: int):
@@ -1103,9 +1104,9 @@ class ACTG175Dataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         if not Path(self.path).exists():
             self._fetch_and_save()
 
-        df = pd.read_csv(self.path)
-        features_df = df.iloc[:, :-1].copy()
-        target_series = df.iloc[:, -1]
+        df_data = pd.read_csv(self.path)
+        features_df = df_data.iloc[:, :-1].copy()
+        target_series = df_data.iloc[:, -1]
 
         for col in features_df.columns:
             if features_df[col].dtype == "object":
@@ -1130,12 +1131,12 @@ class ACTG175Dataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     def _fetch_and_save(self) -> None:
         Path(self.path).parent.mkdir(parents=True, exist_ok=True)
         actg_data = fetch_ucirepo(id=890)
-        features_df = actg_data.data.features.copy()
-        target_df = actg_data.data.targets.copy()
+        features_df = actg_data.data.features.copy()  # pyright: ignore[reportOptionalMemberAccess]
+        target_df = actg_data.data.targets.copy()  # pyright: ignore[reportOptionalMemberAccess]
         target_series = target_df.iloc[:, 0].astype(int)
-        df = features_df.copy()
-        df["target"] = target_series.to_numpy()
-        df.to_csv(self.path, index=False)
+        df_data = features_df.copy()
+        df_data["target"] = target_series.to_numpy()
+        df_data.to_csv(self.path, index=False)
 
     @override
     def __getitem__(self, idx: int):
