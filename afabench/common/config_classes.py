@@ -38,7 +38,7 @@ class DatasetConfig:
 
 @dataclass
 class DatasetGenerationConfig:
-    save_path: str  # where to save the splits
+    save_path: str  # where to save the instances. Each instance will be saved in a separate subfolder.
     instance_indices: list[int]  # we will save multiple instances at once
     seeds: list[int]  # one seed per dataset instance
     split_ratio: SplitRatioConfig  # how to split train/val/test
@@ -558,13 +558,12 @@ cs.store(name="train_permutation", node=PermutationTrainingConfig)
 
 @dataclass
 class RandomDummyTrainConfig:
-    dataset_artifact_name: str
+    dataset_artifact_path: str
     hard_budget: int | None  # not used, but pretend that it is
     device: str
     seed: int
-    output_artifact_aliases: list[str]
-    cost_param: float
-    experiment_id: str | None = None
+    cost_param: float | None
+    use_wandb: bool = False
 
 
 cs.store(name="train_randomdummy", node=RandomDummyTrainConfig)

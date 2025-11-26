@@ -1,4 +1,5 @@
 import gc
+import json
 import logging
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -9,12 +10,12 @@ import torch
 import wandb
 from omegaconf import OmegaConf
 
-from afabench import SAVE_PATH
 from afabench.common.afa_methods import RandomDummyAFAMethod
 from afabench.common.config_classes import (
     RandomDummyTrainConfig,
 )
-from afabench.common.utils import load_dataset, save_artifact, set_seed
+from afabench.common.registry import get_afa_dataset_class
+from afabench.common.utils import save_artifact, set_seed
 
 log = logging.getLogger(__name__)
 
@@ -29,30 +30,38 @@ def main(cfg: RandomDummyTrainConfig) -> None:
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
 
-    run = wandb.init(
-        config=cast(
-            "dict[str, Any]", OmegaConf.to_container(cfg, resolve=True)
-        ),
-        job_type="training",
-        tags=["randomdummy"],
-        dir="extra/wandb",
-    )
+    if cfg.use_wandb:
+        run = wandb.init(
+            config=cast(
+                "dict[str, Any]", OmegaConf.to_container(cfg, resolve=True)
+            ),
+            job_type="training",
+            tags=["randomdummy"],
+            dir="extra/wandb",
+        )
+        # Log W&B run URL
+        log.info(f"W&B run initialized: {run.name} ({run.id})")
+        log.info(f"W&B run URL: {run.url}")
+    else:
+        run = None
 
-    # Log W&B run URL
-    log.info(f"W&B run initialized: {run.name} ({run.id})")
-    log.info(f"W&B run URL: {run.url}")
-
-    # Load dataset artifact
-    train_dataset, _, _, dataset_metadata = load_dataset(
-        cfg.dataset_artifact_name
-    )
-
+    # HACK: Load dataset
+    with (Path(cfg.dataset_artifact_path) / "metadata.json").open("r") as f:
+        dataset_metadata = json.load(f)
     dataset_type = dataset_metadata["dataset_type"]
-    split = dataset_metadata["split_idx"]
-    n_features = train_dataset.features.shape[-1]
-    n_classes = train_dataset.labels.shape[-1]
+    dataset_class = get_afa_dataset_class(dataset_type)
+    train_dataset = dataset_class.load(
+        Path(cfg.dataset_artifact_path) / "train.pt"
+    )
 
-    log.info(f"Dataset: {dataset_type}, Split: {split}")
+    # dataset_type = dataset_metadata["dataset_type"]
+    # split = dataset_metadata["split_idx"]
+    assert len(train_dataset.feature_shape) == 1, "Only 1D features supported"
+    assert len(train_dataset.label_shape) == 1, "Only 1D labels supported"
+    n_features = train_dataset.feature_shape[0]
+    n_classes = train_dataset.label_shape[-1]
+
+    log.info(f"Dataset: {dataset_type}")
     log.info(f"Features: {n_features}, Classes: {n_classes}")
     log.info(f"Training samples: {len(train_dataset)}")
 
@@ -62,9 +71,6 @@ def main(cfg: RandomDummyTrainConfig) -> None:
         if cfg.cost_param is not None
         else cfg.aco.acquisition_cost
     )
-
-    # Get number of classes from the dataset
-    n_classes = train_dataset.labels.shape[-1]
 
     afa_method = RandomDummyAFAMethod(
         device=torch.device("cpu"),
@@ -77,21 +83,11 @@ def main(cfg: RandomDummyTrainConfig) -> None:
         temp_path = Path(tmp_dir)
         afa_method.save(temp_path)
 
-        # Build artifact identifier with optional experiment_id suffix
-        artifact_identifier = f"{dataset_type.lower()}_split_{
-            split
-        }_costparam_{cost}_seed_{cfg.seed}"
-        if hasattr(cfg, "experiment_id") and cfg.experiment_id:
-            artifact_identifier = f"{artifact_identifier}_{cfg.experiment_id}"
-
-        # Direct path, no get_artifact_path wrapper
-        artifact_dir = SAVE_PATH / artifact_identifier
-
         # Prepare metadata
         metadata = {
             "method_type": "RandomDummy",
             "dataset_type": dataset_type,
-            "dataset_artifact_name": cfg.dataset_artifact_name,
+            "dataset_artifact_name": cfg.dataset_artifact_path,
             "budget": None,
             "seed": cfg.seed,
             "cost_param": cost,

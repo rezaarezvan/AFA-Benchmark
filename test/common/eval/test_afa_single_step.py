@@ -5,6 +5,7 @@ from afabench.common.custom_types import (
     FeatureMask,
     Features,
     MaskedFeatures,
+    SelectionMask,
 )
 from afabench.eval.eval import single_afa_step
 
@@ -44,6 +45,7 @@ def test_single_afa_step() -> None:
     def afa_select_fn(
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,  # noqa: ARG001
+        selection_mask: SelectionMask | None = None,  # noqa: ARG001
     ) -> AFASelection:
         # Always output selection 3
         return 3 * torch.ones((masked_features.shape[0], 1), dtype=torch.int64)
@@ -92,6 +94,7 @@ def test_single_afa_step_stop_selection() -> None:
     def afa_select_fn(
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,  # noqa: ARG001
+        selection_mask: SelectionMask | None = None,  # noqa: ARG001
     ) -> AFASelection:
         # Output selection 0 if the first feature is observed, otherwise 3
         batch_size = masked_features.shape[0]

@@ -18,6 +18,7 @@ from afabench.common.custom_types import (
     Features,
     Label,
     MaskedFeatures,
+    SelectionMask,
 )
 
 log = logging.getLogger(__name__)
@@ -31,6 +32,7 @@ def single_afa_step(
     afa_unmask_fn: AFAUnmaskFn,
     external_afa_predict_fn: AFAPredictFn | None = None,
     builtin_afa_predict_fn: AFAPredictFn | None = None,
+    selection_mask: SelectionMask | None = None,
 ) -> tuple[
     AFASelection, MaskedFeatures, FeatureMask, Label | None, Label | None
 ]:
@@ -45,6 +47,7 @@ def single_afa_step(
         afa_unmask_fn (AFAUnmaskFn): How to select new features from AFA selections.
         external_afa_predict_fn (AFAPredictFn|None): An external classifier.
         builtin_afa_predict_fn (AFAPredictFn|None): A builtin classifier, if such exists.
+        selection_mask (SelectionMask|None): Mask indicating which selections have already been performed. Forwarded to the AFASelectFn.
 
     Returns:
         tuple[AFASelection, MaskedFeatures, FeatureMask, Label|None, Label|None]: Selection made, updated masked features, feature mask and predicted labels after the AFA step.
@@ -53,6 +56,7 @@ def single_afa_step(
     active_afa_selection = afa_select_fn(
         masked_features=masked_features,
         feature_mask=feature_mask,
+        selection_mask=selection_mask,
     )
 
     # Translate into which unmasked features using the unmasker
@@ -92,6 +96,7 @@ def single_afa_step(
 def process_batch(
     afa_select_fn: AFASelectFn,
     afa_unmask_fn: AFAUnmaskFn,
+    n_selection_choices: int,
     features: Features,
     initial_feature_mask: FeatureMask,
     initial_masked_features: MaskedFeatures,
@@ -108,6 +113,7 @@ def process_batch(
     Args:
         afa_select_fn (AFASelectFn): How to make AFA selections. Should return 0 to stop.
         afa_unmask_fn (AFAUnmaskFn): How to select new features from AFA selections.
+        n_selection_choices (int): Number of possible AFA selections (excluding 0). Should reflect the AFAUnmaskFn behavior.
         features (Features): Features for the batch.
         initial_feature_mask (FeatureMask): Initial feature mask for the batch.
         initial_masked_features (MaskedFeatures): Initial masked features for the batch.
@@ -130,6 +136,11 @@ def process_batch(
     features = features.clone()
     feature_mask = initial_feature_mask.clone()
     masked_features = initial_masked_features.clone()
+    selection_mask = torch.zeros(
+        (features.shape[0], n_selection_choices),
+        device=features.device,
+        dtype=torch.bool,
+    )
 
     # In order to include "prev_selections_performed" in the dataframe, we keep track of which selections have been made per sample, which is not necessarily the same as the features observed
     selections_performed = [[] for _ in range(features.shape[0])]
@@ -143,6 +154,7 @@ def process_batch(
         active_features = features[active_indices]
         active_masked_features = masked_features[active_indices]
         active_feature_mask = feature_mask[active_indices]
+        active_selection_mask = selection_mask[active_indices]
 
         (
             active_afa_selection,
@@ -158,7 +170,12 @@ def process_batch(
             afa_unmask_fn=afa_unmask_fn,
             external_afa_predict_fn=external_afa_predict_fn,
             builtin_afa_predict_fn=builtin_afa_predict_fn,
+            selection_mask=active_selection_mask,
         )
+        print(
+            f"selection was {active_afa_selection.squeeze(-1).cpu().tolist()}"
+        )
+        print(f"new active masked features: {active_new_masked_features}")
         # Key assumption: predictions are logits/probabilities for classes
         if active_builtin_prediction is not None:
             assert active_external_prediction.shape[-1] > 1, (
@@ -170,8 +187,12 @@ def process_batch(
             )
 
         # Append selections
-        for active_idx, selection_list in enumerate(selections_performed):
-            selection_list.append(active_afa_selection[active_idx].item())
+        for global_active_idx, afa_selection in zip(
+            active_indices, active_afa_selection, strict=True
+        ):
+            selections_performed[global_active_idx].append(
+                afa_selection.item()
+            )
 
         # Append one row per active sample
         for active_idx, true_idx in enumerate(active_indices):
@@ -218,9 +239,14 @@ def process_batch(
         for active_idx, selection_list in enumerate(selections_performed):
             if len(selection_list) >= (selection_budget or float("inf")):
                 just_finished_mask[active_idx] = True
-        # Update feature mask and masked features
+        # Update feature mask, masked features and selection mask
         masked_features[active_indices] = active_new_masked_features
         feature_mask[active_indices] = active_new_feature_mask
+        sel = active_afa_selection.squeeze(-1)
+        valid = sel > 0
+        if valid.any():
+            selection_mask[active_indices[valid], sel[valid] - 1] = True
+
         # Filter out finished samples
         active_indices = active_indices[~just_finished_mask]
 
@@ -230,6 +256,7 @@ def process_batch(
 def eval_afa_method(
     afa_select_fn: AFASelectFn,
     afa_unmask_fn: AFAUnmaskFn,
+    n_selection_choices: int,
     afa_initialize_fn: AFAInitializeFn,
     dataset: AFADataset,  # we also check at runtime that this is a pytorch Dataset
     external_afa_predict_fn: AFAPredictFn | None = None,
@@ -245,6 +272,7 @@ def eval_afa_method(
     Args:
         afa_select_fn (AFASelectFn): How to choose AFA actions. Should return 0 to stop.
         afa_unmask_fn (AFAUnmaskFn): How to select new features from AFA actions.
+        n_selection_choices (int): Number of possible AFA selections (excluding 0).
         afa_initialize_fn (AFAInitializeFn): How to create the initial feature mask.
         dataset (AFADataset & Dataset): The dataset to evaluate on. Additionally assumed to be a torch dataset.
         external_afa_predict_fn (AFAPredictFn): An external classifier.
@@ -291,6 +319,11 @@ def eval_afa_method(
         batch_initial_feature_mask, batch_initial_masked_features = (
             afa_initialize_fn(batch_features)
         )
+        batch_initial_selection_mask = torch.zeros(
+            (batch_features.shape[0], n_selection_choices),
+            device=device,
+            dtype=torch.bool,
+        )
 
         df_batches.append(
             process_batch(
@@ -299,6 +332,7 @@ def eval_afa_method(
                 features=batch_features,
                 initial_feature_mask=batch_initial_feature_mask,
                 initial_masked_features=batch_initial_masked_features,
+                initial_selection_mask=batch_initial_selection_mask,
                 true_label=batch_label,
                 external_afa_predict_fn=external_afa_predict_fn,
                 builtin_afa_predict_fn=builtin_afa_predict_fn,

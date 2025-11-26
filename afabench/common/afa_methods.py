@@ -54,9 +54,11 @@ class RandomDummyAFAMethod(AFAMethod):
         feature_mask: FeatureMask,
         selection_mask: SelectionMask | None = None,
     ) -> AFASelection:
-        """Chooses a random AFA selection."""
-        # Requires the selection mask to be given so that we don't
-        # repeat selections
+        """
+        Chooses a random AFA selection, avoiding already occupied selections.
+
+        If no available selections remain, outputs 0 even if prob_select_0 would not have triggered.
+        """
         assert selection_mask is not None, (
             "RandomDummyAFAMethod requires selection_mask to be provided"
         )
@@ -66,23 +68,39 @@ class RandomDummyAFAMethod(AFAMethod):
         original_device = masked_features.device
         masked_features = masked_features.to(self._device)
         feature_mask = feature_mask.to(self._device)
+        selection_mask = selection_mask.to(self._device)
 
-        selection = torch.full(
-            (masked_features.shape[0], 1),
-            torch.nan,
+        batch_size = masked_features.shape[0]
+        selection = -1 * torch.ones(
+            (batch_size, 1),
             dtype=torch.long,
             device=masked_features.device,
         )
         will_select_0 = (
-            torch.rand(masked_features.shape[0], device=masked_features.device)
+            torch.rand(batch_size, device=masked_features.device)
             < self.prob_select_0
         )
-        selection[will_select_0] = 0
-        # For the remaining ones, only do selections that have not been done yet
-        selection[~will_select_0] = torch.multinomial(
-            selection_mask[~will_select_0].float(),
-            num_samples=1,
-        )
+
+        for i in range(batch_size):
+            if will_select_0[i]:
+                selection[i, 0] = 0
+            else:
+                available = (
+                    (~selection_mask[i]).nonzero(as_tuple=False).flatten()
+                )
+                if available.numel() == 0:
+                    # No available selections left, must output 0
+                    selection[i, 0] = 0
+                else:
+                    # Pick one at random, add 1 for 1-based index
+                    idx = torch.multinomial(
+                        torch.ones(
+                            available.numel(), device=masked_features.device
+                        ),
+                        num_samples=1,
+                    )
+                    selection[i, 0] = available[idx] + 1
+
         selection = selection.to(original_device)
         return selection
 
@@ -197,8 +215,9 @@ class SequentialDummyAFAMethod(AFAMethod):
         )
 
         # For each sample, find the first unperformed selection (if any)
-        selection = torch.full(
-            (batch_size,), torch.nan, dtype=torch.long, device=self._device
+        # Use -1 to catch errors in case the logic is wrong
+        selection = -1 * torch.ones(
+            (batch_size,), dtype=torch.long, device=self._device
         )
         for i in range(batch_size):
             unperformed = (~selection_mask[i]).nonzero(as_tuple=True)[0]

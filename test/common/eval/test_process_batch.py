@@ -5,6 +5,7 @@ from afabench.common.custom_types import (
     FeatureMask,
     Features,
     MaskedFeatures,
+    SelectionMask,
 )
 from afabench.eval.eval import process_batch
 
@@ -27,6 +28,7 @@ def test_process_batch_respects_budget() -> None:
     def afa_select_fn(
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,  # noqa: ARG001
+        selection_mask: SelectionMask | None = None,  # noqa: ARG001
     ) -> AFASelection:
         # Random selection (not 0)
         return torch.randint(
@@ -55,6 +57,7 @@ def test_process_batch_respects_budget() -> None:
     df_batch = process_batch(
         afa_select_fn=afa_select_fn,
         afa_unmask_fn=afa_unmask_fn,
+        n_selection_choices=4,
         features=features,
         initial_masked_features=masked_features,
         initial_feature_mask=feature_mask,
