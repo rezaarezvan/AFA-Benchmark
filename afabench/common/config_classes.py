@@ -28,6 +28,7 @@ class DatasetType(str, Enum):
     bank_marketing = "bank_marketing"
     ckd = "ckd"
     actg = "actg"
+    imagenette = "imagenette"
 
 
 @dataclass

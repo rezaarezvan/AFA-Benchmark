@@ -1,14 +1,13 @@
+import json
 import logging
-import os
+import random
+from datetime import UTC, datetime
 from pathlib import Path
-from tempfile import NamedTemporaryFile
-from time import strftime
+from typing import Any
 
 import hydra
 import torch
-import wandb
-from torch.utils.data import random_split
-from wandb.sdk.wandb_run import Run
+from omegaconf import OmegaConf
 
 from afabench.common.config_classes import (
     DatasetGenerationConfig,
@@ -17,93 +16,74 @@ from afabench.common.config_classes import (
 from afabench.common.custom_types import AFADataset
 from afabench.common.registry import get_afa_dataset_class
 
+log = logging.getLogger(__name__)
 
-def generate_and_save_split(
-    run: Run,
+
+def generate_and_save_image_split(
     dataset_class: type[AFADataset],
-    dataset_type: str,
-    split_idx: int,
     split_ratio: SplitRatioConfig,
-    seed: int,
-    data_dir: Path,
-    output_artifact_aliases: tuple[str, ...] = (),
-    # added when dividing by standard deviation to avoid division by zero
-    epsilon: float = 1e-8,
-    **dataset_kwargs,
-):
-    """Generate and save a single train/val/test split for a dataset with a specific seed. The seed affects both data generation and split."""
+    seed_for_split: int,
+    save_path: Path,
+    dataset_kwargs: dict[str, Any],
+    metadata_to_save: dict[str, Any],
+) -> None:
+    """Generate and save a single train/val/test split for a dataset with a specific seed."""
     # Create TRAIN pool dataset with the specific seed
-    dataset_kwargs["seed"] = seed
-    train_kwargs = {**dataset_kwargs, "load_subdirs": ("train",)}
+    train_kwargs = dict(dataset_kwargs)
+    train_kwargs["load_subdirs"] = ("train",)
 
-    dataset = dataset_class(**train_kwargs)
+    train_pool = dataset_class(**train_kwargs)
 
     # Calculate split sizes
     # Split ONLY into train/val from the official train pool
-    total_size = len(dataset)
+    total_size = len(train_pool)
     train_size = int(split_ratio.train * total_size)
     val_size = total_size - train_size
-    train_subset, val_subset = random_split(
-        dataset,  # pyright: ignore[reportArgumentType]
-        [train_size, val_size],
-        generator=torch.Generator().manual_seed(seed),
-    )
+
+    all_indices = list(range(total_size))
+    rnd = random.Random(seed_for_split)
+    rnd.shuffle(all_indices)
+
+    train_indices = all_indices[:train_size]
+    val_indices = all_indices[train_size : train_size + val_size]
+
+    train_indices_t = torch.tensor(train_indices, dtype=torch.long)
+    val_indices_t = torch.tensor(val_indices, dtype=torch.long)
 
     # Create subset datasets using the original dataset
-    train_dataset = dataset.create_subset(list(train_subset.indices))
-    val_dataset = dataset.create_subset(list(val_subset.indices))
+    train_dataset = dataset_class(**train_kwargs)
+    train_dataset.indices = train_indices_t  # pyright: ignore[reportAttributeAccessIssue]
+    val_dataset = dataset_class(**train_kwargs)
+    val_dataset.indices = val_indices_t  # pyright: ignore[reportAttributeAccessIssue]
 
     # Load official val/ as the fixed test set
     test_kwargs = dict(dataset_kwargs)
-    test_kwargs = {**test_kwargs, "load_subdirs": ("val",)}
+    test_kwargs["load_subdirs"] = ("val",)
     test_dataset = dataset_class(**test_kwargs)
 
     # Create dataset directory
-    dataset_dir = data_dir / dataset_type
-    dataset_dir.mkdir(parents=True, exist_ok=True)
+    save_path.mkdir(parents=True, exist_ok=True)
+    train_path = save_path / "train.pt"
+    val_path = save_path / "val.pt"
+    test_path = save_path / "test.pt"
 
     # Save splits locally
-    train_path = dataset_dir / f"train_split_{split_idx}.pt"
-    val_path = dataset_dir / f"val_split_{split_idx}.pt"
-    test_path = dataset_dir / f"test_split_{split_idx}.pt"
-
     train_dataset.save(train_path)
     val_dataset.save(val_path)
     test_dataset.save(test_path)
 
-    # Also save as wandb artifact
-    artifact = wandb.Artifact(
-        name=f"{dataset_type}_split_{split_idx}",
-        type="dataset",
-        metadata=dataset_kwargs
-        | {
-            "dataset_type": dataset_type,
-            "split_idx": split_idx,
-            "seed": seed,
-        },
-    )
-
-    # Add a dummy file with the current time to ensure a new artifact version is created
-    with NamedTemporaryFile("w", delete=False) as f:
-        f.write(f"Generated at {strftime('%Y-%m-%d %H:%M:%S')}\n")
-        dummy_path = f.name  # Save the name before closing
-
-    artifact.add_file(dummy_path, name="dummy.txt")
-    artifact.add_file(str(train_path), name="train.pt")
-    artifact.add_file(str(val_path), name="val.pt")
-    artifact.add_file(str(test_path), name="test.pt")
-
-    run.log_artifact(artifact, aliases=list(output_artifact_aliases))
-
-    log.info(f"Saved {dataset_type} split to {dataset_dir}")
-    log.info(
-        f"Train size: {len(train_dataset)}, Val size: {
-            len(val_dataset)
-        }, Test size: {len(test_dataset)}"
-    )
-
-
-log = logging.getLogger(__name__)
+    # Prepare metadata
+    metadata_to_save = metadata_to_save | {
+        "seed_for_split": seed_for_split,
+        "generated_at": datetime.now(UTC).isoformat(),
+    }
+    json_data = metadata_to_save | {
+        "dataset_kwargs": dataset_kwargs,
+    }
+    # Save metadata
+    print(f"Saving metadata to {save_path / 'metadata.json'}")
+    with (save_path / "metadata.json").open("w") as f:
+        json.dump(json_data, f, indent=2)
 
 
 @hydra.main(
@@ -112,28 +92,29 @@ log = logging.getLogger(__name__)
     config_name="config",
 )
 def main(cfg: DatasetGenerationConfig) -> None:
-    os.makedirs(cfg.data_dir, exist_ok=True)
-
-    # Data will be logged as a wandb artifact
-    # Since we often generate data with multiruns, only create a new run if not already running
-    run = wandb.run or wandb.init(
-        job_type="data_generation", dir="extra/wandb"
-    )
-
     dataset_class = get_afa_dataset_class(cfg.dataset.type)
 
-    generate_and_save_split(
-        run=run,
-        dataset_class=dataset_class,
-        dataset_type=cfg.dataset.type,
-        split_idx=cfg.split_indices,
-        split_ratio=cfg.split_ratio,
-        seed=cfg.seeds[cfg.split_indices - 1],
-        data_dir=Path(cfg.data_dir),
-        output_artifact_aliases=tuple(cfg.output_artifact_aliases),
-        epsilon=cfg.epsilon,
-        **cfg.dataset.kwargs,
-    )
+    for instance_idx, seed in zip(
+        cfg.instance_indices, cfg.seeds, strict=True
+    ):
+        base_kwargs: dict[str, Any] = OmegaConf.to_container(
+            cfg.dataset.kwargs, resolve=True
+        )  # type: ignore[assignment]
+        if dataset_class.accepts_seed():
+            dataset_kwargs: dict[str, Any] = base_kwargs | {"seed": seed}
+        else:
+            dataset_kwargs = base_kwargs
+        generate_and_save_image_split(
+            dataset_class=dataset_class,
+            split_ratio=cfg.split_ratio,
+            seed_for_split=seed,
+            save_path=Path(cfg.save_path) / str(instance_idx),
+            dataset_kwargs=dataset_kwargs,
+            metadata_to_save={
+                "instance_idx": instance_idx,
+                "dataset_type": cfg.dataset.type,
+            },
+        )
 
 
 if __name__ == "__main__":
