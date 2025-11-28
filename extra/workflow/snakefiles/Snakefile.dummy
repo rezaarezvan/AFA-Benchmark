@@ -1,8 +1,9 @@
 DATASETS = ["cube", "AFAContext"]
 DATASET_INSTANCE_INDICES = [0, 1]
-INITIALIZER = "cold"
+INITIALIZER = "cold"  # assume same initializer for now
 UNMASKER_PER_DATASET = {"cube": "tabular_direct", "AFAContext": "tabular_direct"}
-DATASET_SPLIT = "val"
+EVAL_DATASET_SPLIT = "val"  # whether to use "val" or "test" during evaluation
+DEVICE = "cpu"
 
 # Main parameters that we investigate
 # - hard budget during training
@@ -82,7 +83,7 @@ rule eval_method:
             initializer_type={INITIALIZER} \
             dataset_artifact_path={input[0]} \
             save_path={output} \
-            dataset_split={DATASET_SPLIT} \
+            dataset_split={EVAL_DATASET_SPLIT} \
             classifier_artifact_path=null \
             device={DEVICE} \
             n_selection_choices={} \
