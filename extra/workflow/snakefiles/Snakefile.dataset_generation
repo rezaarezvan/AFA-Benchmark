@@ -1,0 +1,43 @@
+DATASETS = [
+    "AFAContext",
+    # "AFAContextRandomInsert_without_noise",
+    # "AFAContext_without_noise",
+    # "ContextSelectiveXOR",
+    # "FashionMNIST",
+    # "MNIST",
+    # "actg",
+    # "bank_marketing",
+    # "ckd",
+    "cube",
+    "diabetes",
+    # "imagenette", # currently not working
+    "miniboone",
+    "physionet",
+]
+NUM_INSTANCES = 5
+INSTANCE_INDICES = range(NUM_INSTANCES)
+
+
+rule all:
+    input:
+        expand("extra/data/datasets/{dataset}", dataset=DATASETS),
+
+
+# Generate instances for a single type of dataset
+# Use same seeds as instance indices
+rule dataset_generation:
+    output:
+        directory("extra/data/datasets/{dataset}"),
+    params:
+        # output_folder=lambda wildcards: f"extra/data/datasets/{wildcards.dataset}",
+        instance_indices_str=lambda wildcards: "["
+        + ",".join(str(i) for i in INSTANCE_INDICES)
+        + "]",
+    shell:
+        """
+        python scripts/dataset_generation/generate_dataset.py \
+        dataset_generation/dataset@dataset={wildcards.dataset} \
+        instance_indices={params.instance_indices_str} \
+        seeds={params.instance_indices_str} \
+        save_path={output}
+        """
