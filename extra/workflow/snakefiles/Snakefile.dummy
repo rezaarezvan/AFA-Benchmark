@@ -1,0 +1,107 @@
+DATASETS = ["cube", "AFAContext"]
+DATASET_INSTANCE_INDICES = [0, 1]
+
+# Main parameters that we investigate
+# - hard budget during training
+# - hard budget during evaluation
+# - soft budget parameter during training
+# - soft budget parameter during evaluation
+PARAMS_PER_DATASET = {
+    "cube": [
+        (5, 5, None, None),
+        (10, 10, None, None),
+        (None, None, 0.4, None),
+        (None, None, 0.6, None),
+    ],
+    "AFAContext": [
+        (10, 10, None, None),
+        (15, 15, None, None),
+        (None, None, 0.5, None),
+        (None, None, 0.7, None),
+    ],
+}
+
+
+rule all:
+    input:
+        "extra/plot_results/random_dummy",
+
+
+rule train_method:
+    input:
+        "extra/data/datasets/{dataset}/{dataset_instance_idx}",
+    output:
+        directory(
+            "extra/trained_methods/random_dummy/dataset-{dataset}+instance-{dataset_instance}/train_hard_budget-{train_hard_budget}+train_soft_budget_param-{train_soft_budget_param}"
+        ),
+    shell:
+        """
+        python scripts/train/randomdummy.py \
+            dataset_artifact_path={input} \
+            train_hard_budget={wildcards.train_hard_budget} \
+            train_soft_budget_param={wildcards.train_soft_budget_param}
+        """
+
+
+rule train_classifier:
+    input:
+        "extra/data/datasets/{dataset}/{dataset_instance_idx}",
+    output:
+        directory(
+            "extra/trained_classifiers/masked_mlp_classifier/dataset-{dataset}+instance-{dataset_instance}"
+        ),
+    shell:
+        """
+        python scripts/train/masked_mlp_classifier.py \
+            dataset_artifact_path={input} \
+        """
+
+
+rule eval_method:
+    input:
+        "extra/data/datasets/{dataset}/{dataset_instance_idx}"
+        "extra/trained_methods/random_dummy/dataset-{dataset}+instance-{dataset_instance}/train_hard_budget-{train_hard_budget}+train_soft_budget_param-{train_soft_budget_param}"
+        "extra/trained_classifiers/masked_mlp_classifier/dataset-{dataset}+instance-{dataset_instance}",
+    output:
+        "extra/eval_results/random_dummy/dataset-{dataset}+instance-{dataset_instance}/train_hard_budget-{train_hard_budget}+train_soft_budget_param-{train_soft_budget_param}/eval_hard_budget+{eval_hard_budget}+eval_soft_budget_param-{eval_soft_budget_param}.csv",
+    shell:
+        """
+        python scripts/eval/eval_afa_method.py \
+            dataset_artifact_path={input[0]} \
+            trained_method_artifact_path={input[1]} \
+            eval_hard_budget={wildcards.train_hard_budget} \
+            eval_soft_budget_param={wildcards.eval_soft_budget_param} \
+            eval_result_save_path={output}
+        """
+
+
+rule merge_eval:
+    input:
+        [
+            f"extra/eval_results/random_dummy/dataset-{dataset}+instance-{dataset_instance}/train_hard_budget-{train_hard_budget}+train_soft_budget_param-{train_soft_budget_param}/eval_hard_budget+{eval_hard_budget}+eval_soft_budget_param-{eval_soft_budget_param}.csv"
+            for dataset in DATASETS
+            for dataset_instance in DATASET_INSTANCES
+            for (
+                train_hard_budget,
+                eval_hard_budget,
+                train_soft_budget_param,
+                eval_soft_budget_param,
+            ) in PARAMS_PER_DATASET[dataset]
+        ],
+    output:
+        "extra/merged_eval_results/random_dummy.csv",
+    shell:
+        """
+            csvstack {input} > {output}
+        """
+
+
+rule plot:
+    input:
+        "extra/merged_eval_results/random_dummy.csv",
+    output:
+        directory("extra/plot_results/random_dummy"),
+    shell:
+        """
+            Rscript scripts/plotting/plot_eval.py {output}
+        """
