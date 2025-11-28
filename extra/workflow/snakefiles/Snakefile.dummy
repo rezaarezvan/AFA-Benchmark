@@ -1,5 +1,7 @@
 DATASETS = ["cube", "AFAContext"]
 DATASET_INSTANCE_INDICES = [0, 1]
+INITIALIZER = "cold"
+UNMASKER_PER_DATASET = {"cube": "tabular_direct", "AFAContext": "tabular_direct"}
 
 # Main parameters that we investigate
 # - hard budget during training
@@ -34,10 +36,14 @@ rule train_method:
         directory(
             "extra/trained_methods/random_dummy/dataset-{dataset}+instance-{dataset_instance}/train_hard_budget-{train_hard_budget}+train_soft_budget_param-{train_soft_budget_param}"
         ),
+    params:
+        unmasker=lambda wildcards: UNMASKER_PER_DATASET[wildcards.dataset],
     shell:
         """
         python scripts/train/randomdummy.py \
             dataset_artifact_path={input} \
+            initializer={INITIALIZER} \
+            unmasker={params.unmasker} \
             train_hard_budget={wildcards.train_hard_budget} \
             train_soft_budget_param={wildcards.train_soft_budget_param}
         """
@@ -64,10 +70,14 @@ rule eval_method:
         "extra/trained_classifiers/masked_mlp_classifier/dataset-{dataset}+instance-{dataset_instance}",
     output:
         "extra/eval_results/random_dummy/dataset-{dataset}+instance-{dataset_instance}/train_hard_budget-{train_hard_budget}+train_soft_budget_param-{train_soft_budget_param}/eval_hard_budget+{eval_hard_budget}+eval_soft_budget_param-{eval_soft_budget_param}.csv",
+    params:
+        unmasker=lambda wildcards: UNMASKER_PER_DATASET[wildcards.dataset],
     shell:
         """
         python scripts/eval/eval_afa_method.py \
             dataset_artifact_path={input[0]} \
+            initializer={INITIALIZER} \
+            unmasker={params.unmasker} \
             trained_method_artifact_path={input[1]} \
             eval_hard_budget={wildcards.train_hard_budget} \
             eval_soft_budget_param={wildcards.eval_soft_budget_param} \

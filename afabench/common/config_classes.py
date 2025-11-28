@@ -560,10 +560,13 @@ cs.store(name="train_permutation", node=PermutationTrainingConfig)
 @dataclass
 class RandomDummyTrainConfig:
     dataset_artifact_path: str
-    hard_budget: int | None  # not used, but pretend that it is
+    initializer: str
+    unmasker: str
+    train_hard_budget: int | None  # not used, but pretend that it is
+    train_soft_budget_param: float | None
+
     device: str
     seed: int
-    cost_param: float | None
     use_wandb: bool = False
 
 
