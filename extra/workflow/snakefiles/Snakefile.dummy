@@ -2,6 +2,7 @@ DATASETS = ["cube", "AFAContext"]
 DATASET_INSTANCE_INDICES = [0, 1]
 INITIALIZER = "cold"
 UNMASKER_PER_DATASET = {"cube": "tabular_direct", "AFAContext": "tabular_direct"}
+DATASET_SPLIT = "val"
 
 # Main parameters that we investigate
 # - hard budget during training
@@ -34,7 +35,7 @@ rule train_method:
         "extra/data/datasets/{dataset}/{dataset_instance_idx}",
     output:
         directory(
-            "extra/trained_methods/random_dummy/dataset-{dataset}+instance-{dataset_instance}/train_hard_budget-{train_hard_budget}+train_soft_budget_param-{train_soft_budget_param}"
+            "extra/trained_methods/random_dummy/dataset-{dataset}+instance_idx-{dataset_instance_idx}/train_hard_budget-{train_hard_budget}+train_soft_budget_param-{train_soft_budget_param}"
         ),
     params:
         unmasker=lambda wildcards: UNMASKER_PER_DATASET[wildcards.dataset],
@@ -42,55 +43,59 @@ rule train_method:
         """
         python scripts/train/randomdummy.py \
             dataset_artifact_path={input} \
-            initializer={INITIALIZER} \
-            unmasker={params.unmasker} \
+            save_path={output} \
+            initializer_type={INITIALIZER} \
+            unmasker_type={params.unmasker} \
             train_hard_budget={wildcards.train_hard_budget} \
             train_soft_budget_param={wildcards.train_soft_budget_param}
         """
 
 
-rule train_classifier:
-    input:
-        "extra/data/datasets/{dataset}/{dataset_instance_idx}",
-    output:
-        directory(
-            "extra/trained_classifiers/masked_mlp_classifier/dataset-{dataset}+instance-{dataset_instance}"
-        ),
-    shell:
-        """
-        python scripts/train/masked_mlp_classifier.py \
-            dataset_artifact_path={input} \
-        """
+# rule train_classifier:
+#     input:
+#         "extra/data/datasets/{dataset}/{dataset_instance_idx}",
+#     output:
+#         directory(
+#             "extra/trained_classifiers/masked_mlp_classifier/dataset-{dataset}+instance_idx-{dataset_instance_idx}"
+#         ),
+#     shell:
+#         """
+#         python scripts/train/masked_mlp_classifier.py \
+#             dataset_artifact_path={input} \
+#         """
 
 
 rule eval_method:
     input:
-        "extra/data/datasets/{dataset}/{dataset_instance_idx}"
-        "extra/trained_methods/random_dummy/dataset-{dataset}+instance-{dataset_instance}/train_hard_budget-{train_hard_budget}+train_soft_budget_param-{train_soft_budget_param}"
-        "extra/trained_classifiers/masked_mlp_classifier/dataset-{dataset}+instance-{dataset_instance}",
+        "extra/data/datasets/{dataset}/{dataset_instance_idx}",
+        "extra/trained_methods/random_dummy/dataset-{dataset}+instance_idx-{dataset_instance_idx}/train_hard_budget-{train_hard_budget}+train_soft_budget_param-{train_soft_budget_param}",
+        # "extra/trained_classifiers/masked_mlp_classifier/dataset-{dataset}+instance-{dataset_instance}",
     output:
-        "extra/eval_results/random_dummy/dataset-{dataset}+instance-{dataset_instance}/train_hard_budget-{train_hard_budget}+train_soft_budget_param-{train_soft_budget_param}/eval_hard_budget+{eval_hard_budget}+eval_soft_budget_param-{eval_soft_budget_param}.csv",
+        "extra/eval_results/random_dummy/dataset-{dataset}+instance_idx-{dataset_instance_idx}/train_hard_budget-{train_hard_budget}+train_soft_budget_param-{train_soft_budget_param}/eval_hard_budget+{eval_hard_budget}+eval_soft_budget_param-{eval_soft_budget_param}.csv",
     params:
         unmasker=lambda wildcards: UNMASKER_PER_DATASET[wildcards.dataset],
     shell:
         """
         python scripts/eval/eval_afa_method.py \
+            method_artifact_path={input[1]} \
+            unmasker_type={params.unmasker} \
+            initializer_type={INITIALIZER} \
             dataset_artifact_path={input[0]} \
-            initializer={INITIALIZER} \
-            unmasker={params.unmasker} \
-            trained_method_artifact_path={input[1]} \
-            eval_hard_budget={wildcards.train_hard_budget} \
-            eval_soft_budget_param={wildcards.eval_soft_budget_param} \
-            eval_result_save_path={output}
+            save_path={output} \
+            dataset_split={DATASET_SPLIT} \
+            classifier_artifact_path=null \
+            device={DEVICE} \
+            n_selection_choices={} \
+            hard_budget={wildcards.train_hard_budget} \
         """
 
 
 rule merge_eval:
     input:
         [
-            f"extra/eval_results/random_dummy/dataset-{dataset}+instance-{dataset_instance}/train_hard_budget-{train_hard_budget}+train_soft_budget_param-{train_soft_budget_param}/eval_hard_budget+{eval_hard_budget}+eval_soft_budget_param-{eval_soft_budget_param}.csv"
+            f"extra/eval_results/random_dummy/dataset-{dataset}+instance_idx-{dataset_instance_idx}/train_hard_budget-{train_hard_budget}+train_soft_budget_param-{train_soft_budget_param}/eval_hard_budget+{eval_hard_budget}+eval_soft_budget_param-{eval_soft_budget_param}.csv"
             for dataset in DATASETS
-            for dataset_instance in DATASET_INSTANCES
+            for dataset_instance_idx in DATASET_INSTANCE_INDICES
             for (
                 train_hard_budget,
                 eval_hard_budget,

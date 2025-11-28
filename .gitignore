@@ -228,3 +228,4 @@ extra/data/*
 !extra/data/
 !extra/data/misc/
 !extra/data/misc/*
+extra/trained_methods

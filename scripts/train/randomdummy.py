@@ -1,8 +1,6 @@
 import gc
-import json
 import logging
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from typing import Any, cast
 
 import hydra
@@ -14,8 +12,11 @@ from afabench.common.afa_methods import RandomDummyAFAMethod
 from afabench.common.config_classes import (
     RandomDummyTrainConfig,
 )
-from afabench.common.registry import get_afa_dataset_class
-from afabench.common.utils import save_artifact, set_seed
+from afabench.common.utils import (
+    load_dataset_artifact,
+    save_method_artifact,
+    set_seed,
+)
 
 log = logging.getLogger(__name__)
 
@@ -45,65 +46,47 @@ def main(cfg: RandomDummyTrainConfig) -> None:
     else:
         run = None
 
-    # HACK: Load dataset
-    with (Path(cfg.dataset_artifact_path) / "metadata.json").open("r") as f:
-        dataset_metadata = json.load(f)
-    dataset_type = dataset_metadata["dataset_type"]
-    dataset_class = get_afa_dataset_class(dataset_type)
-    train_dataset = dataset_class.load(
-        Path(cfg.dataset_artifact_path) / "train.pt"
+    train_dataset, dataset_metadata = load_dataset_artifact(
+        Path(cfg.dataset_artifact_path),
+        split="train",
     )
 
-    # dataset_type = dataset_metadata["dataset_type"]
-    # split = dataset_metadata["split_idx"]
     assert len(train_dataset.feature_shape) == 1, "Only 1D features supported"
     assert len(train_dataset.label_shape) == 1, "Only 1D labels supported"
     n_features = train_dataset.feature_shape[0]
     n_classes = train_dataset.label_shape[-1]
 
-    log.info(f"Dataset: {dataset_type}")
     log.info(f"Features: {n_features}, Classes: {n_classes}")
     log.info(f"Training samples: {len(train_dataset)}")
-
-    # Get cost parameter
-    cost = (
-        cfg.cost_param
-        if cfg.cost_param is not None
-        else cfg.aco.acquisition_cost
-    )
 
     afa_method = RandomDummyAFAMethod(
         device=torch.device("cpu"),
         n_classes=n_classes,
-        prob_select_0=cfg.cost_param,
+        prob_select_0=0
+        if cfg.train_soft_budget_param is None
+        else cfg.train_soft_budget_param,
+    )
+    # Save artifact to filesystem
+    save_method_artifact(
+        method=afa_method,
+        save_path=Path(cfg.save_path),
+        metadata={
+            "method_type": "RandomDummy",
+            "dataset_type": dataset_metadata["dataset_type"],
+            "dataset_artifact_path": cfg.dataset_artifact_path,
+            # "split_idx": dataset_metadata["split_idx"],
+            "seed": cfg.seed,
+            "train_soft_budget_param": cfg.train_soft_budget_param,
+            "train_hard_budget": cfg.train_hard_budget,
+            "initializer_type": cfg.initializer_type,
+            "unmasker_type": cfg.unmasker_type,
+        },
     )
 
-    # Save the method to a temporary directory and load it again to ensure it is saved correctly
-    with TemporaryDirectory() as tmp_dir:
-        temp_path = Path(tmp_dir)
-        afa_method.save(temp_path)
+    log.info(f"RandomDummy method saved to {cfg.save_path}")
 
-        # Prepare metadata
-        metadata = {
-            "method_type": "RandomDummy",
-            "dataset_type": dataset_type,
-            "dataset_artifact_name": cfg.dataset_artifact_path,
-            "budget": None,
-            "seed": cfg.seed,
-            "cost_param": cost,
-            "split_idx": split,
-        }
-
-        # Save artifact to filesystem
-        save_artifact(
-            artifact_dir=artifact_dir,
-            files={f.name: f for f in temp_path.iterdir() if f.is_file()},
-            metadata=metadata,
-        )
-
-        log.info(f"RandomDummy method saved to {artifact_dir}")
-
-    run.finish()
+    if run is not None:
+        run.finish()
 
     gc.collect()  # Force Python GC
     if torch.cuda.is_available():

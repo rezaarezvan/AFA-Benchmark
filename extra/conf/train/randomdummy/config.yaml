@@ -1,16 +1,21 @@
 hydra:
-    searchpath:
-        - file://extra/conf/global
+  searchpath:
+    - file://extra/conf/global
 
 defaults:
-    - _self_
-    - dataset@_global_: cube
-    - override hydra/job_logging: colorlog
-    - override hydra/hydra_logging: colorlog
-    - override hydra/launcher: custom_slurm
+  - _self_
+  # - dataset@_global_: cube
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+  - override hydra/launcher: custom_slurm
 
-dataset_artifact_name: cube/cube_split_1
-seed: 42
-hard_budget: 5
-cost_param: 0.25
+dataset_artifact_path: ???
+save_path: ???
+initializer_type: ???
+unmasker_type: ???
+train_hard_budget: null
+train_soft_budget_param: null
+
 device: cpu
+seed: 42
+use_wandb: false
