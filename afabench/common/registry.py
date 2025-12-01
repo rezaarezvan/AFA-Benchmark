@@ -1,9 +1,16 @@
 from afabench.common.afa_initializers.base import AFAInitializer
+from afabench.common.config_classes import (
+    AACODefaultInitializerConfig,
+    ImagePatchUnmaskerConfig,
+    InitializerConfig,
+    ManualInitializerConfig,
+    UnmaskerConfig,
+)
 from afabench.common.custom_types import (
     AFAClassifier,
     AFADataset,
     AFAMethod,
-    AFAUnmaskFn,
+    AFAUnmasker,
 )
 
 AFA_METHOD_TYPES = {
@@ -232,29 +239,26 @@ def get_afa_classifier_class(name: str) -> type[AFAClassifier]:  # noqa: PLR0911
 AFA_UNMASKER_TYPES = {"one_based_index", "image_patch"}
 
 
-def get_afa_unmasker(name: str, **kwargs) -> AFAUnmaskFn:
-    """
-    Get unmasker function by name.
-
-    Args:
-        name: "one_based_index" or "image_patch"
-        **kwargs: For image_patch: image_side_length, n_channels, patch_size
-    """
-    if name == "one_based_index":
-        from afabench.common.afa_unmaskers import one_based_index_unmask_fn
-
-        return one_based_index_unmask_fn
-
-    if name == "image_patch":
-        from afabench.common.afa_unmaskers import get_image_patch_unmask_fn
-
-        return get_image_patch_unmask_fn(
-            image_side_length=kwargs["image_side_length"],
-            n_channels=kwargs["n_channels"],
-            patch_size=kwargs["patch_size"],
+def get_afa_unmasker(unmasker_cfg: UnmaskerConfig) -> AFAUnmasker:
+    """Get unmasker function by name."""
+    if unmasker_cfg.type == "one_based_index":
+        assert unmasker_cfg.config is None, (
+            "one_based_index unmasker takes no config"
         )
+        from afabench.common.afa_unmaskers import DirectUnmasker
 
-    raise ValueError(f"Unknown unmasker: {name}")
+        return DirectUnmasker()
+
+    if unmasker_cfg.type == "image_patch":
+        assert isinstance(unmasker_cfg.config, ImagePatchUnmaskerConfig), (
+            "image_patch unmasker requires ImagePatchUnmaskerConfig"
+        )
+        from afabench.common.afa_unmaskers import ImagePatchUnmasker
+
+        return ImagePatchUnmasker(config=unmasker_cfg.config)
+
+    msg = f"Unknown unmasker: {unmasker_cfg.type}"
+    raise ValueError(msg)
 
 
 AFA_INITIALIZER_TYPES = {
@@ -268,56 +272,71 @@ AFA_INITIALIZER_TYPES = {
 }
 
 
-def get_afa_initializer(name: str, **kwargs) -> AFAInitializer:
-    """
-    Get initializer by name.
-
-    Args:
-        name: Initializer type
-        **kwargs: seed (optional), feature_indices (for manual)
-    """
-    seed = kwargs.get("seed")
-
-    if name == "zero":
+def get_afa_initializer(initializer_cfg: InitializerConfig) -> AFAInitializer:  # noqa: PLR0911
+    """Get initializer by name."""
+    if initializer_cfg.type == "zero":
+        assert initializer_cfg.config is None, (
+            "zero initializer takes no config"
+        )
         from afabench.common.afa_initializers import ZeroInitializer
 
-        return ZeroInitializer(seed=seed)
+        return ZeroInitializer()
 
-    if name == "fixed_random":
-        from afabench.common.afa_initializers import FixedRandomStrategy
+    if initializer_cfg.type == "fixed_random":
+        assert initializer_cfg.config is None, (
+            "fixed_random initializer takes no config"
+        )
+        from afabench.common.afa_initializers import FixedRandomInitializer
 
-        return FixedRandomStrategy(seed=seed)
+        return FixedRandomInitializer()
 
-    if name == "random_per_episode":
-        from afabench.common.afa_initializers import RandomPerEpisodeStrategy
-
-        return RandomPerEpisodeStrategy(seed=seed)
-
-    if name == "manual":
-        from afabench.common.afa_initializers import ManualStrategy
-
-        return ManualStrategy(
-            feature_indices=kwargs["feature_indices"], seed=seed
+    if initializer_cfg.type == "random_per_episode":
+        assert initializer_cfg.config is None, (
+            "random_per_episode initializer takes no config"
+        )
+        from afabench.common.afa_initializers import (
+            RandomPerEpisodeInitializer,
         )
 
-    if name == "mutual_information":
-        from afabench.common.afa_initializers import MutualInformationStrategy
+        return RandomPerEpisodeInitializer()
 
-        return MutualInformationStrategy(seed=seed)
+    if initializer_cfg.type == "manual":
+        assert isinstance(initializer_cfg.config, ManualInitializerConfig), (
+            "expected ManualInitializerConfig"
+        )
+        from afabench.common.afa_initializers import ManualInitializer
 
-    if name == "least_informative":
-        from afabench.common.afa_initializers import LeastInformativeStrategy
+        return ManualInitializer(config=initializer_cfg.config)
 
-        return LeastInformativeStrategy(seed=seed)
+    if initializer_cfg.type == "mutual_information":
+        assert initializer_cfg.config is None, (
+            "mutual_information initializer takes no config"
+        )
+        from afabench.common.afa_initializers import (
+            MutualInformationInitializer,
+        )
 
-    if name == "aaco_default":
+        return MutualInformationInitializer()
+
+    if initializer_cfg.type == "least_informative":
+        assert initializer_cfg.config is None, (
+            "least_informative initializer takes no config"
+        )
+        from afabench.common.afa_initializers import (
+            LeastInformativeInitializer,
+        )
+
+        return LeastInformativeInitializer()
+
+    if initializer_cfg.type == "aaco_default":
+        assert isinstance(
+            initializer_cfg.config, AACODefaultInitializerConfig
+        ), "expected AACODefaultInitializerConfig"
         from afabench.common.afa_initializers.strategies import (
             AACODefaultInitializer,
         )
 
-        return AACODefaultInitializer(
-            dataset_name=kwargs["dataset_artifact_path"],
-            seed=kwargs.get("seed"),
-        )
+        return AACODefaultInitializer(config=initializer_cfg.config)
 
-    raise ValueError(f"Unknown initializer: {name}")
+    msg = f"Unknown initializer: {initializer_cfg.type}"
+    raise ValueError(msg)

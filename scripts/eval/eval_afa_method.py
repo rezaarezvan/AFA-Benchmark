@@ -10,19 +10,22 @@ from omegaconf import OmegaConf
 
 from afabench.afa_oracle.afa_methods import AACOAFAMethod
 from afabench.common.afa_initializers.base import AFAInitializer
-from afabench.common.config_classes import EvalConfig
+from afabench.common.config_classes import (
+    EvalConfig,
+    InitializerConfig,
+    UnmaskerConfig,
+)
 from afabench.common.custom_types import (
     AFAClassifier,
     AFADataset,
     AFAMethod,
-    AFAUnmaskFn,
+    AFAUnmasker,
 )
+from afabench.common.registry import get_afa_initializer, get_afa_unmasker
 from afabench.common.utils import (
     load_classifier_artifact,
     load_dataset_artifact,
-    load_initializer,
     load_method_artifact,
-    load_unmasker,
     save_artifact,
     set_seed,
 )
@@ -33,15 +36,15 @@ log = logging.getLogger(__name__)
 
 def load(
     method_artifact_path: Path,
-    unmasker_type: str,
-    initializer_type: str,
+    unmasker_cfg: UnmaskerConfig,
+    initializer_cfg: InitializerConfig,
     dataset_artifact_path: Path,
     dataset_split: str,
     classifier_artifact_path: Path | None = None,
     device: torch.device | None = None,
 ) -> tuple[
     AFAMethod,
-    AFAUnmaskFn,
+    AFAUnmasker,
     AFAInitializer,
     AFADataset,
     AFAClassifier | None,
@@ -52,12 +55,12 @@ def load(
     log.info(f"Loaded AFA method from {method_artifact_path}")
 
     # Load unmasker
-    unmasker: AFAUnmaskFn = load_unmasker(unmasker_type)
-    log.info(f"Loaded {unmasker_type} unmasker")
+    unmasker: AFAUnmasker = get_afa_unmasker(unmasker_cfg)
+    log.info(f"Loaded {unmasker_cfg.type} unmasker")
 
     # Load initializer
-    initializer: AFAInitializer = load_initializer(initializer_type)
-    log.info(f"Loaded {initializer_type} initializer")
+    initializer: AFAInitializer = get_afa_initializer(initializer_cfg)
+    log.info(f"Loaded {initializer_cfg.type} initializer")
 
     # Load dataset
     dataset, metadata = load_dataset_artifact(
@@ -68,7 +71,7 @@ def load(
     # Load external classifier if specified
     if classifier_artifact_path is not None:
         device = torch.device("cpu") if device is None else device
-        classifier: AFAClassifier = load_classifier_artifact(
+        classifier = load_classifier_artifact(
             classifier_artifact_path, device=device
         )
         log.info(
@@ -122,8 +125,8 @@ def main(cfg: EvalConfig) -> None:
         method_metadata,
     ) = load(
         method_artifact_path=Path(cfg.method_artifact_path),
-        unmasker_type=cfg.unmasker_type,
-        initializer_type=cfg.initializer_type,
+        unmasker_cfg=cfg.unmasker,
+        initializer_cfg=cfg.initializer,
         dataset_artifact_path=Path(cfg.dataset_artifact_path),
         dataset_split=cfg.dataset_split,
         classifier_artifact_path=(
@@ -133,6 +136,11 @@ def main(cfg: EvalConfig) -> None:
         ),
         device=torch.device(cfg.device),
     )
+
+    # Set the seed of everything
+    afa_method.set_seed(cfg.seed)
+    unmasker.set_seed(cfg.seed)
+    initializer.set_seed(cfg.seed)
 
     if cfg.hard_budget is not None:
         hard_budget_str = f"hard budget {cfg.hard_budget}"
@@ -151,13 +159,16 @@ def main(cfg: EvalConfig) -> None:
             else afa_method.aaco_oracle.classifier
         )
 
+    afa_method = cast(
+        "AFAMethod", afa_method
+    )  # TODO: remove once AACOAFAMethod implements AFAMethod
     df_eval = eval_afa_method(
         afa_select_fn=afa_method.select,
-        afa_unmask_fn=unmasker,
+        afa_unmask_fn=unmasker.unmask,
         n_selection_choices=cfg.n_selection_choices,
-        afa_initializer=initializer,
+        afa_initialize_fn=initializer.initialize,  # TODO: Initializer.initialize should satisfy InitializeFn  # pyright: ignore[reportArgumentType]
         dataset=dataset,
-        external_afa_predict_fn=external_classifier
+        external_afa_predict_fn=external_classifier.__call__
         if external_classifier is not None
         else None,
         builtin_afa_predict_fn=afa_method.predict

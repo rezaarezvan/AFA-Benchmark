@@ -1,12 +1,18 @@
+from typing import final
+
 import numpy as np
 import torch
 from sklearn.feature_selection import mutual_info_classif
 
 from afabench.common.afa_initializers.base import AFAInitializer
+from afabench.common.config_classes import (
+    AACODefaultInitializerConfig,
+    ManualInitializerConfig,
+)
 from afabench.common.custom_types import Features, Label
 
 
-class FixedRandomStrategy(AFAInitializer):
+class FixedRandomInitializer(AFAInitializer):
     """
     Select random features once and reuse them across all episodes.
     """
@@ -31,7 +37,7 @@ class FixedRandomStrategy(AFAInitializer):
         return self._cached_features
 
 
-class RandomPerEpisodeStrategy(AFAInitializer):
+class RandomPerEpisodeInitializer(AFAInitializer):
     """
     Select different random features for each episode.
     """
@@ -49,14 +55,13 @@ class RandomPerEpisodeStrategy(AFAInitializer):
         ).tolist()
 
 
-class ManualStrategy(AFAInitializer):
-    """
-    Use explicitly specified feature indices.
-    """
+@final
+class ManualInitializer(AFAInitializer):
+    """Use explicitly specified feature indices."""
 
-    def __init__(self, feature_indices: list[int], seed: int | None = None):
-        super().__init__(seed)
-        self.feature_indices = feature_indices
+    def __init__(self, config: ManualInitializerConfig):
+        super().__init__()
+        self.feature_indices = config.feature_indices
 
     def select_features(
         self,
@@ -74,7 +79,7 @@ class ManualStrategy(AFAInitializer):
         return f"ManualStrategy(features={self.feature_indices})"
 
 
-class MutualInformationStrategy(AFAInitializer):
+class MutualInformationInitializer(AFAInitializer):
     """
     Select features with highest mutual information with target labels.
     """
@@ -117,7 +122,7 @@ class MutualInformationStrategy(AFAInitializer):
         return self._cached_ranking[:n_features_select].tolist()
 
 
-class LeastInformativeStrategy(AFAInitializer):
+class LeastInformativeInitializer(AFAInitializer):
     """
     Select features with LOWEST mutual information (adversarial baseline).
 
@@ -177,6 +182,7 @@ class ZeroInitializer(AFAInitializer):
         return []
 
 
+@final
 class AACODefaultInitializer(AFAInitializer):
     """
     AACO paper's deterministic initial feature selection.
@@ -197,9 +203,9 @@ class AACODefaultInitializer(AFAInitializer):
         "afacontext": 0,  # context feature first
     }
 
-    def __init__(self, dataset_name: str, seed: int | None = None):
-        super().__init__(seed)
-        self.dataset_name = dataset_name.lower()
+    def __init__(self, config: AACODefaultInitializerConfig):
+        super().__init__()
+        self.dataset_name = config.dataset_name.lower()
 
     def select_features(
         self,

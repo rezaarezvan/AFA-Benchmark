@@ -26,13 +26,14 @@ log = logging.getLogger(__name__)
 
 def single_afa_step(
     features: Features,
+    label: Label,
     masked_features: MaskedFeatures,
     feature_mask: FeatureMask,
+    selection_mask: SelectionMask,
     afa_select_fn: AFASelectFn,
     afa_unmask_fn: AFAUnmaskFn,
     external_afa_predict_fn: AFAPredictFn | None = None,
     builtin_afa_predict_fn: AFAPredictFn | None = None,
-    selection_mask: SelectionMask | None = None,
 ) -> tuple[
     AFASelection, MaskedFeatures, FeatureMask, Label | None, Label | None
 ]:
@@ -41,13 +42,14 @@ def single_afa_step(
 
     Args:
         features (Features): True unmasked features, required by unmasker.
+        label (Label): The true label, passed to all functions that may need it. Usually not used, since that would be a form of cheating, but we might want some objects to have access to it for benchmarking.
         masked_features (MaskedFeatures): Currently masked features.
         feature_mask (FeatureMask): Current feature mask.
+        selection_mask (SelectionMask): Mask indicating which selections have already been performed.
         afa_select_fn (AFASelectFn): How to make AFA selections.
         afa_unmask_fn (AFAUnmaskFn): How to select new features from AFA selections.
         external_afa_predict_fn (AFAPredictFn|None): An external classifier.
         builtin_afa_predict_fn (AFAPredictFn|None): A builtin classifier, if such exists.
-        selection_mask (SelectionMask|None): Mask indicating which selections have already been performed. Forwarded to the AFASelectFn.
 
     Returns:
         tuple[AFASelection, MaskedFeatures, FeatureMask, Label|None, Label|None]: Selection made, updated masked features, feature mask and predicted labels after the AFA step.
@@ -57,14 +59,17 @@ def single_afa_step(
         masked_features=masked_features,
         feature_mask=feature_mask,
         selection_mask=selection_mask,
+        label=label,
     )
 
     # Translate into which unmasked features using the unmasker
     new_feature_mask, new_masked_features = afa_unmask_fn(
-        feature_mask=feature_mask,
         masked_features=masked_features,
-        afa_selection=active_afa_selection,
+        feature_mask=feature_mask,
         features=features,
+        afa_selection=active_afa_selection,
+        selection_mask=selection_mask,
+        label=label,
     )
 
     # Allow classifiers to make predictions using new masked features
@@ -72,6 +77,7 @@ def single_afa_step(
         external_prediction = external_afa_predict_fn(
             masked_features=new_masked_features,
             feature_mask=new_feature_mask,
+            label=label,
         )
     else:
         external_prediction = None
@@ -80,6 +86,7 @@ def single_afa_step(
         builtin_prediction = builtin_afa_predict_fn(
             masked_features=new_masked_features,
             feature_mask=new_feature_mask,
+            label=label,
         )
     else:
         builtin_prediction = None
@@ -164,6 +171,7 @@ def process_batch(
             active_builtin_prediction,
         ) = single_afa_step(
             features=active_features,
+            label=true_label,
             masked_features=active_masked_features,
             feature_mask=active_feature_mask,
             afa_select_fn=afa_select_fn,
@@ -317,22 +325,17 @@ def eval_afa_method(
 
         # Initialize masks for the batch
         batch_initial_feature_mask, batch_initial_masked_features = (
-            afa_initialize_fn(batch_features)
-        )
-        batch_initial_selection_mask = torch.zeros(
-            (batch_features.shape[0], n_selection_choices),
-            device=device,
-            dtype=torch.bool,
+            afa_initialize_fn(batch_features, batch_label)
         )
 
         df_batches.append(
             process_batch(
                 afa_select_fn=afa_select_fn,
                 afa_unmask_fn=afa_unmask_fn,
+                n_selection_choices=n_selection_choices,
                 features=batch_features,
                 initial_feature_mask=batch_initial_feature_mask,
                 initial_masked_features=batch_initial_masked_features,
-                initial_selection_mask=batch_initial_selection_mask,
                 true_label=batch_label,
                 external_afa_predict_fn=external_afa_predict_fn,
                 builtin_afa_predict_fn=builtin_afa_predict_fn,

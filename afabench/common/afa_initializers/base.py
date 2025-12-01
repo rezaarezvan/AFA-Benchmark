@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
@@ -10,6 +11,9 @@ from afabench.common.custom_types import (
     MaskedFeatures,
 )
 
+if TYPE_CHECKING:
+    from numpy.random import RandomState
+
 
 class AFAInitializer(ABC):
     """
@@ -18,15 +22,14 @@ class AFAInitializer(ABC):
     Subclasses must implement select_features() to define feature selection logic.
     """
 
-    def __init__(self, seed: int | None = None):
-        """
-        Initialize the warm-start strategy.
+    def set_seed(self, seed: int | None) -> None:
+        self.seed: int | None = seed
+        self.rng: RandomState = np.random.RandomState(seed)
 
-        Args:
-            seed: Random seed for reproducibility. If None, results may vary.
-        """
-        self.seed = seed
-        self.rng = np.random.RandomState(seed)
+    def __init__(self):
+        """Initialize the warm-start strategy."""
+        self.seed = None
+        self.rng = np.random.RandomState(self.seed)
 
     @abstractmethod
     def select_features(

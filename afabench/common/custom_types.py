@@ -89,6 +89,7 @@ class AFAMethod(Protocol):
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
         selection_mask: SelectionMask | None = None,
+        label: Label | None = None,
     ) -> AFASelection:
         """Return an AFA selection based on observed features."""
         ...
@@ -97,6 +98,7 @@ class AFAMethod(Protocol):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
+        label: Label | None = None,
     ) -> Tensor:
         """Return the predicted label for the features that have been observed so far."""
         ...
@@ -133,6 +135,10 @@ class AFAMethod(Protocol):
         """Set the cost parameter, if any. Mostly applies to methods that do not need a cost parameter during training but can adjust the trade-off during evaluation."""
         pass  # noqa: PIE790
 
+    def set_seed(self, seed: int | None) -> None:
+        """Set the seed, if the method is stochastic."""
+        pass  # noqa: PIE790
+
 
 class AFAClassifier(Protocol):
     """
@@ -145,6 +151,7 @@ class AFAClassifier(Protocol):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
+        label: Label | None = None,
     ) -> Label:
         """Return the predicted label for the features that have been observed so far."""
         ...
@@ -175,6 +182,7 @@ class AFASelectFn(Protocol):
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
         selection_mask: SelectionMask | None = None,
+        label: Label | None = None,
     ) -> AFASelection: ...
 
 
@@ -184,6 +192,7 @@ class AFAPredictFn(Protocol):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
+        label: Label | None = None,
     ) -> Label: ...
 
 
@@ -193,14 +202,27 @@ class AFAUnmaskFn(Protocol):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Tensor,
+        features: Features,
         afa_selection: AFASelection,
-    ) -> tuple[FeatureMask, MaskedFeatures]: ...
+        selection_mask: SelectionMask,
+        label: Label | None = None,
+    ) -> FeatureMask: ...
+
+
+class AFAUnmasker(Protocol):
+    def unmask(
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        features: Features,
+        afa_selection: AFASelection,
+        selection_mask: SelectionMask,
+        label: Label | None = None,
+    ) -> FeatureMask: ...
+
+    def set_seed(self, seed: int | None) -> None: ...
 
 
 # Protocol for different mask initialization strategies
 class AFAInitializeFn(Protocol):
-    def __call__(
-        self,
-        features: Tensor,
-    ) -> tuple[FeatureMask, MaskedFeatures]: ...
+    def __call__(self, features: Features, label: Label) -> FeatureMask: ...

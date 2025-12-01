@@ -1,19 +1,19 @@
 from afabench.common.afa_initializers.base import AFAInitializer
 from afabench.common.afa_initializers.strategies import (
-    FixedRandomStrategy,
-    LeastInformativeStrategy,
-    ManualStrategy,
-    MutualInformationStrategy,
-    RandomPerEpisodeStrategy,
+    FixedRandomInitializer,
+    LeastInformativeInitializer,
+    ManualInitializer,
+    MutualInformationInitializer,
+    RandomPerEpisodeInitializer,
     ZeroInitializer,
 )
 
 __all__ = [
     "AFAInitializer",
-    "FixedRandomStrategy",
-    "LeastInformativeStrategy",
-    "ManualStrategy",
-    "MutualInformationStrategy",
-    "RandomPerEpisodeStrategy",
+    "FixedRandomInitializer",
+    "LeastInformativeInitializer",
+    "ManualInitializer",
+    "MutualInformationInitializer",
+    "RandomPerEpisodeInitializer",
     "ZeroInitializer",
 ]

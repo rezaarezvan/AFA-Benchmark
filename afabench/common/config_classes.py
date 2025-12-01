@@ -803,6 +803,40 @@ cs.store(
     name="train_masked_vit_classifier", node=TrainMaskedViTClassifierConfig
 )
 
+# -- Unmaskers --
+
+
+@dataclass
+class ImagePatchUnmaskerConfig:
+    image_side_length: int
+    n_channels: int
+    patch_size: int
+
+
+@dataclass
+class UnmaskerConfig:
+    type: str
+    config: ImagePatchUnmaskerConfig | None
+
+
+# -- Initializers --
+
+
+@dataclass
+class ManualInitializerConfig:
+    feature_indices: list[int]
+
+
+@dataclass
+class AACODefaultInitializerConfig:
+    dataset_name: str
+
+
+@dataclass
+class InitializerConfig:
+    type: str
+    config: ManualInitializerConfig | AACODefaultInitializerConfig | None
+
 
 # --- EVALUATION ---
 
@@ -812,9 +846,9 @@ class EvalConfig:
     # Which method to evaluate
     method_artifact_path: str
     # Which unmasker to use
-    unmasker_type: str
+    unmasker: UnmaskerConfig
     # Which initializer to use
-    initializer_type: str
+    initializer: InitializerConfig
     # Which dataset instance to use
     dataset_artifact_path: str
     # Save path

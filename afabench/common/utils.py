@@ -22,9 +22,7 @@ from afabench.common.custom_types import (
 from afabench.common.registry import (
     get_afa_classifier_class,
     get_afa_dataset_class,
-    get_afa_initializer,
     get_afa_method_class,
-    get_afa_unmasker,
 )
 
 
@@ -180,16 +178,6 @@ def load_classifier_artifact(
         metadata["classifier_class_name"]
     )
     return classifier_class.load(path / "classifier.pt", device=device)
-
-
-def load_unmasker(name: str, **kwargs) -> AFAUnmaskFn:
-    """Load unmasker function by name."""
-    return get_afa_unmasker(name, **kwargs)
-
-
-def load_initializer(name: str, **kwargs) -> AFAInitializer:
-    """Load initializer by name."""
-    return get_afa_initializer(name, **kwargs)
 
 
 def load_eval_components(
