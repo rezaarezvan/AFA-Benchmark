@@ -1,7 +1,7 @@
 DATASETS = ["cube", "AFAContext"]
 DATASET_INSTANCE_INDICES = [0, 1]
 INITIALIZER = "cold"  # assume same initializer for now
-UNMASKER_PER_DATASET = {"cube": "tabular_direct", "AFAContext": "tabular_direct"}
+UNMASKER_PER_DATASET = {"cube": "direct", "AFAContext": "direct"}
 EVAL_DATASET_SPLIT = "val"  # whether to use "val" or "test" during evaluation
 DEVICE = "cpu"
 
@@ -12,16 +12,16 @@ DEVICE = "cpu"
 # - soft budget parameter during evaluation
 PARAMS_PER_DATASET = {
     "cube": [
-        (5, 5, None, None),
-        (10, 10, None, None),
-        (None, None, 0.4, None),
-        (None, None, 0.6, None),
+        (5, 5, "null", "null"),
+        (10, 10, "null", "null"),
+        ("null", "null", 0.4, "null"),
+        ("null", "null", 0.6, "null"),
     ],
     "AFAContext": [
-        (10, 10, None, None),
-        (15, 15, None, None),
-        (None, None, 0.5, None),
-        (None, None, 0.7, None),
+        (10, 10, "null", "null"),
+        (15, 15, "null", "null"),
+        ("null", "null", 0.5, "null"),
+        ("null", "null", 0.7, "null"),
     ],
 }
 
@@ -48,7 +48,10 @@ rule train_method:
             components/initializers@initializer={INITIALIZER} \
             components/unmaskers@unmasker={params.unmasker} \
             train_hard_budget={wildcards.train_hard_budget} \
-            train_soft_budget_param={wildcards.train_soft_budget_param}
+            train_soft_budget_param={wildcards.train_soft_budget_param} \
+            device={DEVICE} \
+            seed=null \
+            use_wandb=false
         """
 
 
@@ -79,15 +82,18 @@ rule eval_method:
         """
         python scripts/eval/eval_afa_method.py \
             method_artifact_path={input[1]} \
-            unmasker_type={params.unmasker} \
-            initializer_type={INITIALIZER} \
+            components/initializers@initializer={INITIALIZER} \
+            components/unmaskers@unmasker={params.unmasker} \
             dataset_artifact_path={input[0]} \
             save_path={output} \
             dataset_split={EVAL_DATASET_SPLIT} \
             classifier_artifact_path=null \
+            seed=null \
             device={DEVICE} \
-            n_selection_choices={} \
-            hard_budget={wildcards.train_hard_budget} \
+            eval_only_n_samples=null \
+            batch_size=1 \
+            hard_budget={wildcards.eval_hard_budget} \
+            use_wandb=false
         """
 
 

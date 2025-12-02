@@ -1,23 +1,25 @@
 hydra:
   searchpath:
+    - file://extra/conf
     - file://extra/conf/global
 
 defaults:
   - _self_
+  - components/initializers@initializer: ???
+  - components/unmaskers@unmasker: ???
   - override hydra/job_logging: colorlog
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
 
 method_artifact_path: ???
-unmasker_type: ???
-initializer_type: ???
+# unmasker set as component
+# initializer set as component
 dataset_artifact_path: ???
 save_path: ???
-dataset_split: "test"
+dataset_split: "val"
 classifier_artifact_path: null
-seed: 42
+seed: null
 device: "cpu"
-n_selection_choices: 10
 eval_only_n_samples: null
 batch_size: 1
 hard_budget: null

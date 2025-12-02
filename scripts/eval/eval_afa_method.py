@@ -93,7 +93,7 @@ def load(
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/eval",
+    config_path="../../extra/conf/scripts/eval",
     config_name="config",
 )
 def main(cfg: EvalConfig) -> None:

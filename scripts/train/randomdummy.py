@@ -29,6 +29,9 @@ log = logging.getLogger(__name__)
     config_name="config",
 )
 def main(cfg: RandomDummyTrainConfig) -> None:
+    print(
+        f"launching random dummy training with {cfg.train_soft_budget_param=}"
+    )
     log.debug(cfg)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
@@ -64,7 +67,7 @@ def main(cfg: RandomDummyTrainConfig) -> None:
     afa_method = RandomDummyAFAMethod(
         device=torch.device("cpu"),
         n_classes=n_classes,
-        prob_select_0=0
+        prob_select_0=0.0
         if cfg.train_soft_budget_param is None
         else cfg.train_soft_budget_param,
     )
@@ -93,7 +96,7 @@ def main(cfg: RandomDummyTrainConfig) -> None:
         method=afa_method,
         save_path=Path(cfg.save_path),
         metadata={
-            "method_type": "RandomDummy",
+            "method_type": "random_dummy",
             "dataset_type": dataset_metadata["dataset_type"],
             "dataset_artifact_path": cfg.dataset_artifact_path,
             # "split_idx": dataset_metadata["split_idx"],

@@ -634,7 +634,7 @@ class RandomDummyTrainConfig:
     train_soft_budget_param: float | None
 
     device: str
-    seed: int
+    seed: int | None
     use_wandb: bool = False
 
 
@@ -889,8 +889,6 @@ class EvalConfig:
     classifier_artifact_path: str | None
     seed: int | None
     device: str
-    # How many selection choices to evaluate per sample
-    n_selection_choices: int
     # Make it possible to only evaluate a subset of the dataset, for debugging purposes
     eval_only_n_samples: int | None
     batch_size: int
