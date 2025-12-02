@@ -121,7 +121,8 @@ class PointNet(nn.Module):
                 [masked_features.unsqueeze(-1), identity], dim=-1
             )  # Shape: (batch_size, n_features, identity_size + 1)
         else:
-            raise ValueError(f"Unknown PointNet type: {self.pointnet_type}")
+            msg = f"Unknown PointNet type: {self.pointnet_type}"
+            raise ValueError(msg)
 
         # Pass s through the feature map encoder (h)
         feature_maps = self.feature_map_encoder(

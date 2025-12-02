@@ -528,7 +528,8 @@ def weighted_cross_entropy(
         return loss_per_sample.sum()
     if reduction == "none":
         return loss_per_sample
-    raise ValueError(f"Invalid reduction: {reduction}")
+    msg = f"Invalid reduction: {reduction}"
+    raise ValueError(msg)
 
 
 str_to_activation_class_mapping: dict[str, type[nn.Module]] = {

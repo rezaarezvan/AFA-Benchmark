@@ -84,7 +84,11 @@ ignore = [
   "F722", # forward-annotation-syntax-error. Allows us to use jaxtyping to annotate shapes.
 ]
 
-extend-safe-fixes = ["D200"]
+extend-safe-fixes = [
+    "D200",
+    "PTH123", # builtin-open. Seems to not work :(
+    "EM102", # f-string-in-exception
+]
 
 [format]
 docstring-code-format = true

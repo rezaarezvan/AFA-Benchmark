@@ -84,11 +84,10 @@ class MaskLayer2d(nn.Module):
         if len(mask.shape) == 2:
             mask = mask.reshape(-1, 1, self.mask_width, self.mask_width)
         elif len(mask.shape) != 4:
-            raise ValueError(
-                f"cannot determine how to reshape mask with shape = {
-                    mask.shape
-                }"
-            )
+            msg = f"cannot determine how to reshape mask with shape = {
+                mask.shape
+            }"
+            raise ValueError(msg)
 
         # Apply mask.
         mask = self.upsample(mask)

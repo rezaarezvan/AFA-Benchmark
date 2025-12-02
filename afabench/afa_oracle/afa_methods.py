@@ -198,7 +198,8 @@ class AACOAFAMethod(AFAMethod):
 
         oracle_files = list(path.glob("aaco_oracle_*.pt"))
         if not oracle_files:
-            raise FileNotFoundError(f"No AACO oracle files found in {path}")
+            msg = f"No AACO oracle files found in {path}"
+            raise FileNotFoundError(msg)
 
         oracle_state = torch.load(oracle_files[0], map_location=device)
 

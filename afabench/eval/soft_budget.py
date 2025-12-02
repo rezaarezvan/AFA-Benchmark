@@ -75,7 +75,8 @@ def eval_soft_budget_afa_method(
         elif _batch_label.ndim == 1:
             batch_label = _batch_label.to(device)
         else:
-            raise ValueError(f"Unexpected label shape {_batch_label.shape}")
+            msg = f"Unexpected label shape {_batch_label.shape}"
+            raise ValueError(msg)
 
         # Initialize masks for the batch
         # TODO currently using 4D mask. Convert to 2D patches when evaluate on common classifier.

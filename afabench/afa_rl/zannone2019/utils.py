@@ -26,11 +26,10 @@ def get_zannone2019_model_from_config(
         pointnet_type = PointNetType.POINTNETPLUS
         feature_map_encoder_input_size = cfg.pointnet.identity_size
     else:
-        raise ValueError(
-            f"PointNet type {
-                cfg.pointnet.type
-            } not supported. Use 'pointnet' or 'pointnetplus'."
-        )
+        msg = f"PointNet type {
+            cfg.pointnet.type
+        } not supported. Use 'pointnet' or 'pointnetplus'."
+        raise ValueError(msg)
 
     pointnet = PointNet(
         identity_size=cfg.pointnet.identity_size,

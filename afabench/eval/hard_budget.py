@@ -286,10 +286,11 @@ def eval_afa_method(
             t.permute(1, 0, 2) for t in feature_mask_history_all
         ]  # list[Tensor[batch_size,budget,n_classes]] (n_batches)
     else:
-        raise ValueError(
+        msg = (
             f"Unexpected feature_mask_history_all[0].dim() = "
             f"{feature_mask_history_all[0].dim()}."
         )
+        raise ValueError(msg)
     feature_mask_history_tensor: Tensor = torch.cat(temp)
     if feature_mask_history_tensor.dim() == 5:
         last_mask = feature_mask_history_tensor[:, -1]
@@ -312,10 +313,11 @@ def eval_afa_method(
         action_count = feature_mask_history_tensor[:, -1, :].sum(dim=0)
         action_distribution = action_count / action_count.sum()  # (n_classes,)
     else:
-        raise ValueError(
+        msg = (
             f"Unexpected feature_mask_history_tensor.dim() = "
             f"{feature_mask_history_tensor.dim()}"
         )
+        raise ValueError(msg)
 
     labels_tensor: Tensor = torch.cat(
         labels_all
@@ -325,9 +327,8 @@ def eval_afa_method(
     elif labels_tensor.dim() == 1:
         pass
     else:
-        raise ValueError(
-            f"Unexpected labels_tensor.dim() = {labels_tensor.dim()}"
-        )
+        msg = f"Unexpected labels_tensor.dim() = {labels_tensor.dim()}"
+        raise ValueError(msg)
 
     log.info("Aggregating metrics...")
     accuracy_all, f1_all, bce_all = aggregate_metrics(
