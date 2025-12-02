@@ -44,6 +44,11 @@ class FixedRandomInitializer(AFAInitializer):
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> FeatureMask:
+        assert feature_shape is not None, (
+            "feature_shape must be provided for FixedRandomInitializer"
+        )
+        # We can figure out the batch shape by subtracting the feature shape
+        batch_shape = features.shape[: -len(feature_shape)]
         # Select once and cache
         if self._cached_mask is None:
             assert feature_shape is not None, (
@@ -64,11 +69,13 @@ class FixedRandomInitializer(AFAInitializer):
             self._cached_mask[multi_indices] = True
 
         assert self._cached_mask is not None
-        return self._cached_mask
+        return self._cached_mask.view((1,) * len(batch_shape)).expand(
+            batch_shape + feature_shape
+        )
 
 
 @final
-class RandomPerEpisodeInitializer(AFAInitializer):
+class DynamicRandomInitializer(AFAInitializer):
     """Select different random features for each episode."""
 
     def __init__(self, config: RandomPerEpisodeInitializerConfig):
@@ -90,19 +97,29 @@ class RandomPerEpisodeInitializer(AFAInitializer):
         feature_shape: torch.Size | None = None,
     ) -> FeatureMask:
         assert feature_shape is not None, (
-            "feature_shape must be provided for RandomPerEpisodeInitializer"
+            "feature_shape must be provided for DynamicRandomInitializer"
         )
+        # We can figure out the batch shape by subtracting the feature shape
+        batch_shape = features.shape[: -len(feature_shape)]
+        batch_size = int(torch.prod(torch.tensor(batch_shape)))
+
         num_features = feature_shape.numel()
         num_features_to_unmask = int(num_features * self.config.unmask_ratio)
 
-        # Select new features each time
-        flat_indices = torch.randperm(num_features, generator=self.rng)[
-            :num_features_to_unmask
-        ]
-        multi_indices = torch.unravel_index(flat_indices, feature_shape)
-        mask = torch.zeros(feature_shape, dtype=torch.bool)
-        mask[multi_indices] = True
-        return mask
+        # Create different random masks for each batch element
+        masks = []
+        for _ in range(batch_size):
+            flat_indices = torch.randperm(num_features, generator=self.rng)[
+                :num_features_to_unmask
+            ]
+            multi_indices = torch.unravel_index(flat_indices, feature_shape)
+            mask = torch.zeros(feature_shape, dtype=torch.bool)
+            mask[multi_indices] = True
+            masks.append(mask)
+
+        # Stack masks and reshape to match batch dimensions
+        stacked_masks = torch.stack(masks, dim=0)
+        return stacked_masks.view(batch_shape + feature_shape)
 
 
 @final

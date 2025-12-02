@@ -66,7 +66,7 @@ def single_afa_step(
     )
 
     # Translate into which unmasked features using the unmasker
-    new_feature_mask, new_masked_features = afa_unmask_fn(
+    new_feature_mask = afa_unmask_fn(
         masked_features=masked_features,
         feature_mask=feature_mask,
         features=features,
@@ -75,6 +75,8 @@ def single_afa_step(
         label=label,
         feature_shape=feature_shape,
     )
+    new_masked_features = features.clone()
+    new_masked_features[~new_feature_mask] = 0.0
 
     # Allow classifiers to make predictions using new masked features
     if external_afa_predict_fn is not None:
@@ -189,10 +191,6 @@ def process_batch(
             builtin_afa_predict_fn=builtin_afa_predict_fn,
             selection_mask=active_selection_mask,
         )
-        print(
-            f"selection was {active_afa_selection.squeeze(-1).cpu().tolist()}"
-        )
-        print(f"new active masked features: {active_new_masked_features}")
         # Key assumption: predictions are logits/probabilities for classes
         if active_builtin_prediction is not None:
             assert active_external_prediction.shape[-1] > 1, (
@@ -333,12 +331,14 @@ def eval_afa_method(
         batch_label = _batch_label.to(device)
 
         # Initialize masks for the batch
-        batch_initial_feature_mask, batch_initial_masked_features = (
-            afa_initialize_fn(
-                batch_features,
-                batch_label,
-                feature_shape=dataset.feature_shape,
-            )
+        batch_initial_feature_mask = afa_initialize_fn(
+            batch_features,
+            batch_label,
+            feature_shape=dataset.feature_shape,
+        )
+        batch_initial_masked_features = batch_features.clone()
+        batch_initial_masked_features[~batch_initial_feature_mask] = (
+            0.0  # Assuming zero masking
         )
 
         df_batches.append(

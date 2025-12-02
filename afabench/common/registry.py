@@ -297,10 +297,10 @@ def get_afa_initializer(initializer_cfg: InitializerConfig) -> AFAInitializer:  
             "RandomPerEpisodeInitializerConfig", initializer_cfg.config
         )
         from afabench.common.afa_initializers import (
-            RandomPerEpisodeInitializer,
+            DynamicRandomInitializer,
         )
 
-        return RandomPerEpisodeInitializer(config=config)
+        return DynamicRandomInitializer(config=config)
 
     if initializer_cfg.type == "manual":
         config = cast("ManualInitializerConfig", initializer_cfg.config)

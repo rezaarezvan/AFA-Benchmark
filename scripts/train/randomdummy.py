@@ -84,6 +84,8 @@ def main(cfg: RandomDummyTrainConfig) -> None:
         ),
         afa_initialize_fn=initializer.initialize,
         dataset=train_dataset,
+        only_n_samples=100,
+        batch_size=10,
     )
 
     # Save artifact to filesystem

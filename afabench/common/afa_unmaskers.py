@@ -52,7 +52,6 @@ class DirectUnmasker(AFAUnmasker):
         new_feature_mask = feature_mask.clone()
         # Convert feature_indices to n-dimensional indices using unravel_index
         multi_indices = torch.unravel_index(feature_indices, feature_shape)
-        print(f"multi_indices = {multi_indices}")
         batch_indices = torch.arange(
             feature_mask.size(0), device=feature_mask.device
         )
