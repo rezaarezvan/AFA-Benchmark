@@ -138,9 +138,9 @@ def eval_afa_method(
     labels_all: list[Label] = []  # (n_batches)
 
     dataloader = DataLoader(
-        dataset,
+        dataset,  # pyright: ignore[reportArgumentType]
         batch_size=batch_size,
-        shuffle=False,  # type: ignore
+        shuffle=False,
     )
 
     # Loop over the dataset
@@ -156,6 +156,7 @@ def eval_afa_method(
         features, labels = batch
         features = features.to(device)
         labels = labels.to(device)
+        feature_shape = torch.Size(features.shape[1:])
 
         # Immediately store the true labels for this batch
         labels_all.append(labels)
@@ -198,18 +199,29 @@ def eval_afa_method(
         for i in range(budget):
             # Select new features
             selections = afa_select_fn(
-                masked_features, feature_mask, features, labels
+                masked_features,
+                feature_mask,
+                label=labels,
+                feature_shape=feature_shape,
             ).squeeze(-1)
 
             # Update the feature mask and masked features
             if afa_uncover_fn is not None:
                 selections = selections.reshape(-1)
-                masked_features, feature_mask = afa_uncover_fn(
+                # currently ignored, required by protocol
+                selection_mask = torch.zeros_like(
+                    selections, dtype=torch.bool, device=device
+                )
+                new_feature_mask = afa_uncover_fn(
                     masked_features=masked_features,
                     feature_mask=feature_mask,
                     features=features,
                     afa_selection=selections,
+                    selection_mask=selection_mask,
+                    label=labels,
+                    feature_shape=feature_shape,
                 )
+                feature_mask = new_feature_mask
             else:
                 # 0-based indexing, use one_based_index_uncover_fn for tabular dataset instead
                 feature_mask[
@@ -228,7 +240,10 @@ def eval_afa_method(
 
             # Always calculate a prediction
             predictions = afa_predict_fn(
-                masked_features, feature_mask, features, labels
+                masked_features,
+                feature_mask,
+                labels,
+                feature_shape,
             )
 
             if prediction_history is None:

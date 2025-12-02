@@ -3,12 +3,13 @@ from pathlib import Path
 
 import hydra
 import lightning as pl
+import matplotlib.pyplot as plt
 import torch
-import wandb
+from hydra.utils import to_absolute_path
 from lightning.pytorch.callbacks import ModelCheckpoint
-from lightning.pytorch.loggers import WandbLogger
-from omegaconf import OmegaConf
+from lightning.pytorch.loggers import CSVLogger
 
+from afabench import SAVE_PATH
 from afabench.afa_rl.datasets import DataModuleFromDatasets
 from afabench.common.afa_methods import RandomClassificationAFAMethod
 from afabench.common.classifiers import WrappedMaskedMLPClassifier
@@ -16,7 +17,7 @@ from afabench.common.config_classes import TrainMaskedMLPClassifierConfig
 from afabench.common.models import LitMaskedMLPClassifier
 from afabench.common.utils import (
     get_class_frequencies,
-    load_dataset,
+    load_dataset_splits,
     set_seed,
 )
 from afabench.eval.hard_budget import eval_afa_method
@@ -35,28 +36,22 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
 
-    run = wandb.init(
-        group="train_masked_mlp_classifier",
-        job_type="train_classifier",
-        config=OmegaConf.to_container(cfg, resolve=True),
-        dir="extra/wandb",
-    )
-
-    log.info(f"W&B run initialized: {run.name} ({run.id})")
-    log.info(f"W&B run URL: {run.url}")
+    dataset_dir = Path(to_absolute_path(cfg.dataset_path))
+    log.info(f"Loading dataset from: {dataset_dir}")
 
     # Load dataset
-    train_dataset, val_dataset, _, dataset_metadata = load_dataset(
-        cfg.dataset_artifact_name
+    train_dataset, val_dataset, _, dataset_metadata = load_dataset_splits(
+        dataset_dir
     )
     datamodule = DataModuleFromDatasets(
         train_dataset, val_dataset, batch_size=cfg.batch_size
     )
 
-    n_features = train_dataset.features.shape[-1]
-    n_classes = train_dataset.labels.shape[-1]
+    n_features = train_dataset.feature_shape[0]
+    n_classes = train_dataset.label_shape[0]
 
-    train_class_probabilities = get_class_frequencies(train_dataset.labels)
+    _, train_labels = train_dataset.get_all_data()
+    train_class_probabilities = get_class_frequencies(train_labels)
     log.debug(f"Class probabilities: {train_class_probabilities}")
 
     lit_model = LitMaskedMLPClassifier(
@@ -76,7 +71,11 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
         mode="min",
     )
 
-    logger = WandbLogger(save_dir="extra/wandb")
+    log_dir = SAVE_PATH / "logs"
+    logger = CSVLogger(
+        save_dir=str(log_dir),
+        name="masked_mlp_classifier",
+    )
     trainer = pl.Trainer(
         max_epochs=cfg.epochs,
         logger=logger,
@@ -92,7 +91,9 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
         pass
     finally:
         # Load best checkpoint
-        best_checkpoint = trainer.checkpoint_callback.best_model_path
+        best_checkpoint = checkpoint_callback.best_model_path
+        if not best_checkpoint:
+            raise RuntimeError("No best checkpoint was saved.")
         best_lit_model = LitMaskedMLPClassifier.load_from_checkpoint(
             best_checkpoint,
             n_features=n_features,
@@ -109,6 +110,7 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
         )
 
         if cfg.evaluate_final_performance:
+            log.info("Evaluating final performance...")
             afa_method = RandomClassificationAFAMethod(
                 afa_classifier=wrapped_classifier, device=torch.device("cpu")
             )
@@ -120,15 +122,23 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
                 only_n_samples=cfg.eval_only_n_samples,
             )
             fig = plot_metrics(metrics)
-            run.log({"metrics_plot": fig})
+            plots_dir = SAVE_PATH / "plots"
+            plots_dir.mkdir(parents=True, exist_ok=True)
+            dataset_name = dataset_dir.parent.name
+            dataset_instance = dataset_dir.name
+            classifier_name = f"masked_mlp_classifier-{dataset_name}_instance_{dataset_instance}"
+            fig_path = plots_dir / f"{classifier_name}_metrics.png"
+            fig.savefig(fig_path, bbox_inches="tight")
+            plt.close(fig)
+            log.info(f"Saved metrics plot to: {fig_path}")
 
         # Save to local filesystem
-        dataset_name = cfg.dataset_artifact_name.split("/")[0]
-        dataset_split = cfg.dataset_artifact_name.split("_")[-1]
+        dataset_name = dataset_dir.parent.name
+        dataset_instance = dataset_dir.name
         classifier_name = (
-            f"masked_mlp_classifier-{dataset_name}_split_{dataset_split}"
+            f"masked_mlp_classifier-{dataset_name}_instance_{dataset_instance}"
         )
-        classifier_dir = Path("extra/classifiers") / classifier_name
+        classifier_dir = SAVE_PATH / "classifiers" / classifier_name
         classifier_dir.mkdir(parents=True, exist_ok=True)
 
         # Save classifier
@@ -139,7 +149,7 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
 
         metadata = {
             "classifier_class_name": wrapped_classifier.__class__.__name__,
-            "dataset_artifact_name": cfg.dataset_artifact_name,
+            "dataset_path": str(dataset_dir),
             "dataset_type": dataset_metadata["dataset_type"],
             "seed": cfg.seed,
             "num_cells": list(cfg.num_cells),
@@ -149,7 +159,6 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
             json.dump(metadata, f, indent=2)
 
         log.info(f"Classifier saved to: {classifier_dir}")
-        run.finish()
 
 
 if __name__ == "__main__":

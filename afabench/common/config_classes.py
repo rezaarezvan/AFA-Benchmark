@@ -324,8 +324,10 @@ cs.store(name="train_ma2018", node=Ma2018TrainingConfig)
 
 @dataclass
 class Covert2023PretrainingConfig:
-    dataset_artifact_name: str
-    output_artifact_aliases: list[str] = field(default_factory=list)
+    dataset_name: str
+    split_idx: int
+    dataset_base_path: str = "extra/data/datasets"
+    output_dir: str = "models/pretrain/covert2023"
 
     batch_size: int = 128
     seed: int = 42
@@ -754,7 +756,7 @@ class AACOTrainConfig:
 
 @dataclass
 class TrainMaskedMLPClassifierConfig:
-    dataset_artifact_name: str
+    dataset_path: str
     batch_size: int
     epochs: int
     limit_train_batches: int | None
@@ -769,7 +771,6 @@ class TrainMaskedMLPClassifierConfig:
     device: str
     num_cells: list[int]
     dropout: float
-    output_artifact_aliases: list[str]
     evaluate_final_performance: bool
 
 

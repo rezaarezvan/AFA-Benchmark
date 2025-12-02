@@ -9,8 +9,7 @@ defaults:
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
 
-dataset_artifact_name: "cube_split_1:tmp"
-output_artifact_aliases: ["tmp"]
+dataset_path: extra/data/datasets/cube/0
 evaluate_final_performance: true
 batch_size: 128
 epochs: 100

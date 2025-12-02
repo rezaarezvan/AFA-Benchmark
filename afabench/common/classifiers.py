@@ -3,7 +3,7 @@ from typing import Self, final, override
 
 import timm
 import torch
-from torch import nn
+from torch import Tensor, nn
 
 from afabench.common.custom_types import (
     AFAClassifier,
@@ -39,7 +39,7 @@ class RandomDummyAFAClassifier(AFAClassifier):
 
     @override
     def save(self, path: Path) -> None:
-        """Saves the classifier to a file. n_classes is all we need."""
+        """Save the classifier to a file. Only n_classes needs to be stored."""
         torch.save(self.n_classes, path)
 
     @classmethod
@@ -47,7 +47,7 @@ class RandomDummyAFAClassifier(AFAClassifier):
     def load(
         cls, path: Path, device: torch.device
     ) -> "RandomDummyAFAClassifier":
-        """Loads the classifier from a file, placing it on the given device."""
+        """Load the classifier from a file, placing it on the given device."""
         # Load the number of classes
         n_classes = torch.load(path, map_location=device)
 
@@ -62,7 +62,9 @@ class UniformDummyAFAClassifier(AFAClassifier):
         self.n_classes = n_classes
 
     def __call__(
-        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,  # noqa: ARG002
     ) -> Logits:
         # Return random logits with the same batch size as masked_features
         batch_size = masked_features.shape[0]
@@ -71,12 +73,12 @@ class UniformDummyAFAClassifier(AFAClassifier):
         return logits
 
     def save(self, path: Path) -> None:
-        """Saves the classifier to a file. n_classes is all we need."""
+        """Save the classifier to a file. Only n_classes needs to be stored."""
         torch.save(self.n_classes, path)
 
     @staticmethod
     def load(path: str, device: torch.device) -> "UniformDummyAFAClassifier":
-        """Loads the classifier from a file, placing it on the given device."""
+        """Load the classifier from a file, placing it on the given device."""
         # Load the number of classes
         n_classes = torch.load(path, map_location=device)
 
@@ -85,7 +87,7 @@ class UniformDummyAFAClassifier(AFAClassifier):
 
 
 class Predictor(nn.Module):
-    def __init__(self, input_dim, output_dim):
+    def __init__(self, input_dim: int, output_dim: int):
         super().__init__()
         self.model = nn.Sequential(
             nn.Linear(input_dim * 2, 128),
@@ -96,7 +98,7 @@ class Predictor(nn.Module):
             nn.Linear(128, output_dim),
         )
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
         return self.model(x)
 
 
@@ -151,8 +153,8 @@ class WrappedMaskedMLPClassifier(AFAClassifier):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features | None = None,
         label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> Label:
         original_device = masked_features.device
 

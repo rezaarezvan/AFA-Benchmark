@@ -321,8 +321,9 @@ class RandomClassificationAFAMethod(AFAMethod):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features | None,
-        label: Label | None,
+        selection_mask: SelectionMask | None = None,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> AFASelection:
         """Chooses to observe a random feature from the masked features (or stop collecting features)."""
         original_device = masked_features.device
@@ -350,22 +351,20 @@ class RandomClassificationAFAMethod(AFAMethod):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features | None,
-        label: Label | None,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> Label:
         """Return a prediction using the classifier."""
         original_device = masked_features.device
 
-        if features is not None:
-            features = features.to(self._device)
         if label is not None:
             label = label.to(self._device)
 
         return self.afa_classifier(
             masked_features.to(self._device),
             feature_mask.to(self._device),
-            features,
-            label,
+            label=label,
+            feature_shape=feature_shape,
         ).to(original_device)
 
     @override

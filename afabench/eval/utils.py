@@ -2,10 +2,10 @@ from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
-import wandb
+from matplotlib.figure import Figure
 
 
-def plot_metrics(metrics: dict[str, Any]) -> wandb.Image:
+def plot_metrics(metrics: dict[str, Any]) -> Figure:
     """Return a figure containing metrics."""
     assert "accuracy_all" in metrics, "Metrics must contain 'accuracy_all'."
     assert "f1_all" in metrics, "Metrics must contain 'f1_all'."
@@ -50,7 +50,4 @@ def plot_metrics(metrics: dict[str, Any]) -> wandb.Image:
 
     plt.tight_layout()
 
-    # Convert to WandB Image to prevent automatic Plotly conversion
-    wandb_image = wandb.Image(fig)
-    plt.close(fig)  # Close the figure to free memory
-    return wandb_image
+    return fig

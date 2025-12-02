@@ -10,12 +10,12 @@ from typing import Any
 
 import numpy as np
 import torch
-from afabench.common.afa_initializers.base import AFAInitializer
 from torch import nn
 
 from afabench.common.custom_types import (
     AFAClassifier,
     AFADataset,
+    AFAInitializer,
     AFAMethod,
     AFAUnmaskFn,
 )
@@ -90,7 +90,7 @@ def save_artifact(
     """Save artifact files and metadata.json to directory."""
     artifact_dir.mkdir(parents=True, exist_ok=True)
 
-    with open(artifact_dir / "metadata.json", "w") as f:
+    with (artifact_dir / "metadata.json").open("w") as f:
         json.dump(metadata, f, indent=2)
 
     for dest_name, source_path in files.items():
