@@ -15,11 +15,10 @@ from afabench.common.custom_types import (
     AFAMethod,
     AFASelection,
     FeatureMask,
-    Features,
     Label,
     MaskedFeatures,
+    SelectionMask,
 )
-from afabench.common.registry import get_afa_classifier_class
 
 
 def get_td_from_masked_features(
@@ -91,8 +90,9 @@ class RLAFAMethod(AFAMethod):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features | None,
-        label: Label | None,
+        selection_mask: SelectionMask | None = None,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> AFASelection:
         original_device = masked_features.device
 
@@ -118,8 +118,8 @@ class RLAFAMethod(AFAMethod):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features | None,
-        label: Label | None,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> Label:
         original_device = masked_features.device
 
@@ -128,7 +128,7 @@ class RLAFAMethod(AFAMethod):
 
         with torch.no_grad():
             probs = self.afa_classifier(
-                masked_features, feature_mask, features, label
+                masked_features, feature_mask, label, feature_shape
             )
         return probs.to(original_device)
 
@@ -151,6 +151,8 @@ class RLAFAMethod(AFAMethod):
 
         with (path / "classifier_class_name.txt").open() as f:
             classifier_class_name = f.read()
+        from afabench.common.registry import get_afa_classifier_class
+
         afa_classifier = get_afa_classifier_class(classifier_class_name).load(
             path / "classifier.pt", device=device
         )

@@ -18,7 +18,7 @@ from afabench.common.custom_types import (
 
 def calc_reward(conf_a: Tensor, conf_b: Tensor, method: str):
     """
-    Calculates the reward according to eq. (7) in "Opportunistic Learning: Budgeted Cost-Sensitive Learning from Data Streams"
+    Calculates the reward according to eq. (7) in "Opportunistic Learning: Budgeted Cost-Sensitive Learning from Data Streams".
 
     Args:
         conf_a (Tensor of shape (batch_size, n_classes)): confidence for feature vector without new feature acquired

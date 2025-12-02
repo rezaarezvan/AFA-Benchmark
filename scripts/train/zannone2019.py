@@ -47,7 +47,7 @@ from afabench.common.utils import (
 def visualize_digits(
     features: torch.Tensor, labels: torch.Tensor, shuffle: bool = True
 ):
-    """Visualize 9 MNIST digits"""
+    """Visualize 9 MNIST digits."""
     fig, axs = plt.subplots(3, 3)
     if shuffle:
         indices = torch.randperm(len(features))[:9]

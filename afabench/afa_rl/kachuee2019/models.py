@@ -21,7 +21,7 @@ from afabench.common.custom_types import (
 
 @final
 class Kachuee2019PQModule(nn.Module):
-    """The architecture proposed in the paper "Opportunistic Learning: Budgeted Cost-Sensitive Learning from Data Streams", slightly simplified from the implementation found at https://github.com/mkachuee/Opportunistic/blob/master/Demo_OL_DQN.ipynb"""
+    """The architecture proposed in the paper "Opportunistic Learning: Budgeted Cost-Sensitive Learning from Data Streams", slightly simplified from the implementation found at https://github.com/mkachuee/Opportunistic/blob/master/Demo_OL_DQN.ipynb."""
 
     def __init__(
         self, n_features: int, n_classes: int, cfg: Kachuee2019PQModuleConfig
@@ -95,7 +95,7 @@ class Kachuee2019PQModule(nn.Module):
         """
         Calculate the confidence histogrram for each class given a sample.
         masked_features: input sample of shape (batch_size, n_features)
-        mcdrop_samples: mc dropout samples to use
+        mcdrop_samples: mc dropout samples to use.
         """
         x_rep = masked_features.unsqueeze(1).expand(
             -1, mcdrop_samples, -1
@@ -118,7 +118,7 @@ class Kachuee2019PQModule(nn.Module):
         """
         Make class prediction for a sample.
         x: input sample
-        mcdrop_samples: mc dropout samples to use
+        mcdrop_samples: mc dropout samples to use.
         """
         conf = self.confidence(x, mcdrop_samples)
         pred = torch.argmax(conf)

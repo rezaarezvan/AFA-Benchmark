@@ -40,6 +40,7 @@ def get_afa_method_class(name: str) -> type[AFAMethod]:  # noqa: PLR0911
     Note that several method types can have the same AFAMethod class, like the RL methods. A dictionary is not used since it could lead to circular imports.
     """
     if name == "RLAFAMethod":
+        # Lazy import of RLAFAMethod moved inside the function to avoid circular dependency
         from afabench.afa_rl.afa_methods import RLAFAMethod
 
         return RLAFAMethod

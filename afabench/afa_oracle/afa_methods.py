@@ -91,7 +91,7 @@ class AACOAFAMethod(AFAMethod):
         features=None,
         labels=None,
     ) -> Label:
-        """Make prediction using classifier approach with proper device handling"""
+        """Make prediction using classifier approach with proper device handling."""
         original_device = masked_features.device
 
         # Move inputs to working device
@@ -155,12 +155,12 @@ class AACOAFAMethod(AFAMethod):
     @property
     @override
     def cost_param(self) -> float:
-        """Return the current acquisition cost"""
+        """Return the current acquisition cost."""
         return self.aaco_oracle.acquisition_cost
 
     @override
     def set_cost_param(self, cost_param: float) -> None:
-        """Set the acquisition cost at eval time"""
+        """Set the acquisition cost at eval time."""
         self.aaco_oracle.acquisition_cost = cost_param
 
     @property
@@ -232,7 +232,7 @@ class AACOAFAMethod(AFAMethod):
 
     @override
     def to(self, device: torch.device) -> Self:
-        """Move method to device"""
+        """Move method to device."""
         self._device = device
         self.aaco_oracle = self.aaco_oracle.to(device)
         return self
@@ -240,7 +240,7 @@ class AACOAFAMethod(AFAMethod):
     @property
     @override
     def device(self) -> torch.device:
-        """Get device"""
+        """Get device."""
         return self._device
 
 
@@ -252,7 +252,7 @@ def create_aaco_method(
     split: str = "1",
     device: torch.device = None,
 ) -> AACOAFAMethod:
-    """Factory function to create AACO method with proper device handling"""
+    """Factory function to create AACO method with proper device handling."""
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

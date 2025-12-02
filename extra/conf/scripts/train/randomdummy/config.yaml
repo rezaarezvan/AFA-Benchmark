@@ -5,14 +5,16 @@ hydra:
 defaults:
   - _self_
   # - dataset@_global_: cube
+  - components/initializers@initializer: ???
+  - components/unmaskers@unmasker: ???
   - override hydra/job_logging: colorlog
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
 
 dataset_artifact_path: ???
 save_path: ???
-initializer_type: ???
-unmasker_type: ???
+# initializer set as component
+# unmasker set as component
 train_hard_budget: null
 train_soft_budget_param: null
 

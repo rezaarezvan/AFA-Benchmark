@@ -21,7 +21,7 @@ model_urls = {
 
 
 def conv3x3(in_planes, out_planes, stride=1):
-    """3x3 convolution with padding"""
+    """3x3 convolution with padding."""
     return nn.Conv2d(
         in_planes,
         out_planes,
@@ -388,7 +388,7 @@ class fc_Net(nn.Module):
         :param flag_only_output_layer: If we only use output layer, so one hidden layer nerual net
         :type flag_only_output_layer: bool
         :param drop_out_rate: The disable percentage of the hidden node
-        :param flag_drop_out: Bool, whether to use drop out
+        :param flag_drop_out: Bool, whether to use drop out.
         """
         super(fc_Net, self).__init__()
         self.drop_out_rate = drop_out_rate
@@ -477,7 +477,7 @@ class fc_Net(nn.Module):
         :param x: Input Tensor
         :type x: Tensor
         :return: output from the network
-        :rtype: Tensor
+        :rtype: Tensor.
         """
         min_sigma = -4.6
         max_sigma = 2

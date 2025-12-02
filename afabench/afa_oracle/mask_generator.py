@@ -7,7 +7,7 @@ import torch
 def powerset(iterable):
     """
     Generate all possible subsets (powerset) of the iterable, excluding the empty set.
-    powerset([1,2,3]) --> (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)
+    powerset([1,2,3]) --> (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3).
     """
     s = list(iterable)
     return [
@@ -40,7 +40,7 @@ class all_mask_generator:
 
 
 def generate_ball(N, d1, d2):
-    """Generate random binary masks"""
+    """Generate random binary masks."""
     Ball = np.concatenate(
         [
             np.sum(
@@ -56,7 +56,7 @@ def generate_ball(N, d1, d2):
 
 
 class random_mask_generator:
-    """Their exact random mask generator implementation"""
+    """Their exact random mask generator implementation."""
 
     def __init__(self, num_samples, feature_dim, num_generated_masks):
         self.num_samples = num_samples

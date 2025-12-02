@@ -71,7 +71,7 @@ def load(
     # Load external classifier if specified
     if classifier_artifact_path is not None:
         device = torch.device("cpu") if device is None else device
-        classifier = load_classifier_artifact(
+        classifier, _ = load_classifier_artifact(
             classifier_artifact_path, device=device
         )
         log.info(

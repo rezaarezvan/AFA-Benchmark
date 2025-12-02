@@ -50,6 +50,69 @@ class DatasetGenerationConfig:
 
 cs.store(name="dataset_generation", node=DatasetGenerationConfig)
 
+# -- Unmaskers --
+
+
+@dataclass
+class ImagePatchUnmaskerConfig:
+    image_side_length: int
+    n_channels: int
+    patch_size: int
+
+
+@dataclass
+class UnmaskerConfig:
+    type: str
+    config: ImagePatchUnmaskerConfig | None
+
+
+# -- Initializers --
+
+
+@dataclass
+class ManualInitializerConfig:
+    flat_feature_indices: list[int]
+
+
+@dataclass
+class AACODefaultInitializerConfig:
+    dataset_name: str
+
+
+@dataclass
+class FixedRandomInitializerConfig:
+    unmask_ratio: float  # how many features to unmask
+
+
+@dataclass
+class RandomPerEpisodeInitializerConfig:
+    unmask_ratio: float  # how many features to unmask
+
+
+@dataclass
+class MutualInformationInitializerConfig:
+    unmask_ratio: float  # how many features to unmask
+
+
+@dataclass
+class LeastInformativeInitializerConfig:
+    unmask_ratio: float  # how many features to unmask
+
+
+@dataclass
+class InitializerConfig:
+    type: str
+    config: (
+        ManualInitializerConfig
+        | AACODefaultInitializerConfig
+        | FixedRandomInitializerConfig
+        | RandomPerEpisodeInitializerConfig
+        | MutualInformationInitializerConfig
+        | LeastInformativeInitializerConfig
+        | None
+    )
+
+
 # --- PRETRAINING MODELS ---
 
 # shim2018
@@ -565,8 +628,8 @@ cs.store(name="train_permutation", node=PermutationTrainingConfig)
 class RandomDummyTrainConfig:
     dataset_artifact_path: str
     save_path: str
-    initializer_type: str
-    unmasker_type: str
+    initializer: InitializerConfig
+    unmasker: UnmaskerConfig
     train_hard_budget: int | None  # not used, but pretend that it is
     train_soft_budget_param: float | None
 
@@ -803,68 +866,6 @@ class TrainMaskedViTClassifierConfig:
 cs.store(
     name="train_masked_vit_classifier", node=TrainMaskedViTClassifierConfig
 )
-
-# -- Unmaskers --
-
-
-@dataclass
-class ImagePatchUnmaskerConfig:
-    image_side_length: int
-    n_channels: int
-    patch_size: int
-
-
-@dataclass
-class UnmaskerConfig:
-    type: str
-    config: ImagePatchUnmaskerConfig | None
-
-
-# -- Initializers --
-
-
-@dataclass
-class ManualInitializerConfig:
-    flat_feature_indices: list[int]
-
-
-@dataclass
-class AACODefaultInitializerConfig:
-    dataset_name: str
-
-
-@dataclass
-class FixedRandomInitializerConfig:
-    unmask_ratio: float  # how many features to unmask
-
-
-@dataclass
-class RandomPerEpisodeInitializerConfig:
-    unmask_ratio: float  # how many features to unmask
-
-
-@dataclass
-class MutualInformationInitializerConfig:
-    unmask_ratio: float  # how many features to unmask
-
-
-@dataclass
-class LeastInformativeInitializerConfig:
-    unmask_ratio: float  # how many features to unmask
-
-
-@dataclass
-class InitializerConfig:
-    type: str
-    config: (
-        ManualInitializerConfig
-        | AACODefaultInitializerConfig
-        | FixedRandomInitializerConfig
-        | RandomPerEpisodeInitializerConfig
-        | MutualInformationInitializerConfig
-        | LeastInformativeInitializerConfig
-        | None
-    )
 
 
 # --- EVALUATION ---

@@ -9,7 +9,6 @@ from afabench.common.custom_types import (
     AFAMethod,
     AFASelection,
     FeatureMask,
-    Features,
     Label,
     MaskedFeatures,
     SelectionMask,
@@ -53,6 +52,8 @@ class RandomDummyAFAMethod(AFAMethod):
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
         selection_mask: SelectionMask | None = None,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> AFASelection:
         """
         Chooses a random AFA selection, avoiding already occupied selections.
@@ -109,6 +110,8 @@ class RandomDummyAFAMethod(AFAMethod):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> Label:
         """Output a random prediction."""
         original_device = masked_features.device
@@ -195,6 +198,8 @@ class SequentialDummyAFAMethod(AFAMethod):
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
         selection_mask: SelectionMask | None = None,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> AFASelection:
         # Requires the selection mask to be given so that we don't
         # repeat selections and know which selection to perform next
@@ -238,6 +243,8 @@ class SequentialDummyAFAMethod(AFAMethod):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> Label:
         """Output a random prediction."""
         original_device = masked_features.device
@@ -363,8 +370,8 @@ class RandomClassificationAFAMethod(AFAMethod):
         return self.afa_classifier(
             masked_features.to(self._device),
             feature_mask.to(self._device),
-            label=label,
-            feature_shape=feature_shape,
+            label,
+            feature_shape,
         ).to(original_device)
 
     @override
@@ -399,6 +406,7 @@ class RandomClassificationAFAMethod(AFAMethod):
         return self._device
 
 
+@final
 class RandomPatchClassificationAFAMethod(AFAMethod):
     def __init__(
         self,
@@ -421,6 +429,7 @@ class RandomPatchClassificationAFAMethod(AFAMethod):
         self.n_patches = self.low_dim_side**2
 
     @property
+    @override
     def has_builtin_classifier(self) -> bool:
         return True
 
@@ -429,10 +438,11 @@ class RandomPatchClassificationAFAMethod(AFAMethod):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features | None,
-        label: Label | None,
+        selection_mask: SelectionMask | None = None,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> AFASelection:
-        """Randomly select an unseen patch (1-based index in [1, n_patches])"""
+        """Randomly select an unseen patch (1-based index in [1, n_patches])."""
         original_device = masked_features.device
         feature_mask = feature_mask.to(self._device)
         # 4D image
@@ -440,7 +450,8 @@ class RandomPatchClassificationAFAMethod(AFAMethod):
         B, C, H, W = feature_mask.shape
         ph = H // self.patch_size
         pw = W // self.patch_size
-        assert ph == self.low_dim_side and pw == self.low_dim_side
+        assert ph == self.low_dim_side
+        assert pw == self.low_dim_side
         fm = feature_mask.view(
             B,
             C,
@@ -456,7 +467,7 @@ class RandomPatchClassificationAFAMethod(AFAMethod):
         patch_probs = patch_probs / row_sums
 
         # 1-based index
-        # TODO check the index tabular random selection class and hard budget evaluation function
+        # TODO: check the index tabular random selection class and hard budget evaluation function
         selection = (
             torch.multinomial(patch_probs, num_samples=1).squeeze(1) + 1
         )
@@ -467,22 +478,20 @@ class RandomPatchClassificationAFAMethod(AFAMethod):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features | None,
-        label: Label | None,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> Label:
         """Return a prediction using the classifier."""
         original_device = masked_features.device
 
-        if features is not None:
-            features = features.to(self._device)
         if label is not None:
             label = label.to(self._device)
 
         return self.afa_classifier(
             masked_features.to(self._device),
             feature_mask.to(self._device),
-            features,
             label,
+            feature_shape,
         ).to(original_device)
 
     @override
@@ -552,8 +561,9 @@ class SequentialClassificationAFAMethod(AFAMethod):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features | None,
-        label: Label | None,
+        selection_mask: SelectionMask | None = None,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> AFASelection:
         original_device = masked_features.device
 
@@ -573,22 +583,20 @@ class SequentialClassificationAFAMethod(AFAMethod):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features | None,
-        label: Label | None,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> Label:
         """Return a prediction using the classifier."""
         original_device = masked_features.device
 
-        if features is not None:
-            features = features.to(self._device)
         if label is not None:
             label = label.to(self._device)
 
         return self.afa_classifier(
             masked_features.to(self._device),
             feature_mask.to(self._device),
-            features,
             label,
+            feature_shape,
         ).to(original_device)
 
     @override
@@ -634,10 +642,11 @@ class AFAContextSmartMethod(AFAMethod):
     @override
     def select(
         self,
-        masked_features: AFASelection,
-        feature_mask: AFASelection,
-        features: Features | None,
-        label: Label | None,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        selection_mask: SelectionMask | None = None,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> AFASelection:
         original_device = masked_features.device
 
@@ -649,10 +658,10 @@ class AFAContextSmartMethod(AFAMethod):
     @override
     def predict(
         self,
-        masked_features: AFASelection,
-        feature_mask: AFASelection,
-        features: Features | None,
-        label: Label | None,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> Label:
         # Guess class randomly
         return torch.randint(
@@ -696,8 +705,9 @@ class OptimalCubeAFAMethod(AFAMethod):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features | None,
-        label: Label | None,
+        selection_mask: SelectionMask | None = None,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> AFASelection:
         """Chooses to observe an optimal feature for the cube dataset, or a random unobserved feature if all optimal ones are chosen."""
         original_device = masked_features.device
@@ -743,8 +753,8 @@ class OptimalCubeAFAMethod(AFAMethod):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features | None,
-        label: Label | None,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> Label:
         """Return a random prediction from the classes."""
         original_device = masked_features.device

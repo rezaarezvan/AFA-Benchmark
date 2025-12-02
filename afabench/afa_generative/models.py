@@ -7,7 +7,7 @@ from afabench.common.custom_types import FeatureMask, MaskedFeatures
 
 class PartialVAE(nn.Module):
     """
-    A partial VAE for masked data, as described in "EDDI: Efficient Dynamic Discovery of High-Value Information with Partial VAE"
+    A partial VAE for masked data, as described in "EDDI: Efficient Dynamic Discovery of High-Value Information with Partial VAE".
 
     To make the model work with different shapes of data, change the pointnet.
     """
@@ -22,7 +22,7 @@ class PartialVAE(nn.Module):
         Args:
         pointnet: maps unordered sets of features to a single vector
         encoder: a network that maps the output from the pointnet to input for mu_net and logvar_net
-        decoder: the network to use for the decoder
+        decoder: the network to use for the decoder.
 
         """
         super().__init__()

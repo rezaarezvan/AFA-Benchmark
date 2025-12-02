@@ -45,8 +45,8 @@ rule train_method:
         python scripts/train/randomdummy.py \
             dataset_artifact_path={input} \
             save_path={output} \
-            initializer_type={INITIALIZER} \
-            unmasker_type={params.unmasker} \
+            components/initializers@initializer={INITIALIZER} \
+            components/unmaskers@unmasker={params.unmasker} \
             train_hard_budget={wildcards.train_hard_budget} \
             train_soft_budget_param={wildcards.train_soft_budget_param}
         """

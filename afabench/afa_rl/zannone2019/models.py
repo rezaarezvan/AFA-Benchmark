@@ -160,7 +160,7 @@ class PartialVAE(nn.Module):
         Args:
         pointnet: maps unordered sets of features to a single vector
         encoder: a network that maps the output from the pointnet to input for mu_net and logvar_net
-        decoder: the network to use for the decoder
+        decoder: the network to use for the decoder.
 
         """
         super().__init__()
@@ -577,7 +577,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         n_classes: int,
         label: Label | None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Reconstruct a sample by providing all features. Optionally provide the label as well"""
+        """Reconstruct a sample by providing all features. Optionally provide the label as well."""
         return self.masked_reconstruction(
             masked_features=features,
             feature_mask=torch.ones(
@@ -594,7 +594,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         n_classes: int,
         label: Label | None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Reconstruct a sample by providing masked features. Optionally provide the label as well"""
+        """Reconstruct a sample by providing masked features. Optionally provide the label as well."""
         if label is None:
             label = torch.zeros(
                 masked_features.shape[0],

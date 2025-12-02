@@ -23,7 +23,7 @@ log = logging.getLogger(__name__)
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/train/randomdummy",
+    config_path="../../extra/conf/scripts/train/randomdummy",
     config_name="config",
 )
 def main(cfg: RandomDummyTrainConfig) -> None:
@@ -78,8 +78,8 @@ def main(cfg: RandomDummyTrainConfig) -> None:
             "seed": cfg.seed,
             "train_soft_budget_param": cfg.train_soft_budget_param,
             "train_hard_budget": cfg.train_hard_budget,
-            "initializer_type": cfg.initializer_type,
-            "unmasker_type": cfg.unmasker_type,
+            "initializer_type": cfg.initializer.type,
+            "unmasker_type": cfg.unmasker.type,
         },
     )
 

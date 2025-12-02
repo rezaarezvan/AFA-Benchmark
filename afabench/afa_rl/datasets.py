@@ -157,7 +157,7 @@ class MNISTDataModule(pl.LightningDataModule):
 
 class Zannone2019CubeDataset(Dataset):
     """
-    The Cube dataset, as described in the paper "ODIN: Optimal Discovery of High-value INformation Using Model-based Deep Reinforcement Learning"
+    The Cube dataset, as described in the paper "ODIN: Optimal Discovery of High-value INformation Using Model-based Deep Reinforcement Learning".
 
     Implements the AFADataset protocol.
     """

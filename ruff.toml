@@ -88,6 +88,7 @@ extend-safe-fixes = [
     "D200",
     "PTH123", # builtin-open. Seems to not work :(
     "EM102", # f-string-in-exception
+    "D415", # missing-terminal-punctuation
 ]
 
 [format]
