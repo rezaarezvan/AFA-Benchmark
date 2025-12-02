@@ -102,7 +102,15 @@ class AFAMethod(Protocol):
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> Tensor:
-        """Return the predicted label for the features that have been observed so far."""
+        """
+        Return the predicted label for the features that have been observed so far.
+
+        Args:
+            masked_features: The features with unobserved features masked out (set to zero).
+            feature_mask: A boolean mask indicating which features have been observed.
+            label: The true label, if available (may be None during inference). We include this possibility to support "cheating" methods for benchmarking purposes.
+            feature_shape: The shape of the features excluding the batch dimension, if needed. Since both masked_features and label can have multiple batch dimensions, the feature shape cannot be inferred automatically.
+        """
         ...
 
     def save(self, path: Path) -> None:
@@ -156,7 +164,15 @@ class AFAClassifier(Protocol):
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> Label:
-        """Return the predicted label for the features that have been observed so far."""
+        """
+        Return the predicted label for the features that have been observed so far.
+
+        Args:
+            masked_features: The features with unobserved features masked out (set to zero).
+            feature_mask: A boolean mask indicating which features have been observed.
+            label: The true label, if available (may be None during inference). We include this possibility to support "cheating" methods for benchmarking purposes.
+            feature_shape: The shape of the features excluding the batch dimension, if needed. Since both masked_features and label can have multiple batch dimensions, the feature shape cannot be inferred automatically.
+        """
         ...
 
     def save(self, path: Path) -> None:
@@ -187,7 +203,18 @@ class AFASelectFn(Protocol):
         selection_mask: SelectionMask | None = None,
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
-    ) -> AFASelection: ...
+    ) -> AFASelection:
+        """
+        Make a new AFA selection.
+
+        Args:
+            masked_features: The features with unobserved features masked out (set to zero).
+            feature_mask: A boolean mask indicating which features have been observed.
+            selection_mask: A boolean mask indicating which selections have already been performed. Note that a selection is generally not the same as a feature.
+            label: The true label, if available (may be None during inference). We include this possibility to support "cheating" methods for benchmarking purposes.
+            feature_shape: The shape of the features excluding the batch dimension, if needed. Since both masked_features and label can have multiple batch dimensions, the feature shape cannot be inferred automatically.
+        """
+        ...
 
 
 # Classifier prediction interface assumed during evaluation
@@ -198,7 +225,17 @@ class AFAPredictFn(Protocol):
         feature_mask: FeatureMask,
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
-    ) -> Label: ...
+    ) -> Label:
+        """
+        Make a prediction.
+
+        Args:
+            masked_features: The features with unobserved features masked out (set to zero).
+            feature_mask: A boolean mask indicating which features have been observed.
+            label: The true label, if available (may be None during inference). We include this possibility to support "cheating" methods for benchmarking purposes.
+            feature_shape: The shape of the features excluding the batch dimension, if needed. Since both masked_features and label can have multiple batch dimensions, the feature shape cannot be inferred automatically.
+        """
+        ...
 
 
 class AFAUnmasker(Protocol):
@@ -211,7 +248,20 @@ class AFAUnmasker(Protocol):
         selection_mask: SelectionMask,
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
-    ) -> FeatureMask: ...
+    ) -> FeatureMask:
+        """
+        Unmask features, given a selection.
+
+        Args:
+            masked_features: The features with unobserved features masked out (set to zero).
+            feature_mask: A boolean mask indicating which features have been observed.
+            features: The original features before masking.
+            afa_selection: The AFA selection indicating which features to unmask next (or to stop acquiring features).
+            selection_mask: A boolean mask indicating which selections have already been performed. Note that a selection is generally not the same as a feature.
+            label: The true label, if available (may be None during inference). We include this possibility to support "cheating" methods for benchmarking purposes.
+            feature_shape: The shape of the features excluding the batch dimension, if needed. Since both masked_features and label can have multiple batch dimensions, the feature shape cannot be inferred automatically.
+        """
+        ...
 
     def set_seed(self, seed: int | None) -> None: ...
 
@@ -226,7 +276,20 @@ class AFAUnmaskFn(Protocol):
         selection_mask: SelectionMask,
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
-    ) -> FeatureMask: ...
+    ) -> FeatureMask:
+        """
+        Unmask features, given a selection.
+
+        Args:
+            masked_features: The features with unobserved features masked out (set to zero).
+            feature_mask: A boolean mask indicating which features have been observed.
+            features: The original features before masking.
+            afa_selection: The AFA selection indicating which features to unmask next (or to stop acquiring features).
+            selection_mask: A boolean mask indicating which selections have already been performed. Note that a selection is generally not the same as a feature.
+            label: The true label, if available (may be None during inference). We include this possibility to support "cheating" methods for benchmarking purposes.
+            feature_shape: The shape of the features excluding the batch dimension, if needed. Since both masked_features and label can have multiple batch dimensions, the feature shape cannot be inferred automatically.
+        """
+        ...
 
 
 class AFAInitializer(Protocol):
@@ -238,7 +301,14 @@ class AFAInitializer(Protocol):
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> FeatureMask:
-        """Create initial feature mask."""
+        """
+        Create initial feature mask.
+
+        Args:
+            features: The original features before masking.
+            label: The true label, if available (may be None during inference). We include this possibility to support "cheating" methods for benchmarking purposes.
+            feature_shape: The shape of the features excluding the batch dimension, if needed. Since both masked_features and label can have multiple batch dimensions, the feature shape cannot be inferred automatically.
+        """
         ...
 
 
@@ -248,4 +318,13 @@ class AFAInitializeFn(Protocol):
         features: Features,
         label: Label,
         feature_shape: torch.Size | None = None,
-    ) -> FeatureMask: ...
+    ) -> FeatureMask:
+        """
+        Create initial feature mask.
+
+        Args:
+            features: The original features before masking.
+            label: The true label, if available (may be None during inference). We include this possibility to support "cheating" methods for benchmarking purposes.
+            feature_shape: The shape of the features excluding the batch dimension, if needed. Since both masked_features and label can have multiple batch dimensions, the feature shape cannot be inferred automatically.
+        """
+        ...

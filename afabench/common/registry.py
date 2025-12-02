@@ -1,5 +1,3 @@
-from afabench.common.afa_initializers.base import AFAInitializer
-
 from afabench.common.config_classes import (
     AACODefaultInitializerConfig,
     ImagePatchUnmaskerConfig,
@@ -10,6 +8,7 @@ from afabench.common.config_classes import (
 from afabench.common.custom_types import (
     AFAClassifier,
     AFADataset,
+    AFAInitializer,
     AFAMethod,
     AFAUnmasker,
 )
