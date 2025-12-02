@@ -15,7 +15,9 @@ def features_2d() -> tuple[Features, torch.Size]:
     return features, feature_shape
 
 
-def test_dynamic_random_basic_functionality(features_2d):
+def test_dynamic_random_basic_functionality(
+    features_2d: tuple[Features, torch.Size],
+) -> None:
     """Test basic functionality with 2D features."""
     features, feature_shape = features_2d
 
@@ -35,7 +37,7 @@ def test_dynamic_random_basic_functionality(features_2d):
     assert mask.sum() == expected_feature_count * features.shape[0]
 
 
-def test_dynamic_random_arbitrary_batch_shape():
+def test_dynamic_random_arbitrary_batch_shape() -> None:
     """Test with arbitrary batch shapes."""
     batch_shape = torch.Size([2, 3])
     feature_shape = torch.Size([4, 4])
@@ -69,7 +71,7 @@ def test_dynamic_random_arbitrary_batch_shape():
     )
 
 
-def test_dynamic_random_consistency():
+def test_dynamic_random_consistency() -> None:
     """Test that the same seed produces consistent results."""
     features = torch.randn(10, 3, 4)
     feature_shape = torch.Size([3, 4])
@@ -93,7 +95,7 @@ def test_dynamic_random_consistency():
     assert torch.equal(mask1, mask2)
 
 
-def test_dynamic_random_different_seeds():
+def test_dynamic_random_different_seeds() -> None:
     """Test that different seeds produce different results."""
     features = torch.randn(20, 4, 3)
     feature_shape = torch.Size([4, 3])
@@ -118,7 +120,7 @@ def test_dynamic_random_different_seeds():
     assert not torch.equal(mask1, mask2)
 
 
-def test_dynamic_random_different_unmask_ratios():
+def test_dynamic_random_different_unmask_ratios() -> None:
     """Test different unmask ratios."""
     features = torch.randn(15, 5, 5)
     feature_shape = torch.Size([5, 5])
@@ -140,7 +142,7 @@ def test_dynamic_random_different_unmask_ratios():
         assert actual_count == expected_count
 
 
-def test_dynamic_random_1d_features():
+def test_dynamic_random_1d_features() -> None:
     """Test with 1D features."""
     batch_size = 50
     feature_shape = torch.Size([8])
@@ -158,7 +160,7 @@ def test_dynamic_random_1d_features():
     assert mask.sum() == int(feature_shape.numel() * 0.3) * batch_size
 
 
-def test_dynamic_random_3d_features():
+def test_dynamic_random_3d_features() -> None:
     """Test with 3D features."""
     batch_size = 12
     feature_shape = torch.Size([2, 3, 4])
@@ -176,7 +178,7 @@ def test_dynamic_random_3d_features():
     assert mask.sum() == int(feature_shape.numel() * 0.2) * batch_size
 
 
-def test_dynamic_random_variability():
+def test_dynamic_random_variability() -> None:
     """Test that masks vary across batch elements."""
     batch_size = 100
     feature_shape = torch.Size([10])
@@ -201,7 +203,7 @@ def test_dynamic_random_variability():
     assert different_count >= batch_size * 0.9
 
 
-def test_dynamic_random_zero_ratio():
+def test_dynamic_random_zero_ratio() -> None:
     """Test with zero unmask ratio."""
     features = torch.randn(10, 6)
     feature_shape = torch.Size([6])
@@ -217,7 +219,7 @@ def test_dynamic_random_zero_ratio():
     assert mask.sum() == 0
 
 
-def test_dynamic_random_full_ratio():
+def test_dynamic_random_full_ratio() -> None:
     """Test with full unmask ratio."""
     features = torch.randn(8, 3, 3)
     feature_shape = torch.Size([3, 3])
@@ -233,7 +235,7 @@ def test_dynamic_random_full_ratio():
     assert mask.sum() == feature_shape.numel() * features.shape[0]
 
 
-def test_dynamic_random_multidimensional_batch():
+def test_dynamic_random_multidimensional_batch() -> None:
     """Test with complex multi-dimensional batch shapes."""
     batch_shape = torch.Size([3, 2, 4])
     feature_shape = torch.Size([2, 2])

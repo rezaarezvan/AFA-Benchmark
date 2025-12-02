@@ -1,4 +1,4 @@
 # conf/dataset_generation/dataset/actg.yaml
-type: "actg"
+class_name: "ACTG175Dataset"
 kwargs:
   data_path: "${data_dir}/actg/actg.csv"

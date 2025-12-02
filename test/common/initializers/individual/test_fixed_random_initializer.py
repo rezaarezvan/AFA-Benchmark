@@ -15,7 +15,9 @@ def features_2d() -> tuple[Features, torch.Size]:
     return features, feature_shape
 
 
-def test_fixed_random_basic_functionality(features_2d):
+def test_fixed_random_basic_functionality(
+    features_2d: tuple[Features, torch.Size],
+) -> None:
     """Test basic functionality with 2D features."""
     features, feature_shape = features_2d
 
@@ -35,7 +37,7 @@ def test_fixed_random_basic_functionality(features_2d):
     assert mask.sum() == expected_feature_count * features.shape[0]
 
 
-def test_fixed_random_arbitrary_batch_shape():
+def test_fixed_random_arbitrary_batch_shape() -> None:
     """Test with arbitrary batch shapes."""
     batch_shape = torch.Size([3, 4, 2])
     feature_shape = torch.Size([5, 6])
@@ -63,7 +65,7 @@ def test_fixed_random_arbitrary_batch_shape():
         assert torch.equal(mask_flat[0], mask_flat[i])
 
 
-def test_fixed_random_consistency():
+def test_fixed_random_consistency() -> None:
     """Test that the same seed produces consistent results."""
     features = torch.randn(10, 3, 4)
     feature_shape = torch.Size([3, 4])
@@ -87,7 +89,7 @@ def test_fixed_random_consistency():
     assert torch.equal(mask1, mask2)
 
 
-def test_fixed_random_caching():
+def test_fixed_random_caching() -> None:
     """Test that masks are cached and reused."""
     features1 = torch.randn(5, 2, 3)
     features2 = torch.randn(8, 2, 3)  # Different batch size
@@ -108,7 +110,7 @@ def test_fixed_random_caching():
     assert mask1[0].equal(mask2[0])  # First batch element should be identical
 
 
-def test_fixed_random_different_unmask_ratios():
+def test_fixed_random_different_unmask_ratios() -> None:
     """Test different unmask ratios."""
     features = torch.randn(20, 4, 4)
     feature_shape = torch.Size([4, 4])
@@ -130,7 +132,7 @@ def test_fixed_random_different_unmask_ratios():
         assert actual_count == expected_count
 
 
-def test_fixed_random_1d_features():
+def test_fixed_random_1d_features() -> None:
     """Test with 1D features."""
     batch_size = 50
     feature_shape = torch.Size([10])
@@ -148,7 +150,7 @@ def test_fixed_random_1d_features():
     assert mask.sum() == int(feature_shape.numel() * 0.3) * batch_size
 
 
-def test_fixed_random_3d_features():
+def test_fixed_random_3d_features() -> None:
     """Test with 3D features."""
     batch_size = 15
     feature_shape = torch.Size([2, 3, 4])
@@ -166,7 +168,7 @@ def test_fixed_random_3d_features():
     assert mask.sum() == int(feature_shape.numel() * 0.2) * batch_size
 
 
-def test_fixed_random_zero_ratio():
+def test_fixed_random_zero_ratio() -> None:
     """Test with zero unmask ratio."""
     features = torch.randn(10, 5)
     feature_shape = torch.Size([5])
@@ -182,7 +184,7 @@ def test_fixed_random_zero_ratio():
     assert mask.sum() == 0
 
 
-def test_fixed_random_full_ratio():
+def test_fixed_random_full_ratio() -> None:
     """Test with full unmask ratio."""
     features = torch.randn(10, 3, 2)
     feature_shape = torch.Size([3, 2])

@@ -15,7 +15,9 @@ def features_2d() -> tuple[Features, torch.Size]:
     return features, feature_shape
 
 
-def test_aaco_default_basic_functionality(features_2d):
+def test_aaco_default_basic_functionality(
+    features_2d: tuple[Features, torch.Size],
+) -> None:
     """Test basic functionality with known dataset."""
     features, feature_shape = features_2d
 
@@ -38,7 +40,7 @@ def test_aaco_default_basic_functionality(features_2d):
         assert torch.equal(mask_flat[0], mask_flat[i])
 
 
-def test_aaco_default_arbitrary_batch_shape():
+def test_aaco_default_arbitrary_batch_shape() -> None:
     """Test with arbitrary batch shapes."""
     batch_shape = torch.Size([2, 3])
     feature_shape = torch.Size([4, 5])
@@ -64,7 +66,7 @@ def test_aaco_default_arbitrary_batch_shape():
         assert torch.equal(mask_flat[0], mask_flat[i])
 
 
-def test_aaco_default_known_datasets():
+def test_aaco_default_known_datasets() -> None:
     """Test with all known dataset configurations."""
     batch_size = 10
     feature_shape = torch.Size([4, 5])  # 20 features total
@@ -109,7 +111,7 @@ def test_aaco_default_known_datasets():
             assert torch.equal(first_batch_mask, expected_mask)
 
 
-def test_aaco_default_unknown_dataset_fallback():
+def test_aaco_default_unknown_dataset_fallback() -> None:
     """Test fallback behavior for unknown datasets."""
     batch_size = 15
     feature_shape = torch.Size([6, 7])  # 42 features total
@@ -138,7 +140,7 @@ def test_aaco_default_unknown_dataset_fallback():
     assert torch.equal(first_batch_mask, expected_mask)
 
 
-def test_aaco_default_case_insensitive():
+def test_aaco_default_case_insensitive() -> None:
     """Test that dataset names are case insensitive."""
     batch_size = 12
     feature_shape = torch.Size([3, 4])
@@ -162,7 +164,7 @@ def test_aaco_default_case_insensitive():
         assert torch.equal(reference_mask, mask)
 
 
-def test_aaco_default_deterministic():
+def test_aaco_default_deterministic() -> None:
     """Test that AACODefaultInitializer is deterministic regardless of seed."""
     batch_size = 20
     feature_shape = torch.Size([4, 3])
@@ -190,7 +192,7 @@ def test_aaco_default_deterministic():
     assert mask2.sum() == batch_size
 
 
-def test_aaco_default_1d_features():
+def test_aaco_default_1d_features() -> None:
     """Test with 1D features."""
     batch_size = 25
     feature_shape = torch.Size([10])
@@ -212,7 +214,7 @@ def test_aaco_default_1d_features():
         assert mask[i].sum() == 1
 
 
-def test_aaco_default_3d_features():
+def test_aaco_default_3d_features() -> None:
     """Test with 3D features."""
     batch_size = 8
     feature_shape = torch.Size([2, 3, 4])  # 24 features total
@@ -237,7 +239,7 @@ def test_aaco_default_3d_features():
         assert mask[i].sum() == 1
 
 
-def test_aaco_default_bounds_checking():
+def test_aaco_default_bounds_checking() -> None:
     """Test bounds checking for dataset configurations."""
     batch_size = 10
     feature_shape = torch.Size([2, 3])  # Only 6 features
@@ -251,7 +253,7 @@ def test_aaco_default_bounds_checking():
         initializer.initialize(features=features, feature_shape=feature_shape)
 
 
-def test_aaco_default_edge_case_single_feature():
+def test_aaco_default_edge_case_single_feature() -> None:
     """Test with single feature space."""
     batch_size = 5
     feature_shape = torch.Size([1])
@@ -271,7 +273,7 @@ def test_aaco_default_edge_case_single_feature():
     assert mask.all()  # Single feature should always be True
 
 
-def test_aaco_default_multidimensional_batch():
+def test_aaco_default_multidimensional_batch() -> None:
     """Test with complex multi-dimensional batch shapes."""
     batch_shape = torch.Size([2, 3, 4])
     feature_shape = torch.Size([3, 3])  # 9 features total
@@ -299,7 +301,7 @@ def test_aaco_default_multidimensional_batch():
         assert torch.equal(reference_mask, mask_flat[i])
 
 
-def test_aaco_default_consistency():
+def test_aaco_default_consistency() -> None:
     """Test consistency across multiple calls."""
     batch_size = 30
     feature_shape = torch.Size([5, 4])
@@ -322,7 +324,7 @@ def test_aaco_default_consistency():
         assert torch.equal(reference_mask, mask)
 
 
-def test_aaco_default_no_label_dependency():
+def test_aaco_default_no_label_dependency() -> None:
     """Test that AACODefaultInitializer doesn't require or use labels."""
     batch_size = 15
     feature_shape = torch.Size([4, 3])
@@ -346,7 +348,7 @@ def test_aaco_default_no_label_dependency():
     assert torch.equal(mask_with_labels, mask_without_labels)
 
 
-def test_aaco_default_feature_shape_validation():
+def test_aaco_default_feature_shape_validation() -> None:
     """Test that feature_shape must be provided."""
     batch_size = 10
     feature_shape = torch.Size([3, 3])

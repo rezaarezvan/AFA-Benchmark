@@ -1,5 +1,4 @@
 from dataclasses import dataclass, field
-from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -17,24 +16,9 @@ class SplitRatioConfig:
     test: float  # ratio of test data
 
 
-# Names of datasets, to avoid having to type out class names
-class DatasetType(str, Enum):
-    cube = "cube"
-    MNIST = "MNIST"
-    shim2018cube = "shim2018cube"
-    diabetes = "diabetes"
-    physionet = "physionet"
-    miniboone = "miniboone"
-    FashionMNIST = "FashionMNIST"
-    bank_marketing = "bank_marketing"
-    ckd = "ckd"
-    actg = "actg"
-    imagenette = "imagenette"
-
-
 @dataclass
 class DatasetConfig:
-    type: DatasetType
+    class_name: str
     kwargs: dict[str, Any]
 
 
@@ -63,54 +47,56 @@ class ImagePatchUnmaskerConfig:
 @dataclass
 class UnmaskerConfig:
     class_name: str
-    config: ImagePatchUnmaskerConfig | None
+    # config: ImagePatchUnmaskerConfig | None
+    kwargs: dict[str, Any]
 
 
 # -- Initializers --
 
 
-@dataclass
-class ManualInitializerConfig:
-    flat_feature_indices: list[int]
+# @dataclass
+# class ManualInitializerConfig:
+#     flat_feature_indices: list[int]
 
 
-@dataclass
-class AACODefaultInitializerConfig:
-    dataset_name: str
+# @dataclass
+# class AACODefaultInitializerConfig:
+#     dataset_name: str
 
 
-@dataclass
-class FixedRandomInitializerConfig:
-    unmask_ratio: float  # how many features to unmask
+# @dataclass
+# class FixedRandomInitializerConfig:
+#     unmask_ratio: float  # how many features to unmask
 
 
-@dataclass
-class RandomPerEpisodeInitializerConfig:
-    unmask_ratio: float  # how many features to unmask
+# @dataclass
+# class RandomPerEpisodeInitializerConfig:
+#     unmask_ratio: float  # how many features to unmask
 
 
-@dataclass
-class MutualInformationInitializerConfig:
-    unmask_ratio: float  # how many features to unmask
+# @dataclass
+# class MutualInformationInitializerConfig:
+#     unmask_ratio: float  # how many features to unmask
 
 
-@dataclass
-class LeastInformativeInitializerConfig:
-    unmask_ratio: float  # how many features to unmask
+# @dataclass
+# class LeastInformativeInitializerConfig:
+#     unmask_ratio: float  # how many features to unmask
 
 
 @dataclass
 class InitializerConfig:
     class_name: str
-    config: (
-        ManualInitializerConfig
-        | AACODefaultInitializerConfig
-        | FixedRandomInitializerConfig
-        | RandomPerEpisodeInitializerConfig
-        | MutualInformationInitializerConfig
-        | LeastInformativeInitializerConfig
-        | None
-    )
+    # config: (
+    #     ManualInitializerConfig
+    #     | AACODefaultInitializerConfig
+    #     | FixedRandomInitializerConfig
+    #     | RandomPerEpisodeInitializerConfig
+    #     | MutualInformationInitializerConfig
+    #     | LeastInformativeInitializerConfig
+    #     | None
+    # )
+    kwargs: dict[str, Any]
 
 
 # --- PRETRAINING MODELS ---

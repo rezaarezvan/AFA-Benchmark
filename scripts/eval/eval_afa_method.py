@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import Any, cast
 
 import hydra
-import pandas as pd
 import torch
 import wandb
 from omegaconf import OmegaConf
@@ -21,11 +20,12 @@ from afabench.common.custom_types import (
     AFAMethod,
     AFAUnmasker,
 )
+from afabench.common.initializers.utils import get_afa_initializer_from_config
+from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
 from afabench.common.utils import (
     load_classifier_artifact,
     load_dataset_artifact,
     load_method_artifact,
-    save_artifact,
     set_seed,
 )
 from afabench.eval.eval import eval_afa_method
@@ -48,6 +48,8 @@ def load(
     AFADataset,
     AFAClassifier | None,
     dict[str, Any],
+    dict[str, Any],
+    dict[str, Any] | None,
 ]:
     # Load method
     method, method_metadata = load_method_artifact(method_artifact_path)
@@ -55,16 +57,16 @@ def load(
 
     # Load unmasker
     unmasker: AFAUnmasker = get_afa_unmasker_from_config(unmasker_cfg)
-    log.info(f"Loaded {unmasker_cfg.type} unmasker")
+    log.info(f"Loaded {unmasker_cfg.class_name}")
 
     # Load initializer
     initializer: AFAInitializer = get_afa_initializer_from_config(
         initializer_cfg
     )
-    log.info(f"Loaded {initializer_cfg.type} initializer")
+    log.info(f"Loaded {initializer_cfg.class_name} initializer")
 
     # Load dataset
-    dataset, metadata = load_dataset_artifact(
+    dataset, dataset_metadata = load_dataset_artifact(
         dataset_artifact_path, dataset_split
     )
     log.info(f"Loaded dataset from {dataset_artifact_path}")
@@ -72,7 +74,7 @@ def load(
     # Load external classifier if specified
     if classifier_artifact_path is not None:
         device = torch.device("cpu") if device is None else device
-        classifier, _ = load_classifier_artifact(
+        classifier, classifier_metadata = load_classifier_artifact(
             classifier_artifact_path, device=device
         )
         log.info(
@@ -80,6 +82,7 @@ def load(
         )
     else:
         classifier = None
+        classifier_metadata = None
         log.info("No external classifier provided; using builtin classifier.")
 
     return (
@@ -89,6 +92,8 @@ def load(
         dataset,
         classifier,
         method_metadata,
+        dataset_metadata,
+        classifier_metadata,
     )
 
 
@@ -124,6 +129,8 @@ def main(cfg: EvalConfig) -> None:
         dataset,
         external_classifier,
         method_metadata,
+        dataset_metadata,
+        external_classifier_metadata,
     ) = load(
         method_artifact_path=Path(cfg.method_artifact_path),
         unmasker_cfg=cfg.unmasker,
@@ -136,6 +143,13 @@ def main(cfg: EvalConfig) -> None:
             else None
         ),
         device=torch.device(cfg.device),
+    )
+
+    # We currently only allow validation on the same dataset (but not split) as the method was trained on.
+    assert (
+        method_metadata["dataset_class_name"] == dataset_metadata["class_name"]
+    ), (
+        f"Expected dataset class {dataset_metadata['class_name']} to match the dataset used during method training {method_metadata['dataset_class_name']}."
     )
 
     # Set the seed of everything
@@ -182,37 +196,87 @@ def main(cfg: EvalConfig) -> None:
         selection_budget=cfg.hard_budget,
         batch_size=cfg.batch_size,
     )
-    # TODO: pivot long for two classifier types
-    # Add columns to conform to expected format (snake_case)
-    df_eval["method"] = method_metadata["method_type"]
-    df_eval["training_seed"] = method_metadata["seed"]
-    cost_param = afa_method.cost_param
-    assert cost_param is not None, (
-        "Cost parameter should not be None for soft budget methods"
-    )
-    df_eval["cost_parameter"] = cost_param
-    df_eval["dataset"] = method_metadata["dataset_type"]
 
-    df_eval = pd.DataFrame(
-        {
-            "afa_method": df_eval["method"],
-            "classifier": "external",  # or None if builtin
-            "dataset": df_eval["dataset"],
-            "selections_performed": df_eval["prev_selections_performed"].apply(
-                len
-            )
-            + 1,
-            "features_observed": df_eval["next_feature_indices"].apply(len),
-            "predicted_class": df_eval["external_predicted_label"],
-            "true_class": df_eval["true_class"],
-            "train_seed": df_eval["training_seed"],
-            "eval_seed": cfg.seed,
-            "train_hard_budget": method_metadata.get("hard_budget"),
-            "eval_hard_budget": cfg.hard_budget,
-            "train_soft_budget_param": df_eval["cost_parameter"],
-            "eval_soft_budget_param": None,
-        }
+    # Add metadata columns first
+    cost_param = afa_method.cost_param
+
+    # For hard budget evaluation, we don't use the cost parameter
+    if cfg.hard_budget is not None:
+        train_soft_budget_param = None
+        eval_soft_budget_param = None
+    else:
+        # For soft budget evaluation, use the cost parameter
+        assert cost_param is not None, (
+            "Cost parameter should not be None for soft budget methods"
+        )
+        train_soft_budget_param = cost_param
+        eval_soft_budget_param = None
+
+    df_eval = df_eval.assign(
+        afa_method=method_metadata["method_class_name"],
+        train_seed=method_metadata["seed"],
+        train_soft_budget_param=train_soft_budget_param,
+        dataset=method_metadata["dataset_class_name"],
+        selections_performed=df_eval["prev_selections_performed"].apply(len)
+        + 1,
+        features_observed=df_eval["next_feature_indices"].apply(len),
+        eval_seed=cfg.seed,
+        train_hard_budget=method_metadata.get("hard_budget"),
+        eval_hard_budget=cfg.hard_budget,
+        eval_soft_budget_param=eval_soft_budget_param,
     )
+
+    # Identify which classifier columns are present and have non-null values
+    classifier_columns = [
+        col for col in df_eval.columns if col.endswith("_predicted_class")
+    ]
+
+    # Filter to only include classifier columns that have at least some non-null values
+    available_classifier_columns = [
+        col for col in classifier_columns if bool(df_eval[col].notna().any())
+    ]
+
+    if available_classifier_columns:
+        # Use pandas melt to pivot longer, but only for available classifiers
+        id_vars = [
+            col
+            for col in df_eval.columns
+            if not col.endswith("_predicted_class")
+        ]
+        df_eval = df_eval.melt(
+            id_vars=id_vars,
+            value_vars=available_classifier_columns,
+            var_name="classifier_type",
+            value_name="predicted_class",
+        )
+        # Clean up the classifier column to remove '_predicted_class' suffix
+        df_eval["classifier"] = df_eval["classifier_type"].str.replace(
+            "_predicted_class", ""
+        )
+        df_eval = df_eval.drop("classifier_type", axis=1)
+    else:
+        # Fallback if no classifier columns found
+        df_eval["predicted_class"] = None
+        df_eval["classifier"] = "none"
+
+    # Select final columns in the expected order
+    df_eval = df_eval[
+        [
+            "afa_method",
+            "classifier",
+            "dataset",
+            "selections_performed",
+            "features_observed",
+            "predicted_class",
+            "true_class",
+            "train_seed",
+            "eval_seed",
+            "train_hard_budget",
+            "eval_hard_budget",
+            "train_soft_budget_param",
+            "eval_soft_budget_param",
+        ]
+    ]
 
     # Save CSV directly
     csv_path = Path(cfg.save_path) / "eval_data.csv"
@@ -221,21 +285,22 @@ def main(cfg: EvalConfig) -> None:
     log.info(f"Saved evaluation data to CSV at: {csv_path}")
 
     # Save metadata
-    eval_metadata = {
-        "dataset_type": method_metadata["dataset_type"],
-        "method_type": method_metadata["method_type"],
-        "seed": method_metadata["seed"],
-        "cost_param": cost_param,
-        "eval_type": "soft_budget",
-        "dataset_split": cfg.dataset_split,
-        "classifier_artifact_name": cfg.classifier_artifact_path,
-    }
+    # TODO:
+    # eval_metadata = {
+    #     "dataset_class_name": method_metadata["dataset_class_name"],
+    #     "method_class_name": method_metadata["method_class_name"],
+    #     "seed": method_metadata["seed"],
+    #     "cost_param": cost_param,
+    #     "eval_type": "soft_budget",
+    #     "dataset_split": cfg.dataset_split,
+    #     "classifier_artifact_name": cfg.classifier_artifact_path,
+    # }
     # Save just metadata (CSV already in place)
-    save_artifact(
-        artifact_dir=Path(cfg.save_path),
-        files={},  # No files to copy - CSV already there
-        metadata=eval_metadata,
-    )
+    # save_artifact(
+    #     artifact_dir=Path(cfg.save_path),
+    #     files={},  # No files to copy - CSV already there
+    #     metadata=eval_metadata,
+    # )
     log.info(f"Evaluation results saved to: {cfg.save_path}")
 
     if run:

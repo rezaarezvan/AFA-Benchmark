@@ -1,12 +1,4 @@
-from afabench.common.config_classes import (
-    AACODefaultInitializerConfig,
-    FixedRandomInitializerConfig,
-    InitializerConfig,
-    LeastInformativeInitializerConfig,
-    ManualInitializerConfig,
-    MutualInformationInitializerConfig,
-    RandomPerEpisodeInitializerConfig,
-)
+from afabench.common.config_classes import InitializerConfig
 from afabench.common.custom_types import AFAInitializer
 from afabench.common.initializers.aaco_default_initializer import (
     AACODefaultInitializer,
@@ -28,68 +20,46 @@ from afabench.common.initializers.zero_initializer import ZeroInitializer
 from afabench.common.registry import get_afa_initializer_class
 
 
-def get_afa_initializer_from_config(
+def get_afa_initializer_from_config(  # noqa: PLR0911
     initializer_config: InitializerConfig,
 ) -> AFAInitializer:
     """Get initializer from config."""
     if initializer_config.class_name == "ZeroInitializer":
-        assert initializer_config.config is None
+        assert not initializer_config.kwargs
 
         cls = get_afa_initializer_class(initializer_config.class_name)
         assert cls is ZeroInitializer
         return cls()
 
     if initializer_config.class_name == "FixedRandomInitializer":
-        assert isinstance(
-            initializer_config.config, FixedRandomInitializerConfig
-        )
-
         cls = get_afa_initializer_class(initializer_config.class_name)
         assert cls is FixedRandomInitializer
-        return cls(config=initializer_config.config)
+        return cls(**initializer_config.kwargs)
 
     if initializer_config.class_name == "DynamicRandomInitializer":
-        assert isinstance(
-            initializer_config.config, RandomPerEpisodeInitializerConfig
-        )
-
         cls = get_afa_initializer_class(initializer_config.class_name)
         assert cls is DynamicRandomInitializer
-        return cls(config=initializer_config.config)
+        return cls(**initializer_config.kwargs)
 
     if initializer_config.class_name == "ManualInitializer":
-        assert isinstance(initializer_config.config, ManualInitializerConfig)
-
         cls = get_afa_initializer_class(initializer_config.class_name)
         assert cls is ManualInitializer
-        return cls(config=initializer_config.config)
+        return cls(**initializer_config.kwargs)
 
     if initializer_config.class_name == "MutualInformationInitializer":
-        assert isinstance(
-            initializer_config.config, MutualInformationInitializerConfig
-        )
-
         cls = get_afa_initializer_class(initializer_config.class_name)
         assert cls is MutualInformationInitializer
-        return cls(config=initializer_config.config)
+        return cls(**initializer_config.kwargs)
 
     if initializer_config.class_name == "LeastInformativeInitializer":
-        assert isinstance(
-            initializer_config.config, LeastInformativeInitializerConfig
-        )
-
         cls = get_afa_initializer_class(initializer_config.class_name)
         assert cls is LeastInformativeInitializer
-        return cls(config=initializer_config.config)
+        return cls(**initializer_config.kwargs)
 
     if initializer_config.class_name == "AACODefaultInitializer":
-        assert isinstance(
-            initializer_config.config, AACODefaultInitializerConfig
-        )
-
         cls = get_afa_initializer_class(initializer_config.class_name)
         assert cls is AACODefaultInitializer
-        return cls(config=initializer_config.config)
+        return cls(**initializer_config.kwargs)
 
     msg = f"Unknown initializer: {initializer_config.class_name}"
     raise ValueError(msg)

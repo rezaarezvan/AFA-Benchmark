@@ -74,24 +74,23 @@ def generate_and_save_split(
         "generated_at": datetime.now(UTC).isoformat(),
     }
     json_data = metadata_to_save | {
-        "dataset_kwargs": dataset_kwargs,
+        "kwargs": dataset_kwargs,
     }
     # Save metadata
-    print(f"Saving metadata to {save_path / 'metadata.json'}")
     with (save_path / "metadata.json").open("w") as f:
         json.dump(json_data, f)
 
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/dataset_generation",
+    config_path="../../extra/conf/scripts/dataset_generation",
     config_name="config",
 )
 def main(cfg: DatasetGenerationConfig) -> None:
     for instance_idx, seed in zip(
         cfg.instance_indices, cfg.seeds, strict=True
     ):
-        dataset_class = get_afa_dataset_class(cfg.dataset.type)
+        dataset_class = get_afa_dataset_class(cfg.dataset.class_name)
         if dataset_class.accepts_seed():
             dataset_kwargs = dict(cfg.dataset.kwargs) | {"seed": seed}
         else:
@@ -105,7 +104,7 @@ def main(cfg: DatasetGenerationConfig) -> None:
             dataset_kwargs=dataset_kwargs,
             metadata_to_save={
                 "instance_idx": instance_idx,
-                "dataset_type": cfg.dataset.type,
+                "class_name": cfg.dataset.class_name,
             },
         )
 

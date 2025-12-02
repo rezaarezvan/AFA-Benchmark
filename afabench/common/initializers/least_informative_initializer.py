@@ -4,7 +4,6 @@ import numpy as np
 import torch
 from sklearn.feature_selection import mutual_info_classif
 
-from afabench.common.config_classes import LeastInformativeInitializerConfig
 from afabench.common.custom_types import (
     AFAInitializer,
     FeatureMask,
@@ -21,8 +20,8 @@ class LeastInformativeInitializer(AFAInitializer):
     Useful for robustness testing - how well do methods perform with poor initialization?
     """
 
-    def __init__(self, config: LeastInformativeInitializerConfig):
-        self.config = config
+    def __init__(self, unmask_ratio: float):
+        self.unmask_ratio = unmask_ratio
         self._cached_ranking: np.ndarray | None = None  # pyright: ignore[reportMissingTypeArgument]
         self._seed: int | None = None
 
@@ -47,7 +46,7 @@ class LeastInformativeInitializer(AFAInitializer):
         )
 
         num_features = feature_shape.numel()
-        num_features_to_unmask = int(num_features * self.config.unmask_ratio)
+        num_features_to_unmask = int(num_features * self.unmask_ratio)
 
         # We can figure out the batch shape by subtracting the feature shape
         batch_shape = features.shape[: -len(feature_shape)]

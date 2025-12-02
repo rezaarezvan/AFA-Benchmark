@@ -1,9 +1,11 @@
 hydra:
   searchpath:
     - file://extra/conf
+    - file://extra/conf/global
 
 defaults:
-  - dataset_generation/dataset@dataset: ???
+  - scripts/dataset_generation/dataset@dataset: ???
+  - override hydra/hydra_logging: colorlog
   - _self_
 
 save_path: ???
@@ -13,7 +15,3 @@ split_ratio:
   train: 0.6
   val: 0.2
   test: 0.2
-# Add this later
-# - override global/hydra/job_logging@hydra/job_logging: colorlog
-# - override hydra/hydra_logging: colorlog
-# - override hydra/launcher: custom_slurm

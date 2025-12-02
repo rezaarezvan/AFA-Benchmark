@@ -5,7 +5,7 @@ from afabench.common.config_classes import ManualInitializerConfig
 from afabench.common.initializers import ManualInitializer
 
 
-def test_manual_initializer_basic_functionality():
+def test_manual_initializer_basic_functionality() -> None:
     """Test basic functionality with simple feature indices."""
     batch_size = 10
     feature_shape = torch.Size([4, 5])
@@ -32,7 +32,7 @@ def test_manual_initializer_basic_functionality():
         assert torch.equal(mask_flat[0], mask_flat[i])
 
 
-def test_manual_initializer_arbitrary_batch_shape():
+def test_manual_initializer_arbitrary_batch_shape() -> None:
     """Test with arbitrary batch shapes."""
     batch_shape = torch.Size([2, 3])
     feature_shape = torch.Size([3, 4])
@@ -59,7 +59,7 @@ def test_manual_initializer_arbitrary_batch_shape():
         assert torch.equal(mask_flat[0], mask_flat[i])
 
 
-def test_manual_initializer_1d_features():
+def test_manual_initializer_1d_features() -> None:
     """Test with 1D features."""
     batch_size = 15
     feature_shape = torch.Size([10])
@@ -83,7 +83,7 @@ def test_manual_initializer_1d_features():
     assert torch.equal(first_mask, expected_mask)
 
 
-def test_manual_initializer_3d_features():
+def test_manual_initializer_3d_features() -> None:
     """Test with 3D features."""
     batch_size = 8
     feature_shape = torch.Size([2, 3, 4])
@@ -111,7 +111,7 @@ def test_manual_initializer_3d_features():
     assert torch.equal(first_mask, expected_mask)
 
 
-def test_manual_initializer_single_feature():
+def test_manual_initializer_single_feature() -> None:
     """Test with a single feature selection."""
     batch_size = 20
     feature_shape = torch.Size([5, 6])
@@ -134,10 +134,10 @@ def test_manual_initializer_single_feature():
 
     # Verify it's at the right position
     multi_index = torch.unravel_index(torch.tensor(15), feature_shape)
-    assert first_mask[multi_index].item() == True
+    assert first_mask[multi_index].item()
 
 
-def test_manual_initializer_empty_selection():
+def test_manual_initializer_empty_selection() -> None:
     """Test with empty feature selection."""
     batch_size = 10
     feature_shape = torch.Size([4, 4])
@@ -155,7 +155,7 @@ def test_manual_initializer_empty_selection():
     assert mask.sum() == 0
 
 
-def test_manual_initializer_all_features():
+def test_manual_initializer_all_features() -> None:
     """Test selecting all features."""
     batch_size = 5
     feature_shape = torch.Size([3, 3])
@@ -176,7 +176,7 @@ def test_manual_initializer_all_features():
     assert mask.all()  # All features should be True
 
 
-def test_manual_initializer_deterministic():
+def test_manual_initializer_deterministic() -> None:
     """Test that ManualInitializer is deterministic regardless of seed."""
     batch_size = 12
     feature_shape = torch.Size([4, 3])
@@ -203,7 +203,7 @@ def test_manual_initializer_deterministic():
     assert torch.equal(mask1, mask2)
 
 
-def test_manual_initializer_repr():
+def test_manual_initializer_repr() -> None:
     """Test the string representation."""
     flat_indices = [0, 2, 5, 8]
     config = ManualInitializerConfig(flat_feature_indices=flat_indices)
@@ -214,7 +214,7 @@ def test_manual_initializer_repr():
     assert str(flat_indices) in repr_str
 
 
-def test_manual_initializer_bounds_checking():
+def test_manual_initializer_bounds_checking() -> None:
     """Test that bounds checking works correctly."""
     batch_size = 10
     feature_shape = torch.Size([3, 4])  # 12 features total
@@ -243,7 +243,7 @@ def test_manual_initializer_bounds_checking():
         )
 
 
-def test_manual_initializer_negative_indices():
+def test_manual_initializer_negative_indices() -> None:
     """Test that negative indices are caught."""
     batch_size = 8
     feature_shape = torch.Size([4, 4])
@@ -257,7 +257,7 @@ def test_manual_initializer_negative_indices():
         initializer.initialize(features=features, feature_shape=feature_shape)
 
 
-def test_manual_initializer_multidimensional_batch():
+def test_manual_initializer_multidimensional_batch() -> None:
     """Test with complex multi-dimensional batch shapes."""
     batch_shape = torch.Size([2, 3, 4])
     feature_shape = torch.Size([2, 3])

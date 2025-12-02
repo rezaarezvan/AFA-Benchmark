@@ -14,7 +14,9 @@ def features_2d() -> tuple[Features, torch.Size]:
     return features, feature_shape
 
 
-def test_zero_initializer_basic_functionality(features_2d):
+def test_zero_initializer_basic_functionality(
+    features_2d: tuple[Features, torch.Size],
+) -> None:
     """Test basic functionality with 2D features."""
     features, feature_shape = features_2d
 
@@ -31,7 +33,7 @@ def test_zero_initializer_basic_functionality(features_2d):
     assert not mask.any()
 
 
-def test_zero_initializer_arbitrary_batch_shape():
+def test_zero_initializer_arbitrary_batch_shape() -> None:
     """Test with arbitrary batch shapes."""
     batch_shape = torch.Size([3, 2, 4])
     feature_shape = torch.Size([5, 6])
@@ -50,7 +52,7 @@ def test_zero_initializer_arbitrary_batch_shape():
     assert not mask.any()
 
 
-def test_zero_initializer_1d_features():
+def test_zero_initializer_1d_features() -> None:
     """Test with 1D features."""
     batch_size = 50
     feature_shape = torch.Size([10])
@@ -66,7 +68,7 @@ def test_zero_initializer_1d_features():
     assert mask.dtype == torch.bool
 
 
-def test_zero_initializer_3d_features():
+def test_zero_initializer_3d_features() -> None:
     """Test with 3D features."""
     batch_size = 15
     feature_shape = torch.Size([2, 3, 4])
@@ -82,7 +84,7 @@ def test_zero_initializer_3d_features():
     assert torch.equal(mask, torch.zeros_like(mask))
 
 
-def test_zero_initializer_deterministic():
+def test_zero_initializer_deterministic() -> None:
     """Test that ZeroInitializer is always deterministic."""
     batch_size = 20
     feature_shape = torch.Size([4, 3])
@@ -116,7 +118,7 @@ def test_zero_initializer_deterministic():
     assert mask3.sum() == 0
 
 
-def test_zero_initializer_large_features():
+def test_zero_initializer_large_features() -> None:
     """Test with large feature spaces."""
     batch_size = 10
     feature_shape = torch.Size([100, 100])  # Large feature space
@@ -132,7 +134,7 @@ def test_zero_initializer_large_features():
     assert mask.dtype == torch.bool
 
 
-def test_zero_initializer_single_feature():
+def test_zero_initializer_single_feature() -> None:
     """Test with single feature."""
     batch_size = 25
     feature_shape = torch.Size([1])
@@ -148,7 +150,7 @@ def test_zero_initializer_single_feature():
     assert not mask[0, 0]  # Single feature should be False
 
 
-def test_zero_initializer_empty_batch():
+def test_zero_initializer_empty_batch() -> None:
     """Test with empty batch."""
     batch_size = 0
     feature_shape = torch.Size([5, 5])
@@ -164,7 +166,7 @@ def test_zero_initializer_empty_batch():
     assert mask.numel() == 0
 
 
-def test_zero_initializer_multidimensional_batch():
+def test_zero_initializer_multidimensional_batch() -> None:
     """Test with complex multi-dimensional batch shapes."""
     batch_shape = torch.Size([2, 3, 4, 5])
     feature_shape = torch.Size([2, 3])
@@ -186,7 +188,7 @@ def test_zero_initializer_multidimensional_batch():
     assert mask.numel() == total_elements
 
 
-def test_zero_initializer_consistency():
+def test_zero_initializer_consistency() -> None:
     """Test consistency across multiple calls."""
     batch_size = 30
     feature_shape = torch.Size([4, 4])
@@ -209,7 +211,7 @@ def test_zero_initializer_consistency():
         assert mask.sum() == 0
 
 
-def test_zero_initializer_set_seed():
+def test_zero_initializer_set_seed() -> None:
     """Test that set_seed method exists and is callable."""
     initializer = ZeroInitializer()
 
@@ -220,7 +222,7 @@ def test_zero_initializer_set_seed():
     initializer.set_seed(-1)
 
 
-def test_zero_initializer_no_label_dependency():
+def test_zero_initializer_no_label_dependency() -> None:
     """Test that ZeroInitializer doesn't require or use labels."""
     batch_size = 15
     feature_shape = torch.Size([3, 3])
@@ -245,7 +247,7 @@ def test_zero_initializer_no_label_dependency():
     assert mask_without_labels.sum() == 0
 
 
-def test_zero_initializer_dtype_consistency():
+def test_zero_initializer_dtype_consistency() -> None:
     """Test that output dtype is always bool."""
     batch_sizes = [1, 10, 100]
     feature_shapes = [

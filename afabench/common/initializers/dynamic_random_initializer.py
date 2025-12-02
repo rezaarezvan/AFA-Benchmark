@@ -2,7 +2,6 @@ from typing import final, override
 
 import torch
 
-from afabench.common.config_classes import RandomPerEpisodeInitializerConfig
 from afabench.common.custom_types import (
     AFAInitializer,
     FeatureMask,
@@ -15,8 +14,8 @@ from afabench.common.custom_types import (
 class DynamicRandomInitializer(AFAInitializer):
     """Select different random features for each episode."""
 
-    def __init__(self, config: RandomPerEpisodeInitializerConfig):
-        self.config = config
+    def __init__(self, unmask_ratio: float):
+        self.unmask_ratio = unmask_ratio
         self.rng = torch.Generator()
 
     @override
@@ -41,7 +40,7 @@ class DynamicRandomInitializer(AFAInitializer):
         batch_size = int(torch.prod(torch.tensor(batch_shape)))
 
         num_features = feature_shape.numel()
-        num_features_to_unmask = int(num_features * self.config.unmask_ratio)
+        num_features_to_unmask = int(num_features * self.unmask_ratio)
 
         # Create different random masks for each batch element
         masks = []

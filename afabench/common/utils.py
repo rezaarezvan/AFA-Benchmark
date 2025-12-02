@@ -129,63 +129,61 @@ def load_pretrained_model(
 
 
 def load_method_artifact(
-    path: Path,
+    method_artifact_path: Path,
     device: torch.device | None = None,
 ) -> tuple[AFAMethod, dict[str, Any]]:
     """Load trained AFA method from artifact path."""
     device = device or torch.device("cpu")
-    metadata = load_artifact_metadata(path)
-    method_class = get_afa_method_class(metadata["method_type"])
-    return method_class.load(path, device=device), metadata
+    metadata = load_artifact_metadata(method_artifact_path)
+    method_class = get_afa_method_class(metadata["method_class_name"])
+    return method_class.load(method_artifact_path, device=device), metadata
 
 
 def load_dataset_artifact(
-    path: Path,
+    dataset_artifact_path: Path,
     split: str,
 ) -> tuple[AFADataset, dict[str, Any]]:
     """Load single dataset split (train/val/test) from artifact path."""
-    if isinstance(path, str):
-        path = Path(path)
+    if isinstance(dataset_artifact_path, str):
+        dataset_artifact_path = Path(dataset_artifact_path)
 
     if split not in {"train", "val", "test"}:
         msg = f"Invalid split: {split}"
         raise ValueError(msg)
-    metadata = load_artifact_metadata(path)
-    dataset_class = get_afa_dataset_class(metadata["dataset_type"])
-    return dataset_class.load(path / f"{split}.pt"), metadata
+    metadata = load_artifact_metadata(dataset_artifact_path)
+    dataset_class = get_afa_dataset_class(metadata["class_name"])
+    return dataset_class.load(dataset_artifact_path / f"{split}.pt"), metadata
 
 
 def load_dataset_splits(
-    path: Path,
+    dataset_artifact_path: Path,
 ) -> tuple[AFADataset, AFADataset, AFADataset, dict[str, Any]]:
     """Load all dataset splits. Returns (train, val, test, metadata)."""
     for f in ["train.pt", "val.pt", "test.pt", "metadata.json"]:
-        if not (path / f).exists():
-            msg = f"Missing {f} in {path}"
+        if not (dataset_artifact_path / f).exists():
+            msg = f"Missing {f} in {dataset_artifact_path}"
             raise FileNotFoundError(msg)
-    metadata = load_artifact_metadata(path)
-    cls = get_afa_dataset_class(metadata["dataset_type"])
+    metadata = load_artifact_metadata(dataset_artifact_path)
+    cls = get_afa_dataset_class(metadata["class_name"])
 
     return (
-        cls.load(path / "train.pt"),
-        cls.load(path / "val.pt"),
-        cls.load(path / "test.pt"),
+        cls.load(dataset_artifact_path / "train.pt"),
+        cls.load(dataset_artifact_path / "val.pt"),
+        cls.load(dataset_artifact_path / "test.pt"),
         metadata,
     )
 
 
 def load_classifier_artifact(
-    path: Path,
+    classifier_artifact_path: Path,
     device: torch.device | None = None,
 ) -> tuple[AFAClassifier, dict[str, Any]]:
     """Load trained classifier from artifact path."""
     device = device or torch.device("cpu")
-    metadata = load_artifact_metadata(path)
-    classifier_class = get_afa_classifier_class(
-        metadata["classifier_class_name"]
-    )
+    metadata = load_artifact_metadata(classifier_artifact_path)
+    classifier_class = get_afa_classifier_class(metadata["class_name"])
     return classifier_class.load(
-        path / "classifier.pt", device=device
+        classifier_artifact_path / "classifier.pt", device=device
     ), metadata
 
 
@@ -205,9 +203,9 @@ def load_eval_components(
     unmasker = get_afa_unmasker_from_config(unmasker_cfg)
     initializer = get_afa_initializer_from_config(initializer_cfg)
     dataset, _ = load_dataset_artifact(
-        path=dataset_artifact_path, split=dataset_split
+        dataset_artifact_path=dataset_artifact_path, split=dataset_split
     )
     classifier, _ = load_classifier_artifact(
-        path=classifier_artifact_path, device=device
+        classifier_artifact_path=classifier_artifact_path, device=device
     )
     return (method, unmasker, initializer, dataset, classifier)

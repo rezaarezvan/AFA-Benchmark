@@ -20,7 +20,7 @@ def basic_fixture() -> tuple[
     SelectionMask,
     torch.Size,
 ]:
-    """Basic test data for DirectUnmasker."""
+    """Provide basic test data for DirectUnmasker."""
     batch_size = 2
     feature_shape = torch.Size([3, 3])
     features = torch.randn(batch_size, *feature_shape).float()
@@ -43,7 +43,16 @@ def basic_fixture() -> tuple[
     )
 
 
-def test_direct_unmasker_basic_functionality(basic_fixture):
+def test_direct_unmasker_basic_functionality(
+    basic_fixture: tuple[
+        Features,
+        FeatureMask,
+        MaskedFeatures,
+        AFASelection,
+        SelectionMask,
+        torch.Size,
+    ],
+) -> None:
     """Test basic unmasking behavior."""
     (
         features,
@@ -72,7 +81,7 @@ def test_direct_unmasker_basic_functionality(basic_fixture):
     assert new_feature_mask[1, 0, 2]  # Feature 3 in batch 1 is unmasked
 
 
-def test_direct_unmasker_arbitrary_batch_shape():
+def test_direct_unmasker_arbitrary_batch_shape() -> None:
     """Test DirectUnmasker with arbitrary batch shapes."""
     batch_shape = torch.Size([2, 3, 4])  # Multi-dimensional batch
     feature_shape = torch.Size([5, 6])
@@ -105,7 +114,7 @@ def test_direct_unmasker_arbitrary_batch_shape():
         assert new_feature_mask_flat[i].sum() == 1
 
 
-def test_direct_unmasker_zero_selection():
+def test_direct_unmasker_zero_selection() -> None:
     """Test that zero selection is ignored."""
     batch_size = 3
     feature_shape = torch.Size([4, 4])
@@ -131,7 +140,7 @@ def test_direct_unmasker_zero_selection():
     assert torch.equal(new_feature_mask, feature_mask)
 
 
-def test_direct_unmasker_preserves_existing_mask():
+def test_direct_unmasker_preserves_existing_mask() -> None:
     """Test that existing mask is preserved and extended."""
     batch_size = 2
     feature_shape = torch.Size([3, 3])
@@ -169,7 +178,7 @@ def test_direct_unmasker_preserves_existing_mask():
     assert new_feature_mask[1, 0, 1]  # Feature 2 -> (0, 1) unmasked in batch 1
 
 
-def test_direct_unmasker_1d_features():
+def test_direct_unmasker_1d_features() -> None:
     """Test with 1D features."""
     batch_size = 5
     feature_shape = torch.Size([10])
@@ -199,7 +208,7 @@ def test_direct_unmasker_1d_features():
     assert new_feature_mask[4, 4]  # Feature 5 (0-indexed: 4)
 
 
-def test_direct_unmasker_3d_features():
+def test_direct_unmasker_3d_features() -> None:
     """Test with 3D features."""
     batch_size = 3
     feature_shape = torch.Size([2, 3, 4])
@@ -229,7 +238,7 @@ def test_direct_unmasker_3d_features():
         assert new_feature_mask[i].sum() == 1
 
 
-def test_direct_unmasker_get_n_selections():
+def test_direct_unmasker_get_n_selections() -> None:
     """Test get_n_selections method."""
     unmasker = DirectUnmasker()
 
@@ -246,7 +255,7 @@ def test_direct_unmasker_get_n_selections():
     assert unmasker.get_n_selections(feature_shape_3d) == 24
 
 
-def test_direct_unmasker_edge_cases():
+def test_direct_unmasker_edge_cases() -> None:
     """Test edge cases and boundary conditions."""
     batch_size = 2
     feature_shape = torch.Size([2, 2])
@@ -273,7 +282,7 @@ def test_direct_unmasker_edge_cases():
     assert new_feature_mask[1, 1, 1]  # Feature 4 -> position (1, 1)
 
 
-def test_direct_unmasker_large_batch():
+def test_direct_unmasker_large_batch() -> None:
     """Test with large batch sizes."""
     batch_size = 100
     feature_shape = torch.Size([5])
@@ -299,7 +308,7 @@ def test_direct_unmasker_large_batch():
     assert new_feature_mask.sum() == batch_size
 
 
-def test_direct_unmasker_multidimensional_batch():
+def test_direct_unmasker_multidimensional_batch() -> None:
     """Test with complex multi-dimensional batch shapes."""
     batch_shape = torch.Size([2, 3, 2])
     feature_shape = torch.Size([3])
@@ -328,7 +337,7 @@ def test_direct_unmasker_multidimensional_batch():
     assert new_feature_mask.sum() == total_batch_elements
 
 
-def test_direct_unmasker_set_seed():
+def test_direct_unmasker_set_seed() -> None:
     """Test that set_seed method exists and is callable."""
     unmasker = DirectUnmasker()
 

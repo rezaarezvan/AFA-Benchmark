@@ -1,5 +1,5 @@
 ## Dataframe produced by evaluation
-This is what `eval.py` produces.
+This is what `eval_afa_method.py` produces.
 
 - `afa_method` (str): name of the AFA method, e.g. "ODIN-MFRL" or "EDDI"
 - `classifier` (str|null): which classifier is used to make the predictions. If null, the AFA method's builtin method is assumed to be used.
@@ -12,7 +12,7 @@ This is what `eval.py` produces.
 - `true_class` (int): true class
 
 ## Expected dataframe for plotting
-This is what `plot.R` expects.
+This is what `plot_eval.R` expects.
 
 - `afa_method` (str): name of the AFA method, e.g. "ODIN-MFRL" or "EDDI"
 - `classifier` (str|null): which classifier is used to make the predictions. If null, the AFA method's builtin method is assumed to be used.

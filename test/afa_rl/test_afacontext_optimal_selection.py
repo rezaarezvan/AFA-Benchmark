@@ -4,16 +4,16 @@ import pytest
 import torch
 
 from afabench.afa_rl.utils import afacontext_optimal_selection
-from afabench.common.datasets import AFAContextDataset
+from afabench.common.datasets.datasets import AFAContextDataset
 
 
 @pytest.fixture
-def setup_data():
+def setup_data() -> AFAContextDataset:
     data = AFAContextDataset(n_samples=1)
     return data
 
 
-def test_chooses_first_feature(setup_data):
+def test_chooses_first_feature() -> None:
     """Test that the AFAContextSmartMethod always chooses the first feature at the beginning."""
     masked_features = torch.zeros(2, 20)
     feature_mask = torch.zeros(2, 20, dtype=torch.bool)
@@ -23,7 +23,7 @@ def test_chooses_first_feature(setup_data):
     )
 
 
-def test_chooses_next_three_features(setup_data):
+def test_chooses_next_three_features() -> None:
     """Test that the AFAContextSmartMethod chooses the next three features based on the context."""
     masked_features = torch.tensor(
         [

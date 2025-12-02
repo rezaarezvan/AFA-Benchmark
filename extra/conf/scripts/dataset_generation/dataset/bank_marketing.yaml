@@ -1,4 +1,4 @@
 # conf/dataset_generation/dataset/bank_marketing.yaml
-type: "bank_marketing"
+class_name: "BankMarketingDataset"
 kwargs:
   data_path: "${data_dir}/bank_marketing/bank-marketing.csv"

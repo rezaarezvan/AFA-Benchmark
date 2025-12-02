@@ -1,4 +1,4 @@
-type: "cubeSimple"
+class_name: "CubeDataset"
 kwargs:
   n_samples: 1000
   informative_feature_std: 0.0

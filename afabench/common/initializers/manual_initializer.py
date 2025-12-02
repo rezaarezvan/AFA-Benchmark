@@ -2,7 +2,6 @@ from typing import final, override
 
 import torch
 
-from afabench.common.config_classes import ManualInitializerConfig
 from afabench.common.custom_types import (
     AFAInitializer,
     FeatureMask,
@@ -15,9 +14,9 @@ from afabench.common.custom_types import (
 class ManualInitializer(AFAInitializer):
     """Use explicitly specified feature indices."""
 
-    def __init__(self, config: ManualInitializerConfig):
+    def __init__(self, flat_feature_indices: list[int]):
         self.flat_feature_indices = torch.tensor(
-            config.flat_feature_indices, dtype=torch.long
+            flat_feature_indices, dtype=torch.long
         )
 
     @override

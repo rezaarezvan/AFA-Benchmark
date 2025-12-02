@@ -1,3 +1,0 @@
-type: "ContextSelectiveXOR"
-kwargs:
-  n_samples: 1000

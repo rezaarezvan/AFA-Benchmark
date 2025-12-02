@@ -22,7 +22,7 @@ def basic_image_fixture() -> tuple[
     torch.Size,
     ImagePatchUnmaskerConfig,
 ]:
-    """Basic test data for ImagePatchUnmasker."""
+    """Provide basic test data for ImagePatchUnmasker."""
     batch_size = 2
     image_side_length = 8
     patch_size = 4
@@ -59,7 +59,17 @@ def basic_image_fixture() -> tuple[
     )
 
 
-def test_image_patch_unmasker_basic_functionality(basic_image_fixture):
+def test_image_patch_unmasker_basic_functionality(
+    basic_image_fixture: tuple[
+        Features,
+        FeatureMask,
+        MaskedFeatures,
+        AFASelection,
+        SelectionMask,
+        torch.Size,
+        ImagePatchUnmaskerConfig,
+    ],
+) -> None:
     """Test basic patch unmasking behavior."""
     (
         features,
@@ -95,7 +105,7 @@ def test_image_patch_unmasker_basic_functionality(basic_image_fixture):
     ].all()  # Patch 3
 
 
-def test_image_patch_unmasker_arbitrary_batch_shape():
+def test_image_patch_unmasker_arbitrary_batch_shape() -> None:
     """Test ImagePatchUnmasker with arbitrary batch shapes."""
     batch_shape = torch.Size([2, 3])  # Multi-dimensional batch
     image_side_length = 8
@@ -139,7 +149,7 @@ def test_image_patch_unmasker_arbitrary_batch_shape():
         assert new_feature_mask_flat[i].sum() == patch_pixels
 
 
-def test_image_patch_unmasker_zero_selection():
+def test_image_patch_unmasker_zero_selection() -> None:
     """Test ImagePatchUnmasker with zero selection (no unmasking)."""
     batch_size = 3
     image_side_length = 4
@@ -178,7 +188,7 @@ def test_image_patch_unmasker_zero_selection():
     assert new_feature_mask.sum() == 0
 
 
-def test_image_patch_unmasker_preserves_existing_mask():
+def test_image_patch_unmasker_preserves_existing_mask() -> None:
     """Test that existing mask is preserved and extended."""
     batch_size = 2
     image_side_length = 6
@@ -234,7 +244,7 @@ def test_image_patch_unmasker_preserves_existing_mask():
     ].all()  # Patch 1 unmasked in batch 1
 
 
-def test_image_patch_unmasker_get_n_selections():
+def test_image_patch_unmasker_get_n_selections() -> None:
     """Test get_n_selections method."""
     config = ImagePatchUnmaskerConfig(
         image_side_length=8,
@@ -260,7 +270,7 @@ def test_image_patch_unmasker_get_n_selections():
     assert unmasker2.get_n_selections(feature_shape2) == 16
 
 
-def test_image_patch_unmasker_different_patch_sizes():
+def test_image_patch_unmasker_different_patch_sizes() -> None:
     """Test with different patch sizes."""
     batch_size = 2
     image_side_length = 12
@@ -303,7 +313,7 @@ def test_image_patch_unmasker_different_patch_sizes():
         assert new_feature_mask.sum() == expected_patch_pixels * batch_size
 
 
-def test_image_patch_unmasker_multichannel():
+def test_image_patch_unmasker_multichannel() -> None:
     """Test with multi-channel images."""
     batch_size = 3
     image_side_length = 8
@@ -344,7 +354,7 @@ def test_image_patch_unmasker_multichannel():
         assert new_feature_mask[i].sum() == patch_pixels * n_channels
 
 
-def test_image_patch_unmasker_all_patches():
+def test_image_patch_unmasker_all_patches() -> None:
     """Test unmasking all possible patches."""
     batch_size = 4  # Same as number of patches
     image_side_length = 4
@@ -388,7 +398,7 @@ def test_image_patch_unmasker_all_patches():
     assert combined_mask.all()
 
 
-def test_image_patch_unmasker_configuration_validation():
+def test_image_patch_unmasker_configuration_validation() -> None:
     """Test configuration validation."""
     # Valid configuration
     config = ImagePatchUnmaskerConfig(
@@ -396,19 +406,19 @@ def test_image_patch_unmasker_configuration_validation():
         patch_size=4,
         n_channels=1,
     )
-    unmasker = ImagePatchUnmasker(config)  # Should not raise
+    ImagePatchUnmasker(config)  # Should not raise
 
     # Invalid configuration - image not divisible by patch size
+    invalid_config = ImagePatchUnmaskerConfig(
+        image_side_length=9,  # Not divisible by 4
+        patch_size=4,
+        n_channels=1,
+    )
     with pytest.raises(AssertionError, match="divisible by patch size"):
-        invalid_config = ImagePatchUnmaskerConfig(
-            image_side_length=9,  # Not divisible by 4
-            patch_size=4,
-            n_channels=1,
-        )
-        ImagePatchUnmasker(invalid_config)  # This should raise
+        ImagePatchUnmasker(invalid_config)
 
 
-def test_image_patch_unmasker_large_image():
+def test_image_patch_unmasker_large_image() -> None:
     """Test with larger images and smaller patches."""
     batch_size = 5
     image_side_length = 16
@@ -451,7 +461,7 @@ def test_image_patch_unmasker_large_image():
         assert new_feature_mask[i].sum() == patch_pixels
 
 
-def test_image_patch_unmasker_set_seed():
+def test_image_patch_unmasker_set_seed() -> None:
     """Test that set_seed method exists and is callable."""
     config = ImagePatchUnmaskerConfig(
         image_side_length=8,
@@ -465,7 +475,7 @@ def test_image_patch_unmasker_set_seed():
     unmasker.set_seed(None)
 
 
-def test_image_patch_unmasker_multidimensional_batch():
+def test_image_patch_unmasker_multidimensional_batch() -> None:
     """Test with complex multi-dimensional batch shapes."""
     batch_shape = torch.Size([2, 2, 3])
     image_side_length = 6

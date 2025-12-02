@@ -193,12 +193,12 @@ def process_batch(
         )
         # Key assumption: predictions are logits/probabilities for classes
         if active_builtin_prediction is not None:
-            assert active_external_prediction.shape[-1] > 1, (
-                "Expected external prediction to have class dimension"
-            )
-        if builtin_afa_predict_fn is not None:
             assert active_builtin_prediction.shape[-1] > 1, (
                 "Expected builtin prediction to have class dimension"
+            )
+        if active_external_prediction is not None:
+            assert active_external_prediction.shape[-1] > 1, (
+                "Expected external prediction to have class dimension"
             )
 
         # Append selections
@@ -229,12 +229,12 @@ def process_batch(
                     .flatten()
                     .cpu()
                     .tolist(),
-                    "builtin_predicted_label": None
+                    "builtin_predicted_class": None
                     if active_builtin_prediction is None
                     else active_builtin_prediction[active_idx]
                     .argmax(-1)
                     .item(),
-                    "external_predicted_label": None
+                    "external_predicted_class": None
                     if active_external_prediction is None
                     else active_external_prediction[active_idx]
                     .argmax(-1)

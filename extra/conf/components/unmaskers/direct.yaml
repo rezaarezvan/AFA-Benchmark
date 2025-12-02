@@ -1,2 +1,2 @@
-type: "direct"
-config: null
+class_name: "DirectUnmasker"
+kwargs: null

@@ -3,7 +3,6 @@ from typing import final, override
 import torch
 from torch.nn import functional as F
 
-from afabench.common.config_classes import ImagePatchUnmaskerConfig
 from afabench.common.custom_types import (
     AFASelection,
     AFAUnmasker,
@@ -17,14 +16,16 @@ from afabench.common.custom_types import (
 
 @final
 class ImagePatchUnmasker(AFAUnmasker):
-    def __init__(self, config: ImagePatchUnmaskerConfig):
-        assert config.image_side_length % config.patch_size == 0, (
+    def __init__(
+        self, image_side_length: int, patch_size: int, n_channels: int
+    ):
+        assert image_side_length % patch_size == 0, (
             "Image side length must be divisible by patch size"
         )
-        self.config = config
-        self.low_dim_image_side_length = (
-            config.image_side_length // config.patch_size
-        )
+        self.image_side_length = image_side_length
+        self.patch_size = patch_size
+        self.n_channels = n_channels
+        self.low_dim_image_side_length = image_side_length // patch_size
         self.afa_selection_size = self.low_dim_image_side_length**2
 
     @override
@@ -76,12 +77,12 @@ class ImagePatchUnmasker(AFAUnmasker):
         # Add batch dimension and channel dimension, expand channels
         afa_selection_low_dim_image = afa_selection_low_dim_image.unsqueeze(
             1
-        ).expand(-1, self.config.n_channels, -1, -1)
+        ).expand(-1, self.n_channels, -1, -1)
 
         # Upscale image mask, converting between float and bool
         afa_selection_image = F.interpolate(
             afa_selection_low_dim_image.float(),
-            scale_factor=self.config.patch_size,
+            scale_factor=self.patch_size,
             mode="nearest-exact",
         ).bool()
 

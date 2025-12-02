@@ -2,7 +2,6 @@ from typing import ClassVar, final, override
 
 import torch
 
-from afabench.common.config_classes import AACODefaultInitializerConfig
 from afabench.common.custom_types import (
     AFAInitializer,
     FeatureMask,
@@ -32,8 +31,8 @@ class AACODefaultInitializer(AFAInitializer):
         "afacontext": 0,  # context feature first
     }
 
-    def __init__(self, config: AACODefaultInitializerConfig):
-        self.dataset_name = config.dataset_name.lower()
+    def __init__(self, dataset_name: str):
+        self.dataset_name = dataset_name.lower()
 
     @override
     def set_seed(self, seed: int | None) -> None:

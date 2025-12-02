@@ -1,4 +1,4 @@
-type: "imagenette"
+class_name: "ImagenetteDataset"
 kwargs:
   data_root: "${data_dir}"
   variant_dir: "imagenette2-320"

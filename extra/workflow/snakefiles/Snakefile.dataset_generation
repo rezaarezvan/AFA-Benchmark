@@ -1,5 +1,5 @@
 DATASETS = [
-    "AFAContext",
+    "afa_context",
     # "AFAContextRandomInsert_without_noise",
     # "AFAContext_without_noise",
     # "ContextSelectiveXOR",
@@ -36,7 +36,7 @@ rule dataset_generation:
     shell:
         """
         python scripts/dataset_generation/generate_dataset.py \
-        dataset_generation/dataset@dataset={wildcards.dataset} \
+        scripts/dataset_generation/dataset@dataset={wildcards.dataset} \
         instance_indices={params.instance_indices_str} \
         seeds={params.instance_indices_str} \
         save_path={output}

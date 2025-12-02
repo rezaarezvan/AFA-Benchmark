@@ -193,6 +193,9 @@ data
 models
 /extra/models
 
+# Results
+/extra/eval_results
+
 # Everything inside results folder, except for things we want
 # to show in the README
 /result/*

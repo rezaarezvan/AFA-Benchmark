@@ -88,6 +88,8 @@ def main(cfg: RandomDummyTrainConfig) -> None:
         ),
         afa_initialize_fn=initializer.initialize,
         dataset=train_dataset,
+        external_afa_predict_fn=None,
+        builtin_afa_predict_fn=afa_method.predict,
         only_n_samples=100,
         batch_size=10,
     )
@@ -97,15 +99,15 @@ def main(cfg: RandomDummyTrainConfig) -> None:
         method=afa_method,
         save_path=Path(cfg.save_path),
         metadata={
-            "method_type": "random_dummy",
-            "dataset_type": dataset_metadata["dataset_type"],
+            "method_class_name": "RandomDummyAFAMethod",
+            "dataset_class_name": dataset_metadata["class_name"],
             "dataset_artifact_path": cfg.dataset_artifact_path,
             # "split_idx": dataset_metadata["split_idx"],
             "seed": cfg.seed,
             "train_soft_budget_param": cfg.train_soft_budget_param,
             "train_hard_budget": cfg.train_hard_budget,
-            "initializer_type": cfg.initializer.type,
-            "unmasker_type": cfg.unmasker.type,
+            "initializer_class_name": cfg.initializer.class_name,
+            "unmasker_class_name": cfg.unmasker.class_name,
         },
     )
 

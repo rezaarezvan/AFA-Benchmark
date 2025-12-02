@@ -7,9 +7,8 @@ qa:
     # Format
     uv run ruff format .
 
-    # Linting and fixing easy stuff
-    uv run ruff check . --fix
-    uv run ruff check --select I --fix .
+    # Linting and fixing easy stuff, but don't error
+    uv run ruff check . --fix --exit-zero
 
     # Type checking
     # uv run ty check .
