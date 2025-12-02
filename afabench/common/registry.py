@@ -1,4 +1,5 @@
 from afabench.common.afa_initializers.base import AFAInitializer
+
 from afabench.common.config_classes import (
     AACODefaultInitializerConfig,
     ImagePatchUnmaskerConfig,
@@ -332,7 +333,7 @@ def get_afa_initializer(initializer_cfg: InitializerConfig) -> AFAInitializer:  
         assert isinstance(
             initializer_cfg.config, AACODefaultInitializerConfig
         ), "expected AACODefaultInitializerConfig"
-        from afabench.common.afa_initializers.strategies import (
+        from afabench.common.afa_initializers.afa_initializers import (
             AACODefaultInitializer,
         )
 

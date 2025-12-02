@@ -6,10 +6,10 @@ import hydra
 import pandas as pd
 import torch
 import wandb
+from afabench.common.afa_initializers.base import AFAInitializer
 from omegaconf import OmegaConf
 
 from afabench.afa_oracle.afa_methods import AACOAFAMethod
-from afabench.common.afa_initializers.base import AFAInitializer
 from afabench.common.config_classes import (
     EvalConfig,
     InitializerConfig,

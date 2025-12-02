@@ -90,6 +90,7 @@ class AFAMethod(Protocol):
         feature_mask: FeatureMask,
         selection_mask: SelectionMask | None = None,
         label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> AFASelection:
         """Return an AFA selection based on observed features."""
         ...
@@ -99,6 +100,7 @@ class AFAMethod(Protocol):
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
         label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> Tensor:
         """Return the predicted label for the features that have been observed so far."""
         ...
@@ -152,6 +154,7 @@ class AFAClassifier(Protocol):
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
         label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> Label:
         """Return the predicted label for the features that have been observed so far."""
         ...
@@ -183,6 +186,7 @@ class AFASelectFn(Protocol):
         feature_mask: FeatureMask,
         selection_mask: SelectionMask | None = None,
         label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> AFASelection: ...
 
 
@@ -193,20 +197,8 @@ class AFAPredictFn(Protocol):
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
         label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> Label: ...
-
-
-# Feature unmasking interface assumed during evaluation. Applicable in scenarios where a single AFA action might uncover multiple features.
-class AFAUnmaskFn(Protocol):
-    def __call__(
-        self,
-        masked_features: MaskedFeatures,
-        feature_mask: FeatureMask,
-        features: Features,
-        afa_selection: AFASelection,
-        selection_mask: SelectionMask,
-        label: Label | None = None,
-    ) -> FeatureMask: ...
 
 
 class AFAUnmasker(Protocol):
@@ -218,11 +210,42 @@ class AFAUnmasker(Protocol):
         afa_selection: AFASelection,
         selection_mask: SelectionMask,
         label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> FeatureMask: ...
 
     def set_seed(self, seed: int | None) -> None: ...
 
 
-# Protocol for different mask initialization strategies
+class AFAUnmaskFn(Protocol):
+    def __call__(
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        features: Features,
+        afa_selection: AFASelection,
+        selection_mask: SelectionMask,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
+    ) -> FeatureMask: ...
+
+
+class AFAInitializer(Protocol):
+    def set_seed(self, seed: int | None) -> None: ...
+
+    def initialize(
+        self,
+        features: Features,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
+    ) -> FeatureMask:
+        """Create initial feature mask."""
+        ...
+
+
 class AFAInitializeFn(Protocol):
-    def __call__(self, features: Features, label: Label) -> FeatureMask: ...
+    def __call__(
+        self,
+        features: Features,
+        label: Label,
+        feature_shape: torch.Size | None = None,
+    ) -> FeatureMask: ...

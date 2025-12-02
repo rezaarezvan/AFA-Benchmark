@@ -10,9 +10,9 @@ from typing import Any
 
 import numpy as np
 import torch
+from afabench.common.afa_initializers.base import AFAInitializer
 from torch import nn
 
-from afabench.common.afa_initializers.base import AFAInitializer
 from afabench.common.custom_types import (
     AFAClassifier,
     AFADataset,

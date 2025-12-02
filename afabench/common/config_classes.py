@@ -833,6 +833,11 @@ class AACODefaultInitializerConfig:
 
 
 @dataclass
+class FixedRandomInitializerConfig:
+    unmask_ratio: float  # how many features to unmask
+
+
+@dataclass
 class InitializerConfig:
     type: str
     config: ManualInitializerConfig | AACODefaultInitializerConfig | None

@@ -1,40 +1,63 @@
-from typing import final
+from typing import final, override
 
 import numpy as np
 import torch
 from sklearn.feature_selection import mutual_info_classif
 
-from afabench.common.afa_initializers.base import AFAInitializer
 from afabench.common.config_classes import (
     AACODefaultInitializerConfig,
+    FixedRandomInitializerConfig,
     ManualInitializerConfig,
 )
-from afabench.common.custom_types import Features, Label
+from afabench.common.custom_types import (
+    AFAInitializer,
+    FeatureMask,
+    Features,
+    Label,
+)
 
 
+@final
 class FixedRandomInitializer(AFAInitializer):
-    """
-    Select random features once and reuse them across all episodes.
-    """
+    """Select random features once and reuse them across all episodes."""
 
-    def __init__(self, seed: int | None = None):
-        super().__init__(seed)
-        self._cached_features: list[int] | None = None
+    def __init__(self, config: FixedRandomInitializerConfig):
+        self.config = config
+        self._cached_mask: FeatureMask | None = None
+        self.rng = np.random.default_rng(None)
 
-    def select_features(
+    @override
+    def set_seed(self, seed: int | None) -> None:
+        self.rng = np.random.default_rng(seed)
+
+    @override
+    def initialize(
         self,
-        n_features_total: int,
-        n_features_select: int,
-        train_features: Features | None = None,
-        train_labels: Label | None = None,
-    ) -> list[int]:
+        features: Features,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
+    ) -> FeatureMask:
         # Select once and cache
-        if self._cached_features is None:
-            self._cached_features = self.rng.choice(
-                n_features_total, size=n_features_select, replace=False
-            ).tolist()
-        assert self._cached_features is not None
-        return self._cached_features
+        if self._cached_mask is None:
+            assert feature_shape is not None, (
+                "feature_shape must be provided for FixedRandomInitializer"
+            )
+            num_features = int(np.prod(list(feature_shape)))
+            num_features_to_unmask = num_features * self.config.unmask_ratio
+            # Sample feature indices
+            flat_indices = self.rng.choice(
+                num_features,
+                size=int(num_features_to_unmask),
+                replace=False,
+            )
+            # Unflatten
+            multi_indices = np.unravel_index(flat_indices, feature_shape)
+            # Turn into mask
+            self._cached_mask = torch.zeros(feature_shape, dtype=torch.bool)
+            self._cached_mask[multi_indices] = True
+
+        assert self._cached_mask is not None
+        return self._cached_mask
 
 
 class RandomPerEpisodeInitializer(AFAInitializer):
