@@ -4,13 +4,20 @@ import tempfile
 from pathlib import Path
 
 import pytest
+import torch
 
-from afabench.common.registry import get_afa_initializer, get_afa_unmasker
+from afabench.common.config_classes import (
+    FixedRandomInitializerConfig,
+    InitializerConfig,
+    ManualInitializerConfig,
+    RandomPerEpisodeInitializerConfig,
+    UnmaskerConfig,
+)
+from afabench.common.initializers.utils import get_afa_initializer_from_config
+from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
 from afabench.common.utils import (
     load_artifact_metadata,
     load_dataset_artifact,
-    load_initializer,
-    load_unmasker,
 )
 
 
@@ -22,69 +29,124 @@ def temp_dir():
 
 
 class TestUnmaskerRegistry:
-    def test_one_based_index_returns_callable(self):
-        fn = get_afa_unmasker("one_based_index")
-        assert callable(fn)
+    def test_direct_unmasker_returns_unmasker(self):
+        config = UnmaskerConfig(class_name="DirectUnmasker", config=None)
+        unmasker = get_afa_unmasker_from_config(config)
+        assert hasattr(unmasker, "unmask")
+        assert hasattr(unmasker, "get_n_selections")
 
-    def test_image_patch_returns_callable(self):
-        fn = get_afa_unmasker(
-            "image_patch", image_side_length=28, n_channels=1, patch_size=7
+    def test_image_patch_unmasker_returns_unmasker(self):
+        from afabench.common.config_classes import ImagePatchUnmaskerConfig
+
+        patch_config = ImagePatchUnmaskerConfig(
+            image_side_length=28, n_channels=1, patch_size=7
         )
-        assert callable(fn)
+        config = UnmaskerConfig(
+            class_name="ImagePatchUnmasker", config=patch_config
+        )
+        unmasker = get_afa_unmasker_from_config(config)
+        assert hasattr(unmasker, "unmask")
+        assert hasattr(unmasker, "get_n_selections")
 
-    def test_unknown_raises(self):
+    def test_unknown_unmasker_raises(self):
+        config = UnmaskerConfig(class_name="InvalidUnmasker", config=None)
         with pytest.raises(ValueError, match="Unknown unmasker"):
-            get_afa_unmasker("invalid")
-
-    def test_missing_kwargs_raises(self):
-        with pytest.raises(KeyError):
-            get_afa_unmasker("image_patch")
+            get_afa_unmasker_from_config(config)
 
 
 class TestInitializerRegistry:
-    def test_zero(self):
-        init = get_afa_initializer("zero")
-        assert init.select_features(20, 5) == []
+    def test_zero_initializer(self):
+        config = InitializerConfig(class_name="ZeroInitializer", config=None)
+        initializer = get_afa_initializer_from_config(config)
 
-    def test_fixed_random_cached(self):
-        init = get_afa_initializer("fixed_random", seed=42)
-        s1 = init.select_features(20, 5)
-        s2 = init.select_features(20, 5)
-        assert len(s1) == 5
-        assert s1 == s2
+        # Test with some dummy data
+        features = torch.randn(5, 3, 4)
+        feature_shape = torch.Size([3, 4])
+        mask = initializer.initialize(
+            features=features, feature_shape=feature_shape
+        )
 
-    def test_fixed_random_seed_matters(self):
-        s1 = get_afa_initializer("fixed_random", seed=1).select_features(20, 5)
-        s2 = get_afa_initializer("fixed_random", seed=2).select_features(20, 5)
-        assert s1 != s2
+        # ZeroInitializer should return all False mask
+        assert mask.shape == features.shape
+        assert not mask.any()  # All should be False
 
-    def test_random_per_episode_varies(self):
-        init = get_afa_initializer("random_per_episode", seed=42)
-        results = [tuple(init.select_features(20, 3)) for _ in range(10)]
-        assert len(set(results)) > 1
+    def test_fixed_random_initializer(self):
+        config_data = FixedRandomInitializerConfig(unmask_ratio=0.3)
+        config = InitializerConfig(
+            class_name="FixedRandomInitializer", config=config_data
+        )
+        initializer = get_afa_initializer_from_config(config)
 
-    def test_manual(self):
-        init = get_afa_initializer("manual", feature_indices=[0, 5, 10])
-        assert init.select_features(20, 3) == [0, 5, 10]
+        # Test with some dummy data
+        features = torch.randn(5, 3, 4)
+        feature_shape = torch.Size([3, 4])
 
-    def test_manual_wrong_count_raises(self):
-        init = get_afa_initializer("manual", feature_indices=[0, 5])
-        with pytest.raises(AssertionError):
-            init.select_features(20, 3)
+        initializer.set_seed(42)
+        mask1 = initializer.initialize(
+            features=features, feature_shape=feature_shape
+        )
+        mask2 = initializer.initialize(
+            features=features, feature_shape=feature_shape
+        )
 
-    def test_unknown_raises(self):
+        # Fixed random should be cached and return same results
+        assert torch.equal(mask1, mask2)
+
+        # Should respect unmask_ratio approximately
+        expected_count = int(feature_shape.numel() * 0.3)
+        actual_count = mask1[0].sum().item()  # Count for first batch element
+        assert actual_count == expected_count
+
+    def test_dynamic_random_initializer(self):
+        config_data = RandomPerEpisodeInitializerConfig(unmask_ratio=0.25)
+        config = InitializerConfig(
+            class_name="DynamicRandomInitializer", config=config_data
+        )
+        initializer = get_afa_initializer_from_config(config)
+
+        # Test with some dummy data
+        features = torch.randn(10, 4, 3)
+        feature_shape = torch.Size([4, 3])
+
+        initializer.set_seed(42)
+        mask = initializer.initialize(
+            features=features, feature_shape=feature_shape
+        )
+
+        # Should respect unmask_ratio
+        expected_count = int(feature_shape.numel() * 0.25)
+        actual_count = mask[0].sum().item()  # Count for first batch element
+        assert actual_count == expected_count
+
+    def test_manual_initializer(self):
+        config_data = ManualInitializerConfig(flat_feature_indices=[0, 5, 10])
+        config = InitializerConfig(
+            class_name="ManualInitializer", config=config_data
+        )
+        initializer = get_afa_initializer_from_config(config)
+
+        # Test with some dummy data that has at least 11 features
+        features = torch.randn(5, 4, 4)  # 16 features total
+        feature_shape = torch.Size([4, 4])
+        mask = initializer.initialize(
+            features=features, feature_shape=feature_shape
+        )
+
+        # Should have exactly 3 features selected
+        assert mask[0].sum().item() == 3
+
+        # Check that the right indices are selected
+        flat_mask = mask[0].flatten()
+        assert flat_mask[0].item() == True
+        assert flat_mask[5].item() == True
+        assert flat_mask[10].item() == True
+
+    def test_unknown_initializer_raises(self):
+        config = InitializerConfig(
+            class_name="InvalidInitializer", config=None
+        )
         with pytest.raises(ValueError, match="Unknown initializer"):
-            get_afa_initializer("invalid")
-
-
-class TestLoadUnmaskerInitializer:
-    def test_load_unmasker(self):
-        fn = load_unmasker("one_based_index")
-        assert callable(fn)
-
-    def test_load_initializer(self):
-        init = load_initializer("zero")
-        assert init.select_features(10, 3) == []
+            get_afa_initializer_from_config(config)
 
 
 class TestArtifactMetadata:

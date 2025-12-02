@@ -79,8 +79,8 @@ def get_afa_classifier_class(class_name: str) -> type[AFAClassifier]:
 
 
 AFA_UNMASKER_CLASSES = {
-    "DirectUnmasker": "afabench.common.afa_unmaskers.DirectUnmasker",
-    "ImagePatchUnmasker": "afabench.common.afa_unmaskers.ImagePatchUnmasker",
+    "DirectUnmasker": "afabench.common.unmaskers.DirectUnmasker",
+    "ImagePatchUnmasker": "afabench.common.unmaskers.ImagePatchUnmasker",
 }
 
 
@@ -96,13 +96,13 @@ def get_afa_unmasker_class(class_name: str) -> type[AFAUnmasker]:
 
 
 AFA_INITIALIZER_CLASSES = {
-    "ZeroInitializer": "afabench.common.afa_initializers.ZeroInitializer",
-    "FixedRandomInitializer": "afabench.common.afa_initializers.FixedRandomInitializer",
-    "DynamicRandomInitializer": "afabench.common.afa_initializers.DynamicRandomInitializer",
-    "ManualInitializer": "afabench.common.afa_initializers.ManualInitializer",
-    "MutualInformationInitializer": "afabench.common.afa_initializers.MutualInformationInitializer",
-    "LeastInformativeInitializer": "afabench.common.afa_initializers.LeastInformativeInitializer",
-    "AACODefaultInitializer": "afabench.common.afa_initializers.AACODefaultInitializer",
+    "ZeroInitializer": "afabench.common.initializers.ZeroInitializer",
+    "FixedRandomInitializer": "afabench.common.initializers.FixedRandomInitializer",
+    "DynamicRandomInitializer": "afabench.common.initializers.DynamicRandomInitializer",
+    "ManualInitializer": "afabench.common.initializers.ManualInitializer",
+    "MutualInformationInitializer": "afabench.common.initializers.MutualInformationInitializer",
+    "LeastInformativeInitializer": "afabench.common.initializers.LeastInformativeInitializer",
+    "AACODefaultInitializer": "afabench.common.initializers.AACODefaultInitializer",
 }
 
 

@@ -21,7 +21,6 @@ from afabench.common.custom_types import (
     AFAMethod,
     AFAUnmasker,
 )
-from afabench.common.registry import get_afa_initializer, get_afa_unmasker
 from afabench.common.utils import (
     load_classifier_artifact,
     load_dataset_artifact,
@@ -55,11 +54,13 @@ def load(
     log.info(f"Loaded AFA method from {method_artifact_path}")
 
     # Load unmasker
-    unmasker: AFAUnmasker = get_afa_unmasker(unmasker_cfg)
+    unmasker: AFAUnmasker = get_afa_unmasker_from_config(unmasker_cfg)
     log.info(f"Loaded {unmasker_cfg.type} unmasker")
 
     # Load initializer
-    initializer: AFAInitializer = get_afa_initializer(initializer_cfg)
+    initializer: AFAInitializer = get_afa_initializer_from_config(
+        initializer_cfg
+    )
     log.info(f"Loaded {initializer_cfg.type} initializer")
 
     # Load dataset
@@ -165,7 +166,9 @@ def main(cfg: EvalConfig) -> None:
     df_eval = eval_afa_method(
         afa_select_fn=afa_method.select,
         afa_unmask_fn=unmasker.unmask,
-        n_selection_choices=cfg.n_selection_choices,
+        n_selection_choices=unmasker.get_n_selections(
+            feature_shape=dataset.feature_shape
+        ),
         afa_initialize_fn=initializer.initialize,
         dataset=dataset,
         external_afa_predict_fn=external_classifier.__call__

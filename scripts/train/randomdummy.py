@@ -12,7 +12,8 @@ from afabench.common.afa_methods import RandomDummyAFAMethod
 from afabench.common.config_classes import (
     RandomDummyTrainConfig,
 )
-from afabench.common.registry import get_afa_initializer, get_afa_unmasker
+from afabench.common.initializers.utils import get_afa_initializer_from_config
+from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
 from afabench.common.utils import (
     load_dataset_artifact,
     save_method_artifact,
@@ -73,10 +74,10 @@ def main(cfg: RandomDummyTrainConfig) -> None:
     )
 
     # Create initializer
-    initializer = get_afa_initializer(initializer_cfg=cfg.initializer)
+    initializer = get_afa_initializer_from_config(cfg.initializer)
 
     # Create unmasker
-    unmasker = get_afa_unmasker(unmasker_cfg=cfg.unmasker)
+    unmasker = get_afa_unmasker_from_config(cfg.unmasker)
 
     # Check that everything works together by doing some evaluation
     eval_afa_method(

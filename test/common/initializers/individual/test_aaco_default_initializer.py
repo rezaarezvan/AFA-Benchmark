@@ -1,9 +1,9 @@
 import pytest
 import torch
 
-from afabench.common.afa_initializers import AACODefaultInitializer
 from afabench.common.config_classes import AACODefaultInitializerConfig
 from afabench.common.custom_types import Features
+from afabench.common.initializers import AACODefaultInitializer
 
 
 @pytest.fixture

@@ -1,8 +1,8 @@
 import pytest
 import torch
 
-from afabench.common.afa_initializers import ManualInitializer
 from afabench.common.config_classes import ManualInitializerConfig
+from afabench.common.initializers import ManualInitializer
 
 
 def test_manual_initializer_basic_functionality():

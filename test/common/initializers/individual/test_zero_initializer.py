@@ -1,8 +1,8 @@
 import pytest
 import torch
 
-from afabench.common.afa_initializers import ZeroInitializer
 from afabench.common.custom_types import Features
+from afabench.common.initializers import ZeroInitializer
 
 
 @pytest.fixture

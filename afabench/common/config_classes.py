@@ -62,7 +62,7 @@ class ImagePatchUnmaskerConfig:
 
 @dataclass
 class UnmaskerConfig:
-    type: str
+    class_name: str
     config: ImagePatchUnmaskerConfig | None
 
 
@@ -101,7 +101,7 @@ class LeastInformativeInitializerConfig:
 
 @dataclass
 class InitializerConfig:
-    type: str
+    class_name: str
     config: (
         ManualInitializerConfig
         | AACODefaultInitializerConfig

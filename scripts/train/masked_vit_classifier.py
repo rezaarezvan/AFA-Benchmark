@@ -12,10 +12,13 @@ from torch.utils.data import DataLoader
 
 from afabench.afa_discriminative.utils import MaskLayer2d
 from afabench.common.afa_methods import RandomPatchClassificationAFAMethod
-from afabench.common.afa_unmaskers import get_image_patch_unmask_fn
 from afabench.common.classifiers import WrappedMaskedViTClassifier
-from afabench.common.config_classes import TrainMaskedViTClassifierConfig
+from afabench.common.config_classes import (
+    ImagePatchUnmaskerConfig,
+    TrainMaskedViTClassifierConfig,
+)
 from afabench.common.models import MaskedViTClassifier, MaskedViTTrainer
+from afabench.common.unmaskers import ImagePatchUnmasker
 from afabench.common.utils import (
     load_dataset_artifact,
     set_seed,
@@ -93,11 +96,12 @@ def main(cfg: TrainMaskedViTClassifierConfig) -> None:
         image_size=cfg.image_size,
         patch_size=cfg.patch_size,
     )
-    afa_uncover_fn = get_image_patch_unmask_fn(
+    unmasker_config = ImagePatchUnmaskerConfig(
         image_side_length=cfg.image_size,
         n_channels=3,
         patch_size=cfg.patch_size,
     )
+    afa_uncover_fn = ImagePatchUnmasker(unmasker_config).unmask
     afa_method = RandomPatchClassificationAFAMethod(
         afa_classifier=wrapped_classifier,
         image_side_length=cfg.image_size,

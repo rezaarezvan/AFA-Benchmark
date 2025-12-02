@@ -1,7 +1,6 @@
 import pytest
 import torch
 
-from afabench.common.afa_unmaskers import DirectUnmasker
 from afabench.common.custom_types import (
     AFASelection,
     FeatureMask,
@@ -9,6 +8,7 @@ from afabench.common.custom_types import (
     MaskedFeatures,
     SelectionMask,
 )
+from afabench.common.unmaskers import DirectUnmasker
 
 
 @pytest.fixture

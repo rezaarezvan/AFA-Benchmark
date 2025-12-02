@@ -20,13 +20,13 @@ from afabench.common.custom_types import (
     AFAMethod,
     AFAUnmasker,
 )
+from afabench.common.initializers.utils import get_afa_initializer_from_config
 from afabench.common.registry import (
     get_afa_classifier_class,
     get_afa_dataset_class,
-    get_afa_initializer,
     get_afa_method_class,
-    get_afa_unmasker,
 )
+from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
 
 
 def set_seed(seed: int | None) -> int:
@@ -202,8 +202,8 @@ def load_eval_components(
     device = device or torch.device("cpu")
 
     method, _ = load_method_artifact(method_artifact_path, device=device)
-    unmasker = get_afa_unmasker(unmasker_cfg=unmasker_cfg)
-    initializer = get_afa_initializer(initializer_cfg=initializer_cfg)
+    unmasker = get_afa_unmasker_from_config(unmasker_cfg)
+    initializer = get_afa_initializer_from_config(initializer_cfg)
     dataset, _ = load_dataset_artifact(
         path=dataset_artifact_path, split=dataset_split
     )
