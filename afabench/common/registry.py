@@ -1,16 +1,3 @@
-from typing import cast
-
-from afabench.common.config_classes import (
-    AACODefaultInitializerConfig,
-    FixedRandomInitializerConfig,
-    ImagePatchUnmaskerConfig,
-    InitializerConfig,
-    LeastInformativeInitializerConfig,
-    ManualInitializerConfig,
-    MutualInformationInitializerConfig,
-    RandomPerEpisodeInitializerConfig,
-    UnmaskerConfig,
-)
 from afabench.common.custom_types import (
     AFAClassifier,
     AFADataset,
@@ -19,322 +6,114 @@ from afabench.common.custom_types import (
     AFAUnmasker,
 )
 
-AFA_METHOD_TYPES = {
-    "shim2018",
-    "zannone2019",
-    "kachuee2019",
-    "covert2023",
-    "gadgil2023",
-    "ma2018",
-    "aaco",
-    "cae",
-    "permutation",
-    "sequential_dummy",
-    "random_dummy",
-    "optimalcube",
+AFA_METHOD_CLASSES = {
+    "RLAFAMethod": "afabench.afa_rl.afa_methods.RLAFAMethod",
+    "Covert2023AFAMethod": "afabench.afa_discriminative.afa_methods.Covert2023AFAMethod",
+    "Gadgil2023AFAMethod": "afabench.afa_discriminative.afa_methods.Gadgil2023AFAMethod",
+    "Ma2018AFAMethod": "afabench.afa_generative.afa_methods.Ma2018AFAMethod",
+    "AACOAFAMethod": "afabench.afa_oracle.afa_methods.AACOAFAMethod",
+    "StaticBaseMethod": "afabench.static.static_methods.StaticBaseMethod",
+    "SequentialDummyAFAMethod": "afabench.common.afa_methods.SequentialDummyAFAMethod",
+    "RandomDummyAFAMethod": "afabench.common.afa_methods.RandomDummyAFAMethod",
+    "OptimalCubeAFAMethod": "afabench.common.afa_methods.OptimalCubeAFAMethod",
 }
 
 
-def get_afa_method_class(name: str) -> type[AFAMethod]:  # noqa: PLR0911
-    """
-    Return the appropriate AFAMethod for a given method type.
+def get_afa_method_class(class_name: str) -> type[AFAMethod]:
+    """Return a reference to an AFAMethod class, given the class name."""
+    if class_name not in AFA_METHOD_CLASSES:
+        msg = f"Unknown AFA method: {class_name}"
+        raise ValueError(msg)
 
-    Note that several method types can have the same AFAMethod class, like the RL methods. A dictionary is not used since it could lead to circular imports.
-    """
-    if name == "RLAFAMethod":
-        # Lazy import of RLAFAMethod moved inside the function to avoid circular dependency
-        from afabench.afa_rl.afa_methods import RLAFAMethod
-
-        return RLAFAMethod
-    if name == "Covert2023AFAMethod":
-        from afabench.afa_discriminative.afa_methods import (
-            Covert2023AFAMethod,
-        )
-
-        return Covert2023AFAMethod
-    if name == "Gadgil2023AFAMethod":
-        from afabench.afa_discriminative.afa_methods import (
-            Gadgil2023AFAMethod,
-        )
-
-        return Gadgil2023AFAMethod
-    if name == "Ma2018AFAMethod":
-        from afabench.afa_generative.afa_methods import (
-            Ma2018AFAMethod,
-        )
-
-        return Ma2018AFAMethod
-
-    if name == "AACOAFAMethod":
-        from afabench.afa_oracle.afa_methods import (
-            AACOAFAMethod,
-        )
-
-        return AACOAFAMethod
-
-    if name == "StaticBaseMethod":
-        from afabench.static.static_methods import (
-            StaticBaseMethod,
-        )
-
-        return StaticBaseMethod
-    if name == "SequentialDummyAFAMethod":
-        from afabench.common.afa_methods import (
-            SequentialDummyAFAMethod,
-        )
-
-        return SequentialDummyAFAMethod
-    if name == "RandomDummyAFAMethod":
-        from afabench.common.afa_methods import (
-            RandomDummyAFAMethod,
-        )
-
-        return RandomDummyAFAMethod
-    if name == "OptimalCubeAFAMethod":
-        from afabench.common.afa_methods import (
-            OptimalCubeAFAMethod,
-        )
-
-        return OptimalCubeAFAMethod
-    msg = f"Unknown AFA method: {name}"
-    raise ValueError(msg)
+    module_name, class_name = AFA_METHOD_CLASSES[class_name].rsplit(".", 1)
+    module = __import__(module_name, fromlist=[class_name])
+    return getattr(module, class_name)
 
 
-AFA_DATASET_TYPES = {
-    "cube",
-    "cubeSimple",
-    "cubeOnlyInformative",
-    "shim2018cube",
-    "AFAContext",
-    "AFAContextRandomInsert",
-    "ContextSelectiveXOR",
-    "MNIST",
-    "diabetes",
-    "physionet",
-    "miniboone",
-    "FashionMNIST",
-    "bank_marketing",
-    "ckd",
-    "actg",
+AFA_DATASET_CLASSES = {
+    "CubeDataset": "afabench.common.datasets.datasets.CubeDataset",
+    "AFAContextDataset": "afabench.common.datasets.datasets.AFAContextDataset",
+    "MNISTDataset": "afabench.common.datasets.datasets.MNISTDataset",
+    "DiabetesDataset": "afabench.common.datasets.datasets.DiabetesDataset",
+    "PhysionetDataset": "afabench.common.datasets.datasets.PhysionetDataset",
+    "MiniBooNEDataset": "afabench.common.datasets.datasets.MiniBooNEDataset",
+    "FashionMNISTDataset": "afabench.common.datasets.datasets.FashionMNISTDataset",
+    "BankMarketingDataset": "afabench.common.datasets.datasets.BankMarketingDataset",
+    "CKDDataset": "afabench.common.datasets.datasets.CKDDataset",
+    "ACTG175Dataset": "afabench.common.datasets.datasets.ACTG175Dataset",
+    "ImagenetteDataset": "afabench.common.datasets.datasets.ImagenetteDataset",
 }
 
 
-def get_afa_dataset_class(name: str) -> type[AFADataset]:  # noqa: C901, PLR0911
-    if name == "cube":
-        from afabench.common.datasets.datasets import (
-            CubeDataset,
-        )
+def get_afa_dataset_class(class_name: str) -> type[AFADataset]:
+    """Return a reference to an AFADataset class, given the class name."""
+    if class_name not in AFA_DATASET_CLASSES:
+        msg = f"Unknown AFA dataset: {class_name}"
+        raise ValueError(msg)
 
-        return CubeDataset
-    if name == "AFAContext":
-        from afabench.common.datasets.datasets import (
-            AFAContextDataset,
-        )
-
-        return AFAContextDataset
-    if name == "MNIST":
-        from afabench.common.datasets.datasets import (
-            MNISTDataset,
-        )
-
-        return MNISTDataset
-    if name == "diabetes":
-        from afabench.common.datasets.datasets import (
-            DiabetesDataset,
-        )
-
-        return DiabetesDataset
-    if name == "physionet":
-        from afabench.common.datasets.datasets import (
-            PhysionetDataset,
-        )
-
-        return PhysionetDataset
-    if name == "miniboone":
-        from afabench.common.datasets.datasets import (
-            MiniBooNEDataset,
-        )
-
-        return MiniBooNEDataset
-    if name == "FashionMNIST":
-        from afabench.common.datasets.datasets import (
-            FashionMNISTDataset,
-        )
-
-        return FashionMNISTDataset
-    if name == "bank_marketing":
-        from afabench.common.datasets.datasets import BankMarketingDataset
-
-        return BankMarketingDataset
-
-    if name == "ckd":
-        from afabench.common.datasets.datasets import CKDDataset
-
-        return CKDDataset
-
-    if name == "actg":
-        from afabench.common.datasets.datasets import ACTG175Dataset
-
-        return ACTG175Dataset
-
-    if name == "imagenette":
-        from afabench.common.datasets.datasets import ImagenetteDataset
-
-        return ImagenetteDataset
-
-    msg = f"Unknown AFA dataset: {name}"
-    raise ValueError(msg)
+    module_name, class_name = AFA_DATASET_CLASSES[class_name].rsplit(".", 1)
+    module = __import__(module_name, fromlist=[class_name])
+    return getattr(module, class_name)
 
 
-AFA_CLASSIFIER_TYPES = {
-    "randomdummy",
-    "uniformdummy",
-    "WrappedMaskedMLPClassifier",
-    "WrappedMaskedVitClassifier",
-    "Shim2018AFAClassifier",
+AFA_CLASSIFIER_CLASSES = {
+    "randomdummy": "afabench.common.classifiers.RandomDummyAFAClassifier",
+    "uniformdummy": "afabench.common.classifiers.UniformDummyAFAClassifier",
+    "WrappedMaskedMLPClassifier": "afabench.common.classifiers.WrappedMaskedMLPClassifier",
+    "WrappedMaskedViTClassifier": "afabench.common.classifiers.WrappedMaskedViTClassifier",
+    "Shim2018AFAClassifier": "afabench.afa_rl.shim2018.models.Shim2018AFAClassifier",
+    "Zannone2019AFAClassifier": "afabench.afa_rl.zannone2019.models.Zannone2019AFAClassifier",
+    "Kachuee2019AFAClassifier": "afabench.afa_rl.kachuee2019.models.Kachuee2019AFAClassifier",
 }
 
 
-def get_afa_classifier_class(name: str) -> type[AFAClassifier]:  # noqa: PLR0911
-    if name == "randomdummy":
-        from afabench.common.classifiers import (
-            RandomDummyAFAClassifier,
-        )
+def get_afa_classifier_class(class_name: str) -> type[AFAClassifier]:
+    """Return a reference to an AFAClassifier class, given the class name."""
+    if class_name not in AFA_CLASSIFIER_CLASSES:
+        msg = f"Unknown AFA classifier: {class_name}"
+        raise ValueError(msg)
 
-        return RandomDummyAFAClassifier
-    if name == "uniformdummy":
-        from afabench.common.classifiers import (
-            UniformDummyAFAClassifier,
-        )
-
-        return UniformDummyAFAClassifier
-    if name == "WrappedMaskedMLPClassifier":
-        from afabench.common.classifiers import (
-            WrappedMaskedMLPClassifier,
-        )
-
-        return WrappedMaskedMLPClassifier
-
-    if name == "WrappedMaskedViTClassifier":
-        from afabench.common.classifiers import (
-            WrappedMaskedViTClassifier,
-        )
-
-        return WrappedMaskedViTClassifier
-    if name == "Shim2018AFAClassifier":
-        from afabench.afa_rl.shim2018.models import (
-            Shim2018AFAClassifier,
-        )
-
-        return Shim2018AFAClassifier
-    if name == "Zannone2019AFAClassifier":
-        from afabench.afa_rl.zannone2019.models import (
-            Zannone2019AFAClassifier,
-        )
-
-        return Zannone2019AFAClassifier
-    if name == "Kachuee2019AFAClassifier":
-        from afabench.afa_rl.kachuee2019.models import (
-            Kachuee2019AFAClassifier,
-        )
-
-        return Kachuee2019AFAClassifier
-    msg = f"Unknown AFA classifier: {name}"
-    raise ValueError(msg)
+    module_name, class_name = AFA_CLASSIFIER_CLASSES[class_name].rsplit(".", 1)
+    module = __import__(module_name, fromlist=[class_name])
+    return getattr(module, class_name)
 
 
-AFA_UNMASKER_TYPES = {"direct", "image_patch"}
-
-
-def get_afa_unmasker(unmasker_cfg: UnmaskerConfig) -> AFAUnmasker:
-    """Get unmasker function by name."""
-    if unmasker_cfg.type == "direct":
-        assert unmasker_cfg.config is None, "direct unmasker takes no config"
-        from afabench.common.afa_unmaskers import DirectUnmasker
-
-        return DirectUnmasker()
-
-    if unmasker_cfg.type == "image_patch":
-        config = cast("ImagePatchUnmaskerConfig", unmasker_cfg.config)
-        from afabench.common.afa_unmaskers import ImagePatchUnmasker
-
-        return ImagePatchUnmasker(config=config)
-
-    msg = f"Unknown unmasker: {unmasker_cfg.type}"
-    raise ValueError(msg)
-
-
-AFA_INITIALIZER_TYPES = {
-    "zero",
-    "fixed_random",
-    "random_per_episode",
-    "manual",
-    "mutual_information",
-    "least_informative",
-    "aaco_default",
+AFA_UNMASKER_CLASSES = {
+    "DirectUnmasker": "afabench.common.afa_unmaskers.DirectUnmasker",
+    "ImagePatchUnmasker": "afabench.common.afa_unmaskers.ImagePatchUnmasker",
 }
 
 
-def get_afa_initializer(initializer_cfg: InitializerConfig) -> AFAInitializer:  # noqa: PLR0911
-    """Get initializer by name."""
-    if initializer_cfg.type == "zero":
-        # ZeroInitializer does not require a config object
-        assert initializer_cfg.config is None, (
-            "zero initializer must not have a config object"
-        )
-        from afabench.common.afa_initializers import ZeroInitializer
+def get_afa_unmasker_class(class_name: str) -> type[AFAUnmasker]:
+    """Return a reference to an AFAUnmasker class, given the class name."""
+    if class_name not in AFA_UNMASKER_CLASSES:
+        msg = f"Unknown unmasker: {class_name}"
+        raise ValueError(msg)
 
-        return ZeroInitializer()
+    module_name, class_name = AFA_UNMASKER_CLASSES[class_name].rsplit(".", 1)
+    module = __import__(module_name, fromlist=[class_name])
+    return getattr(module, class_name)
 
-    if initializer_cfg.type == "fixed_random":
-        config = cast("FixedRandomInitializerConfig", initializer_cfg.config)
-        from afabench.common.afa_initializers import FixedRandomInitializer
 
-        return FixedRandomInitializer(config=config)
+AFA_INITIALIZER_CLASSES = {
+    "ZeroInitializer": "afabench.common.afa_initializers.ZeroInitializer",
+    "FixedRandomInitializer": "afabench.common.afa_initializers.FixedRandomInitializer",
+    "DynamicRandomInitializer": "afabench.common.afa_initializers.DynamicRandomInitializer",
+    "ManualInitializer": "afabench.common.afa_initializers.ManualInitializer",
+    "MutualInformationInitializer": "afabench.common.afa_initializers.MutualInformationInitializer",
+    "LeastInformativeInitializer": "afabench.common.afa_initializers.LeastInformativeInitializer",
+    "AACODefaultInitializer": "afabench.common.afa_initializers.AACODefaultInitializer",
+}
 
-    if initializer_cfg.type == "random_per_episode":
-        config = cast(
-            "RandomPerEpisodeInitializerConfig", initializer_cfg.config
-        )
-        from afabench.common.afa_initializers import (
-            DynamicRandomInitializer,
-        )
 
-        return DynamicRandomInitializer(config=config)
+def get_afa_initializer_class(class_name: str) -> type[AFAInitializer]:
+    """Return a reference to an AFAInitializer class, given the class name."""
+    if class_name not in AFA_INITIALIZER_CLASSES:
+        msg = f"Unknown initializer: {class_name}"
+        raise ValueError(msg)
 
-    if initializer_cfg.type == "manual":
-        config = cast("ManualInitializerConfig", initializer_cfg.config)
-        from afabench.common.afa_initializers import ManualInitializer
-
-        return ManualInitializer(config=config)
-
-    if initializer_cfg.type == "mutual_information":
-        config = cast(
-            "MutualInformationInitializerConfig", initializer_cfg.config
-        )
-        from afabench.common.afa_initializers import (
-            MutualInformationInitializer,
-        )
-
-        return MutualInformationInitializer(config=config)
-
-    if initializer_cfg.type == "least_informative":
-        config = cast(
-            "LeastInformativeInitializerConfig", initializer_cfg.config
-        )
-        from afabench.common.afa_initializers import (
-            LeastInformativeInitializer,
-        )
-
-        return LeastInformativeInitializer(config=config)
-
-    if initializer_cfg.type == "aaco_default":
-        config = cast("AACODefaultInitializerConfig", initializer_cfg.config)
-        from afabench.common.afa_initializers import (
-            AACODefaultInitializer,
-        )
-
-        return AACODefaultInitializer(config=config)
-
-    msg = f"Unknown initializer: {initializer_cfg.type}"
-    raise ValueError(msg)
+    module_name, class_name = AFA_INITIALIZER_CLASSES[class_name].rsplit(
+        ".", 1
+    )
+    module = __import__(module_name, fromlist=[class_name])
+    return getattr(module, class_name)
