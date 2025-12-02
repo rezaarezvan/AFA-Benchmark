@@ -1,1 +1,3 @@
-unmask_ratio: 0.2
+type: "random_per_episode"
+config:
+  unmask_ratio: 0.2

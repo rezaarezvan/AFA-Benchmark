@@ -1,10 +1,10 @@
 hydra:
   searchpath:
+    - file://extra/conf
     - file://extra/conf/global
 
 defaults:
   - _self_
-  # - dataset@_global_: cube
   - components/initializers@initializer: ???
   - components/unmaskers@unmasker: ???
   - override hydra/job_logging: colorlog

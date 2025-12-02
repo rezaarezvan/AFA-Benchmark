@@ -166,7 +166,7 @@ def main(cfg: EvalConfig) -> None:
         afa_select_fn=afa_method.select,
         afa_unmask_fn=unmasker.unmask,
         n_selection_choices=cfg.n_selection_choices,
-        afa_initialize_fn=initializer.initialize,  # TODO: Initializer.initialize should satisfy InitializeFn  # pyright: ignore[reportArgumentType]
+        afa_initialize_fn=initializer.initialize,
         dataset=dataset,
         external_afa_predict_fn=external_classifier.__call__
         if external_classifier is not None

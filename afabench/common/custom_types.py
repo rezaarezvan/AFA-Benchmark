@@ -239,6 +239,11 @@ class AFAPredictFn(Protocol):
 
 
 class AFAUnmasker(Protocol):
+    @property
+    def n_selections(self) -> int:
+        """Return how many different selections are possible with this unmasker."""
+        ...
+
     def unmask(
         self,
         masked_features: MaskedFeatures,

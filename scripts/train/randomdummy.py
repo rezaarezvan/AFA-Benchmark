@@ -12,6 +12,7 @@ from afabench.common.afa_methods import RandomDummyAFAMethod
 from afabench.common.config_classes import (
     RandomDummyTrainConfig,
 )
+from afabench.common.registry import get_afa_initializer, get_afa_unmasker
 from afabench.common.utils import (
     load_dataset_artifact,
     save_method_artifact,
@@ -66,6 +67,32 @@ def main(cfg: RandomDummyTrainConfig) -> None:
         if cfg.train_soft_budget_param is None
         else cfg.train_soft_budget_param,
     )
+
+    # Create initializer
+    initializer = get_afa_initializer(initializer_cfg=cfg.initializer)
+
+    # Create unmasker
+    unmasker = get_afa_unmasker(unmasker_cfg=cfg.unmasker)
+
+    # Check that everything works together by doing some evaluation
+    eval_afa_method(
+        afa_select_fn=afa_method.select,
+        afa_unmask_fn=unmasker.unmask,
+        n_selection_choices=unmasker.n_selections,
+        afa_initialize_fn=initializer.initialize,
+        dataset=dataset,
+        external_afa_predict_fn=external_classifier.__call__
+        if external_classifier is not None
+        else None,
+        builtin_afa_predict_fn=afa_method.predict
+        if afa_method.has_builtin_classifier
+        else None,
+        only_n_samples=cfg.eval_only_n_samples,
+        device=torch.device(cfg.device),
+        selection_budget=cfg.hard_budget,
+        batch_size=cfg.batch_size,
+    )
+
     # Save artifact to filesystem
     save_method_artifact(
         method=afa_method,
