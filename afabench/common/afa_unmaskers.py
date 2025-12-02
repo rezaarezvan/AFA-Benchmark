@@ -44,20 +44,37 @@ class DirectUnmasker(AFAUnmasker):
         afa_selection == 0 is ignored.
         """
         assert feature_shape is not None, "feature_shape must be provided"
-        assert afa_selection.shape[1] == 1, (
-            "AFASelection must have shape [batch, 1]"
+        assert afa_selection.shape[-1] == 1, (
+            "AFASelection must have shape [..., 1]"
         )
-        feature_indices = afa_selection.squeeze(1) - 1
 
-        new_feature_mask = feature_mask.clone()
-        # Convert feature_indices to n-dimensional indices using unravel_index
-        multi_indices = torch.unravel_index(feature_indices, feature_shape)
-        batch_indices = torch.arange(
-            feature_mask.size(0), device=feature_mask.device
-        )
-        new_feature_mask[batch_indices, *multi_indices] = True
+        # Get batch shape by removing the last dimension (which is 1)
+        batch_shape = afa_selection.shape[:-1]
 
-        return new_feature_mask
+        # Flatten batch dimensions for processing
+        afa_selection_flat = afa_selection.view(-1, 1)
+        feature_mask_flat = feature_mask.view(-1, *feature_shape)
+
+        feature_indices = afa_selection_flat.squeeze(1) - 1
+
+        new_feature_mask_flat = feature_mask_flat.clone()
+
+        # Only unmask features where selection > 0 (selection == 0 is ignored)
+        valid_selections = afa_selection_flat.squeeze(1) > 0
+        if valid_selections.any():
+            valid_feature_indices = feature_indices[valid_selections]
+            valid_batch_indices = torch.arange(
+                feature_mask_flat.size(0), device=feature_mask.device
+            )[valid_selections]
+
+            # Convert feature_indices to n-dimensional indices using unravel_index
+            multi_indices = torch.unravel_index(
+                valid_feature_indices, feature_shape
+            )
+            new_feature_mask_flat[valid_batch_indices, *multi_indices] = True
+
+        # Reshape back to original batch shape + feature shape
+        return new_feature_mask_flat.view(batch_shape + feature_shape)
 
 
 @final
@@ -93,12 +110,16 @@ class ImagePatchUnmasker(AFAUnmasker):
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> FeatureMask:
-        assert afa_selection.shape[1] == 1, (
-            "AFASelection must have shape [batch, 1]"
+        assert afa_selection.shape[-1] == 1, (
+            "AFASelection must have shape [..., 1]"
         )
 
+        # Get batch shape by removing the last dimension (which is 1)
+        batch_shape = afa_selection.shape[:-1]
+        batch_size = int(torch.prod(torch.tensor(batch_shape)))
+
         # Convert afa selection into 1D mask
-        sel = afa_selection.to(torch.long)
+        sel = afa_selection.view(-1, 1).to(torch.long)
         stop = sel == 0
         # avoid -1 for one hot
         sel = torch.where(stop, torch.ones_like(sel), sel)
@@ -109,7 +130,7 @@ class ImagePatchUnmasker(AFAUnmasker):
 
         # Convert to low-dimensional image mask
         afa_selection_low_dim_image = afa_selection_1d.view(
-            -1,
+            batch_size,
             self.low_dim_image_side_length,
             self.low_dim_image_side_length,
         )
@@ -129,10 +150,17 @@ class ImagePatchUnmasker(AFAUnmasker):
         # print(f"{afa_selection_image.shape}")
         # print(f"{feature_mask.shape}")
 
-        # Convert image mask to feature mask and add to previous feature mask
-        # new_feature_mask = feature_mask + afa_selection_image.flatten(
-        #     start_dim=1
-        # )
-        new_feature_mask = feature_mask | afa_selection_image
+        # Flatten batch dimensions for processing
+        feature_mask_flat = feature_mask.view(
+            batch_size,
+            *feature_mask.shape[-len(afa_selection_image.shape[-3:]) :],
+        )
 
-        return new_feature_mask
+        # Convert image mask to feature mask and add to previous feature mask
+        new_feature_mask_flat = feature_mask_flat | afa_selection_image
+
+        # Reshape back to original batch shape + feature shape
+        return new_feature_mask_flat.view(
+            batch_shape
+            + feature_mask.shape[-len(afa_selection_image.shape[-3:]) :]
+        )

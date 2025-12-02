@@ -69,9 +69,12 @@ class FixedRandomInitializer(AFAInitializer):
             self._cached_mask[multi_indices] = True
 
         assert self._cached_mask is not None
-        return self._cached_mask.view((1,) * len(batch_shape)).expand(
-            batch_shape + feature_shape
-        )
+        # Expand the mask to match batch dimensions
+        # Create a copy and add singleton batch dimensions
+        expanded_mask = self._cached_mask
+        for _ in range(len(batch_shape)):
+            expanded_mask = expanded_mask.unsqueeze(0)
+        return expanded_mask.expand(batch_shape + feature_shape)
 
 
 @final
@@ -146,6 +149,8 @@ class ManualInitializer(AFAInitializer):
         assert feature_shape is not None, (
             "feature_shape must be provided for ManualInitializer"
         )
+        # We can figure out the batch shape by subtracting the feature shape
+        batch_shape = features.shape[: -len(feature_shape)]
         num_features_to_unmask = self.flat_feature_indices.numel()
         num_features = feature_shape.numel()
 
@@ -163,7 +168,12 @@ class ManualInitializer(AFAInitializer):
         assert mask.sum() == num_features_to_unmask, f"Expected {
             num_features_to_unmask
         } features, got {mask.sum()}"
-        return mask
+
+        # Expand to match batch dimensions
+        # Add singleton batch dimensions and expand
+        for _ in range(len(batch_shape)):
+            mask = mask.unsqueeze(0)
+        return mask.expand(batch_shape + feature_shape)
 
     @override
     def __repr__(self) -> str:
@@ -204,9 +214,16 @@ class MutualInformationInitializer(AFAInitializer):
         num_features = feature_shape.numel()
         num_features_to_unmask = int(num_features * self.config.unmask_ratio)
 
+        # We can figure out the batch shape by subtracting the feature shape
+        batch_shape = features.shape[: -len(feature_shape)]
+
+        # Flatten batch dimensions for sklearn
+        features_flat = features.view(-1, *feature_shape)
+        label_flat = label.view(-1)
+
         # Convert to numpy for mutual_info_classif
-        train_features_np = features.cpu().numpy()
-        train_labels_np = label.cpu().numpy()
+        train_features_np = features_flat.cpu().numpy()
+        train_labels_np = label_flat.cpu().numpy()
 
         # Compute MI once and cache ranking (NumPy array)
         if self._cached_ranking is None:
@@ -236,13 +253,21 @@ class MutualInformationInitializer(AFAInitializer):
             selected_flat_indices_np.copy(), dtype=torch.long
         )
 
+        # We can figure out the batch shape by subtracting the feature shape
+        batch_shape = features.shape[: -len(feature_shape)]
+
         # Create mask
         mask = torch.zeros(feature_shape, dtype=torch.bool)
         multi_indices = torch.unravel_index(
             selected_flat_indices, feature_shape
         )
         mask[multi_indices] = True
-        return mask
+
+        # Expand to match batch dimensions
+        # Add singleton batch dimensions and expand
+        for _ in range(len(batch_shape)):
+            mask = mask.unsqueeze(0)
+        return mask.expand(batch_shape + feature_shape)
 
 
 @final
@@ -281,9 +306,16 @@ class LeastInformativeInitializer(AFAInitializer):
         num_features = feature_shape.numel()
         num_features_to_unmask = int(num_features * self.config.unmask_ratio)
 
+        # We can figure out the batch shape by subtracting the feature shape
+        batch_shape = features.shape[: -len(feature_shape)]
+
+        # Flatten batch dimensions for sklearn
+        features_flat = features.view(-1, *feature_shape)
+        label_flat = label.view(-1)
+
         # Convert to numpy for mutual_info_classif
-        train_features_np = features.cpu().numpy()
-        train_labels_np = label.cpu().numpy()
+        train_features_np = features_flat.cpu().numpy()
+        train_labels_np = label_flat.cpu().numpy()
 
         # Compute MI once and cache ranking (NumPy array)
         if self._cached_ranking is None:
@@ -310,13 +342,21 @@ class LeastInformativeInitializer(AFAInitializer):
             selected_flat_indices_np, dtype=torch.long
         )
 
+        # We can figure out the batch shape by subtracting the feature shape
+        batch_shape = features.shape[: -len(feature_shape)]
+
         # Create mask
         mask = torch.zeros(feature_shape, dtype=torch.bool)
         multi_indices = torch.unravel_index(
             selected_flat_indices, feature_shape
         )
         mask[multi_indices] = True
-        return mask
+
+        # Expand to match batch dimensions
+        # Add singleton batch dimensions and expand
+        for _ in range(len(batch_shape)):
+            mask = mask.unsqueeze(0)
+        return mask.expand(batch_shape + feature_shape)
 
 
 @final
@@ -341,8 +381,15 @@ class ZeroInitializer(AFAInitializer):
         assert feature_shape is not None, (
             "feature_shape must be provided for ZeroInitializer"
         )
-        # Select no features (all False mask)
-        return torch.zeros(feature_shape, dtype=torch.bool)
+        # We can figure out the batch shape by subtracting the feature shape
+        batch_shape = features.shape[: -len(feature_shape)]
+
+        # Select no features (all False mask) and expand to batch dimensions
+        mask = torch.zeros(feature_shape, dtype=torch.bool)
+        # Add singleton batch dimensions and expand
+        for _ in range(len(batch_shape)):
+            mask = mask.unsqueeze(0)
+        return mask.expand(batch_shape + feature_shape)
 
 
 @final
@@ -401,6 +448,9 @@ class AACODefaultInitializer(AFAInitializer):
             f"'{self.dataset_name}' is out of bounds for {num_features} features."
         )
 
+        # We can figure out the batch shape by subtracting the feature shape
+        batch_shape = features.shape[: -len(feature_shape)]
+
         mask = torch.zeros(feature_shape, dtype=torch.bool)
         initial_feature_flat_index_tensor = torch.tensor(
             initial_feature_flat_index, dtype=torch.long
@@ -411,4 +461,9 @@ class AACODefaultInitializer(AFAInitializer):
         # multi_indices will be a tuple of arrays, e.g., (array([x]), array([y]), ...).
         # We need to ensure it's applied correctly for scalar indices too by directly passing the tuple.
         mask[multi_indices] = True
-        return mask
+
+        # Expand to match batch dimensions
+        # Add singleton batch dimensions and expand
+        for _ in range(len(batch_shape)):
+            mask = mask.unsqueeze(0)
+        return mask.expand(batch_shape + feature_shape)
