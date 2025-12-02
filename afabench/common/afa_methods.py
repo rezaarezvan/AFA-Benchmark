@@ -433,9 +433,7 @@ class RandomPatchClassificationAFAMethod(AFAMethod):
         features: Features | None,
         label: Label | None,
     ) -> AFASelection:
-        """
-        Randomly select an unseen patch (1-based index in [1, n_patches])
-        """
+        """Randomly select an unseen patch (1-based index in [1, n_patches])"""
         original_device = masked_features.device
         feature_mask = feature_mask.to(self._device)
         # 4D image

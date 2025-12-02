@@ -42,6 +42,7 @@ ignore = [
 
   # Naming conventions (N)
   "N812", # lowercase-imported-as-non-lowercase
+  "N806", # non-lowercase-variable-in-function
 
   # Pylint refactor (PLR)
   "PLR0913", # too-many-arguments
@@ -61,6 +62,7 @@ ignore = [
   # TODO comments (TD)
   "TD002", # missing-todo-author
   "TD003", # missing-todo-link
+  "TD005", # missing-todo-description
 
   # Flake8-commas (COM)
   "COM812", # missing-trailing-comma
@@ -82,6 +84,7 @@ ignore = [
   "F722", # forward-annotation-syntax-error. Allows us to use jaxtyping to annotate shapes.
 ]
 
+extend-safe-fixes = ["D200"]
 
 [format]
 docstring-code-format = true

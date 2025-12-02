@@ -824,7 +824,7 @@ class UnmaskerConfig:
 
 @dataclass
 class ManualInitializerConfig:
-    feature_indices: list[int]
+    flat_feature_indices: list[int]
 
 
 @dataclass
@@ -838,9 +838,32 @@ class FixedRandomInitializerConfig:
 
 
 @dataclass
+class RandomPerEpisodeInitializerConfig:
+    unmask_ratio: float  # how many features to unmask
+
+
+@dataclass
+class MutualInformationInitializerConfig:
+    unmask_ratio: float  # how many features to unmask
+
+
+@dataclass
+class LeastInformativeInitializerConfig:
+    unmask_ratio: float  # how many features to unmask
+
+
+@dataclass
 class InitializerConfig:
     type: str
-    config: ManualInitializerConfig | AACODefaultInitializerConfig | None
+    config: (
+        ManualInitializerConfig
+        | AACODefaultInitializerConfig
+        | FixedRandomInitializerConfig
+        | RandomPerEpisodeInitializerConfig
+        | MutualInformationInitializerConfig
+        | LeastInformativeInitializerConfig
+        | None
+    )
 
 
 # --- EVALUATION ---

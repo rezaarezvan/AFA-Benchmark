@@ -1,13 +1,16 @@
-from typing import final, override
+from typing import ClassVar, final, override
 
-import numpy as np
+import numpy as np  # Keep for mutual_info_classif, will remove other numpy usage
 import torch
 from sklearn.feature_selection import mutual_info_classif
 
 from afabench.common.config_classes import (
     AACODefaultInitializerConfig,
     FixedRandomInitializerConfig,
+    LeastInformativeInitializerConfig,
     ManualInitializerConfig,
+    MutualInformationInitializerConfig,
+    RandomPerEpisodeInitializerConfig,
 )
 from afabench.common.custom_types import (
     AFAInitializer,
@@ -24,11 +27,15 @@ class FixedRandomInitializer(AFAInitializer):
     def __init__(self, config: FixedRandomInitializerConfig):
         self.config = config
         self._cached_mask: FeatureMask | None = None
-        self.rng = np.random.default_rng(None)
+        self.rng = torch.Generator()
 
     @override
     def set_seed(self, seed: int | None) -> None:
-        self.rng = np.random.default_rng(seed)
+        if seed is not None:
+            self.rng.manual_seed(seed)
+        else:
+            # Re-initialize with a new random seed if None is provided
+            self.rng = torch.Generator()
 
     @override
     def initialize(
@@ -42,16 +49,16 @@ class FixedRandomInitializer(AFAInitializer):
             assert feature_shape is not None, (
                 "feature_shape must be provided for FixedRandomInitializer"
             )
-            num_features = int(np.prod(list(feature_shape)))
-            num_features_to_unmask = num_features * self.config.unmask_ratio
-            # Sample feature indices
-            flat_indices = self.rng.choice(
-                num_features,
-                size=int(num_features_to_unmask),
-                replace=False,
+            num_features = feature_shape.numel()
+            num_features_to_unmask = int(
+                num_features * self.config.unmask_ratio
             )
+            # Sample feature indices
+            flat_indices = torch.randperm(num_features, generator=self.rng)[
+                :num_features_to_unmask
+            ]
             # Unflatten
-            multi_indices = np.unravel_index(flat_indices, feature_shape)
+            multi_indices = torch.unravel_index(flat_indices, feature_shape)
             # Turn into mask
             self._cached_mask = torch.zeros(feature_shape, dtype=torch.bool)
             self._cached_mask[multi_indices] = True
@@ -60,22 +67,42 @@ class FixedRandomInitializer(AFAInitializer):
         return self._cached_mask
 
 
+@final
 class RandomPerEpisodeInitializer(AFAInitializer):
-    """
-    Select different random features for each episode.
-    """
+    """Select different random features for each episode."""
 
-    def select_features(
+    def __init__(self, config: RandomPerEpisodeInitializerConfig):
+        self.config = config
+        self.rng = torch.Generator()
+
+    @override
+    def set_seed(self, seed: int | None) -> None:
+        if seed is not None:
+            self.rng.manual_seed(seed)
+        else:
+            self.rng = torch.Generator()
+
+    @override
+    def initialize(
         self,
-        n_features_total: int,
-        n_features_select: int,
-        train_features: Features | None = None,
-        train_labels: Label | None = None,
-    ) -> list[int]:
+        features: Features,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
+    ) -> FeatureMask:
+        assert feature_shape is not None, (
+            "feature_shape must be provided for RandomPerEpisodeInitializer"
+        )
+        num_features = feature_shape.numel()
+        num_features_to_unmask = int(num_features * self.config.unmask_ratio)
+
         # Select new features each time
-        return self.rng.choice(
-            n_features_total, size=n_features_select, replace=False
-        ).tolist()
+        flat_indices = torch.randperm(num_features, generator=self.rng)[
+            :num_features_to_unmask
+        ]
+        multi_indices = torch.unravel_index(flat_indices, feature_shape)
+        mask = torch.zeros(feature_shape, dtype=torch.bool)
+        mask[multi_indices] = True
+        return mask
 
 
 @final
@@ -83,68 +110,125 @@ class ManualInitializer(AFAInitializer):
     """Use explicitly specified feature indices."""
 
     def __init__(self, config: ManualInitializerConfig):
-        super().__init__()
-        self.feature_indices = config.feature_indices
+        self.flat_feature_indices = torch.tensor(
+            config.flat_feature_indices, dtype=torch.long
+        )
 
-    def select_features(
+    @override
+    def set_seed(self, seed: int | None) -> None:
+        # Manual initializer is deterministic, so seed has no effect
+        pass
+
+    @override
+    def initialize(
         self,
-        n_features_total: int,
-        n_features_select: int,
-        train_features: Features | None = None,
-        train_labels: Label | None = None,
-    ) -> list[int]:
-        assert len(self.feature_indices) == n_features_select, f"Expected {
-            n_features_select
-        } features, got {len(self.feature_indices)}"
-        return self.feature_indices
+        features: Features,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
+    ) -> FeatureMask:
+        assert feature_shape is not None, (
+            "feature_shape must be provided for ManualInitializer"
+        )
+        num_features_to_unmask = self.flat_feature_indices.numel()
+        num_features = feature_shape.numel()
 
+        # Ensure feature indices are valid
+        assert (self.flat_feature_indices >= 0).all() and (  # noqa: PT018
+            self.flat_feature_indices < num_features
+        ).all(), "Feature index out of bounds"
+
+        mask = torch.zeros(feature_shape, dtype=torch.bool)
+        multi_indices = torch.unravel_index(
+            self.flat_feature_indices, feature_shape
+        )
+        mask[multi_indices] = True
+
+        assert mask.sum() == num_features_to_unmask, f"Expected {
+            num_features_to_unmask
+        } features, got {mask.sum()}"
+        return mask
+
+    @override
     def __repr__(self) -> str:
-        return f"ManualStrategy(features={self.feature_indices})"
+        return (
+            f"ManualInitializer(features={self.flat_feature_indices.tolist()})"
+        )
 
 
+@final
 class MutualInformationInitializer(AFAInitializer):
-    """
-    Select features with highest mutual information with target labels.
-    """
+    """Select features with highest mutual information with target labels."""
 
-    def __init__(self, seed: int | None = None):
-        super().__init__(seed)
-        self._cached_ranking: np.ndarray | None = None
+    def __init__(self, config: MutualInformationInitializerConfig):
+        self.config = config
+        self._cached_ranking: np.ndarray | None = None  # pyright: ignore[reportMissingTypeArgument]
+        self._seed: int | None = None
 
-    def select_features(
+    @override
+    def set_seed(self, seed: int | None) -> None:
+        self._seed = seed
+        self._cached_ranking = None  # Clear cache if seed changes
+
+    @override
+    def initialize(
         self,
-        n_features_total: int,
-        n_features_select: int,
-        train_features: Features | None = None,
-        train_labels: Label | None = None,
-    ) -> list[int]:
-        assert train_features is not None and train_labels is not None, f"{
-            self.__class__.__name__
-        } requires train_features and train_labels"
-
-        # Convert to numpy if needed
-        train_features = (
-            train_features.numpy()
-            if isinstance(train_features, torch.Tensor)
-            else train_features
+        features: Features,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
+    ) -> FeatureMask:
+        assert features is not None, (
+            f"{self.__class__.__name__} requires features"
         )
-        train_labels = (
-            train_labels.numpy()
-            if isinstance(train_labels, torch.Tensor)
-            else train_labels
+        assert label is not None, f"{self.__class__.__name__} requires label"
+        assert feature_shape is not None, (
+            "feature_shape must be provided for MutualInformationInitializer"
         )
 
-        # Compute MI once and cache ranking
+        num_features = feature_shape.numel()
+        num_features_to_unmask = int(num_features * self.config.unmask_ratio)
+
+        # Convert to numpy for mutual_info_classif
+        train_features_np = features.cpu().numpy()
+        train_labels_np = label.cpu().numpy()
+
+        # Compute MI once and cache ranking (NumPy array)
         if self._cached_ranking is None:
+            # Reshape features to 2D for mutual_info_classif if necessary
+            if train_features_np.ndim > 2:
+                train_features_flat = train_features_np.reshape(
+                    train_features_np.shape[0], -1
+                )
+            else:
+                train_features_flat = train_features_np
+
             mi_scores = mutual_info_classif(
-                train_features, train_labels, random_state=self.seed
+                train_features_flat.copy(),
+                train_labels_np,
+                random_state=self._seed,
             )
             # Sort descending by MI score
             self._cached_ranking = np.argsort(mi_scores)[::-1]
 
-        return self._cached_ranking[:n_features_select].tolist()
+        # Get top features (still a NumPy array)
+        selected_flat_indices_np = self._cached_ranking[
+            :num_features_to_unmask
+        ]
+
+        # Convert to PyTorch tensor for unraveling
+        selected_flat_indices = torch.tensor(
+            selected_flat_indices_np.copy(), dtype=torch.long
+        )
+
+        # Create mask
+        mask = torch.zeros(feature_shape, dtype=torch.bool)
+        multi_indices = torch.unravel_index(
+            selected_flat_indices, feature_shape
+        )
+        mask[multi_indices] = True
+        return mask
 
 
+@final
 class LeastInformativeInitializer(AFAInitializer):
     """
     Select features with LOWEST mutual information (adversarial baseline).
@@ -152,57 +236,96 @@ class LeastInformativeInitializer(AFAInitializer):
     Useful for robustness testing - how well do methods perform with poor initialization?
     """
 
-    def __init__(self, seed: int | None = None):
-        super().__init__(seed)
-        self._cached_ranking: np.ndarray | None = None
+    def __init__(self, config: LeastInformativeInitializerConfig):
+        self.config = config
+        self._cached_ranking: np.ndarray | None = None  # pyright: ignore[reportMissingTypeArgument]
+        self._seed: int | None = None
 
-    def select_features(
+    @override
+    def set_seed(self, seed: int | None) -> None:
+        self._seed = seed
+        self._cached_ranking = None  # Clear cache if seed changes
+
+    @override
+    def initialize(
         self,
-        n_features_total: int,
-        n_features_select: int,
-        train_features: Features | None = None,
-        train_labels: Label | None = None,
-    ) -> list[int]:
-        assert train_features is not None and train_labels is not None, f"{
-            self.__class__.__name__
-        } requires train_features and train_labels"
-
-        # Convert to numpy if needed
-        train_features = (
-            train_features.numpy()
-            if isinstance(train_features, torch.Tensor)
-            else train_features
+        features: Features,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
+    ) -> FeatureMask:
+        assert features is not None, (
+            f"{self.__class__.__name__} requires features"
         )
-        train_labels = (
-            train_labels.numpy()
-            if isinstance(train_labels, torch.Tensor)
-            else train_labels
+        assert label is not None, f"{self.__class__.__name__} requires label"
+        assert feature_shape is not None, (
+            "feature_shape must be provided for LeastInformativeInitializer"
         )
 
-        # Compute MI once and cache ranking
+        num_features = feature_shape.numel()
+        num_features_to_unmask = int(num_features * self.config.unmask_ratio)
+
+        # Convert to numpy for mutual_info_classif
+        train_features_np = features.cpu().numpy()
+        train_labels_np = label.cpu().numpy()
+
+        # Compute MI once and cache ranking (NumPy array)
         if self._cached_ranking is None:
+            # Reshape features to 2D for mutual_info_classif if necessary
+            if train_features_np.ndim > 2:
+                train_features_flat = train_features_np.reshape(
+                    train_features_np.shape[0], -1
+                )
+            else:
+                train_features_flat = train_features_np
+
             mi_scores = mutual_info_classif(
-                train_features, train_labels, random_state=self.seed
+                train_features_flat, train_labels_np, random_state=self._seed
             )
             # Sort ascending by MI score (worst first)
             self._cached_ranking = np.argsort(mi_scores)
 
-        return self._cached_ranking[:n_features_select].tolist()
+        selected_flat_indices_np = self._cached_ranking[
+            :num_features_to_unmask
+        ]
+
+        # Convert to PyTorch tensor for unraveling
+        selected_flat_indices = torch.tensor(
+            selected_flat_indices_np, dtype=torch.long
+        )
+
+        # Create mask
+        mask = torch.zeros(feature_shape, dtype=torch.bool)
+        multi_indices = torch.unravel_index(
+            selected_flat_indices, feature_shape
+        )
+        mask[multi_indices] = True
+        return mask
 
 
+@final
 class ZeroInitializer(AFAInitializer):
-    """
-    Cold-start initializer that selects no features.
-    """
+    """Cold-start initializer that selects no features."""
 
-    def select_features(
+    def __init__(self):
+        pass
+
+    @override
+    def set_seed(self, seed: int | None) -> None:
+        # Zero initializer is deterministic, so seed has no effect
+        pass
+
+    @override
+    def initialize(
         self,
-        n_features_total: int,
-        n_features_select: int,
-        train_features: Features | None = None,
-        train_labels: Label | None = None,
-    ) -> list[int]:
-        return []
+        features: Features,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
+    ) -> FeatureMask:
+        assert feature_shape is not None, (
+            "feature_shape must be provided for ZeroInitializer"
+        )
+        # Select no features (all False mask)
+        return torch.zeros(feature_shape, dtype=torch.bool)
 
 
 @final
@@ -216,7 +339,7 @@ class AACODefaultInitializer(AFAInitializer):
     - others: middle feature
     """
 
-    DATASET_INITIAL_FEATURES = {
+    DATASET_INITIAL_FEATURES: ClassVar = {
         "cube": 6,
         "cubesimple": 3,
         "grid": 1,
@@ -227,23 +350,48 @@ class AACODefaultInitializer(AFAInitializer):
     }
 
     def __init__(self, config: AACODefaultInitializerConfig):
-        super().__init__()
         self.dataset_name = config.dataset_name.lower()
 
-    def select_features(
+    @override
+    def set_seed(self, seed: int | None) -> None:
+        # AACODefaultInitializer is deterministic, so seed has no effect
+        pass
+
+    @override
+    def initialize(
         self,
-        n_features_total: int,
-        n_features_select: int,
-        train_features: Features | None = None,
-        train_labels: Label | None = None,
-    ) -> list[int]:
-        # AACO always starts with exactly 1 feature
-        assert n_features_select == 1, (
-            "AACO default initializer selects exactly 1 feature"
+        features: Features,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
+    ) -> FeatureMask:
+        assert feature_shape is not None, (
+            "feature_shape must be provided for AACODefaultInitializer"
+        )
+        num_features = feature_shape.numel()
+
+        initial_feature_flat_index = self.DATASET_INITIAL_FEATURES.get(
+            self.dataset_name,
+            num_features // 2,  # fallback: middle feature
         )
 
-        initial = self.DATASET_INITIAL_FEATURES.get(
-            self.dataset_name,
-            n_features_total // 2,  # fallback: middle feature
+        # AACO always starts with exactly 1 feature
+        # This implicitly means the intended unmask_ratio leads to 1 feature
+        # The ManualInitializer has a similar check for consistency.
+
+        # Ensure the selected feature is within bounds
+        assert 0 <= initial_feature_flat_index < num_features, (
+            f"Initial feature index {initial_feature_flat_index} for dataset "
+            f"'{self.dataset_name}' is out of bounds for {num_features} features."
         )
-        return [initial]
+
+        mask = torch.zeros(feature_shape, dtype=torch.bool)
+        initial_feature_flat_index_tensor = torch.tensor(
+            initial_feature_flat_index, dtype=torch.long
+        )
+        multi_indices = torch.unravel_index(
+            initial_feature_flat_index_tensor, feature_shape
+        )
+        # multi_indices will be a tuple of arrays, e.g., (array([x]), array([y]), ...).
+        # We need to ensure it's applied correctly for scalar indices too by directly passing the tuple.
+        mask[multi_indices] = True
+        return mask

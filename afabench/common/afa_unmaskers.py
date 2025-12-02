@@ -9,23 +9,30 @@ from afabench.common.custom_types import (
     AFAUnmasker,
     FeatureMask,
     Features,
+    Label,
     MaskedFeatures,
+    SelectionMask,
 )
 
 
 # Implements AFAUnmaskFn
 class DirectUnmasker(AFAUnmasker):
+    @override
     def set_seed(self, seed: int | None) -> None:
         # This unmasker is deterministic
         pass
 
+    @override
     def unmask(
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
         features: Features,
         afa_selection: AFASelection,
-    ) -> tuple[MaskedFeatures, FeatureMask]:
+        selection_mask: SelectionMask,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
+    ) -> FeatureMask:
         """
         Unmasks the features assuming `afa_selection` are 1-based indices of the features to uncover.
 
@@ -38,10 +45,8 @@ class DirectUnmasker(AFAUnmasker):
         new_feature_mask[
             relevant_indices.nonzero().flatten(), feature_indices
         ] = True
-        new_masked_features = features.clone()
-        new_masked_features.masked_fill_(~new_feature_mask, 0)
 
-        return new_masked_features, new_feature_mask
+        return new_feature_mask
 
 
 @final
@@ -61,13 +66,17 @@ class ImagePatchUnmasker(AFAUnmasker):
         # This unmasker is deterministic
         pass
 
+    @override
     def unmask(
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
         features: Features,
         afa_selection: AFASelection,
-    ) -> tuple[MaskedFeatures, FeatureMask]:
+        selection_mask: SelectionMask,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
+    ) -> FeatureMask:
         assert afa_selection.ndim == 1, (
             f"Expected 1D array, got {afa_selection.ndim}D array"
         )
@@ -110,7 +119,4 @@ class ImagePatchUnmasker(AFAUnmasker):
         # )
         new_feature_mask = feature_mask | afa_selection_image
 
-        # Apply new feature mask on features
-        new_masked_features = features * new_feature_mask
-
-        return new_masked_features, new_feature_mask
+        return new_feature_mask
