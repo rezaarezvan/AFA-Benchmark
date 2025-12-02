@@ -23,6 +23,11 @@ class DirectUnmasker(AFAUnmasker):
         pass
 
     @override
+    def get_n_selections(self, features_shape: torch.Size) -> int:
+        # The number of selections is a flattened view of the feature shape
+        return features_shape.numel()
+
+    @override
     def unmask(
         self,
         masked_features: MaskedFeatures,
@@ -67,6 +72,11 @@ class ImagePatchUnmasker(AFAUnmasker):
             config.image_side_length // config.patch_size
         )
         self.afa_selection_size = self.low_dim_image_side_length**2
+
+    @override
+    def get_n_selections(self, features_shape: torch.Size) -> int:
+        # The number of selections is equal to the number of patches
+        return self.afa_selection_size
 
     @override
     def set_seed(self, seed: int | None) -> None:

@@ -1,3 +1,5 @@
+from typing import cast
+
 from afabench.common.config_classes import (
     AACODefaultInitializerConfig,
     FixedRandomInitializerConfig,
@@ -241,26 +243,22 @@ def get_afa_classifier_class(name: str) -> type[AFAClassifier]:  # noqa: PLR0911
     raise ValueError(msg)
 
 
-AFA_UNMASKER_TYPES = {"one_based_index", "image_patch"}
+AFA_UNMASKER_TYPES = {"direct", "image_patch"}
 
 
 def get_afa_unmasker(unmasker_cfg: UnmaskerConfig) -> AFAUnmasker:
     """Get unmasker function by name."""
-    if unmasker_cfg.type == "one_based_index":
-        assert unmasker_cfg.config is None, (
-            "one_based_index unmasker takes no config"
-        )
+    if unmasker_cfg.type == "direct":
+        assert unmasker_cfg.config is None, "direct unmasker takes no config"
         from afabench.common.afa_unmaskers import DirectUnmasker
 
         return DirectUnmasker()
 
     if unmasker_cfg.type == "image_patch":
-        assert isinstance(unmasker_cfg.config, ImagePatchUnmaskerConfig), (
-            "image_patch unmasker requires ImagePatchUnmaskerConfig"
-        )
+        config = cast("ImagePatchUnmaskerConfig", unmasker_cfg.config)
         from afabench.common.afa_unmaskers import ImagePatchUnmasker
 
-        return ImagePatchUnmasker(config=unmasker_cfg.config)
+        return ImagePatchUnmasker(config=config)
 
     msg = f"Unknown unmasker: {unmasker_cfg.type}"
     raise ValueError(msg)
@@ -289,64 +287,54 @@ def get_afa_initializer(initializer_cfg: InitializerConfig) -> AFAInitializer:  
         return ZeroInitializer()
 
     if initializer_cfg.type == "fixed_random":
-        assert isinstance(
-            initializer_cfg.config, FixedRandomInitializerConfig
-        ), "fixed_random initializer requires FixedRandomInitializerConfig"
+        config = cast("FixedRandomInitializerConfig", initializer_cfg.config)
         from afabench.common.afa_initializers import FixedRandomInitializer
 
-        return FixedRandomInitializer(config=initializer_cfg.config)
+        return FixedRandomInitializer(config=config)
 
     if initializer_cfg.type == "random_per_episode":
-        assert isinstance(
-            initializer_cfg.config, RandomPerEpisodeInitializerConfig
-        ), "expected ManualInitializerConfig"
+        config = cast(
+            "RandomPerEpisodeInitializerConfig", initializer_cfg.config
+        )
         from afabench.common.afa_initializers import (
             RandomPerEpisodeInitializer,
         )
 
-        return RandomPerEpisodeInitializer(config=initializer_cfg.config)
+        return RandomPerEpisodeInitializer(config=config)
 
     if initializer_cfg.type == "manual":
-        assert isinstance(initializer_cfg.config, ManualInitializerConfig), (
-            "expected ManualInitializerConfig"
-        )
+        config = cast("ManualInitializerConfig", initializer_cfg.config)
         from afabench.common.afa_initializers import ManualInitializer
 
-        return ManualInitializer(config=initializer_cfg.config)
+        return ManualInitializer(config=config)
 
     if initializer_cfg.type == "mutual_information":
-        assert isinstance(
-            initializer_cfg.config, MutualInformationInitializerConfig
-        ), (
-            "mutual_information initializer requires MutualInformationInitializerConfig"
+        config = cast(
+            "MutualInformationInitializerConfig", initializer_cfg.config
         )
         from afabench.common.afa_initializers import (
             MutualInformationInitializer,
         )
 
-        return MutualInformationInitializer(config=initializer_cfg.config)
+        return MutualInformationInitializer(config=config)
 
     if initializer_cfg.type == "least_informative":
-        assert isinstance(
-            initializer_cfg.config, LeastInformativeInitializerConfig
-        ), (
-            "least_informative initializer requires LeastInformativeInitializerConfig"
+        config = cast(
+            "LeastInformativeInitializerConfig", initializer_cfg.config
         )
         from afabench.common.afa_initializers import (
             LeastInformativeInitializer,
         )
 
-        return LeastInformativeInitializer(config=initializer_cfg.config)
+        return LeastInformativeInitializer(config=config)
 
     if initializer_cfg.type == "aaco_default":
-        assert isinstance(
-            initializer_cfg.config, AACODefaultInitializerConfig
-        ), "expected AACODefaultInitializerConfig"
+        config = cast("AACODefaultInitializerConfig", initializer_cfg.config)
         from afabench.common.afa_initializers import (
             AACODefaultInitializer,
         )
 
-        return AACODefaultInitializer(config=initializer_cfg.config)
+        return AACODefaultInitializer(config=config)
 
     msg = f"Unknown initializer: {initializer_cfg.type}"
     raise ValueError(msg)

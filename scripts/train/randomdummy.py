@@ -18,6 +18,7 @@ from afabench.common.utils import (
     save_method_artifact,
     set_seed,
 )
+from afabench.eval.eval import eval_afa_method
 
 log = logging.getLogger(__name__)
 
@@ -78,19 +79,11 @@ def main(cfg: RandomDummyTrainConfig) -> None:
     eval_afa_method(
         afa_select_fn=afa_method.select,
         afa_unmask_fn=unmasker.unmask,
-        n_selection_choices=unmasker.n_selections,
+        n_selection_choices=unmasker.get_n_selections(
+            train_dataset.feature_shape
+        ),
         afa_initialize_fn=initializer.initialize,
-        dataset=dataset,
-        external_afa_predict_fn=external_classifier.__call__
-        if external_classifier is not None
-        else None,
-        builtin_afa_predict_fn=afa_method.predict
-        if afa_method.has_builtin_classifier
-        else None,
-        only_n_samples=cfg.eval_only_n_samples,
-        device=torch.device(cfg.device),
-        selection_budget=cfg.hard_budget,
-        batch_size=cfg.batch_size,
+        dataset=train_dataset,
     )
 
     # Save artifact to filesystem

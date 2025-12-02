@@ -239,8 +239,7 @@ class AFAPredictFn(Protocol):
 
 
 class AFAUnmasker(Protocol):
-    @property
-    def n_selections(self) -> int:
+    def get_n_selections(self, features_shape: torch.Size) -> int:
         """Return how many different selections are possible with this unmasker."""
         ...
 
