@@ -1,8 +1,12 @@
 from afabench.common.config_classes import (
     AACODefaultInitializerConfig,
+    FixedRandomInitializerConfig,
     ImagePatchUnmaskerConfig,
     InitializerConfig,
+    LeastInformativeInitializerConfig,
     ManualInitializerConfig,
+    MutualInformationInitializerConfig,
+    RandomPerEpisodeInitializerConfig,
     UnmaskerConfig,
 )
 from afabench.common.custom_types import (
@@ -275,30 +279,31 @@ AFA_INITIALIZER_TYPES = {
 def get_afa_initializer(initializer_cfg: InitializerConfig) -> AFAInitializer:  # noqa: PLR0911
     """Get initializer by name."""
     if initializer_cfg.type == "zero":
+        # ZeroInitializer does not require a config object
         assert initializer_cfg.config is None, (
-            "zero initializer takes no config"
+            "zero initializer must not have a config object"
         )
         from afabench.common.afa_initializers import ZeroInitializer
 
         return ZeroInitializer()
 
     if initializer_cfg.type == "fixed_random":
-        assert initializer_cfg.config is None, (
-            "fixed_random initializer takes no config"
-        )
+        assert isinstance(
+            initializer_cfg.config, FixedRandomInitializerConfig
+        ), "fixed_random initializer requires FixedRandomInitializerConfig"
         from afabench.common.afa_initializers import FixedRandomInitializer
 
-        return FixedRandomInitializer()
+        return FixedRandomInitializer(config=initializer_cfg.config)
 
     if initializer_cfg.type == "random_per_episode":
-        assert initializer_cfg.config is None, (
-            "random_per_episode initializer takes no config"
-        )
+        assert isinstance(
+            initializer_cfg.config, RandomPerEpisodeInitializerConfig
+        ), "expected ManualInitializerConfig"
         from afabench.common.afa_initializers import (
             RandomPerEpisodeInitializer,
         )
 
-        return RandomPerEpisodeInitializer()
+        return RandomPerEpisodeInitializer(config=initializer_cfg.config)
 
     if initializer_cfg.type == "manual":
         assert isinstance(initializer_cfg.config, ManualInitializerConfig), (
@@ -309,30 +314,34 @@ def get_afa_initializer(initializer_cfg: InitializerConfig) -> AFAInitializer:  
         return ManualInitializer(config=initializer_cfg.config)
 
     if initializer_cfg.type == "mutual_information":
-        assert initializer_cfg.config is None, (
-            "mutual_information initializer takes no config"
+        assert isinstance(
+            initializer_cfg.config, MutualInformationInitializerConfig
+        ), (
+            "mutual_information initializer requires MutualInformationInitializerConfig"
         )
         from afabench.common.afa_initializers import (
             MutualInformationInitializer,
         )
 
-        return MutualInformationInitializer()
+        return MutualInformationInitializer(config=initializer_cfg.config)
 
     if initializer_cfg.type == "least_informative":
-        assert initializer_cfg.config is None, (
-            "least_informative initializer takes no config"
+        assert isinstance(
+            initializer_cfg.config, LeastInformativeInitializerConfig
+        ), (
+            "least_informative initializer requires LeastInformativeInitializerConfig"
         )
         from afabench.common.afa_initializers import (
             LeastInformativeInitializer,
         )
 
-        return LeastInformativeInitializer()
+        return LeastInformativeInitializer(config=initializer_cfg.config)
 
     if initializer_cfg.type == "aaco_default":
         assert isinstance(
             initializer_cfg.config, AACODefaultInitializerConfig
         ), "expected AACODefaultInitializerConfig"
-        from afabench.common.afa_initializers.afa_initializers import (
+        from afabench.common.afa_initializers import (
             AACODefaultInitializer,
         )
 
