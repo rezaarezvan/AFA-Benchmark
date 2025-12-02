@@ -38,13 +38,20 @@ class DirectUnmasker(AFAUnmasker):
 
         afa_selection == 0 is ignored.
         """
-        relevant_indices = afa_selection != 0
-        feature_indices = afa_selection[relevant_indices] - 1
+        assert feature_shape is not None, "feature_shape must be provided"
+        assert afa_selection.shape[1] == 1, (
+            "AFASelection must have shape [batch, 1]"
+        )
+        feature_indices = afa_selection.squeeze(1) - 1
 
         new_feature_mask = feature_mask.clone()
-        new_feature_mask[
-            relevant_indices.nonzero().flatten(), feature_indices
-        ] = True
+        # Convert feature_indices to n-dimensional indices using unravel_index
+        multi_indices = torch.unravel_index(feature_indices, feature_shape)
+        print(f"multi_indices = {multi_indices}")
+        batch_indices = torch.arange(
+            feature_mask.size(0), device=feature_mask.device
+        )
+        new_feature_mask[batch_indices, *multi_indices] = True
 
         return new_feature_mask
 
@@ -77,8 +84,8 @@ class ImagePatchUnmasker(AFAUnmasker):
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> FeatureMask:
-        assert afa_selection.ndim == 1, (
-            f"Expected 1D array, got {afa_selection.ndim}D array"
+        assert afa_selection.shape[1] == 1, (
+            "AFASelection must have shape [batch, 1]"
         )
 
         # Convert afa selection into 1D mask
