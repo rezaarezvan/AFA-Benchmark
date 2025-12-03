@@ -88,11 +88,11 @@ def generate_and_save_image_split(
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/dataset_generation",
+    config_path="../../extra/conf/scripts/dataset_generation",
     config_name="config",
 )
 def main(cfg: DatasetGenerationConfig) -> None:
-    dataset_class = get_afa_dataset_class(cfg.dataset.type)
+    dataset_class = get_afa_dataset_class(cfg.dataset.class_name)
 
     for instance_idx, seed in zip(
         cfg.instance_indices, cfg.seeds, strict=True
@@ -112,7 +112,7 @@ def main(cfg: DatasetGenerationConfig) -> None:
             dataset_kwargs=dataset_kwargs,
             metadata_to_save={
                 "instance_idx": instance_idx,
-                "dataset_type": cfg.dataset.type,
+                "class_name": cfg.dataset.class_name,
             },
         )
 
