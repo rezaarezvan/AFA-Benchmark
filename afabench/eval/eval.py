@@ -141,10 +141,8 @@ def process_batch(
 
     Returns:
         pd.DataFrame: DataFrame containing columns:
-            - "feature_indices" (list[int])
             - "prev_selections_performed" (list[int])
             - "selection_performed" (int)
-            - "next_feature_indices" (list[int])
             - "builtin_predicted_class" (int|None)
             - "external_predicted_class" (int|None)
             - "true_class" (int)
@@ -213,22 +211,12 @@ def process_batch(
         for active_idx, true_idx in enumerate(active_indices):
             df_batch_rows.append(
                 {
-                    "feature_indices": active_feature_mask[active_idx]
-                    .nonzero(as_tuple=False)
-                    .flatten()
-                    .cpu()
-                    .tolist(),
                     "prev_selections_performed": selections_performed[
                         int(true_idx.item())
                     ][:-1],
                     "selection_performed": active_afa_selection[
                         active_idx
                     ].item(),
-                    "next_feature_indices": active_new_feature_mask[active_idx]
-                    .nonzero(as_tuple=False)
-                    .flatten()
-                    .cpu()
-                    .tolist(),
                     "builtin_predicted_class": None
                     if active_builtin_prediction is None
                     else active_builtin_prediction[active_idx]
@@ -299,10 +287,8 @@ def eval_afa_method(
 
     Returns:
         pd.DataFrame: DataFrame containing columns:
-            - "feature_indices" (list[int])
             - "prev_selections_performed" (list[int])
             - "selection_performed" (int)
-            - "next_feature_indices" (list[int])
             - "builtin_predicted_class" (int|None)
             - "external_predicted_class" (int|None)
             - "true_class" (int)
@@ -360,10 +346,8 @@ def eval_afa_method(
     df_batches = pd.concat(batches_df, ignore_index=True)
     # Assert that all the columns described in docstring are present
     expected_columns = {
-        "feature_indices",
         "prev_selections_performed",
         "selection_performed",
-        "next_feature_indices",
         "builtin_predicted_class",
         "external_predicted_class",
         "true_class",

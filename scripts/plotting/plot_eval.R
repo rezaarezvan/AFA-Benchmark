@@ -157,52 +157,63 @@ if (!is.na(output_path)) {
 }
 
 # Second type of plot: soft budget
-df_soft_budget <- suppressWarnings(
+# Step 1: For each (train_seed, eval_seed, soft_budget_param) combination, calculate:
+# - Average number of selections performed
+# - Metrics (accuracy, f1, etc.)
+df_soft_budget_step1 <- suppressWarnings(
   df %>%
-    # We filter results to only include methods that were trained or evaluated with a soft budget parameter.
     filter(
       is.na(hard_budget),
       !is.na(soft_budget_param)
     ) %>%
+    select(-hard_budget) %>%
     group_by(
       afa_method,
       classifier,
       dataset,
-    ) %>%
-    # We don't care about hard budget (which we know is NA anyway)
-    select(
-      -hard_budget
-    ) %>%
-    # This time we care about predictions at every step, but we focus on the number of features observed instead of selections performed
-    select(
-      -selections_performed
-    ) %>%
-    # Also group over (train_seed, eval_seed, train_soft_budget_param, eval_soft_budget_param, features_observed) before calculating metrics.
-    # eval_hard_budget will become the x-axis
-    group_by(
       train_seed,
       eval_seed,
-      soft_budget_param,
-      .add = TRUE
-    ) %>%
-    # Now we can calculate metrics
-    class_metrics(truth = true_class, estimate = predicted_class) %>%
-    # tibble is automatically ungrouped after calculating metrics
-    # Calculate mean and std of metrics
-    group_by(
-      afa_method,
-      classifier,
-      dataset,
-      .metric,
-      .estimator
-      # leaves train_seed, eval_seed, soft_budget_param and .estimate
+      soft_budget_param
     ) %>%
     summarize(
-      estimate_mean = mean(.estimate),
-      estimate_sd = sd(.estimate),
-      .groups = "drop"
+      avg_selections_performed = mean(selections_performed),
+      .groups = "keep"
+    ) %>%
+    # Calculate metrics for this combination
+    left_join(
+      df %>%
+        filter(is.na(hard_budget), !is.na(soft_budget_param)) %>%
+        select(-hard_budget) %>%
+        group_by(
+          afa_method,
+          classifier,
+          dataset,
+          train_seed,
+          eval_seed,
+          soft_budget_param
+        ) %>%
+        class_metrics(truth = true_class, estimate = predicted_class),
+      by = c("afa_method", "classifier", "dataset", "train_seed", "eval_seed", "soft_budget_param")
     )
 )
+
+# Step 2: Calculate mean and sd across train_seed and eval_seed for each soft_budget_param
+df_soft_budget <- df_soft_budget_step1 %>%
+  group_by(
+    afa_method,
+    classifier,
+    dataset,
+    soft_budget_param,
+    .metric,
+    .estimator
+  ) %>%
+  summarize(
+    selections_performed_mean = mean(avg_selections_performed),
+    selections_performed_sd = sd(avg_selections_performed),
+    estimate_mean = mean(.estimate),
+    estimate_sd = sd(.estimate),
+    .groups = "drop"
+  )
 
 # Example: plot with builtin classifier accuracy
 soft_budget_plot <- df_soft_budget %>%
@@ -210,9 +221,10 @@ soft_budget_plot <- df_soft_budget %>%
     .metric == "accuracy",
     classifier == "builtin"
   ) %>%
-  ggplot(aes(x = selections_performed, y = estimate_mean, color = afa_method, fill = afa_method)) +
+  ggplot(aes(x = selections_performed_mean, y = estimate_mean, color = afa_method, fill = afa_method)) +
   geom_line() +
-  geom_ribbon(aes(ymin = estimate_mean - estimate_sd, ymax = estimate_mean + estimate_sd), alpha = 0.2, linetype = "blank") +
+  geom_errorbar(aes(ymin = estimate_mean - estimate_sd, ymax = estimate_mean + estimate_sd), alpha = 0.5) +
+  geom_errorbarh(aes(xmin = selections_performed_mean - selections_performed_sd, xmax = selections_performed_mean + selections_performed_sd), alpha = 0.5) +
   facet_wrap(vars(dataset), scales = "free")
 
 if (!is.na(output_path)) {

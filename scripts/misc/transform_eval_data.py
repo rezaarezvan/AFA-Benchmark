@@ -47,7 +47,6 @@ def transform_eval_data(
         - "feature_indices" (list[int]): Features available when deciding next selection
         - "prev_selections_performed" (list[int]): Previous selections made
         - "selection_performed" (int): Selection made at this step
-        - "next_feature_indices" (list[int]): Features available after selection
         - "builtin_predicted_class" (int|None): Builtin classifier prediction
         - "external_predicted_class" (int|None): External classifier prediction
         - "true_class" (int): True class label
@@ -57,7 +56,6 @@ def transform_eval_data(
         - "classifier" (str): Classifier type ("builtin", "external", or "none")
         - "dataset" (str|None): Dataset name
         - "selections_performed" (int): Number of selections made (len(prev_selections_performed) + 1)
-        - "features_observed" (int): Number of features observed (len(next_feature_indices))
         - "predicted_class" (int|None): Predicted class for current classifier
         - "true_class" (int): True class label
         - "train_seed" (int|None): Training seed
@@ -80,9 +78,6 @@ def transform_eval_data(
     # Parse list columns and get lengths
     df["selections_performed"] = df["prev_selections_performed"].apply(
         lambda x: len(ast.literal_eval(x)) + 1 if pd.notna(x) else 1
-    )
-    df["features_observed"] = df["next_feature_indices"].apply(
-        lambda x: len(ast.literal_eval(x)) if pd.notna(x) else 0
     )
 
     # Add basic metadata columns
@@ -131,7 +126,6 @@ def transform_eval_data(
         "classifier",
         "dataset",
         "selections_performed",
-        "features_observed",
         "predicted_class",
         "true_class",
         "train_seed",

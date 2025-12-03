@@ -205,23 +205,6 @@ def main(cfg: EvalConfig) -> None:
     df_eval.to_csv(csv_path, index=False)
     log.info(f"Saved evaluation data to CSV at: {csv_path}")
 
-    # Save metadata
-    # TODO:
-    # eval_metadata = {
-    #     "dataset_class_name": method_metadata["dataset_class_name"],
-    #     "method_class_name": method_metadata["method_class_name"],
-    #     "seed": method_metadata["seed"],
-    #     "cost_param": cost_param,
-    #     "eval_type": "soft_budget",
-    #     "dataset_split": cfg.dataset_split,
-    #     "classifier_artifact_name": cfg.classifier_artifact_path,
-    # }
-    # Save just metadata (CSV already in place)
-    # save_artifact(
-    #     artifact_dir=Path(cfg.save_path),
-    #     files={},  # No files to copy - CSV already there
-    #     metadata=eval_metadata,
-    # )
     log.info(f"Evaluation results saved to: {cfg.save_path}")
 
     if run:
