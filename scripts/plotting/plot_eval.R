@@ -157,16 +157,32 @@ if (!is.na(output_path)) {
 }
 
 # Second type of plot: soft budget
-# Step 1: For each (train_seed, eval_seed, soft_budget_param) combination, calculate:
-# - Average number of selections performed
-# - Metrics (accuracy, f1, etc.)
-df_soft_budget_step1 <- suppressWarnings(
-  df %>%
-    filter(
-      is.na(hard_budget),
-      !is.na(soft_budget_param)
-    ) %>%
-    select(-hard_budget) %>%
+df_soft_budget <- df %>%
+  filter(
+    is.na(hard_budget),
+    !is.na(soft_budget_param)
+  )
+
+# Step 1a: For each (train_seed, eval_seed, soft_budget_param) combination,
+# calculate average number of selections performed
+df_soft_budget_selections <- df_soft_budget %>%
+  group_by(
+    afa_method,
+    classifier,
+    dataset,
+    train_seed,
+    eval_seed,
+    soft_budget_param
+  ) %>%
+  summarize(
+    avg_selections_performed = mean(selections_performed),
+    .groups = "drop"
+  )
+
+# Step 1b: For each (train_seed, eval_seed, soft_budget_param) combination,
+# calculate metrics (accuracy, f1, etc.)
+df_soft_budget_metrics <- suppressWarnings(
+  df_soft_budget %>%
     group_by(
       afa_method,
       classifier,
@@ -175,27 +191,15 @@ df_soft_budget_step1 <- suppressWarnings(
       eval_seed,
       soft_budget_param
     ) %>%
-    summarize(
-      avg_selections_performed = mean(selections_performed),
-      .groups = "keep"
-    ) %>%
-    # Calculate metrics for this combination
-    left_join(
-      df %>%
-        filter(is.na(hard_budget), !is.na(soft_budget_param)) %>%
-        select(-hard_budget) %>%
-        group_by(
-          afa_method,
-          classifier,
-          dataset,
-          train_seed,
-          eval_seed,
-          soft_budget_param
-        ) %>%
-        class_metrics(truth = true_class, estimate = predicted_class),
-      by = c("afa_method", "classifier", "dataset", "train_seed", "eval_seed", "soft_budget_param")
-    )
+    class_metrics(truth = true_class, estimate = predicted_class)
 )
+
+# Step 1c: Combine selections and metrics
+df_soft_budget_step1 <- df_soft_budget_metrics %>%
+  inner_join(
+    df_soft_budget_selections,
+    by = c("afa_method", "classifier", "dataset", "train_seed", "eval_seed", "soft_budget_param")
+  )
 
 # Step 2: Calculate mean and sd across train_seed and eval_seed for each soft_budget_param
 df_soft_budget <- df_soft_budget_step1 %>%
