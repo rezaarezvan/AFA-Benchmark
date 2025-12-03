@@ -15,7 +15,6 @@ read_csv_safe <- function(path) {
     classifier = col_factor(),
     dataset = col_factor(),
     selections_performed = col_integer(),
-    features_observed = col_integer(),
     predicted_class = col_integer(),
     true_class = col_integer(),
     train_seed = col_integer(),
@@ -53,7 +52,6 @@ generate_dummy_data <- function(n = 100) {
     classifier = factor(sample(classifiers, n, replace = TRUE)),
     dataset = factor(sample(datasets, n, replace = TRUE)),
     selections_performed = sample(1:n_features, n, replace = TRUE),
-    features_observed = selections_performed,
     predicted_class = factor(sample(0:(n_classes - 1), n, replace = TRUE)),
     true_class = factor(sample(0:(n_classes - 1), n, replace = TRUE)),
     train_seed = sample(train_seeds, n, replace = TRUE),
@@ -108,10 +106,9 @@ df_hard_budget <- suppressWarnings(
     ) %>%
     # We only care about the prediction made once we reach the evaluation hard budget
     filter(
-      features_observed == hard_budget
+      selections_performed == hard_budget
     ) %>%
     select(
-      -features_observed,
       -selections_performed
     ) %>%
     # Also group over train_seed, eval_seed and hard_budget before calculating metrics.
@@ -186,7 +183,6 @@ df_soft_budget <- suppressWarnings(
       train_seed,
       eval_seed,
       soft_budget_param,
-      features_observed,
       .add = TRUE
     ) %>%
     # Now we can calculate metrics
@@ -197,7 +193,6 @@ df_soft_budget <- suppressWarnings(
       afa_method,
       classifier,
       dataset,
-      features_observed,
       .metric,
       .estimator
       # leaves train_seed, eval_seed, soft_budget_param and .estimate
@@ -215,7 +210,7 @@ soft_budget_plot <- df_soft_budget %>%
     .metric == "accuracy",
     classifier == "builtin"
   ) %>%
-  ggplot(aes(x = features_observed, y = estimate_mean, color = afa_method, fill = afa_method)) +
+  ggplot(aes(x = selections_performed, y = estimate_mean, color = afa_method, fill = afa_method)) +
   geom_line() +
   geom_ribbon(aes(ymin = estimate_mean - estimate_sd, ymax = estimate_mean + estimate_sd), alpha = 0.2, linetype = "blank") +
   facet_wrap(vars(dataset), scales = "free")

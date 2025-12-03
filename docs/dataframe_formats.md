@@ -21,7 +21,7 @@ This is what `eval_afa_method.py` script produces (same as the function above).
 - `external_predicted_class` (int|None): The predicted class by an external classifier, if provided.
 - `true_class` (int): The true class label.
 
-## Dataframe produced by transform_eval_data.py
+## Dataframe used for plotting
 This is what `transform_eval_data.py` produces for plotting (what `plot_eval.R` expects).
 
 - `afa_method` (str): name of the AFA method, e.g. "ODIN-MFRL" or "EDDI"
