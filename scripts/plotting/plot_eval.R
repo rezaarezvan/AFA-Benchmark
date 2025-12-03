@@ -252,6 +252,10 @@ soft_budget_plot <- df_soft_budget %>%
   geom_errorbar(aes(ymin = estimate_mean - estimate_sd, ymax = estimate_mean + estimate_sd), alpha = 0.5) +
   geom_errorbarh(aes(xmin = selections_performed_mean - selections_performed_sd, xmax = selections_performed_mean + selections_performed_sd), alpha = 0.5) +
   facet_wrap(vars(dataset), scales = "free", labeller = as_labeller(dataset_name_mapping)) +
+  labs(
+    x = "Selection budget",
+    y = "Metric"
+  ) +
   scale_color_discrete(name = "AFA method", labels = method_name_mapping) +
   scale_fill_discrete(name = "AFA method", labels = method_name_mapping)
 
