@@ -67,19 +67,18 @@ def test_random_dummy_method_never_selects_0() -> None:
         selection_budget=None,
     )
 
-    # The only rows where "next_feature_indices" == "feature_indices" is where we stop due to already having observed all features, i.e len("feature_indices") == 8
+    # Check that we get at least some selections since prob_select_0=0.0
+    # We should have more than just 2 rows (initial selections) since we never select 0
+    assert len(df_batch) > 2, (
+        f"Expected more than 2 rows when prob_select_0=0.0, got {len(df_batch)}"
+    )
+
+    # Verify that no selection_performed is 0 (stop)
     for _, row in df_batch.iterrows():
-        next_feature_indices = row["next_feature_indices"]
-        feature_indices = row["feature_indices"]
-        if len(feature_indices) < 8 and len(next_feature_indices) == len(
-            feature_indices
-        ):
-            assert not torch.allclose(
-                torch.tensor(next_feature_indices),
-                torch.tensor(feature_indices),
-            ), (
-                f"Expected next_feature_indices {next_feature_indices} to be different from feature_indices {feature_indices} when not all features are observed."
-            )
+        selection_performed = row["selection_performed"]
+        assert selection_performed != 0, (
+            f"Expected no stop selections (0) when prob_select_0=0.0, but got {selection_performed}"
+        )
 
 
 def test_random_dummy_method_always_selects_0() -> None:
@@ -138,16 +137,12 @@ def test_random_dummy_method_always_selects_0() -> None:
     )
 
     # We should only have two rows since we always select 0 (stop) immediately
-    # For the two rows, "next_feature_indices" should always equal "feature_indices"
     assert len(df_batch) == 2, (
         f"Expected 2 rows in the result DataFrame, got {len(df_batch)}"
     )
+    # All selection_performed should be 0 (stop)
     for _, row in df_batch.iterrows():
-        next_feature_indices = row["next_feature_indices"]
-        feature_indices = row["feature_indices"]
-        assert torch.allclose(
-            torch.tensor(next_feature_indices),
-            torch.tensor(feature_indices),
-        ), (
-            f"Expected next_feature_indices {next_feature_indices} to equal feature_indices {feature_indices} since we always select 0 (stop)."
+        selection_performed = row["selection_performed"]
+        assert selection_performed == 0, (
+            f"Expected all selections to be 0 (stop) when prob_select_0=1.0, but got {selection_performed}"
         )

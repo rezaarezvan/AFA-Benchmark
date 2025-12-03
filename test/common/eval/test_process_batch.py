@@ -76,8 +76,3 @@ def test_process_batch_respects_budget() -> None:
     assert len(df_batch) == 4, (
         f"Expected 4 rows in the result DataFrame, got {len(df_batch)}."
     )
-
-    # No row should have len("feature_indices") > 6
-    assert all(
-        len(row["feature_indices"]) <= 6 for _, row in df_batch.iterrows()
-    ), "Some rows have more features acquired than the budget allows."

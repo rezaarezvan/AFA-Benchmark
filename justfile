@@ -14,7 +14,7 @@ qa:
     # uv run ty check .
 
     # Testing
-    uv run pytest . --tb=noe
+    uv run pytest . --tb=no
 
 # Run coverage, and build to HTML
 coverage:
