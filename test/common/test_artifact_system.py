@@ -192,7 +192,7 @@ class TestArtifactMetadata:
 #
 #     DATASET_PATH = Path("extra/data/cube/cube_split_1")
 #     # adjust as needed
-#     METHOD_PATH = Path("extra/result/randomdummy/train/cube_split_1")
+#     METHOD_PATH = Path("extra/result/random_dummy/train/cube_split_1")
 #     CLASSIFIER_PATH = Path(
 #         "extra/classifiers/masked_mlp/cube_split_1")  # adjust as needed
 #

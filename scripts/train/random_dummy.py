@@ -26,7 +26,7 @@ log = logging.getLogger(__name__)
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/scripts/train/randomdummy",
+    config_path="../../extra/conf/scripts/train/random_dummy",
     config_name="config",
 )
 def main(cfg: RandomDummyTrainConfig) -> None:
@@ -40,7 +40,7 @@ def main(cfg: RandomDummyTrainConfig) -> None:
                 "dict[str, Any]", OmegaConf.to_container(cfg, resolve=True)
             ),
             job_type="training",
-            tags=["randomdummy"],
+            tags=["random_dummy"],
             dir="extra/wandb",
         )
         # Log W&B run URL

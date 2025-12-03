@@ -58,8 +58,8 @@ def get_afa_dataset_class(class_name: str) -> type[AFADataset]:
 
 
 AFA_CLASSIFIER_CLASSES = {
-    "randomdummy": "afabench.common.classifiers.RandomDummyAFAClassifier",
-    "uniformdummy": "afabench.common.classifiers.UniformDummyAFAClassifier",
+    "RandomDummyAFAClassifier": "afabench.common.classifiers.RandomDummyAFAClassifier",
+    "UniformDummyAFAClassifier": "afabench.common.classifiers.UniformDummyAFAClassifier",
     "WrappedMaskedMLPClassifier": "afabench.common.classifiers.WrappedMaskedMLPClassifier",
     "WrappedMaskedViTClassifier": "afabench.common.classifiers.WrappedMaskedViTClassifier",
     "Shim2018AFAClassifier": "afabench.afa_rl.shim2018.models.Shim2018AFAClassifier",

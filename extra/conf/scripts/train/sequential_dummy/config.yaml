@@ -1,0 +1,23 @@
+hydra:
+  searchpath:
+    - file://extra/conf
+    - file://extra/conf/global
+
+defaults:
+  - _self_
+  - components/initializers@initializer: ???
+  - components/unmaskers@unmasker: ???
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+  - override hydra/launcher: custom_slurm
+
+dataset_artifact_path: ???
+save_path: ???
+# initializer set as component
+# unmasker set as component
+train_hard_budget: null
+train_soft_budget_param: null
+
+device: cpu
+seed: 42
+use_wandb: false

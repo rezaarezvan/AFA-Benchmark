@@ -72,7 +72,7 @@ tidy_df <- function(df) {
       "ma2018" = "EDDI",
       "shim2018" = "JAFA-MFRL",
       "zannone2019" = "ODIN-MFRL",
-      "randomdummy" = "Random"
+      "random_dummy" = "Random"
     ))
   # Tidy data
   df <- df %>%

@@ -607,7 +607,7 @@ class PermutationTrainingConfig:
 
 cs.store(name="train_permutation", node=PermutationTrainingConfig)
 
-# randomdummy
+# random_dummy
 
 
 @dataclass
@@ -624,22 +624,26 @@ class RandomDummyTrainConfig:
     use_wandb: bool = False
 
 
-cs.store(name="train_randomdummy", node=RandomDummyTrainConfig)
+cs.store(name="train_random_dummy", node=RandomDummyTrainConfig)
 
-# sequentialdummy
+# sequential_dummy
 
 
 @dataclass
 class SequentialDummyTrainConfig:
-    dataset_artifact_name: str
-    hard_budget: int | None  # not used, but pretend that it is
+    dataset_artifact_path: str
+    save_path: str
+    initializer: InitializerConfig
+    unmasker: UnmaskerConfig
+    train_hard_budget: int | None  # not used, but pretend that it is
+    train_soft_budget_param: float | None
+
     device: str
     seed: int | None
-    output_artifact_aliases: list[str]
-    cost_param: float
+    use_wandb: bool = False
 
 
-cs.store(name="train_randomdummy", node=RandomDummyTrainConfig)
+cs.store(name="train_sequential_dummy", node=SequentialDummyTrainConfig)
 
 # optimalcube
 

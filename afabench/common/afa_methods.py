@@ -204,9 +204,6 @@ class SequentialDummyAFAMethod(AFAMethod):
         assert selection_mask is not None, (
             "SequentialDummyAFAMethod requires selection_mask to be provided"
         )
-        assert masked_features.ndim == 2, (
-            "SequentialDummyAFAMethod only supports 1D masked features with 1D batch size"
-        )
         original_device = masked_features.device
 
         masked_features = masked_features.to(self._device)
@@ -234,7 +231,7 @@ class SequentialDummyAFAMethod(AFAMethod):
             select_0_mask, torch.zeros_like(selection), selection
         )
 
-        return selection.to(original_device)
+        return selection.to(original_device).unsqueeze(-1)
 
     @override
     def predict(
@@ -284,6 +281,7 @@ class SequentialDummyAFAMethod(AFAMethod):
         obj = cls.__new__(cls)
         obj.n_classes = data["n_classes"]
         obj.prob_select_0 = data["prob_select_0"]
+        obj._device = device  # noqa: SLF001
         return obj
 
     @override

@@ -81,7 +81,7 @@ def get_train_dependency_arguments(wildcards):
     """
     if wildcards.method in {"shim2018", "kachuee2019", "zannone2019"}:
         return f"pretrained_model_artifact_name=pretrain_{wildcards.method}-{wildcards.dataset}_split_{wildcards.dataset_split}:{get_pretrain_alias(wildcards.method, wildcards.dataset)}"
-    elif wildcards.method in {"randomdummy", "sequentialdummy"}:
+    elif wildcards.method in {"random_dummy", "sequential_dummy"}:
         return f"dataset_artifact_name={wildcards.dataset}_split_{wildcards.dataset_split}:{DATASET_ARTIFACT_ALIASES[wildcards.dataset]}"
     else:
         msg = f"Unknown method {wildcards.method} when trying to determine training dependency argument."
@@ -132,8 +132,8 @@ def get_trained_method_artifact_name(wildcards):
         "shim2018",
         "kachuee2019",
         "zannone2019",
-        "randomdummy",
-        "sequentialdummy",
+        "random_dummy",
+        "sequential_dummy",
     }:
         return f"train_{wildcards.method}-{wildcards.dataset}_split_{wildcards.dataset_split}-costparam_{wildcards.cost_param}-seed_{wildcards.seed}:{EXPERIMENT_ID}"
     else:

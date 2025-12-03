@@ -33,7 +33,7 @@ def main(cfg: OptimalCubeTrainConfig):
             "dict[str, Any]", OmegaConf.to_container(cfg, resolve=True)
         ),
         job_type="training",
-        tags=["randomdummy"],
+        tags=["optimalcube"],
         dir="extra/wandb",
     )
 
