@@ -9,6 +9,20 @@ suppressPackageStartupMessages({
   library(stringr)
 })
 
+method_name_mapping <- c(
+  "random_dummy" = "Random dummy",
+  "sequential_dummy" = "Sequential dummy"
+)
+
+dataset_name_mapping <- c(
+  "cube" = "Cube",
+  "afa_context" = "AFAContext",
+  "synthetic_mnist" = "Synthetic MNIST",
+  "MNIST" = "MNIST"
+)
+
+
+
 read_csv_safe <- function(path) {
   df <- read_csv(path, col_types = list(
     afa_method = col_factor(),
@@ -35,9 +49,9 @@ read_csv_safe <- function(path) {
 
 generate_dummy_data <- function(n = 100) {
   set.seed(42)
-  methods <- c("ODIN-MFRL", "EDDI", "DIME")
+  methods <- c("shim2018", "eddi", "dime", "zannone2019")
   classifiers <- c(NA, "fully_connected")
-  datasets <- c("cube", "MNIST")
+  datasets <- c("cube", "afa_context", "synthetic_mnist")
   train_seeds <- 1:2
   eval_seeds <- 1:2
   hard_budgets <- c(NA_integer_, 5, 10, 15)
@@ -80,6 +94,8 @@ if (length(args) == 0) {
 } else {
   stop("Usage: Rscript plot.R [eval_results.csv] output_folder")
 }
+
+
 
 class_metrics <- metric_set(
   accuracy,
@@ -148,7 +164,13 @@ hard_budget_plot <- df_hard_budget %>%
   ggplot(aes(x = hard_budget, y = estimate_mean, color = afa_method, fill = afa_method)) +
   geom_line() +
   geom_ribbon(aes(ymin = estimate_mean - estimate_sd, ymax = estimate_mean + estimate_sd), alpha = 0.2, linetype = "blank") +
-  facet_wrap(vars(dataset), scales = "free")
+  facet_wrap(vars(dataset), scales = "free", labeller = as_labeller(dataset_name_mapping)) +
+  labs(
+    x = "Selection budget",
+    y = "Metric"
+  ) +
+  scale_color_discrete(name = "AFA method", labels = method_name_mapping) +
+  scale_fill_discrete(name = "AFA method", labels = method_name_mapping)
 
 if (!is.na(output_path)) {
   ggsave(str_c(output_path, "/hard_budget.png"), plot = hard_budget_plot, create.dir = TRUE)
@@ -229,7 +251,9 @@ soft_budget_plot <- df_soft_budget %>%
   geom_line() +
   geom_errorbar(aes(ymin = estimate_mean - estimate_sd, ymax = estimate_mean + estimate_sd), alpha = 0.5) +
   geom_errorbarh(aes(xmin = selections_performed_mean - selections_performed_sd, xmax = selections_performed_mean + selections_performed_sd), alpha = 0.5) +
-  facet_wrap(vars(dataset), scales = "free")
+  facet_wrap(vars(dataset), scales = "free", labeller = as_labeller(dataset_name_mapping)) +
+  scale_color_discrete(name = "AFA method", labels = method_name_mapping) +
+  scale_fill_discrete(name = "AFA method", labels = method_name_mapping)
 
 if (!is.na(output_path)) {
   ggsave(str_c(output_path, "/soft_budget.png"), plot = soft_budget_plot, create.dir = TRUE)
