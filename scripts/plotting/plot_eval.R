@@ -21,6 +21,32 @@ dataset_name_mapping <- c(
   "MNIST" = "MNIST"
 )
 
+dataset_metric_mapping <- c(
+  "cube" = "accuracy",
+  "afa_context" = "f_meas",
+  "synthetic_mnist" = "accuracy",
+  "MNIST" = "f_meas"
+)
+
+metric_name_mapping <- c(
+  "accuracy" = "Accuracy",
+  "f_meas" = "F1",
+  "kap" = "Cohen's Kappa"
+)
+
+# Custom labeller function for facets
+dataset_with_metric_labeller <- function(x) {
+  dataset_names <- dataset_name_mapping[x]
+  metric_codes <- dataset_metric_mapping[x]
+  metric_names <- metric_name_mapping[metric_codes]
+
+  if (any(is.na(dataset_names))) stop("Missing dataset_name_mapping for: ", paste(x[is.na(dataset_names)], collapse = ", "))
+  if (any(is.na(metric_codes))) stop("Missing dataset_metric_mapping for: ", paste(x[is.na(metric_codes)], collapse = ", "))
+  if (any(is.na(metric_names))) stop("Missing metric_name_mapping for: ", paste(metric_codes[is.na(metric_names)], collapse = ", "))
+
+  paste0(dataset_names, " (", metric_names, ")")
+}
+
 
 
 read_csv_safe <- function(path) {
@@ -155,27 +181,55 @@ df_hard_budget <- suppressWarnings(
     )
 )
 
-# Example: plot with builtin classifier accuracy
+# Primary plot: hard budget with dataset-specific metrics
 hard_budget_plot <- df_hard_budget %>%
   filter(
-    .metric == "accuracy",
     classifier == "builtin"
   ) %>%
+  # Add dataset-specific metric filtering
+  filter(.metric == dataset_metric_mapping[dataset]) %>%
   ggplot(aes(x = hard_budget, y = estimate_mean, color = afa_method, fill = afa_method)) +
   geom_line() +
   geom_ribbon(aes(ymin = estimate_mean - estimate_sd, ymax = estimate_mean + estimate_sd), alpha = 0.2, linetype = "blank") +
-  facet_wrap(vars(dataset), scales = "free", labeller = as_labeller(dataset_name_mapping)) +
+  facet_wrap(vars(dataset), scales = "free", labeller = as_labeller(dataset_with_metric_labeller)) +
   labs(
     x = "Selection budget",
     y = "Metric"
   ) +
   scale_color_discrete(name = "AFA method", labels = method_name_mapping) +
-  scale_fill_discrete(name = "AFA method", labels = method_name_mapping)
+  scale_fill_discrete(name = "AFA method", labels = method_name_mapping) +
+  theme(legend.position = "bottom")
 
 if (!is.na(output_path)) {
   ggsave(str_c(output_path, "/hard_budget.png"), plot = hard_budget_plot, create.dir = TRUE)
 } else {
   print(hard_budget_plot)
+}
+
+# Cohen's kappa plot: hard budget
+hard_budget_kappa_plot <- df_hard_budget %>%
+  filter(
+    .metric == "kap",
+    classifier == "builtin"
+  ) %>%
+  ggplot(aes(x = hard_budget, y = estimate_mean, color = afa_method, fill = afa_method)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = estimate_mean - estimate_sd, ymax = estimate_mean + estimate_sd), alpha = 0.2, linetype = "blank") +
+  facet_wrap(vars(dataset), scales = "free", labeller = as_labeller(function(x) {
+    dataset_name_mapping[x]
+  })) +
+  labs(
+    x = "Selection budget",
+    y = "Cohen's Kappa"
+  ) +
+  scale_color_discrete(name = "AFA method", labels = method_name_mapping) +
+  scale_fill_discrete(name = "AFA method", labels = method_name_mapping) +
+  theme(legend.position = "bottom")
+
+if (!is.na(output_path)) {
+  ggsave(str_c(output_path, "/hard_budget_kappa.png"), plot = hard_budget_kappa_plot, create.dir = TRUE)
+} else {
+  print(hard_budget_kappa_plot)
 }
 
 # Second type of plot: soft budget
@@ -241,26 +295,55 @@ df_soft_budget <- df_soft_budget_step1 %>%
     .groups = "drop"
   )
 
-# Example: plot with builtin classifier accuracy
+# Primary plot: soft budget with dataset-specific metrics
 soft_budget_plot <- df_soft_budget %>%
   filter(
-    .metric == "accuracy",
+    classifier == "builtin"
+  ) %>%
+  # Add dataset-specific metric filtering
+  filter(.metric == dataset_metric_mapping[dataset]) %>%
+  ggplot(aes(x = selections_performed_mean, y = estimate_mean, color = afa_method, fill = afa_method)) +
+  geom_line() +
+  geom_errorbar(aes(ymin = estimate_mean - estimate_sd, ymax = estimate_mean + estimate_sd), alpha = 0.5) +
+  geom_errorbarh(aes(xmin = selections_performed_mean - selections_performed_sd, xmax = selections_performed_mean + selections_performed_sd), alpha = 0.5) +
+  facet_wrap(vars(dataset), scales = "free", labeller = as_labeller(dataset_with_metric_labeller)) +
+  labs(
+    x = "Selection budget",
+    y = "Metric"
+  ) +
+  scale_color_discrete(name = "AFA method", labels = method_name_mapping) +
+  scale_fill_discrete(name = "AFA method", labels = method_name_mapping) +
+  theme(legend.position = "bottom")
+
+if (!is.na(output_path)) {
+  ggsave(str_c(output_path, "/soft_budget.png"), plot = soft_budget_plot, create.dir = TRUE)
+} else {
+  print(soft_budget_plot)
+}
+
+# Cohen's kappa plot: soft budget
+soft_budget_kappa_plot <- df_soft_budget %>%
+  filter(
+    .metric == "kap",
     classifier == "builtin"
   ) %>%
   ggplot(aes(x = selections_performed_mean, y = estimate_mean, color = afa_method, fill = afa_method)) +
   geom_line() +
   geom_errorbar(aes(ymin = estimate_mean - estimate_sd, ymax = estimate_mean + estimate_sd), alpha = 0.5) +
   geom_errorbarh(aes(xmin = selections_performed_mean - selections_performed_sd, xmax = selections_performed_mean + selections_performed_sd), alpha = 0.5) +
-  facet_wrap(vars(dataset), scales = "free", labeller = as_labeller(dataset_name_mapping)) +
+  facet_wrap(vars(dataset), scales = "free", labeller = as_labeller(function(x) {
+    dataset_name_mapping[x]
+  })) +
   labs(
     x = "Selection budget",
-    y = "Metric"
+    y = "Cohen's Kappa"
   ) +
   scale_color_discrete(name = "AFA method", labels = method_name_mapping) +
-  scale_fill_discrete(name = "AFA method", labels = method_name_mapping)
+  scale_fill_discrete(name = "AFA method", labels = method_name_mapping) +
+  theme(legend.position = "bottom")
 
 if (!is.na(output_path)) {
-  ggsave(str_c(output_path, "/soft_budget.png"), plot = soft_budget_plot, create.dir = TRUE)
+  ggsave(str_c(output_path, "/soft_budget_kappa.png"), plot = soft_budget_kappa_plot, create.dir = TRUE)
 } else {
-  print(soft_budget_plot)
+  print(soft_budget_kappa_plot)
 }
