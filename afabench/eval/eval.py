@@ -325,7 +325,7 @@ def eval_afa_method(
             batch_size=batch_size,
         )
 
-    df_batches: list[pd.DataFrame] = []
+    batches_df: list[pd.DataFrame] = []
     for _batch_features, _batch_label in tqdm(dataloader):
         batch_features = _batch_features.to(device)
         batch_label = _batch_label.to(device)
@@ -341,7 +341,7 @@ def eval_afa_method(
             0.0  # Assuming zero masking
         )
 
-        df_batches.append(
+        batches_df.append(
             process_batch(
                 afa_select_fn=afa_select_fn,
                 afa_unmask_fn=afa_unmask_fn,
@@ -357,4 +357,18 @@ def eval_afa_method(
             )
         )
     # Concatenate all batch DataFrames
-    return pd.concat(df_batches, ignore_index=True)
+    df_batches = pd.concat(batches_df, ignore_index=True)
+    # Assert that all the columns described in docstring are present
+    expected_columns = {
+        "feature_indices",
+        "prev_selections_performed",
+        "selection_performed",
+        "next_feature_indices",
+        "builtin_predicted_class",
+        "external_predicted_class",
+        "true_class",
+    }
+    assert expected_columns.issubset(set(df_batches.columns)), (
+        f"Expected columns {expected_columns}, but got {set(df_batches.columns)}"
+    )
+    return df_batches

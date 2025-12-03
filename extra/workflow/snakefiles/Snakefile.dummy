@@ -6,22 +6,20 @@ EVAL_DATASET_SPLIT = "val"  # whether to use "val" or "test" during evaluation
 DEVICE = "cpu"
 
 # Main parameters that we investigate
-# - hard budget during training
-# - hard budget during evaluation
+# - hard budget
 # - soft budget parameter during training
-# - soft budget parameter during evaluation
 PARAMS_PER_DATASET = {
     "cube": [
-        (5, 5, "null", "null"),
-        (10, 10, "null", "null"),
-        ("null", "null", 0.4, "null"),
-        ("null", "null", 0.6, "null"),
+        (5, "null"),
+        (10, "null"),
+        ("null", 0.4),
+        ("null", 0.6),
     ],
     "afa_context": [
-        (10, 10, "null", "null"),
-        (15, 15, "null", "null"),
-        ("null", "null", 0.5, "null"),
-        ("null", "null", 0.7, "null"),
+        (10, "null"),
+        (15, "null"),
+        ("null", 0.5),
+        ("null", 0.7),
     ],
 }
 
@@ -36,7 +34,12 @@ rule train_method:
         "extra/data/datasets/{dataset}/{dataset_instance_idx}",
     output:
         directory(
-            "extra/trained_methods/random_dummy/dataset-{dataset}+instance_idx-{dataset_instance_idx}/train_hard_budget-{train_hard_budget}+train_soft_budget_param-{train_soft_budget_param}"
+            "extra/trained_methods/random_dummy/"
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+            "train_seed-{train_seed}+"
+            "train_hard_budget-{train_hard_budget}+"
+            "train_soft_budget_param-{train_soft_budget_param}"
         ),
     params:
         unmasker=lambda wildcards: UNMASKER_PER_DATASET[wildcards.dataset],
@@ -50,7 +53,7 @@ rule train_method:
             train_hard_budget={wildcards.train_hard_budget} \
             train_soft_budget_param={wildcards.train_soft_budget_param} \
             device={DEVICE} \
-            seed=null \
+            seed={wildcards.train_seed} \
             use_wandb=false
         """
 
@@ -72,12 +75,34 @@ rule train_method:
 rule eval_method:
     input:
         "extra/data/datasets/{dataset}/{dataset_instance_idx}",
-        "extra/trained_methods/random_dummy/dataset-{dataset}+instance_idx-{dataset_instance_idx}/train_hard_budget-{train_hard_budget}+train_soft_budget_param-{train_soft_budget_param}",
+        "extra/trained_methods/random_dummy/"
+        "dataset-{dataset}+"
+        "instance_idx-{dataset_instance_idx}/"
+        "train_seed-{train_seed}+"
+        "train_hard_budget-{hard_budget}+"
+        "train_soft_budget_param-{soft_budget_param}",
         # "extra/trained_classifiers/masked_mlp_classifier/dataset-{dataset}+instance-{dataset_instance}",
     output:
-        "extra/eval_results/random_dummy/dataset-{dataset}+instance_idx-{dataset_instance_idx}/train_hard_budget-{train_hard_budget}+train_soft_budget_param-{train_soft_budget_param}/eval_hard_budget+{eval_hard_budget}+eval_soft_budget_param-{eval_soft_budget_param}/eval_data.csv",
+        "extra/eval_results/random_dummy/"
+        "dataset-{dataset}+"
+        "instance_idx-{dataset_instance_idx}/"
+        "train_seed-{train_seed}+"
+        "train_hard_budget-{hard_budget}+"
+        "train_soft_budget_param-{soft_budget_param}/"
+        "eval_seed-{eval_seed}+"
+        "eval_hard_budget-{hard_budget}/"
+        "eval_data.csv",
     params:
-        save_path=lambda wildcards: f"extra/eval_results/random_dummy/dataset-{wildcards.dataset}+instance_idx-{wildcards.dataset_instance_idx}/train_hard_budget-{wildcards.train_hard_budget}+train_soft_budget_param-{wildcards.train_soft_budget_param}/eval_hard_budget+{wildcards.eval_hard_budget}+eval_soft_budget_param-{wildcards.eval_soft_budget_param}",
+        save_path=lambda wildcards: (
+            f"extra/eval_results/random_dummy/"
+            f"dataset-{wildcards.dataset}+"
+            f"instance_idx-{wildcards.dataset_instance_idx}/"
+            f"train_seed-{wildcards.train_seed}+"
+            f"train_hard_budget-{wildcards.hard_budget}+"
+            f"train_soft_budget_param-{wildcards.soft_budget_param}/"
+            f"eval_seed-{wildcards.eval_seed}+"
+            f"eval_hard_budget-{wildcards.hard_budget}"
+        ),
         unmasker=lambda wildcards: UNMASKER_PER_DATASET[wildcards.dataset],
     shell:
         """
@@ -89,26 +114,66 @@ rule eval_method:
             save_path={params.save_path} \
             dataset_split={EVAL_DATASET_SPLIT} \
             classifier_artifact_path=null \
-            seed=null \
+            seed={wildcards.eval_seed} \
             device={DEVICE} \
             eval_only_n_samples=null \
             batch_size=1 \
-            hard_budget={wildcards.eval_hard_budget} \
+            hard_budget={wildcards.hard_budget} \
             use_wandb=false
+        """
+
+
+rule transform_eval:
+    input:
+        "extra/eval_results/random_dummy/"
+        "dataset-{dataset}+"
+        "instance_idx-{dataset_instance_idx}/"
+        "train_seed-{train_seed}+"
+        "train_hard_budget-{hard_budget}+"
+        "train_soft_budget_param-{soft_budget_param}/"
+        "eval_seed-{eval_seed}+"
+        "eval_hard_budget-{hard_budget}/"
+        "eval_data.csv",
+    output:
+        "extra/eval_results/random_dummy/"
+        "dataset-{dataset}+"
+        "instance_idx-{dataset_instance_idx}/"
+        "train_seed-{train_seed}+"
+        "train_hard_budget-{hard_budget}+"
+        "train_soft_budget_param-{soft_budget_param}/"
+        "eval_seed-{eval_seed}+"
+        "eval_hard_budget-{hard_budget}/"
+        "transformed_eval_data.csv",
+    shell:
+        """
+        python scripts/misc/transform_eval_data.py {input} {output} random_dummy \
+            --dataset {wildcards.dataset} \
+            --train_seed {wildcards.train_seed} \
+            --eval_seed {wildcards.eval_seed} \
+            --hard_budget {wildcards.hard_budget} \
+            --soft_budget_param {wildcards.soft_budget_param}
         """
 
 
 rule merge_eval:
     input:
         [
-            f"extra/eval_results/random_dummy/dataset-{dataset}+instance_idx-{dataset_instance_idx}/train_hard_budget-{train_hard_budget}+train_soft_budget_param-{train_soft_budget_param}/eval_hard_budget+{eval_hard_budget}+eval_soft_budget_param-{eval_soft_budget_param}/eval_data.csv"
+            (
+                f"extra/eval_results/random_dummy/"
+                f"dataset-{dataset}+"
+                f"instance_idx-{dataset_instance_idx}/"
+                f"train_seed-{dataset_instance_idx}+"
+                f"train_hard_budget-{hard_budget}+"
+                f"train_soft_budget_param-{soft_budget_param}/"
+                f"eval_seed-{dataset_instance_idx}+"
+                f"eval_hard_budget-{hard_budget}/"
+                f"transformed_eval_data.csv"
+            )
             for dataset in DATASETS
             for dataset_instance_idx in DATASET_INSTANCE_INDICES
             for (
-                train_hard_budget,
-                eval_hard_budget,
-                train_soft_budget_param,
-                eval_soft_budget_param,
+                hard_budget,
+                soft_budget_param,
             ) in PARAMS_PER_DATASET[dataset]
         ],
     output:

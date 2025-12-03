@@ -10,19 +10,28 @@ suppressPackageStartupMessages({
 })
 
 read_csv_safe <- function(path) {
-  read_csv(path, col_types = list(
+  df <- read_csv(path, col_types = list(
     afa_method = col_factor(),
     classifier = col_factor(),
     dataset = col_factor(),
     selections_performed = col_integer(),
     features_observed = col_integer(),
-    predicted_class = col_factor(),
-    true_class = col_factor(),
+    predicted_class = col_integer(),
+    true_class = col_integer(),
     train_seed = col_integer(),
     eval_seed = col_integer(),
     hard_budget = col_integer(),
-    soft_budget_param = col_number(),
+    soft_budget_param = col_number()
   ))
+
+  # Ensure both predicted_class and true_class have the same factor levels
+  if ("predicted_class" %in% names(df) && "true_class" %in% names(df)) {
+    all_levels <- sort(unique(c(df$predicted_class, df$true_class)))
+    df$predicted_class <- factor(df$predicted_class, levels = all_levels)
+    df$true_class <- factor(df$true_class, levels = all_levels)
+  }
+
+  return(df)
 }
 
 generate_dummy_data <- function(n = 100) {
@@ -137,12 +146,12 @@ df_hard_budget <- suppressWarnings(
 hard_budget_plot <- df_hard_budget %>%
   filter(
     .metric == "accuracy",
-    is.na(classifier)
+    classifier == "builtin"
   ) %>%
   ggplot(aes(x = hard_budget, y = estimate_mean, color = afa_method, fill = afa_method)) +
   geom_line() +
   geom_ribbon(aes(ymin = estimate_mean - estimate_sd, ymax = estimate_mean + estimate_sd), alpha = 0.2, linetype = "blank") +
-  facet_wrap(vars(dataset))
+  facet_wrap(vars(dataset), scales = "free")
 
 if (!is.na(output_path)) {
   ggsave(str_c(output_path, "/hard_budget.png"), plot = hard_budget_plot, create.dir = TRUE)
@@ -204,12 +213,12 @@ df_soft_budget <- suppressWarnings(
 soft_budget_plot <- df_soft_budget %>%
   filter(
     .metric == "accuracy",
-    is.na(classifier)
+    classifier == "builtin"
   ) %>%
   ggplot(aes(x = features_observed, y = estimate_mean, color = afa_method, fill = afa_method)) +
   geom_line() +
   geom_ribbon(aes(ymin = estimate_mean - estimate_sd, ymax = estimate_mean + estimate_sd), alpha = 0.2, linetype = "blank") +
-  facet_wrap(vars(dataset))
+  facet_wrap(vars(dataset), scales = "free")
 
 if (!is.na(output_path)) {
   ggsave(str_c(output_path, "/soft_budget.png"), plot = soft_budget_plot, create.dir = TRUE)

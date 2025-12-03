@@ -30,9 +30,6 @@ log = logging.getLogger(__name__)
     config_name="config",
 )
 def main(cfg: RandomDummyTrainConfig) -> None:
-    print(
-        f"launching random dummy training with {cfg.train_soft_budget_param=}"
-    )
     log.debug(cfg)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")

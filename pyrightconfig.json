@@ -36,5 +36,6 @@
   "reportUnknownParameterType": false,
   "reportUnknownMemberType": false,
   "reportUnknownVariableType": false,
-  "reportUnknownArgumentType": false
+  "reportUnknownArgumentType": false,
+  "reportUnknownLambdaType": false
 }
