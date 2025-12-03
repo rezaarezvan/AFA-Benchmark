@@ -1,18 +1,16 @@
 DATASETS = [
-    "afa_context",
-    # "AFAContextRandomInsert_without_noise",
-    # "AFAContext_without_noise",
-    # "ContextSelectiveXOR",
-    # "FashionMNIST",
-    # "MNIST",
+    # "afa_context",
+    # "fashion_mnist",
+    # "mnist",
+    "synthetic_mnist",
     # "actg",
     # "bank_marketing",
     # "ckd",
-    "cube",
-    "diabetes",
+    # "cube",
+    # "diabetes",
     # "imagenette", # currently not working
-    "miniboone",
-    "physionet",
+    # "miniboone",
+    # "physionet",
 ]
 NUM_INSTANCES = 5
 INSTANCE_INDICES = range(NUM_INSTANCES)
@@ -29,15 +27,24 @@ rule dataset_generation:
     output:
         directory("extra/data/datasets/{dataset}"),
     params:
-        # output_folder=lambda wildcards: f"extra/data/datasets/{wildcards.dataset}",
         instance_indices_str=lambda wildcards: "["
         + ",".join(str(i) for i in INSTANCE_INDICES)
         + "]",
+        dataset_generation_script=lambda wildcards: (
+            "generate_image_dataset.py"
+            if wildcards.dataset
+            in [
+                "MNIST",
+                "FashionMNIST",
+                "imagenette",
+            ]
+            else "generate_dataset.py"
+        ),
     shell:
         """
-        python scripts/dataset_generation/generate_dataset.py \
-        scripts/dataset_generation/dataset@dataset={wildcards.dataset} \
-        instance_indices={params.instance_indices_str} \
-        seeds={params.instance_indices_str} \
-        save_path={output}
+        python scripts/dataset_generation/{params.dataset_generation_script} \
+            scripts/dataset_generation/dataset@dataset={wildcards.dataset} \
+            instance_indices={params.instance_indices_str} \
+            seeds={params.instance_indices_str} \
+            save_path={output}
         """

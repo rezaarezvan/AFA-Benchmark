@@ -34,6 +34,7 @@ AFA_DATASET_CLASSES = {
     "CubeDataset": "afabench.common.datasets.datasets.CubeDataset",
     "AFAContextDataset": "afabench.common.datasets.datasets.AFAContextDataset",
     "MNISTDataset": "afabench.common.datasets.datasets.MNISTDataset",
+    "SyntheticMNISTDataset": "afabench.common.datasets.datasets.SyntheticMNISTDataset",
     "DiabetesDataset": "afabench.common.datasets.datasets.DiabetesDataset",
     "PhysionetDataset": "afabench.common.datasets.datasets.PhysionetDataset",
     "MiniBooNEDataset": "afabench.common.datasets.datasets.MiniBooNEDataset",

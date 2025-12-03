@@ -54,9 +54,9 @@ def main(cfg: RandomDummyTrainConfig) -> None:
         split="train",
     )
 
-    assert len(train_dataset.feature_shape) == 1, "Only 1D features supported"
     assert len(train_dataset.label_shape) == 1, "Only 1D labels supported"
-    n_features = train_dataset.feature_shape[0]
+    # RandomDummyAFAMethod works with any feature shape since it only uses selection_mask
+    n_features = torch.prod(torch.tensor(train_dataset.feature_shape)).item()
     n_classes = train_dataset.label_shape[-1]
 
     log.info(f"Features: {n_features}, Classes: {n_classes}")

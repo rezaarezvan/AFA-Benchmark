@@ -1412,3 +1412,203 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         obj.targets = all_targets[idx]
         obj.indices = idx
         return obj
+
+
+@final
+class SyntheticMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
+    """
+    Synthetic MNIST-like dataset with the same shape as MNIST (28x28 = 784 features, 10 classes).
+
+    Generates synthetic image-like data with patterns that can be learned.
+
+    Implements the AFADataset protocol.
+    """
+
+    @classmethod
+    @override
+    def accepts_seed(cls) -> bool:
+        return True
+
+    @property
+    @override
+    def feature_shape(self) -> torch.Size:
+        return torch.Size(
+            [1, 28, 28]
+        )  # (channels, height, width) - proper image format
+
+    @property
+    @override
+    def label_shape(self) -> torch.Size:
+        return torch.Size([10])  # 10 classes, same as MNIST
+
+    @override
+    def create_subset(self, indices: Sequence[int]) -> Self:
+        return default_create_subset(self, indices)
+
+    def __init__(  # noqa: C901, PLR0915
+        self,
+        seed: int = 123,
+        n_samples: int = 10000,  # Memory-friendly default (60k samples ≈ 200MB RAM)
+        noise_std: float = 0.1,
+        pattern_intensity: float = 0.8,
+    ):
+        super().__init__()
+        self.seed = seed
+        self.n_samples = n_samples
+        self.noise_std = noise_std
+        self.pattern_intensity = pattern_intensity
+
+        self.rng = torch.Generator()
+        self.rng.manual_seed(self.seed)
+
+        # Generate labels uniformly
+        y_int = torch.randint(
+            0,
+            self.label_shape[0],
+            (self.n_samples,),
+            dtype=torch.int64,
+            generator=self.rng,
+        )
+
+        # Initialize features with noise in image format (C, H, W)
+        self.features = torch.normal(
+            mean=0.0,
+            std=self.noise_std,
+            size=(self.n_samples, 1, 28, 28),
+            generator=self.rng,
+        )
+
+        # Pre-compute coordinate grids for optimized pattern generation
+        y_coords, x_coords = torch.meshgrid(
+            torch.arange(28, dtype=torch.float32),
+            torch.arange(28, dtype=torch.float32),
+            indexing="ij",
+        )
+
+        # Pre-compute diagonal indices
+        diag_indices = torch.arange(28)
+        anti_diag_indices = 27 - diag_indices
+
+        # Add class-specific patterns to make the data learnable
+        for i in range(self.n_samples):
+            label = int(y_int[i].item())
+
+            # Create simple geometric patterns for each class
+            img = self.features[i, 0]  # Get the single channel (28, 28)
+
+            if label == 0:  # Circle-like pattern
+                dist = torch.sqrt(
+                    (y_coords - 14.0) ** 2 + (x_coords - 14.0) ** 2
+                )
+                circle_mask = (dist >= 8) & (dist <= 12)
+                img[circle_mask] += self.pattern_intensity
+
+            elif label == 1:  # Vertical line
+                img[:, 12:16] += self.pattern_intensity
+
+            elif label == 2:  # Horizontal line
+                img[12:16, :] += self.pattern_intensity
+
+            elif label == 3:  # Diagonal line
+                img[diag_indices, diag_indices] += self.pattern_intensity
+
+            elif label == 4:  # Square
+                img[8:20, 8:20] += self.pattern_intensity * 0.3
+                img[8:10, 8:20] += self.pattern_intensity * 0.7
+                img[18:20, 8:20] += self.pattern_intensity * 0.7
+                img[8:20, 8:10] += self.pattern_intensity * 0.7
+                img[8:20, 18:20] += self.pattern_intensity * 0.7
+
+            elif label == 5:  # Cross pattern
+                img[:, 12:16] += self.pattern_intensity * 0.5
+                img[12:16, :] += self.pattern_intensity * 0.5
+
+            elif label == 6:  # Triangle-like
+                for y in range(6, 22):
+                    width = (y - 6) // 2
+                    start_x = max(0, 14 - width)
+                    end_x = min(28, 14 + width + 1)
+                    img[y, start_x:end_x] += self.pattern_intensity * 0.6
+
+            elif label == 7:  # L-shape
+                img[6:22, 6:10] += self.pattern_intensity
+                img[18:22, 6:18] += self.pattern_intensity
+
+            elif label == 8:  # X pattern
+                img[diag_indices, diag_indices] += self.pattern_intensity * 0.5
+                img[diag_indices, anti_diag_indices] += (
+                    self.pattern_intensity * 0.5
+                )
+
+            elif label == 9:  # Dot pattern
+                img[6:8, 6:8] += self.pattern_intensity
+                img[6:8, 10:12] += self.pattern_intensity
+                img[6:8, 14:16] += self.pattern_intensity
+                img[6:8, 18:20] += self.pattern_intensity
+                img[10:12, 6:8] += self.pattern_intensity
+                img[10:12, 10:12] += self.pattern_intensity
+                img[10:12, 14:16] += self.pattern_intensity
+                img[10:12, 18:20] += self.pattern_intensity
+                img[14:16, 6:8] += self.pattern_intensity
+                img[14:16, 10:12] += self.pattern_intensity
+                img[14:16, 14:16] += self.pattern_intensity
+                img[14:16, 18:20] += self.pattern_intensity
+                img[18:20, 6:8] += self.pattern_intensity
+                img[18:20, 10:12] += self.pattern_intensity
+                img[18:20, 14:16] += self.pattern_intensity
+                img[18:20, 18:20] += self.pattern_intensity
+
+            # Update the channel
+            self.features[i, 0] = img
+
+        # Normalize features to [0, 1] range like MNIST
+        self.features = torch.clamp(self.features, 0, 1)
+
+        # Convert labels to one-hot
+        self.labels = torch.nn.functional.one_hot(
+            y_int, num_classes=self.label_shape[0]
+        ).float()
+        assert self.labels.shape[1] == self.label_shape[0]
+
+    @override
+    def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
+        return self.features[idx], self.labels[idx]
+
+    @override
+    def __len__(self):
+        return len(self.features)
+
+    @override
+    def get_all_data(self) -> tuple[Tensor, Tensor]:
+        return self.features, self.labels
+
+    @override
+    def save(self, path: Path) -> None:
+        torch.save(
+            {
+                "features": self.features,
+                "labels": self.labels,
+                "config": {
+                    "n_samples": self.n_samples,
+                    "seed": self.seed,
+                    "noise_std": self.noise_std,
+                    "pattern_intensity": self.pattern_intensity,
+                },
+            },
+            path,
+        )
+
+    @classmethod
+    @override
+    def load(cls, path: Path) -> Self:
+        data = torch.load(path)
+        # Create instance without calling __init__
+        obj = cls.__new__(cls)
+        obj.seed = data["config"]["seed"]
+        obj.n_samples = data["config"]["n_samples"]
+        obj.noise_std = data["config"]["noise_std"]
+        obj.pattern_intensity = data["config"]["pattern_intensity"]
+        obj.rng = torch.Generator()
+        obj.features = data["features"]
+        obj.labels = data["labels"]
+        return obj

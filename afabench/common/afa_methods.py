@@ -63,9 +63,7 @@ class RandomDummyAFAMethod(AFAMethod):
         assert selection_mask is not None, (
             "RandomDummyAFAMethod requires selection_mask to be provided"
         )
-        assert masked_features.ndim == 2, (
-            "RandomDummyAFAMethod only supports 1D masked features with 1D batch size"
-        )
+        # RandomDummyAFAMethod works with any feature shape since it only uses selection_mask
         original_device = masked_features.device
         masked_features = masked_features.to(self._device)
         feature_mask = feature_mask.to(self._device)

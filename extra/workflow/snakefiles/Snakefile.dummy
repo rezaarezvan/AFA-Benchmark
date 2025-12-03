@@ -1,7 +1,10 @@
-DATASETS = ["cube", "afa_context"]
 DATASET_INSTANCE_INDICES = [0, 1]
 INITIALIZER = "cold"  # assume same initializer for now
-UNMASKER_PER_DATASET = {"cube": "direct", "afa_context": "direct"}
+UNMASKER_PER_DATASET = {
+    "cube": "direct",
+    "afa_context": "direct",
+    "synthetic_mnist": "28x28_to_4x4",
+}
 EVAL_DATASET_SPLIT = "val"  # whether to use "val" or "test" during evaluation
 DEVICE = "cpu"
 
@@ -21,7 +24,15 @@ PARAMS_PER_DATASET = {
         ("null", 0.5),
         ("null", 0.7),
     ],
+    "synthetic_mnist": [
+        (4, "null"),
+        (10, "null"),
+        ("null", 0.2),
+        ("null", 0.3),
+    ],
 }
+assert UNMASKER_PER_DATASET.keys() == PARAMS_PER_DATASET.keys()
+DATASETS = UNMASKER_PER_DATASET.keys()
 
 
 rule all:
