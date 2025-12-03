@@ -19,14 +19,12 @@ This is what `plot_eval.R` expects.
 - `dataset` (str): name of the dataset that the method is evaluated on, e.g. "cube" or "MNIST"
 - `selections_performed` (int): how many AFA selections the method has performed for the current sample
 - `features_observed` (int): how many features the method has observed for the current sample
-- `predicted_class` (int): predicted class
+- `predicted_class` (int): predicted class using the `classifier`
 - `true_class` (int): true class
 - `train_seed` (int|null): seed used for training the method (if applicable)
 - `eval_seed` (int|null): seed used for evaluating the method (if applicable)
-- `train_hard_budget` (int|null): hard budget used during training (if applicable)
-- `eval_hard_budget` (int|null): hard budget used during evaluation (if applicable)
-- `train_soft_budget_param` (float|null): some parameter provided during training that influences a method's tendency to stop feature collection early (if applicable)
-- `eval_soft_budget_param` (float|null): some parameter provided during evaluation that influences a method's tendency to stop feature collection early (if applicable)
+- `hard_budget` (int|null): hard budget used (if applicable)
+- `soft_budget_param` (float|null): some parameter provided during training or evaluation that influences a method's tendency to stop feature collection early (if applicable)
 
 Note:
-- `selections_performed` and `features_observed` is *usually* the same, but not always. For example, we can imagine a scenario where multiple features are unmasked after each AFA action.
+- `selections_performed` and `features_observed` are *usually* the same, but not always. For example, we can imagine a scenario where multiple features are unmasked after each AFA action.
