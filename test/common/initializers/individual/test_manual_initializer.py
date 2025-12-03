@@ -1,7 +1,6 @@
 import pytest
 import torch
 
-from afabench.common.config_classes import ManualInitializerConfig
 from afabench.common.initializers import ManualInitializer
 
 
@@ -13,8 +12,8 @@ def test_manual_initializer_basic_functionality() -> None:
 
     # Select features at flat indices 0, 5, 10
     flat_indices = [0, 5, 10]
-    config = ManualInitializerConfig(flat_feature_indices=flat_indices)
-    initializer = ManualInitializer(config)
+    kwargs = {"flat_feature_indices": flat_indices}
+    initializer = ManualInitializer(**kwargs)
 
     mask = initializer.initialize(
         features=features, feature_shape=feature_shape
@@ -39,8 +38,8 @@ def test_manual_initializer_arbitrary_batch_shape() -> None:
     features = torch.randn(*batch_shape, *feature_shape)
 
     flat_indices = [0, 5, 10]
-    config = ManualInitializerConfig(flat_feature_indices=flat_indices)
-    initializer = ManualInitializer(config)
+    kwargs = {"flat_feature_indices": flat_indices}
+    initializer = ManualInitializer(**kwargs)
 
     mask = initializer.initialize(
         features=features, feature_shape=feature_shape
@@ -66,8 +65,8 @@ def test_manual_initializer_1d_features() -> None:
     features = torch.randn(batch_size, *feature_shape)
 
     flat_indices = [0, 3, 7, 9]
-    config = ManualInitializerConfig(flat_feature_indices=flat_indices)
-    initializer = ManualInitializer(config)
+    kwargs = {"flat_feature_indices": flat_indices}
+    initializer = ManualInitializer(**kwargs)
 
     mask = initializer.initialize(
         features=features, feature_shape=feature_shape
@@ -91,8 +90,8 @@ def test_manual_initializer_3d_features() -> None:
 
     # Select a few features from the 3D space
     flat_indices = [0, 5, 12, 20]
-    config = ManualInitializerConfig(flat_feature_indices=flat_indices)
-    initializer = ManualInitializer(config)
+    kwargs = {"flat_feature_indices": flat_indices}
+    initializer = ManualInitializer(**kwargs)
 
     mask = initializer.initialize(
         features=features, feature_shape=feature_shape
@@ -118,8 +117,8 @@ def test_manual_initializer_single_feature() -> None:
     features = torch.randn(batch_size, *feature_shape)
 
     flat_indices = [15]  # Just one feature
-    config = ManualInitializerConfig(flat_feature_indices=flat_indices)
-    initializer = ManualInitializer(config)
+    kwargs = {"flat_feature_indices": flat_indices}
+    initializer = ManualInitializer(**kwargs)
 
     mask = initializer.initialize(
         features=features, feature_shape=feature_shape
@@ -144,8 +143,8 @@ def test_manual_initializer_empty_selection() -> None:
     features = torch.randn(batch_size, *feature_shape)
 
     flat_indices = []  # No features
-    config = ManualInitializerConfig(flat_feature_indices=flat_indices)
-    initializer = ManualInitializer(config)
+    kwargs = {"flat_feature_indices": flat_indices}
+    initializer = ManualInitializer(**kwargs)
 
     mask = initializer.initialize(
         features=features, feature_shape=feature_shape
@@ -164,8 +163,8 @@ def test_manual_initializer_all_features() -> None:
     # Select all features
     num_features = feature_shape.numel()
     flat_indices = list(range(num_features))
-    config = ManualInitializerConfig(flat_feature_indices=flat_indices)
-    initializer = ManualInitializer(config)
+    kwargs = {"flat_feature_indices": flat_indices}
+    initializer = ManualInitializer(**kwargs)
 
     mask = initializer.initialize(
         features=features, feature_shape=feature_shape
@@ -183,17 +182,17 @@ def test_manual_initializer_deterministic() -> None:
     features = torch.randn(batch_size, *feature_shape)
 
     flat_indices = [1, 4, 7, 11]
-    config = ManualInitializerConfig(flat_feature_indices=flat_indices)
+    kwargs = {"flat_feature_indices": flat_indices}
 
     # First run
-    initializer1 = ManualInitializer(config)
+    initializer1 = ManualInitializer(**kwargs)
     initializer1.set_seed(42)  # Should have no effect
     mask1 = initializer1.initialize(
         features=features, feature_shape=feature_shape
     )
 
     # Second run with different seed
-    initializer2 = ManualInitializer(config)
+    initializer2 = ManualInitializer(**kwargs)
     initializer2.set_seed(999)  # Should have no effect
     mask2 = initializer2.initialize(
         features=features, feature_shape=feature_shape
@@ -206,8 +205,8 @@ def test_manual_initializer_deterministic() -> None:
 def test_manual_initializer_repr() -> None:
     """Test the string representation."""
     flat_indices = [0, 2, 5, 8]
-    config = ManualInitializerConfig(flat_feature_indices=flat_indices)
-    initializer = ManualInitializer(config)
+    kwargs = {"flat_feature_indices": flat_indices}
+    initializer = ManualInitializer(**kwargs)
 
     repr_str = repr(initializer)
     assert "ManualInitializer" in repr_str
@@ -222,8 +221,8 @@ def test_manual_initializer_bounds_checking() -> None:
 
     # Test with valid indices
     valid_indices = [0, 5, 11]  # All within [0, 12)
-    config = ManualInitializerConfig(flat_feature_indices=valid_indices)
-    initializer = ManualInitializer(config)
+    kwargs = {"flat_feature_indices": valid_indices}
+    initializer = ManualInitializer(**kwargs)
 
     mask = initializer.initialize(
         features=features, feature_shape=feature_shape
@@ -232,10 +231,8 @@ def test_manual_initializer_bounds_checking() -> None:
 
     # Test with invalid indices (should raise assertion error)
     invalid_indices = [0, 5, 12]  # 12 is out of bounds
-    config_invalid = ManualInitializerConfig(
-        flat_feature_indices=invalid_indices
-    )
-    initializer_invalid = ManualInitializer(config_invalid)
+    kwargs_invalid = {"flat_feature_indices": invalid_indices}
+    initializer_invalid = ManualInitializer(**kwargs_invalid)
 
     with pytest.raises(AssertionError, match="Feature index out of bounds"):
         initializer_invalid.initialize(
@@ -250,8 +247,8 @@ def test_manual_initializer_negative_indices() -> None:
     features = torch.randn(batch_size, *feature_shape)
 
     negative_indices = [-1, 0, 5]  # -1 is invalid
-    config = ManualInitializerConfig(flat_feature_indices=negative_indices)
-    initializer = ManualInitializer(config)
+    kwargs = {"flat_feature_indices": negative_indices}
+    initializer = ManualInitializer(**kwargs)
 
     with pytest.raises(AssertionError, match="Feature index out of bounds"):
         initializer.initialize(features=features, feature_shape=feature_shape)
@@ -264,8 +261,8 @@ def test_manual_initializer_multidimensional_batch() -> None:
     features = torch.randn(*batch_shape, *feature_shape)
 
     flat_indices = [1, 3, 5]
-    config = ManualInitializerConfig(flat_feature_indices=flat_indices)
-    initializer = ManualInitializer(config)
+    kwargs = {"flat_feature_indices": flat_indices}
+    initializer = ManualInitializer(**kwargs)
 
     mask = initializer.initialize(
         features=features, feature_shape=feature_shape

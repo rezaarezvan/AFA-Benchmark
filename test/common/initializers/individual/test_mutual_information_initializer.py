@@ -1,7 +1,6 @@
 import pytest
 import torch
 
-from afabench.common.config_classes import MutualInformationInitializerConfig
 from afabench.common.custom_types import Features, Label
 from afabench.common.initializers import MutualInformationInitializer
 
@@ -23,8 +22,8 @@ def test_mutual_information_basic_functionality(
     """Test basic functionality with 2D features."""
     features, labels, feature_shape = features_labels_2d
 
-    config = MutualInformationInitializerConfig(unmask_ratio=0.3)
-    initializer = MutualInformationInitializer(config)
+    kwargs = {"unmask_ratio": 0.3}
+    initializer = MutualInformationInitializer(**kwargs)
     initializer.set_seed(42)
 
     mask = initializer.initialize(
@@ -52,8 +51,8 @@ def test_mutual_information_arbitrary_batch_shape() -> None:
     # Create labels that depend on first few features
     labels = (features[..., 0, 0] + features[..., 0, 1] > 0).long()
 
-    config = MutualInformationInitializerConfig(unmask_ratio=0.3)
-    initializer = MutualInformationInitializer(config)
+    kwargs = {"unmask_ratio": 0.3}
+    initializer = MutualInformationInitializer(**kwargs)
     initializer.set_seed(42)
 
     mask = initializer.initialize(
@@ -76,8 +75,8 @@ def test_mutual_information_caching() -> None:
     features = torch.randn(batch_size, *feature_shape)
     labels = torch.randint(0, 2, (batch_size,))
 
-    config = MutualInformationInitializerConfig(unmask_ratio=0.25)
-    initializer = MutualInformationInitializer(config)
+    kwargs = {"unmask_ratio": 0.25}
+    initializer = MutualInformationInitializer(**kwargs)
     initializer.set_seed(123)
 
     mask1 = initializer.initialize(
@@ -98,8 +97,8 @@ def test_mutual_information_seed_changes_clear_cache() -> None:
     features = torch.randn(batch_size, *feature_shape)
     labels = torch.randint(0, 2, (batch_size,))
 
-    config = MutualInformationInitializerConfig(unmask_ratio=0.25)
-    initializer = MutualInformationInitializer(config)
+    kwargs = {"unmask_ratio": 0.25}
+    initializer = MutualInformationInitializer(**kwargs)
 
     # First run with seed 111
     initializer.set_seed(111)
@@ -133,10 +132,8 @@ def test_mutual_information_selects_informative_features() -> None:
     informative_signal = features[:, 0, 0] + features[:, 0, 1]
     labels = (informative_signal > informative_signal.median()).long()
 
-    config = MutualInformationInitializerConfig(
-        unmask_ratio=0.4
-    )  # Select 2 features
-    initializer = MutualInformationInitializer(config)
+    kwargs = {"unmask_ratio": 0.4}  # Select 2 features
+    initializer = MutualInformationInitializer(**kwargs)
     initializer.set_seed(42)
 
     mask = initializer.initialize(
@@ -164,8 +161,8 @@ def test_mutual_information_different_unmask_ratios() -> None:
     ratios = [0.1, 0.25, 0.5, 0.75]
 
     for ratio in ratios:
-        config = MutualInformationInitializerConfig(unmask_ratio=ratio)
-        initializer = MutualInformationInitializer(config)
+        kwargs = {"unmask_ratio": ratio}
+        initializer = MutualInformationInitializer(**kwargs)
         initializer.set_seed(789)
 
         mask = initializer.initialize(
@@ -185,8 +182,8 @@ def test_mutual_information_1d_features() -> None:
     features = torch.randn(batch_size, *feature_shape)
     labels = torch.randint(0, 2, (batch_size,))
 
-    config = MutualInformationInitializerConfig(unmask_ratio=0.3)
-    initializer = MutualInformationInitializer(config)
+    kwargs = {"unmask_ratio": 0.3}
+    initializer = MutualInformationInitializer(**kwargs)
     initializer.set_seed(101)
 
     mask = initializer.initialize(
@@ -204,8 +201,8 @@ def test_mutual_information_3d_features() -> None:
     features = torch.randn(batch_size, *feature_shape)
     labels = torch.randint(0, 2, (batch_size,))
 
-    config = MutualInformationInitializerConfig(unmask_ratio=0.2)
-    initializer = MutualInformationInitializer(config)
+    kwargs = {"unmask_ratio": 0.2}
+    initializer = MutualInformationInitializer(**kwargs)
     initializer.set_seed(202)
 
     mask = initializer.initialize(
@@ -222,8 +219,8 @@ def test_mutual_information_requires_labels() -> None:
     feature_shape = torch.Size([3, 3])
     features = torch.randn(batch_size, *feature_shape)
 
-    config = MutualInformationInitializerConfig(unmask_ratio=0.3)
-    initializer = MutualInformationInitializer(config)
+    kwargs = {"unmask_ratio": 0.3}
+    initializer = MutualInformationInitializer(**kwargs)
 
     with pytest.raises(AssertionError, match="requires label"):
         initializer.initialize(
@@ -237,8 +234,8 @@ def test_mutual_information_requires_features() -> None:
     feature_shape = torch.Size([3, 3])
     labels = torch.randint(0, 2, (batch_size,))
 
-    config = MutualInformationInitializerConfig(unmask_ratio=0.3)
-    initializer = MutualInformationInitializer(config)
+    kwargs = {"unmask_ratio": 0.3}
+    initializer = MutualInformationInitializer(**kwargs)
 
     with pytest.raises(AssertionError, match="requires features"):
         initializer.initialize(
@@ -255,8 +252,8 @@ def test_mutual_information_zero_ratio() -> None:
     features = torch.randn(batch_size, *feature_shape)
     labels = torch.randint(0, 2, (batch_size,))
 
-    config = MutualInformationInitializerConfig(unmask_ratio=0.0)
-    initializer = MutualInformationInitializer(config)
+    kwargs = {"unmask_ratio": 0.0}
+    initializer = MutualInformationInitializer(**kwargs)
 
     mask = initializer.initialize(
         features=features, label=labels, feature_shape=feature_shape
@@ -273,8 +270,8 @@ def test_mutual_information_full_ratio() -> None:
     features = torch.randn(batch_size, *feature_shape)
     labels = torch.randint(0, 2, (batch_size,))
 
-    config = MutualInformationInitializerConfig(unmask_ratio=1.0)
-    initializer = MutualInformationInitializer(config)
+    kwargs = {"unmask_ratio": 1.0}
+    initializer = MutualInformationInitializer(**kwargs)
 
     mask = initializer.initialize(
         features=features, label=labels, feature_shape=feature_shape
@@ -291,8 +288,8 @@ def test_mutual_information_multidimensional_batch() -> None:
     features = torch.randn(*batch_shape, *feature_shape)
     labels = torch.randint(0, 2, batch_shape)
 
-    config = MutualInformationInitializerConfig(unmask_ratio=0.4)
-    initializer = MutualInformationInitializer(config)
+    kwargs = {"unmask_ratio": 0.4}
+    initializer = MutualInformationInitializer(**kwargs)
     initializer.set_seed(404)
 
     mask = initializer.initialize(
@@ -320,8 +317,8 @@ def test_mutual_information_consistency_across_calls() -> None:
     features = torch.randn(batch_size, *feature_shape)
     labels = torch.randint(0, 2, (batch_size,))
 
-    config = MutualInformationInitializerConfig(unmask_ratio=0.4)
-    initializer = MutualInformationInitializer(config)
+    kwargs = {"unmask_ratio": 0.4}
+    initializer = MutualInformationInitializer(**kwargs)
     initializer.set_seed(555)
 
     # Multiple calls should yield identical results

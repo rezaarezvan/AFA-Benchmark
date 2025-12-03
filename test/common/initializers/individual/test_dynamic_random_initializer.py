@@ -1,7 +1,6 @@
 import pytest
 import torch
 
-from afabench.common.config_classes import RandomPerEpisodeInitializerConfig
 from afabench.common.custom_types import Features
 from afabench.common.initializers import DynamicRandomInitializer
 
@@ -21,8 +20,8 @@ def test_dynamic_random_basic_functionality(
     """Test basic functionality with 2D features."""
     features, feature_shape = features_2d
 
-    config = RandomPerEpisodeInitializerConfig(unmask_ratio=0.3)
-    initializer = DynamicRandomInitializer(config)
+    kwargs = {"unmask_ratio": 0.3}
+    initializer = DynamicRandomInitializer(**kwargs)
     initializer.set_seed(42)
 
     mask = initializer.initialize(
@@ -43,8 +42,8 @@ def test_dynamic_random_arbitrary_batch_shape() -> None:
     feature_shape = torch.Size([4, 4])
     features = torch.randn(*batch_shape, *feature_shape)
 
-    config = RandomPerEpisodeInitializerConfig(unmask_ratio=0.25)
-    initializer = DynamicRandomInitializer(config)
+    kwargs = {"unmask_ratio": 0.25}
+    initializer = DynamicRandomInitializer(**kwargs)
     initializer.set_seed(42)
 
     mask = initializer.initialize(
@@ -76,17 +75,17 @@ def test_dynamic_random_consistency() -> None:
     features = torch.randn(10, 3, 4)
     feature_shape = torch.Size([3, 4])
 
-    config = RandomPerEpisodeInitializerConfig(unmask_ratio=0.25)
+    kwargs = {"unmask_ratio": 0.25}
 
     # First run
-    initializer1 = DynamicRandomInitializer(config)
+    initializer1 = DynamicRandomInitializer(**kwargs)
     initializer1.set_seed(123)
     mask1 = initializer1.initialize(
         features=features, feature_shape=feature_shape
     )
 
     # Second run with same seed
-    initializer2 = DynamicRandomInitializer(config)
+    initializer2 = DynamicRandomInitializer(**kwargs)
     initializer2.set_seed(123)
     mask2 = initializer2.initialize(
         features=features, feature_shape=feature_shape
@@ -100,17 +99,17 @@ def test_dynamic_random_different_seeds() -> None:
     features = torch.randn(20, 4, 3)
     feature_shape = torch.Size([4, 3])
 
-    config = RandomPerEpisodeInitializerConfig(unmask_ratio=0.4)
+    kwargs = {"unmask_ratio": 0.4}
 
     # First run with seed 111
-    initializer1 = DynamicRandomInitializer(config)
+    initializer1 = DynamicRandomInitializer(**kwargs)
     initializer1.set_seed(111)
     mask1 = initializer1.initialize(
         features=features, feature_shape=feature_shape
     )
 
     # Second run with seed 222
-    initializer2 = DynamicRandomInitializer(config)
+    initializer2 = DynamicRandomInitializer(**kwargs)
     initializer2.set_seed(222)
     mask2 = initializer2.initialize(
         features=features, feature_shape=feature_shape
@@ -128,8 +127,8 @@ def test_dynamic_random_different_unmask_ratios() -> None:
     ratios = [0.1, 0.25, 0.5, 0.75]
 
     for ratio in ratios:
-        config = RandomPerEpisodeInitializerConfig(unmask_ratio=ratio)
-        initializer = DynamicRandomInitializer(config)
+        kwargs = {"unmask_ratio": ratio}
+        initializer = DynamicRandomInitializer(**kwargs)
         initializer.set_seed(789)
 
         mask = initializer.initialize(
@@ -148,8 +147,8 @@ def test_dynamic_random_1d_features() -> None:
     feature_shape = torch.Size([8])
     features = torch.randn(batch_size, *feature_shape)
 
-    config = RandomPerEpisodeInitializerConfig(unmask_ratio=0.3)
-    initializer = DynamicRandomInitializer(config)
+    kwargs = {"unmask_ratio": 0.3}
+    initializer = DynamicRandomInitializer(**kwargs)
     initializer.set_seed(101)
 
     mask = initializer.initialize(
@@ -166,8 +165,8 @@ def test_dynamic_random_3d_features() -> None:
     feature_shape = torch.Size([2, 3, 4])
     features = torch.randn(batch_size, *feature_shape)
 
-    config = RandomPerEpisodeInitializerConfig(unmask_ratio=0.2)
-    initializer = DynamicRandomInitializer(config)
+    kwargs = {"unmask_ratio": 0.2}
+    initializer = DynamicRandomInitializer(**kwargs)
     initializer.set_seed(202)
 
     mask = initializer.initialize(
@@ -184,8 +183,8 @@ def test_dynamic_random_variability() -> None:
     feature_shape = torch.Size([10])
     features = torch.randn(batch_size, *feature_shape)
 
-    config = RandomPerEpisodeInitializerConfig(unmask_ratio=0.3)
-    initializer = DynamicRandomInitializer(config)
+    kwargs = {"unmask_ratio": 0.3}
+    initializer = DynamicRandomInitializer(**kwargs)
     initializer.set_seed(303)
 
     mask = initializer.initialize(
@@ -208,8 +207,8 @@ def test_dynamic_random_zero_ratio() -> None:
     features = torch.randn(10, 6)
     feature_shape = torch.Size([6])
 
-    config = RandomPerEpisodeInitializerConfig(unmask_ratio=0.0)
-    initializer = DynamicRandomInitializer(config)
+    kwargs = {"unmask_ratio": 0.0}
+    initializer = DynamicRandomInitializer(**kwargs)
 
     mask = initializer.initialize(
         features=features, feature_shape=feature_shape
@@ -224,8 +223,8 @@ def test_dynamic_random_full_ratio() -> None:
     features = torch.randn(8, 3, 3)
     feature_shape = torch.Size([3, 3])
 
-    config = RandomPerEpisodeInitializerConfig(unmask_ratio=1.0)
-    initializer = DynamicRandomInitializer(config)
+    kwargs = {"unmask_ratio": 1.0}
+    initializer = DynamicRandomInitializer(**kwargs)
 
     mask = initializer.initialize(
         features=features, feature_shape=feature_shape
@@ -241,8 +240,8 @@ def test_dynamic_random_multidimensional_batch() -> None:
     feature_shape = torch.Size([2, 2])
     features = torch.randn(*batch_shape, *feature_shape)
 
-    config = RandomPerEpisodeInitializerConfig(unmask_ratio=0.5)
-    initializer = DynamicRandomInitializer(config)
+    kwargs = {"unmask_ratio": 0.5}
+    initializer = DynamicRandomInitializer(**kwargs)
     initializer.set_seed(404)
 
     mask = initializer.initialize(

@@ -1,7 +1,8 @@
+from typing import Any
+
 import pytest
 import torch
 
-from afabench.common.config_classes import ImagePatchUnmaskerConfig
 from afabench.common.custom_types import (
     AFASelection,
     FeatureMask,
@@ -20,7 +21,7 @@ def basic_image_fixture() -> tuple[
     AFASelection,
     SelectionMask,
     torch.Size,
-    ImagePatchUnmaskerConfig,
+    dict[str, Any],
 ]:
     """Provide basic test data for ImagePatchUnmasker."""
     batch_size = 2
@@ -42,11 +43,11 @@ def basic_image_fixture() -> tuple[
     )
     selection_mask = torch.ones_like(afa_selection, dtype=torch.bool)
 
-    config = ImagePatchUnmaskerConfig(
-        image_side_length=image_side_length,
-        patch_size=patch_size,
-        n_channels=n_channels,
-    )
+    config = {
+        "image_side_length": image_side_length,
+        "patch_size": patch_size,
+        "n_channels": n_channels,
+    }
 
     return (
         features,
@@ -67,7 +68,7 @@ def test_image_patch_unmasker_basic_functionality(
         AFASelection,
         SelectionMask,
         torch.Size,
-        ImagePatchUnmaskerConfig,
+        dict[str, Any],
     ],
 ) -> None:
     """Test basic patch unmasking behavior."""
@@ -81,7 +82,7 @@ def test_image_patch_unmasker_basic_functionality(
         config,
     ) = basic_image_fixture
 
-    unmasker = ImagePatchUnmasker(config)
+    unmasker = ImagePatchUnmasker(**config)
     new_feature_mask = unmasker.unmask(
         masked_features=masked_features,
         feature_mask=feature_mask,
@@ -95,7 +96,7 @@ def test_image_patch_unmasker_basic_functionality(
     assert new_feature_mask.shape == feature_mask.shape
 
     # Check that the correct patches are unmasked
-    patch_size = config.patch_size
+    patch_size = config["patch_size"]
     assert new_feature_mask[0, :, :patch_size, :patch_size].all()  # Patch 1
     assert not new_feature_mask[
         0, :, patch_size:, :
@@ -123,13 +124,13 @@ def test_image_patch_unmasker_arbitrary_batch_shape() -> None:
     afa_selection = torch.randint(1, 5, (*batch_shape, 1))  # Patches 1-4
     selection_mask = torch.ones_like(afa_selection, dtype=torch.bool)
 
-    config = ImagePatchUnmaskerConfig(
-        image_side_length=image_side_length,
-        patch_size=patch_size,
-        n_channels=n_channels,
-    )
+    config = {
+        "image_side_length": image_side_length,
+        "patch_size": patch_size,
+        "n_channels": n_channels,
+    }
 
-    unmasker = ImagePatchUnmasker(config)
+    unmasker = ImagePatchUnmasker(**config)
     new_feature_mask = unmasker.unmask(
         masked_features=masked_features,
         feature_mask=feature_mask,
@@ -167,13 +168,13 @@ def test_image_patch_unmasker_zero_selection() -> None:
     afa_selection = torch.zeros(batch_size, 1, dtype=torch.long)
     selection_mask = torch.ones_like(afa_selection, dtype=torch.bool)
 
-    config = ImagePatchUnmaskerConfig(
-        image_side_length=image_side_length,
-        patch_size=patch_size,
-        n_channels=n_channels,
-    )
+    config = {
+        "image_side_length": image_side_length,
+        "patch_size": patch_size,
+        "n_channels": n_channels,
+    }
 
-    unmasker = ImagePatchUnmasker(config)
+    unmasker = ImagePatchUnmasker(**config)
     new_feature_mask = unmasker.unmask(
         masked_features=masked_features,
         feature_mask=feature_mask,
@@ -211,13 +212,13 @@ def test_image_patch_unmasker_preserves_existing_mask() -> None:
     afa_selection = torch.tensor([[2], [1]])  # Different patches
     selection_mask = torch.ones_like(afa_selection, dtype=torch.bool)
 
-    config = ImagePatchUnmaskerConfig(
-        image_side_length=image_side_length,
-        patch_size=patch_size,
-        n_channels=n_channels,
-    )
+    config = {
+        "image_side_length": image_side_length,
+        "patch_size": patch_size,
+        "n_channels": n_channels,
+    }
 
-    unmasker = ImagePatchUnmasker(config)
+    unmasker = ImagePatchUnmasker(**config)
     new_feature_mask = unmasker.unmask(
         masked_features=masked_features,
         feature_mask=feature_mask,
@@ -246,24 +247,24 @@ def test_image_patch_unmasker_preserves_existing_mask() -> None:
 
 def test_image_patch_unmasker_get_n_selections() -> None:
     """Test get_n_selections method."""
-    config = ImagePatchUnmaskerConfig(
-        image_side_length=8,
-        patch_size=4,
-        n_channels=3,
-    )
-    unmasker = ImagePatchUnmasker(config)
+    config = {
+        "image_side_length": 8,
+        "patch_size": 4,
+        "n_channels": 3,
+    }
+    unmasker = ImagePatchUnmasker(**config)
 
     # Should have 2x2 = 4 patches
     feature_shape = torch.Size([3, 8, 8])
     assert unmasker.get_n_selections(feature_shape) == 4
 
     # Test with different configuration
-    config2 = ImagePatchUnmaskerConfig(
-        image_side_length=12,
-        patch_size=3,
-        n_channels=1,
-    )
-    unmasker2 = ImagePatchUnmasker(config2)
+    config2 = {
+        "image_side_length": 12,
+        "patch_size": 3,
+        "n_channels": 1,
+    }
+    unmasker2 = ImagePatchUnmasker(**config2)
 
     # Should have 4x4 = 16 patches
     feature_shape2 = torch.Size([1, 12, 12])
@@ -292,13 +293,13 @@ def test_image_patch_unmasker_different_patch_sizes() -> None:
         afa_selection = torch.ones(batch_size, 1, dtype=torch.long)
         selection_mask = torch.ones_like(afa_selection, dtype=torch.bool)
 
-        config = ImagePatchUnmaskerConfig(
-            image_side_length=image_side_length,
-            patch_size=patch_size,
-            n_channels=n_channels,
-        )
+        config = {
+            "image_side_length": image_side_length,
+            "patch_size": patch_size,
+            "n_channels": n_channels,
+        }
 
-        unmasker = ImagePatchUnmasker(config)
+        unmasker = ImagePatchUnmasker(**config)
         new_feature_mask = unmasker.unmask(
             masked_features=masked_features,
             feature_mask=feature_mask,
@@ -331,13 +332,13 @@ def test_image_patch_unmasker_multichannel() -> None:
     afa_selection = torch.tensor([[1], [2], [4]])
     selection_mask = torch.ones_like(afa_selection, dtype=torch.bool)
 
-    config = ImagePatchUnmaskerConfig(
-        image_side_length=image_side_length,
-        patch_size=patch_size,
-        n_channels=n_channels,
-    )
+    config = {
+        "image_side_length": image_side_length,
+        "patch_size": patch_size,
+        "n_channels": n_channels,
+    }
 
-    unmasker = ImagePatchUnmasker(config)
+    unmasker = ImagePatchUnmasker(**config)
     new_feature_mask = unmasker.unmask(
         masked_features=masked_features,
         feature_mask=feature_mask,
@@ -372,13 +373,13 @@ def test_image_patch_unmasker_all_patches() -> None:
     afa_selection = torch.tensor([[1], [2], [3], [4]])
     selection_mask = torch.ones_like(afa_selection, dtype=torch.bool)
 
-    config = ImagePatchUnmaskerConfig(
-        image_side_length=image_side_length,
-        patch_size=patch_size,
-        n_channels=n_channels,
-    )
+    config = {
+        "image_side_length": image_side_length,
+        "patch_size": patch_size,
+        "n_channels": n_channels,
+    }
 
-    unmasker = ImagePatchUnmasker(config)
+    unmasker = ImagePatchUnmasker(**config)
     new_feature_mask = unmasker.unmask(
         masked_features=masked_features,
         feature_mask=feature_mask,
@@ -401,21 +402,21 @@ def test_image_patch_unmasker_all_patches() -> None:
 def test_image_patch_unmasker_configuration_validation() -> None:
     """Test configuration validation."""
     # Valid configuration
-    config = ImagePatchUnmaskerConfig(
-        image_side_length=8,
-        patch_size=4,
-        n_channels=1,
-    )
-    ImagePatchUnmasker(config)  # Should not raise
+    config = {
+        "image_side_length": 8,
+        "patch_size": 4,
+        "n_channels": 1,
+    }
+    ImagePatchUnmasker(**config)  # Should not raise
 
     # Invalid configuration - image not divisible by patch size
-    invalid_config = ImagePatchUnmaskerConfig(
-        image_side_length=9,  # Not divisible by 4
-        patch_size=4,
-        n_channels=1,
-    )
+    invalid_config = {
+        "image_side_length": 7,
+        "patch_size": 4,
+        "n_channels": 1,
+    }
     with pytest.raises(AssertionError, match="divisible by patch size"):
-        ImagePatchUnmasker(invalid_config)
+        ImagePatchUnmasker(**invalid_config)
 
 
 def test_image_patch_unmasker_large_image() -> None:
@@ -439,13 +440,13 @@ def test_image_patch_unmasker_large_image() -> None:
     afa_selection = torch.randint(1, max_patch_selection + 1, (batch_size, 1))
     selection_mask = torch.ones_like(afa_selection, dtype=torch.bool)
 
-    config = ImagePatchUnmaskerConfig(
-        image_side_length=image_side_length,
-        patch_size=patch_size,
-        n_channels=n_channels,
-    )
+    config = {
+        "image_side_length": image_side_length,
+        "patch_size": patch_size,
+        "n_channels": n_channels,
+    }
 
-    unmasker = ImagePatchUnmasker(config)
+    unmasker = ImagePatchUnmasker(**config)
     new_feature_mask = unmasker.unmask(
         masked_features=masked_features,
         feature_mask=feature_mask,
@@ -463,12 +464,12 @@ def test_image_patch_unmasker_large_image() -> None:
 
 def test_image_patch_unmasker_set_seed() -> None:
     """Test that set_seed method exists and is callable."""
-    config = ImagePatchUnmaskerConfig(
-        image_side_length=8,
-        patch_size=4,
-        n_channels=1,
-    )
-    unmasker = ImagePatchUnmasker(config)
+    config = {
+        "image_side_length": 8,
+        "patch_size": 4,
+        "n_channels": 1,
+    }
+    unmasker = ImagePatchUnmasker(**config)
 
     # Should not raise any exceptions
     unmasker.set_seed(42)
@@ -493,13 +494,13 @@ def test_image_patch_unmasker_multidimensional_batch() -> None:
     afa_selection = torch.randint(1, 5, (*batch_shape, 1))
     selection_mask = torch.ones_like(afa_selection, dtype=torch.bool)
 
-    config = ImagePatchUnmaskerConfig(
-        image_side_length=image_side_length,
-        patch_size=patch_size,
-        n_channels=n_channels,
-    )
+    config = {
+        "image_side_length": image_side_length,
+        "patch_size": patch_size,
+        "n_channels": n_channels,
+    }
 
-    unmasker = ImagePatchUnmasker(config)
+    unmasker = ImagePatchUnmasker(**config)
     new_feature_mask = unmasker.unmask(
         masked_features=masked_features,
         feature_mask=feature_mask,

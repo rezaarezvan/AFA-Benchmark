@@ -8,25 +8,26 @@ import torch
 from afabench.common.registry import get_afa_dataset_class
 
 DATASETS_TO_TEST = [
-    # (dataset_name, kwargs)
-    ("AFAContext", {"n_samples": 10, "seed": 42}),
-    ("cube", {"n_samples": 10, "seed": 42}),
-    ("diabetes", {"root": "extra/data/misc/diabetes.csv"}),
-    ("miniboone", {"root": "extra/data/misc/miniboone.csv"}),
-    ("physionet", {"root": "extra/data/misc/physionet.csv"}),
-    (
-        "imagenette",
-        {
-            "data_root": "extra/data/",
-            "variant_dir": "imagenette2-320",
-            "load_subdirs": ("val",),
-            "image_size": 224,
-            "split_role": "val",
-        },
-    ),
-    ("bank_marketing", {"path": "extra/data/misc/bank_marketing.csv"}),
-    ("ckd", {"path": "extra/data/misc/ckd.csv"}),
-    ("actg", {"path": "extra/data/misc/actg175.csv"}),
+    # (dataset_class_name, kwargs)
+    ("AFAContextDataset", {"n_samples": 10, "seed": 42}),
+    ("CubeDataset", {"n_samples": 10, "seed": 42}),
+    ("DiabetesDataset", {"root": "extra/data/misc/diabetes.csv"}),
+    ("MiniBooNEDataset", {"root": "extra/data/misc/miniboone.csv"}),
+    ("PhysionetDataset", {"root": "extra/data/misc/physionet.csv"}),
+    # Downloading Imagenette is very unreliable
+    # (
+    #     "ImagenetteDataset",
+    #     {
+    #         "data_root": "extra/data/",
+    #         "variant_dir": "imagenette2-320",
+    #         "load_subdirs": ("val",),
+    #         "image_size": 224,
+    #         "split_role": "val",
+    #     },
+    # ),
+    ("BankMarketingDataset", {"path": "extra/data/misc/bank_marketing.csv"}),
+    ("CKDDataset", {"path": "extra/data/misc/ckd.csv"}),
+    ("ACTG175Dataset", {"path": "extra/data/misc/actg175.csv"}),
 ]
 
 

@@ -4,6 +4,7 @@ from afabench.common.custom_types import (
     AFASelection,
     FeatureMask,
     Features,
+    Label,
     MaskedFeatures,
     SelectionMask,
 )
@@ -13,9 +14,12 @@ from afabench.eval.eval import single_afa_step
 def afa_unmask_fn(
     masked_features: MaskedFeatures,
     feature_mask: FeatureMask,
-    features: Features,
+    features: Features,  # noqa: ARG001
     afa_selection: AFASelection,
-) -> tuple[FeatureMask, MaskedFeatures]:
+    selection_mask: SelectionMask,  # noqa: ARG001
+    label: Label | None = None,  # noqa: ARG001
+    feature_shape: torch.Size | None = None,  # noqa: ARG001
+) -> FeatureMask:
     # 6 features but selection is 1-3. Unmask a "block" of features.
     batch_size, num_features = masked_features.shape
     new_feature_mask = feature_mask.clone()
@@ -26,8 +30,7 @@ def afa_unmask_fn(
             end_idx = min(start_idx + 2, num_features)
             new_feature_mask[i, start_idx:end_idx] = 1
 
-    new_masked_features = features * new_feature_mask
-    return new_feature_mask, new_masked_features
+    return new_feature_mask
 
 
 def test_single_afa_step() -> None:
@@ -35,6 +38,7 @@ def test_single_afa_step() -> None:
     features = torch.tensor(
         [[1, 2, 3, 4, 5, 6], [7, 8, 9, 10, 11, 12]], dtype=torch.float32
     )
+    label = torch.tensor([0, 1], dtype=torch.int64)
     masked_features = torch.tensor(
         [[1, 2, 0, 0, 0, 0], [0, 0, 9, 10, 0, 0]], dtype=torch.float32
     )
@@ -46,14 +50,18 @@ def test_single_afa_step() -> None:
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,  # noqa: ARG001
         selection_mask: SelectionMask | None = None,  # noqa: ARG001
+        label: Label | None = None,  # noqa: ARG001
+        feature_shape: torch.Size | None = None,  # noqa: ARG001
     ) -> AFASelection:
         # Always output selection 3
         return 3 * torch.ones((masked_features.shape[0], 1), dtype=torch.int64)
 
     selection, new_masked_features, new_feature_mask, _, _ = single_afa_step(
         features=features,
+        label=label,
         masked_features=masked_features,
         feature_mask=feature_mask,
+        selection_mask=feature_mask,
         afa_select_fn=afa_select_fn,
         afa_unmask_fn=afa_unmask_fn,
     )
@@ -84,6 +92,7 @@ def test_single_afa_step_stop_selection() -> None:
     features = torch.tensor(
         [[1, 2, 3, 4, 5, 6], [7, 8, 9, 10, 11, 12]], dtype=torch.float32
     )
+    label = torch.tensor([0, 1], dtype=torch.int64)
     masked_features = torch.tensor(
         [[1, 2, 0, 0, 0, 0], [0, 0, 9, 10, 0, 0]], dtype=torch.float32
     )
@@ -95,6 +104,8 @@ def test_single_afa_step_stop_selection() -> None:
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,  # noqa: ARG001
         selection_mask: SelectionMask | None = None,  # noqa: ARG001
+        label: Label | None = None,  # noqa: ARG001
+        feature_shape: torch.Size | None = None,  # noqa: ARG001
     ) -> AFASelection:
         # Output selection 0 if the first feature is observed, otherwise 3
         batch_size = masked_features.shape[0]
@@ -106,8 +117,10 @@ def test_single_afa_step_stop_selection() -> None:
 
     selection, new_masked_features, new_feature_mask, _, _ = single_afa_step(
         features=features,
+        label=label,
         masked_features=masked_features,
         feature_mask=feature_mask,
+        selection_mask=feature_mask,
         afa_select_fn=afa_select_fn,
         afa_unmask_fn=afa_unmask_fn,
     )

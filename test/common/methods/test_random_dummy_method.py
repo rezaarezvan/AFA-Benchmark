@@ -5,7 +5,9 @@ from afabench.common.custom_types import (
     AFASelection,
     FeatureMask,
     Features,
+    Label,
     MaskedFeatures,
+    SelectionMask,
 )
 from afabench.eval.eval import process_batch
 
@@ -34,9 +36,12 @@ def test_random_dummy_method_never_selects_0() -> None:
     def afa_unmask_fn(
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features,
+        features: Features,  # noqa: ARG001
         afa_selection: AFASelection,
-    ) -> tuple[FeatureMask, MaskedFeatures]:
+        selection_mask: SelectionMask,  # noqa: ARG001
+        label: Label | None = None,  # noqa: ARG001
+        feature_shape: torch.Size | None = None,  # noqa: ARG001
+    ) -> FeatureMask:
         # 8 features but selection is 1-4. Unmask a "block" of features.
         batch_size, num_features = masked_features.shape
         new_feature_mask = feature_mask.clone()
@@ -47,8 +52,7 @@ def test_random_dummy_method_never_selects_0() -> None:
                 end_idx = min(start_idx + 2, num_features)
                 new_feature_mask[i, start_idx:end_idx] = 1
 
-        new_masked_features = features * new_feature_mask
-        return new_feature_mask, new_masked_features
+        return new_feature_mask
 
     df_batch = process_batch(
         afa_select_fn=method.select,
@@ -102,9 +106,12 @@ def test_random_dummy_method_always_selects_0() -> None:
     def afa_unmask_fn(
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features,
+        features: Features,  # noqa: ARG001
         afa_selection: AFASelection,
-    ) -> tuple[FeatureMask, MaskedFeatures]:
+        selection_mask: SelectionMask,  # noqa: ARG001
+        label: Label | None = None,  # noqa: ARG001
+        feature_shape: torch.Size | None = None,  # noqa: ARG001
+    ) -> FeatureMask:
         # 8 features but selection is 1-4. Unmask a "block" of features.
         batch_size, num_features = masked_features.shape
         new_feature_mask = feature_mask.clone()
@@ -115,8 +122,7 @@ def test_random_dummy_method_always_selects_0() -> None:
                 end_idx = min(start_idx + 2, num_features)
                 new_feature_mask[i, start_idx:end_idx] = 1
 
-        new_masked_features = features * new_feature_mask
-        return new_feature_mask, new_masked_features
+        return new_feature_mask
 
     df_batch = process_batch(
         afa_select_fn=method.select,

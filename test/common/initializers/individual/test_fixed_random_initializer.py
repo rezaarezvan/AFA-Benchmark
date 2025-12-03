@@ -1,7 +1,6 @@
 import pytest
 import torch
 
-from afabench.common.config_classes import FixedRandomInitializerConfig
 from afabench.common.custom_types import Features
 from afabench.common.initializers import FixedRandomInitializer
 
@@ -21,8 +20,8 @@ def test_fixed_random_basic_functionality(
     """Test basic functionality with 2D features."""
     features, feature_shape = features_2d
 
-    config = FixedRandomInitializerConfig(unmask_ratio=0.3)
-    initializer = FixedRandomInitializer(config)
+    kwargs = {"unmask_ratio": 0.3}
+    initializer = FixedRandomInitializer(**kwargs)
     initializer.set_seed(42)
 
     mask = initializer.initialize(
@@ -43,8 +42,8 @@ def test_fixed_random_arbitrary_batch_shape() -> None:
     feature_shape = torch.Size([5, 6])
     features = torch.randn(*batch_shape, *feature_shape)
 
-    config = FixedRandomInitializerConfig(unmask_ratio=0.2)
-    initializer = FixedRandomInitializer(config)
+    kwargs = {"unmask_ratio": 0.2}
+    initializer = FixedRandomInitializer(**kwargs)
     initializer.set_seed(42)
 
     mask = initializer.initialize(
@@ -70,17 +69,17 @@ def test_fixed_random_consistency() -> None:
     features = torch.randn(10, 3, 4)
     feature_shape = torch.Size([3, 4])
 
-    config = FixedRandomInitializerConfig(unmask_ratio=0.25)
+    kwargs = {"unmask_ratio": 0.25}
 
     # First run
-    initializer1 = FixedRandomInitializer(config)
+    initializer1 = FixedRandomInitializer(**kwargs)
     initializer1.set_seed(123)
     mask1 = initializer1.initialize(
         features=features, feature_shape=feature_shape
     )
 
     # Second run with same seed
-    initializer2 = FixedRandomInitializer(config)
+    initializer2 = FixedRandomInitializer(**kwargs)
     initializer2.set_seed(123)
     mask2 = initializer2.initialize(
         features=features, feature_shape=feature_shape
@@ -95,8 +94,8 @@ def test_fixed_random_caching() -> None:
     features2 = torch.randn(8, 2, 3)  # Different batch size
     feature_shape = torch.Size([2, 3])
 
-    config = FixedRandomInitializerConfig(unmask_ratio=0.4)
-    initializer = FixedRandomInitializer(config)
+    kwargs = {"unmask_ratio": 0.4}
+    initializer = FixedRandomInitializer(**kwargs)
     initializer.set_seed(456)
 
     mask1 = initializer.initialize(
@@ -118,8 +117,8 @@ def test_fixed_random_different_unmask_ratios() -> None:
     ratios = [0.1, 0.25, 0.5, 0.75]
 
     for ratio in ratios:
-        config = FixedRandomInitializerConfig(unmask_ratio=ratio)
-        initializer = FixedRandomInitializer(config)
+        kwargs = {"unmask_ratio": ratio}
+        initializer = FixedRandomInitializer(**kwargs)
         initializer.set_seed(789)
 
         mask = initializer.initialize(
@@ -138,8 +137,8 @@ def test_fixed_random_1d_features() -> None:
     feature_shape = torch.Size([10])
     features = torch.randn(batch_size, *feature_shape)
 
-    config = FixedRandomInitializerConfig(unmask_ratio=0.3)
-    initializer = FixedRandomInitializer(config)
+    kwargs = {"unmask_ratio": 0.3}
+    initializer = FixedRandomInitializer(**kwargs)
     initializer.set_seed(101)
 
     mask = initializer.initialize(
@@ -156,8 +155,8 @@ def test_fixed_random_3d_features() -> None:
     feature_shape = torch.Size([2, 3, 4])
     features = torch.randn(batch_size, *feature_shape)
 
-    config = FixedRandomInitializerConfig(unmask_ratio=0.2)
-    initializer = FixedRandomInitializer(config)
+    kwargs = {"unmask_ratio": 0.2}
+    initializer = FixedRandomInitializer(**kwargs)
     initializer.set_seed(202)
 
     mask = initializer.initialize(
@@ -173,8 +172,8 @@ def test_fixed_random_zero_ratio() -> None:
     features = torch.randn(10, 5)
     feature_shape = torch.Size([5])
 
-    config = FixedRandomInitializerConfig(unmask_ratio=0.0)
-    initializer = FixedRandomInitializer(config)
+    kwargs = {"unmask_ratio": 0.0}
+    initializer = FixedRandomInitializer(**kwargs)
 
     mask = initializer.initialize(
         features=features, feature_shape=feature_shape
@@ -189,8 +188,8 @@ def test_fixed_random_full_ratio() -> None:
     features = torch.randn(10, 3, 2)
     feature_shape = torch.Size([3, 2])
 
-    config = FixedRandomInitializerConfig(unmask_ratio=1.0)
-    initializer = FixedRandomInitializer(config)
+    kwargs = {"unmask_ratio": 1.0}
+    initializer = FixedRandomInitializer(**kwargs)
 
     mask = initializer.initialize(
         features=features, feature_shape=feature_shape

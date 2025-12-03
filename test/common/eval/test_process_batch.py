@@ -4,6 +4,7 @@ from afabench.common.custom_types import (
     AFASelection,
     FeatureMask,
     Features,
+    Label,
     MaskedFeatures,
     SelectionMask,
 )
@@ -29,6 +30,8 @@ def test_process_batch_respects_budget() -> None:
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,  # noqa: ARG001
         selection_mask: SelectionMask | None = None,  # noqa: ARG001
+        label: Label | None = None,  # noqa: ARG001
+        feature_shape: torch.Size | None = None,  # noqa: ARG001
     ) -> AFASelection:
         # Random selection (not 0)
         return torch.randint(
@@ -38,9 +41,12 @@ def test_process_batch_respects_budget() -> None:
     def afa_unmask_fn(
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features,
+        features: Features,  # noqa: ARG001
         afa_selection: AFASelection,
-    ) -> tuple[FeatureMask, MaskedFeatures]:
+        selection_mask: SelectionMask,  # noqa: ARG001
+        label: Label | None = None,  # noqa: ARG001
+        feature_shape: torch.Size | None = None,  # noqa: ARG001
+    ) -> FeatureMask:
         # 8 features but selection is 1-4. Unmask a "block" of features.
         batch_size, num_features = masked_features.shape
         new_feature_mask = feature_mask.clone()
@@ -51,8 +57,7 @@ def test_process_batch_respects_budget() -> None:
                 end_idx = min(start_idx + 2, num_features)
                 new_feature_mask[i, start_idx:end_idx] = 1
 
-        new_masked_features = features * new_feature_mask
-        return new_feature_mask, new_masked_features
+        return new_feature_mask
 
     df_batch = process_batch(
         afa_select_fn=afa_select_fn,

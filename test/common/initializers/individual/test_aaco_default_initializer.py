@@ -1,7 +1,6 @@
 import pytest
 import torch
 
-from afabench.common.config_classes import AACODefaultInitializerConfig
 from afabench.common.custom_types import Features
 from afabench.common.initializers import AACODefaultInitializer
 
@@ -21,8 +20,8 @@ def test_aaco_default_basic_functionality(
     """Test basic functionality with known dataset."""
     features, feature_shape = features_2d
 
-    config = AACODefaultInitializerConfig(dataset_name="cubesimple")
-    initializer = AACODefaultInitializer(config)
+    kwargs = {"dataset_name": "cubesimple"}
+    initializer = AACODefaultInitializer(**kwargs)
 
     mask = initializer.initialize(
         features=features, feature_shape=feature_shape
@@ -46,8 +45,8 @@ def test_aaco_default_arbitrary_batch_shape() -> None:
     feature_shape = torch.Size([4, 5])
     features = torch.randn(*batch_shape, *feature_shape)
 
-    config = AACODefaultInitializerConfig(dataset_name="cubesimple")
-    initializer = AACODefaultInitializer(config)
+    kwargs = {"dataset_name": "cubesimple"}
+    initializer = AACODefaultInitializer(**kwargs)
 
     mask = initializer.initialize(
         features=features, feature_shape=feature_shape
@@ -83,8 +82,8 @@ def test_aaco_default_known_datasets() -> None:
     }
 
     for dataset_name, expected_flat_index in known_datasets.items():
-        config = AACODefaultInitializerConfig(dataset_name=dataset_name)
-        initializer = AACODefaultInitializer(config)
+        kwargs = {"dataset_name": dataset_name}
+        initializer = AACODefaultInitializer(**kwargs)
 
         if expected_flat_index >= feature_shape.numel():
             # Should raise assertion error for out-of-bounds indices
@@ -117,8 +116,8 @@ def test_aaco_default_unknown_dataset_fallback() -> None:
     feature_shape = torch.Size([6, 7])  # 42 features total
     features = torch.randn(batch_size, *feature_shape)
 
-    config = AACODefaultInitializerConfig(dataset_name="unknown_dataset")
-    initializer = AACODefaultInitializer(config)
+    kwargs = {"dataset_name": "unknown_dataset"}
+    initializer = AACODefaultInitializer(**kwargs)
 
     mask = initializer.initialize(
         features=features, feature_shape=feature_shape
@@ -151,8 +150,8 @@ def test_aaco_default_case_insensitive() -> None:
 
     masks = []
     for dataset_name in dataset_variations:
-        config = AACODefaultInitializerConfig(dataset_name=dataset_name)
-        initializer = AACODefaultInitializer(config)
+        kwargs = {"dataset_name": dataset_name}
+        initializer = AACODefaultInitializer(**kwargs)
         mask = initializer.initialize(
             features=features, feature_shape=feature_shape
         )
@@ -170,17 +169,17 @@ def test_aaco_default_deterministic() -> None:
     feature_shape = torch.Size([4, 3])
     features = torch.randn(batch_size, *feature_shape)
 
-    config = AACODefaultInitializerConfig(dataset_name="cubesimple")
+    kwargs = {"dataset_name": "cubesimple"}
 
     # First run
-    initializer1 = AACODefaultInitializer(config)
+    initializer1 = AACODefaultInitializer(**kwargs)
     initializer1.set_seed(42)  # Should have no effect
     mask1 = initializer1.initialize(
         features=features, feature_shape=feature_shape
     )
 
     # Second run with different seed
-    initializer2 = AACODefaultInitializer(config)
+    initializer2 = AACODefaultInitializer(**kwargs)
     initializer2.set_seed(999)  # Should have no effect
     mask2 = initializer2.initialize(
         features=features, feature_shape=feature_shape
@@ -198,8 +197,8 @@ def test_aaco_default_1d_features() -> None:
     feature_shape = torch.Size([10])
     features = torch.randn(batch_size, *feature_shape)
 
-    config = AACODefaultInitializerConfig(dataset_name="cubesimple")
-    initializer = AACODefaultInitializer(config)
+    kwargs = {"dataset_name": "cubesimple"}
+    initializer = AACODefaultInitializer(**kwargs)
 
     mask = initializer.initialize(
         features=features, feature_shape=feature_shape
@@ -220,8 +219,8 @@ def test_aaco_default_3d_features() -> None:
     feature_shape = torch.Size([2, 3, 4])  # 24 features total
     features = torch.randn(batch_size, *feature_shape)
 
-    config = AACODefaultInitializerConfig(dataset_name="cube")  # Feature 6
-    initializer = AACODefaultInitializer(config)
+    kwargs = {"dataset_name": "cube"}  # Feature 6
+    initializer = AACODefaultInitializer(**kwargs)
 
     mask = initializer.initialize(
         features=features, feature_shape=feature_shape
@@ -246,8 +245,8 @@ def test_aaco_default_bounds_checking() -> None:
     features = torch.randn(batch_size, *feature_shape)
 
     # MNIST expects feature 100, but we only have 6 features
-    config = AACODefaultInitializerConfig(dataset_name="mnist")
-    initializer = AACODefaultInitializer(config)
+    kwargs = {"dataset_name": "mnist"}
+    initializer = AACODefaultInitializer(**kwargs)
 
     with pytest.raises(AssertionError, match="out of bounds"):
         initializer.initialize(features=features, feature_shape=feature_shape)
@@ -259,10 +258,8 @@ def test_aaco_default_edge_case_single_feature() -> None:
     feature_shape = torch.Size([1])
     features = torch.randn(batch_size, *feature_shape)
 
-    config = AACODefaultInitializerConfig(
-        dataset_name="afacontext"
-    )  # Feature 0
-    initializer = AACODefaultInitializer(config)
+    kwargs = {"dataset_name": "afacontext"}  # Feature 0
+    initializer = AACODefaultInitializer(**kwargs)
 
     mask = initializer.initialize(
         features=features, feature_shape=feature_shape
@@ -279,10 +276,8 @@ def test_aaco_default_multidimensional_batch() -> None:
     feature_shape = torch.Size([3, 3])  # 9 features total
     features = torch.randn(*batch_shape, *feature_shape)
 
-    config = AACODefaultInitializerConfig(
-        dataset_name="cubesimple"
-    )  # Feature 3
-    initializer = AACODefaultInitializer(config)
+    kwargs = {"dataset_name": "cubesimple"}  # Feature 3
+    initializer = AACODefaultInitializer(**kwargs)
 
     mask = initializer.initialize(
         features=features, feature_shape=feature_shape
@@ -307,8 +302,8 @@ def test_aaco_default_consistency() -> None:
     feature_shape = torch.Size([5, 4])
     features = torch.randn(batch_size, *feature_shape)
 
-    config = AACODefaultInitializerConfig(dataset_name="grid")
-    initializer = AACODefaultInitializer(config)
+    kwargs = {"dataset_name": "grid"}
+    initializer = AACODefaultInitializer(**kwargs)
 
     # Multiple calls should yield identical results
     masks = []
@@ -331,8 +326,8 @@ def test_aaco_default_no_label_dependency() -> None:
     features = torch.randn(batch_size, *feature_shape)
     labels = torch.randint(0, 2, (batch_size,))
 
-    config = AACODefaultInitializerConfig(dataset_name="cubesimple")
-    initializer = AACODefaultInitializer(config)
+    kwargs = {"dataset_name": "cubesimple"}
+    initializer = AACODefaultInitializer(**kwargs)
 
     # Should work with labels
     mask_with_labels = initializer.initialize(
@@ -354,8 +349,8 @@ def test_aaco_default_feature_shape_validation() -> None:
     feature_shape = torch.Size([3, 3])
     features = torch.randn(batch_size, *feature_shape)
 
-    config = AACODefaultInitializerConfig(dataset_name="cubesimple")
-    initializer = AACODefaultInitializer(config)
+    kwargs = {"dataset_name": "cubesimple"}
+    initializer = AACODefaultInitializer(**kwargs)
 
     with pytest.raises(AssertionError, match="feature_shape must be provided"):
         initializer.initialize(features=features, feature_shape=None)

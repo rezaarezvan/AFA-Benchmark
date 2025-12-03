@@ -6,13 +6,7 @@ from pathlib import Path
 import pytest
 import torch
 
-from afabench.common.config_classes import (
-    FixedRandomInitializerConfig,
-    InitializerConfig,
-    ManualInitializerConfig,
-    RandomPerEpisodeInitializerConfig,
-    UnmaskerConfig,
-)
+from afabench.common.config_classes import InitializerConfig, UnmaskerConfig
 from afabench.common.initializers.utils import get_afa_initializer_from_config
 from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
 from afabench.common.utils import (
@@ -30,33 +24,43 @@ def temp_dir():
 
 class TestUnmaskerRegistry:
     def test_direct_unmasker_returns_unmasker(self):
-        config = UnmaskerConfig(class_name="DirectUnmasker", config=None)
+        config = UnmaskerConfig(
+            class_name="DirectUnmasker",
+            kwargs= {}
+        )
         unmasker = get_afa_unmasker_from_config(config)
         assert hasattr(unmasker, "unmask")
         assert hasattr(unmasker, "get_n_selections")
 
     def test_image_patch_unmasker_returns_unmasker(self):
-        from afabench.common.config_classes import ImagePatchUnmaskerConfig
 
-        patch_config = ImagePatchUnmaskerConfig(
-            image_side_length=28, n_channels=1, patch_size=7
-        )
         config = UnmaskerConfig(
-            class_name="ImagePatchUnmasker", config=patch_config
+            class_name="ImagePatchUnmasker",
+            kwargs={
+                "image_side_length": 28,
+                "n_channels": 1,
+                "patch_size": 7,
+            },
         )
         unmasker = get_afa_unmasker_from_config(config)
         assert hasattr(unmasker, "unmask")
         assert hasattr(unmasker, "get_n_selections")
 
     def test_unknown_unmasker_raises(self):
-        config = UnmaskerConfig(class_name="InvalidUnmasker", config=None)
+        config = UnmaskerConfig(
+            class_name="InvalidUnmasker",
+            kwargs={},
+        )
         with pytest.raises(ValueError, match="Unknown unmasker"):
             get_afa_unmasker_from_config(config)
 
 
 class TestInitializerRegistry:
     def test_zero_initializer(self):
-        config = InitializerConfig(class_name="ZeroInitializer", config=None)
+        config = InitializerConfig(
+            class_name="ZeroInitializer",
+            kwargs={},
+        )
         initializer = get_afa_initializer_from_config(config)
 
         # Test with some dummy data
@@ -71,9 +75,9 @@ class TestInitializerRegistry:
         assert not mask.any()  # All should be False
 
     def test_fixed_random_initializer(self):
-        config_data = FixedRandomInitializerConfig(unmask_ratio=0.3)
         config = InitializerConfig(
-            class_name="FixedRandomInitializer", config=config_data
+            class_name="FixedRandomInitializer",
+            kwargs={"unmask_ratio": 0.3},
         )
         initializer = get_afa_initializer_from_config(config)
 
@@ -98,9 +102,9 @@ class TestInitializerRegistry:
         assert actual_count == expected_count
 
     def test_dynamic_random_initializer(self):
-        config_data = RandomPerEpisodeInitializerConfig(unmask_ratio=0.25)
         config = InitializerConfig(
-            class_name="DynamicRandomInitializer", config=config_data
+            class_name="DynamicRandomInitializer",
+            kwargs={"unmask_ratio": 0.25},
         )
         initializer = get_afa_initializer_from_config(config)
 
@@ -119,9 +123,9 @@ class TestInitializerRegistry:
         assert actual_count == expected_count
 
     def test_manual_initializer(self):
-        config_data = ManualInitializerConfig(flat_feature_indices=[0, 5, 10])
         config = InitializerConfig(
-            class_name="ManualInitializer", config=config_data
+            class_name="ManualInitializer",
+            kwargs={"flat_feature_indices": [0, 5, 10]},
         )
         initializer = get_afa_initializer_from_config(config)
 
@@ -143,7 +147,8 @@ class TestInitializerRegistry:
 
     def test_unknown_initializer_raises(self):
         config = InitializerConfig(
-            class_name="InvalidInitializer", config=None
+            class_name="InvalidInitializer",
+            kwargs={},
         )
         with pytest.raises(ValueError, match="Unknown initializer"):
             get_afa_initializer_from_config(config)
