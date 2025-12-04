@@ -75,9 +75,9 @@ class AFADataset(Protocol):
         ...
 
     def get_feature_acquisition_costs(self) -> Tensor:
-        """Return the acquisition costs for each feature as a 1D tensor of shape (feature_shape[0],)."""
+        """Return the acquisition costs for each feature as a tensor of the shape as the features."""
         return torch.ones(
-            self.feature_shape[0]
+            self.feature_shape
         )  # Default: all features have cost 1
 
 

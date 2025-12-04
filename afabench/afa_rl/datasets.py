@@ -4,8 +4,6 @@ from typing import Self, final
 
 import lightning as pl
 import torch
-from jaxtyping import Shaped
-from torch import Tensor
 from torch.nn import functional as F
 from torch.utils.data import DataLoader, Dataset, random_split
 from torchvision import datasets, transforms
@@ -19,9 +17,7 @@ from afabench.common.custom_types import (
 )
 
 
-def get_wrapped_batch(
-    t: Shaped[Tensor, "batch *rem"], idx: int, numel: int
-) -> Shaped[Tensor, "{num_elems} *rem"]:
+def get_wrapped_batch(t: torch.Tensor, idx: int, numel: int) -> torch.Tensor:
     """Get a batch of size num_elems from a tensor t, starting at index idx, wrapping around if necessary."""
     n = len(t)
     repeated = t.repeat((numel // n) + 2, *[1] * (t.ndim - 1))
@@ -29,14 +25,22 @@ def get_wrapped_batch(
 
 
 def get_afa_dataset_fn(
-    features: Features, labels: Label, device: torch.device | None = None
+    features: Features,
+    labels: Label,
+    device: torch.device | None = None,
+    *,
+    shuffle: bool = True,
 ) -> AFADatasetFn:
     """Given features and labels, return a function that can be used to get batches of AFA data."""
     idx = 0  # keep track of where in the dataset we are
+    original_feature_shape = features.shape[
+        1:
+    ]  # Store the original feature shape (excluding batch dim)
 
     def afa_dataset_fn(
         batch_size: torch.Size,
-        move_on: bool = True,  # noqa: FBT002
+        *,
+        move_on: bool = True,
     ) -> tuple[Features, Label]:
         nonlocal idx, features, labels
         local_features = get_wrapped_batch(features, idx, batch_size.numel())
@@ -47,11 +51,12 @@ def get_afa_dataset_fn(
             if idx >= len(features):
                 idx = 0
                 # Shuffle the dataset
-                perm = torch.randperm(len(features))
-                features = features[perm]
-                labels = labels[perm]
+                if shuffle:
+                    perm = torch.randperm(len(features))
+                    features = features[perm]
+                    labels = labels[perm]
         local_features = local_features.reshape(
-            *batch_size, local_features.shape[-1]
+            *batch_size, *original_feature_shape
         )
         local_labels = local_labels.reshape(
             *batch_size, local_labels.shape[-1]

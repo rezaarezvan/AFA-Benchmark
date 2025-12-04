@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Any, cast
 import hydra
 import torch
 import wandb
-from dacite import from_dict
 from omegaconf import OmegaConf
 from torch import optim
 from torch.nn import functional as F
@@ -25,19 +24,19 @@ from afabench.afa_rl.shim2018.models import (
     Shim2018AFAPredictFn,
 )
 from afabench.afa_rl.shim2018.reward import get_shim2018_reward_fn
-from afabench.afa_rl.shim2018.utils import get_shim2018_model_from_config
 from afabench.afa_rl.utils import (
     get_eval_metrics,
     module_norm,
 )
 from afabench.common.config_classes import (
-    Shim2018PretrainConfig,
     Shim2018TrainConfig,
 )
+from afabench.common.initializers.utils import get_afa_initializer_from_config
+from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
 from afabench.common.utils import (
     dict_with_prefix,
     get_class_frequencies,
-    load_pretrained_model,
+    load_dataset_artifact,
     set_seed,
 )
 
@@ -50,130 +49,95 @@ log = logging.getLogger(__name__)
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/train/shim2018",
+    config_path="../../extra/conf/scripts/train/shim2018",
     config_name="config",
 )
 def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
-    log.info("Starting Shim2018 training script")
     log.debug(cfg)
-    if cfg.seed is None:
-        log.info("No seed specified, using random seed")
-    else:
-        log.info(f"Setting seed to {cfg.seed}")
-    actual_seed = set_seed(cfg.seed)
-    log.info(f"Using seed: {actual_seed}")
+    set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
-    log.info(f"Using device: {device}")
 
-    # Two possible cases: hard budget or soft budget
-    if cfg.hard_budget is None:
-        assert cfg.cost_param is not None, (
-            "If no hard budget is specified, a cost_param must be given for soft budget training."
+    if cfg.use_wandb:
+        run = wandb.init(
+            config=cast(
+                "dict[str, Any]", OmegaConf.to_container(cfg, resolve=True)
+            ),
+            job_type="training",
+            tags=["shim2018"],
+            dir="extra/wandb",
         )
-        log.info("Detected soft budget case")
-    if cfg.cost_param is None:
-        assert cfg.hard_budget is not None, (
-            "If no cost_param is specified, a hard budget must be given for hard budget training."
-        )
-        log.info("Detected hard budget case")
-    assert not (
-        cfg.hard_budget is not None and cfg.cost_param is not None
-    ), f"Only one of hard_budget or cost_param can be specified, not both. hard_budget detected as {
-        cfg.hard_budget
-    } (type: {type(cfg.hard_budget)}), cost_param detected as {
-        cfg.cost_param
-    } (type: {type(cfg.cost_param)})"
+        # Log W&B run URL
+        log.info(f"W&B run initialized: {run.name} ({run.id})")
+        log.info(f"W&B run URL: {run.url}")
+    else:
+        run = None
 
-    log.info("Initializing Weights & Biases run")
-    run = wandb.init(
-        config=cast(
-            "dict[str, Any]", OmegaConf.to_container(cfg, resolve=True)
-        ),
-        job_type="training",
-        tags=["shim2018"],
-        dir="extra/wandb",
+    log.info("Loading datasets...")
+    train_dataset, train_dataset_metadata = load_dataset_artifact(
+        Path(cfg.dataset_artifact_path),
+        split="train",
     )
-
-    # Log W&B run URL
-    log.info(f"W&B run initialized: {run.name} ({run.id})")
-    log.info(f"W&B run URL: {run.url}")
-
-    # Load pretrained model and dataset from artifacts
-    log.info(
-        f"Loading pretrained model from artifact: {
-            cfg.pretrained_model_artifact_name
-        }"
+    train_features, train_labels = train_dataset.get_all_data()
+    val_dataset, val_dataset_metadata = load_dataset_artifact(
+        Path(cfg.dataset_artifact_path),
+        split="val",
     )
-    (
-        pretrained_ckpt_path,
-        metadata,
-        pretrain_cfg,
-        train_dataset,
-        val_dataset,
-        test_dataset,
-        dataset_metadata,
-    ) = load_pretrained_model(
-        f"{cfg.pretrained_model_artifact_name}_seed_{cfg.seed}",
-        device=device,
+    val_features, val_labels = val_dataset.get_all_data()
+    log.info("Datasets loaded.")
+
+    log.info("Loading pretrained model...")
+    pretrained_model = load_pretrained_model_artifact(
+        Path(cfg.pretrained_model_artifact_path)
     )
-
-    # Convert pretrain config dict to dataclass
-    pretrained_model_config = from_dict(
-        data_class=Shim2018PretrainConfig, data=pretrain_cfg
-    )
-
-    # Get dimensions
-    n_features = train_dataset.features.shape[-1]
-    n_classes = train_dataset.labels.shape[-1]
-    train_class_probabilities = get_class_frequencies(train_dataset.labels)
-    log.debug(
-        f"Class probabilities in training set: {train_class_probabilities}"
-    )
-    class_weights = 1 / train_class_probabilities
-    class_weights = (class_weights / class_weights.sum()).to(device)
-
-    # Instantiate and load pretrained model
-    pretrained_model = get_shim2018_model_from_config(
-        pretrained_model_config,
-        n_features,
-        n_classes,
-        train_class_probabilities,
-    )
-    checkpoint = torch.load(pretrained_ckpt_path, map_location=device)
-    pretrained_model.load_state_dict(checkpoint["state_dict"])
-
-    log.info("Successfully loaded pretrained model and datasets")
-
-    log.info("Setting up pretrained model")
     pretrained_model.eval()
     pretrained_model = pretrained_model.to(device)
-
     pretrained_model_optim = optim.Adam(
         pretrained_model.parameters(), lr=cfg.pretrained_model_lr
     )
-    log.info("Pretrained model setup complete")
+    log.info("Pretrained model loaded.")
 
-    log.info("Creating reward function")
+    # Create initializer
+    log.info("Creating initializer...")
+    initializer = get_afa_initializer_from_config(cfg.initializer)
+    log.info("Initializer created.")
+
+    # Create unmasker
+    log.info("Creating unmasker...")
+    unmasker = get_afa_unmasker_from_config(cfg.unmasker)
+    log.info("Unmasker created.")
+
+    # Create reward function, which depends on class probabilities and acquisition cost
+    log.info("Constructing reward function...")
+    train_class_probabilities = get_class_frequencies(train_labels)
+    class_weights = 1 / train_class_probabilities
+    class_weights = (class_weights / class_weights.sum()).to(device)
+    n_selections = unmasker.get_n_selections(train_dataset.feature_shape)
+    cost_per_feature = (
+        0
+        if cfg.train_soft_budget_param is None
+        else cfg.train_soft_budget_param
+    )
     reward_fn = get_shim2018_reward_fn(
         pretrained_model=pretrained_model,
         weights=class_weights,
-        acquisition_costs=torch.zeros(n_features, device=device)
-        if cfg.cost_param is None
-        else cfg.cost_param
-        * train_dataset.get_feature_acquisition_costs().to(device),
+        acquisition_costs=cost_per_feature
+        * torch.ones(
+            (n_selections,),
+            device=device,
+        ),
     )
-    log.info("Reward function created")
+    log.info("Reward function constructed.")
 
     # MDP expects special dataset functions
-    log.info("Creating dataset functions for environments")
+    log.info("Creating dataset functions for environments...")
     train_dataset_fn = get_afa_dataset_fn(
-        train_dataset.features, train_dataset.labels, device=device
+        train_features, train_labels, device=device
     )
     val_dataset_fn = get_afa_dataset_fn(
-        val_dataset.features, val_dataset.labels, device=device
+        val_features, val_labels, device=device
     )
-    log.info("Dataset functions created")
+    log.info("Dataset functions created.")
 
     log.info("Creating training environment")
     train_env = AFAEnv(

@@ -267,10 +267,18 @@ class Shim2018AgentConfig:
 
 @dataclass
 class Shim2018TrainConfig:
-    pretrained_model_artifact_name: str
+    dataset_artifact_path: str
+    pretrained_model_artifact_path: str
+    save_path: str
+    initializer: InitializerConfig
+    unmasker: UnmaskerConfig
+    train_hard_budget: int | None  # not used, but pretend that it is
+    train_soft_budget_param: float | None
+    device: str
+    seed: int | None
+
+    # RL specific settings
     n_agents: int
-    hard_budget: int | None
-    cost_param: float | None  # how much each feature costs
     agent: Shim2018AgentConfig
     n_batches: int  # how many batches to train the agent
     batch_size: int  # batch size for collector
@@ -279,14 +287,10 @@ class Shim2018TrainConfig:
         int  # maximum allowed number of steps in an evaluation episode
     )
     n_eval_episodes: int  # how many episodes to average over in evaluation
-
-    device: str
-    seed: int | None
     pretrained_model_lr: float
     activate_joint_training_after_n_batches: int
-    output_artifact_aliases: list[str]
-    evaluate_final_performance: bool
-    eval_only_n_samples: int | None
+
+    use_wandb: bool = False
 
 
 cs.store(name="train_shim2018", node=Shim2018TrainConfig)

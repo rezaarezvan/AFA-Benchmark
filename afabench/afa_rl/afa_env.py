@@ -9,6 +9,7 @@ from afabench.afa_rl.custom_types import (
     AFADatasetFn,
     AFARewardFn,
 )
+from afabench.common.custom_types import AFAInitializeFn, AFAUnmaskFn
 
 if TYPE_CHECKING:
     from afabench.common.custom_types import (
@@ -43,11 +44,14 @@ class AFAEnv(EnvBase):
         reward_fn: AFARewardFn,
         device: torch.device,
         batch_size: torch.Size,
-        feature_size: int,
+        feature_shape: torch.Size,
+        n_selections: int,  # action dim = n_selections + 1 since we have a stop action as well
         n_classes: int,
         hard_budget: int
-        # how many features can be acquired before the episode ends. If None, no limit.
-        | None,
+        | None,  # how many selections can be performed before the episode ends. If None, no limit.
+        initialize_fn: AFAInitializeFn,
+        unmask_fn: AFAUnmaskFn,
+        seed: int | None = None,
     ):
         # Do not allow empty batch sizes
         assert batch_size != torch.Size(()), "Batch size must be non-empty"
@@ -56,44 +60,57 @@ class AFAEnv(EnvBase):
 
         self.dataset_fn = dataset_fn
         self.reward_fn = reward_fn
-        self.feature_size = feature_size
+        self.feature_shape = feature_shape
+        self.n_selections = n_selections
         self.n_classes = n_classes
         if hard_budget is None:
-            self.hard_budget = self.feature_size
+            self.hard_budget = self.n_selections
         else:
             self.hard_budget = hard_budget
-        self.rng: torch.Generator = torch.manual_seed(42)
+        self.initialize_fn = initialize_fn
+        self.unmask_fn = unmask_fn
+        self.seed = seed
+
+        self.rng: torch.Generator = torch.manual_seed(self.seed)
 
         self._make_spec()
 
     def _make_spec(self) -> None:
         self.observation_spec = Composite(
             feature_mask=Binary(
-                shape=self.batch_size + torch.Size((self.feature_size,)),
+                shape=self.batch_size + self.feature_shape,
                 dtype=torch.bool,
             ),
-            action_mask=Binary(
-                shape=self.batch_size + torch.Size((self.feature_size + 1,)),
+            performed_action_mask=Binary(
+                shape=self.batch_size + torch.Size((self.n_selections + 1,)),
+                dtype=torch.bool,
+            ),
+            allowed_action_mask=Binary(
+                shape=self.batch_size + torch.Size((self.n_selections + 1,)),
+                dtype=torch.bool,
+            ),
+            performed_selection_mask=Binary(
+                shape=self.batch_size + torch.Size((self.n_selections,)),
                 dtype=torch.bool,
             ),
             masked_features=Unbounded(
-                shape=self.batch_size + torch.Size((self.feature_size,)),
+                shape=self.batch_size + self.feature_shape,
                 dtype=torch.float32,
             ),
             # hidden from the agent
             features=Unbounded(
-                shape=self.batch_size + torch.Size((self.feature_size,)),
+                shape=self.batch_size + self.feature_shape,
                 dtype=torch.float32,
             ),
             label=Unbounded(
-                shape=self.batch_size + torch.Size((self.n_classes,)),
+                shape=self.batch_size + (self.n_classes,),
                 dtype=torch.float32,
             ),
             batch_size=self.batch_size,
         )
         # One action per feature + stop action
         self.action_spec = Categorical(
-            n=self.feature_size + 1,
+            n=self.n_selections + 1,
             shape=self.batch_size + torch.Size(()),
             dtype=torch.int64,
         )
@@ -113,28 +130,40 @@ class AFAEnv(EnvBase):
                 {}, batch_size=self.batch_size, device=self.device
             )
 
-        # Get a sample from the dataset
+        # Get a batch from the dataset
         features, label = self.dataset_fn(tensordict.batch_size)
         features: Features = features.to(tensordict.device)
         label: Label = label.to(tensordict.device)
-        # Mask of chosen features so far, start with no features
-        feature_mask: FeatureMask = torch.zeros_like(
-            features, dtype=torch.bool, device=tensordict.device
+
+        # Initialize features
+        initial_feature_mask = self.initialize_fn(
+            features=features, label=label, feature_shape=self.feature_shape
         )
-        # The values of chosen features so far, start with no features
-        masked_features: MaskedFeatures = torch.zeros_like(
-            features, dtype=torch.float32, device=tensordict.device
-        )
+
+        initial_masked_features = features.clone()
+        initial_masked_features[~initial_feature_mask] = 0.0
 
         td = TensorDict(
             {
-                "action_mask": torch.ones(
-                    tensordict.batch_size + (self.feature_size + 1,),
+                "feature_mask": initial_feature_mask,
+                "performed_action_mask": torch.zeros(
+                    tensordict.batch_size
+                    + torch.Size((self.n_selections + 1,)),
                     dtype=torch.bool,
                     device=tensordict.device,
                 ),
-                "feature_mask": feature_mask,
-                "masked_features": masked_features,
+                "allowed_action_mask": torch.ones(
+                    tensordict.batch_size
+                    + torch.Size((self.n_selections + 1,)),
+                    dtype=torch.bool,
+                    device=tensordict.device,
+                ),
+                "performed_selection_mask": torch.zeros(
+                    tensordict.batch_size + torch.Size((self.n_selections,)),
+                    dtype=torch.bool,
+                    device=tensordict.device,
+                ),
+                "masked_features": initial_masked_features,
                 "features": features,
                 "label": label,
             },
@@ -149,35 +178,59 @@ class AFAEnv(EnvBase):
         new_masked_features: MaskedFeatures = tensordict[
             "masked_features"
         ].clone()
-        new_action_mask = tensordict["action_mask"].clone()
-
-        batch_numel = tensordict.batch_size.numel()
-        batch_idx = torch.arange(batch_numel, device=tensordict.device)
-
-        # Acquire new features (featue-acquiring actions are 1..feature_size)
-        new_feature_selected_mask = tensordict["action"] > 0
-        # print(f"{new_feature_selected_mask.shape=}")
-        # print(f"{tensordict['action'].shape=}")
-        # print(f"{new_feature_mask.shape=}")
-        new_feature_mask[
-            batch_idx[new_feature_selected_mask],
-            tensordict[new_feature_selected_mask]["action"] - 1,
-        ] = True
-        new_masked_features[
-            batch_idx[new_feature_selected_mask],
-            tensordict[new_feature_selected_mask]["action"] - 1,
-        ] = tensordict["features"][
-            batch_idx[new_feature_selected_mask],
-            tensordict[new_feature_selected_mask]["action"] - 1,
+        new_performed_action_mask = tensordict["performed_action_mask"].clone()
+        new_allowed_action_mask = tensordict["allowed_action_mask"].clone()
+        new_performed_selection_mask = tensordict[
+            "performed_selection_mask"
         ].clone()
 
-        # Update action_mask
-        new_action_mask[batch_idx, tensordict["action"]] = False
+        batch_numel = tensordict.batch_size.numel()
+        batch_indices = torch.arange(batch_numel, device=tensordict.device)
 
-        # Done if we exceed the hard budget, have chosen all the actions, or choose to stop (action 0)
+        # Acquire new features from unmasker
+        new_feature_mask = self.unmask_fn(
+            masked_features=tensordict["masked_features"],
+            feature_mask=tensordict["feature_mask"],
+            features=tensordict["features"],
+            afa_selection=tensordict["action"],
+            selection_mask=tensordict["performed_selection_mask"],
+            label=tensordict["label"],
+            feature_shape=self.feature_shape,
+        )
+
+        new_masked_features = tensordict["features"].clone()
+        new_masked_features[~new_feature_mask] = 0.0
+
+        # Update masks
+        action_idx = tensordict["action"].squeeze(-1)
+        new_performed_action_mask[batch_indices, action_idx] = True
+
+        # For non-stop actions, update selection mask and disable that action
+        non_stop_mask = action_idx > 0
+        if non_stop_mask.any():
+            non_stop_indices = batch_indices[non_stop_mask]
+            selection_indices = (
+                action_idx[non_stop_mask] - 1
+            )  # Convert to 0-based selection index
+            new_performed_selection_mask[
+                non_stop_indices, selection_indices
+            ] = True
+            new_allowed_action_mask[
+                non_stop_indices, action_idx[non_stop_mask]
+            ] = False
+
+        # Done if we exceed the hard budget, have chosen all the actions, choose to stop (action 0),
+        # or all selection actions are exhausted
+        selections_taken = new_performed_selection_mask.sum(-1)
+        # Check if all selection actions (actions 1 through n_selections) are disabled
+        selection_actions_available = new_allowed_action_mask[:, 1:].any(
+            dim=-1
+        )
         done = (
-            (new_feature_mask.sum(-1) >= self.hard_budget).unsqueeze(-1)
-        ) | (tensordict["action"].unsqueeze(-1) == 0)
+            ((selections_taken >= self.hard_budget).unsqueeze(-1))
+            | (tensordict["action"] == 0)
+            | (~selection_actions_available).unsqueeze(-1)
+        )
 
         # Always calculate a possible reward
         reward = self.reward_fn(
@@ -193,7 +246,9 @@ class AFAEnv(EnvBase):
 
         return TensorDict(
             {
-                "action_mask": new_action_mask,
+                "performed_action_mask": new_performed_action_mask,
+                "allowed_action_mask": new_allowed_action_mask,
+                "performed_selection_mask": new_performed_selection_mask,
                 "feature_mask": new_feature_mask,
                 "masked_features": new_masked_features,
                 "done": done,
