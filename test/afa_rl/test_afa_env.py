@@ -6,6 +6,7 @@ from afabench.afa_rl.reward_functions import get_fixed_reward_reward_fn
 from afabench.common.initializers.fixed_random_initializer import (
     FixedRandomInitializer,
 )
+from afabench.common.initializers.manual_initializer import ManualInitializer
 from afabench.common.unmaskers import ImagePatchUnmasker
 from afabench.common.unmaskers.direct_unmasker import DirectUnmasker
 
@@ -1243,3 +1244,113 @@ def test_tensordict_structure_validation() -> None:
             assert tensor.device == device, (
                 f"Tensor '{key}' should be on device {device}"
             )
+
+
+def test_initializer_application() -> None:
+    """Test that initializer is correctly applied to set initial features."""
+    # Use simple 1D features for easy testing
+    all_features = torch.tensor(
+        [
+            [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],  # Sample 1
+            [9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0],  # Sample 2
+        ]
+    )
+    all_labels = torch.tensor(
+        [
+            [1, 0],  # Sample 1 label
+            [0, 1],  # Sample 2 label
+        ]
+    )
+    dataset_fn = get_afa_dataset_fn(all_features, all_labels, shuffle=False)
+
+    # Use ManualInitializer to initialize specific features
+    # Let's initialize features at flat indices 1, 3, 5 (which correspond to positions 1, 3, 5 in the 8-element vector)
+    manual_init = ManualInitializer(flat_feature_indices=[1, 3, 5])
+
+    env = AFAEnv(
+        dataset_fn=dataset_fn,
+        reward_fn=get_fixed_reward_reward_fn(
+            reward_for_stop=0.0, reward_otherwise=-1.0
+        ),
+        device=torch.device("cpu"),
+        batch_size=torch.Size((2,)),
+        feature_shape=torch.Size((8,)),
+        n_selections=8,
+        n_classes=2,
+        hard_budget=5,
+        initialize_fn=manual_init.initialize,
+        unmask_fn=DirectUnmasker().unmask,
+        seed=123,
+    )
+
+    # Reset environment to apply initialization
+    td = env.reset()
+
+    # Check that feature_mask has the expected pattern
+    # Features at indices 1, 3, 5 should be True (unmasked), others should be False
+    expected_feature_mask = torch.tensor(
+        [
+            [False, True, False, True, False, True, False, False],  # Sample 1
+            [False, True, False, True, False, True, False, False],  # Sample 2
+        ],
+        dtype=torch.bool,
+    )
+    assert torch.equal(td["feature_mask"], expected_feature_mask), (
+        f"Expected feature_mask={expected_feature_mask}, got {td['feature_mask']}"
+    )
+
+    # Check that masked_features shows the correct initial values
+    expected_masked_features = torch.zeros((2, 8), dtype=torch.float32)
+    # Sample 1: features at indices 1, 3, 5 should be 2.0, 4.0, 6.0
+    expected_masked_features[0, [1, 3, 5]] = torch.tensor([2.0, 4.0, 6.0])
+    # Sample 2: features at indices 1, 3, 5 should be 10.0, 12.0, 14.0
+    expected_masked_features[1, [1, 3, 5]] = torch.tensor([10.0, 12.0, 14.0])
+
+    assert torch.allclose(td["masked_features"], expected_masked_features), (
+        f"Expected masked_features={expected_masked_features}, got {td['masked_features']}"
+    )
+
+    # Verify that performed_selection_mask reflects the initialized features
+    # Since ManualInitializer directly sets features (not through selections),
+    # this depends on how the environment handles initial state
+    # The performed_selection_mask should remain all False since no actual selections were made
+    expected_performed_selection_mask = torch.zeros((2, 8), dtype=torch.bool)
+    assert torch.equal(
+        td["performed_selection_mask"], expected_performed_selection_mask
+    ), "No selections should be marked as performed during initialization"
+
+    # Test that we can still make selections after initialization
+    td["action"] = torch.tensor(
+        [[2], [4]], dtype=torch.int64
+    )  # Select features 2 and 4 (1-based)
+    td = env.step(td)
+    td = td["next"]
+
+    # Check that the new features are now also unmasked
+    expected_feature_mask_after_step = expected_feature_mask.clone()
+    expected_feature_mask_after_step[0, 1] = (
+        True  # Feature at index 1 (action 2-1)
+    )
+    expected_feature_mask_after_step[1, 3] = (
+        True  # Feature at index 3 (action 4-1)
+    )
+
+    assert torch.equal(td["feature_mask"], expected_feature_mask_after_step), (
+        "Feature mask should include both initialized and selected features"
+    )
+
+    # Check that performed_selection_mask now reflects the actual selections made
+    expected_performed_selection_mask_after_step = torch.zeros(
+        (2, 8), dtype=torch.bool
+    )
+    expected_performed_selection_mask_after_step[0, 1] = (
+        True  # Selection 1 (action 2-1)
+    )
+    expected_performed_selection_mask_after_step[1, 3] = (
+        True  # Selection 3 (action 4-1)
+    )
+
+    assert torch.equal(
+        td["performed_selection_mask"],
+        expected_performed_selection_mask_after_step,
+    ), "Only actual selections should be marked in performed_selection_mask"
