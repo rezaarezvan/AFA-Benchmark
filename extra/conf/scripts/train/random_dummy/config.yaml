@@ -15,8 +15,8 @@ dataset_artifact_path: ???
 save_path: ???
 # initializer set as component
 # unmasker set as component
-train_hard_budget: null
-train_soft_budget_param: null
+hard_budget: null
+soft_budget_param: null
 
 device: cpu
 seed: 42

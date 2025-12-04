@@ -272,8 +272,8 @@ class Shim2018TrainConfig:
     save_path: str
     initializer: InitializerConfig
     unmasker: UnmaskerConfig
-    train_hard_budget: int | None  # not used, but pretend that it is
-    train_soft_budget_param: float | None
+    hard_budget: int | None
+    soft_budget_param: float | None
     device: str
     seed: int | None
 
@@ -609,8 +609,8 @@ class RandomDummyTrainConfig:
     save_path: str
     initializer: InitializerConfig
     unmasker: UnmaskerConfig
-    train_hard_budget: int | None  # not used, but pretend that it is
-    train_soft_budget_param: float | None
+    hard_budget: int | None  # not used, but pretend that it is
+    soft_budget_param: float | None
 
     device: str
     seed: int | None
@@ -628,8 +628,8 @@ class SequentialDummyTrainConfig:
     save_path: str
     initializer: InitializerConfig
     unmasker: UnmaskerConfig
-    train_hard_budget: int | None  # not used, but pretend that it is
-    train_soft_budget_param: float | None
+    hard_budget: int | None  # not used, but pretend that it is
+    soft_budget_param: float | None
 
     device: str
     seed: int | None

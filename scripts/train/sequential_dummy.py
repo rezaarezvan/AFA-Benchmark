@@ -66,8 +66,8 @@ def main(cfg: SequentialDummyTrainConfig) -> None:
         device=torch.device("cpu"),
         n_classes=n_classes,
         prob_select_0=0.0
-        if cfg.train_soft_budget_param is None
-        else cfg.train_soft_budget_param,
+        if cfg.soft_budget_param is None
+        else cfg.soft_budget_param,
     )
 
     # Create initializer
@@ -101,8 +101,8 @@ def main(cfg: SequentialDummyTrainConfig) -> None:
             "dataset_artifact_path": cfg.dataset_artifact_path,
             # "split_idx": dataset_metadata["split_idx"],
             "seed": cfg.seed,
-            "train_soft_budget_param": cfg.train_soft_budget_param,
-            "train_hard_budget": cfg.train_hard_budget,
+            "soft_budget_param": cfg.soft_budget_param,
+            "hard_budget": cfg.hard_budget,
             "initializer_class_name": cfg.initializer.class_name,
             "unmasker_class_name": cfg.unmasker.class_name,
         },

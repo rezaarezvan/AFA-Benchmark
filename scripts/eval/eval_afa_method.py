@@ -197,7 +197,11 @@ def main(cfg: EvalConfig) -> None:
         batch_size=cfg.batch_size,
     )
 
-    # Output raw evaluation data - no transformation
+    # Add eval_seed and eval_hard_budget to dataframe
+    df_eval["eval_seed"] = cfg.seed
+    df_eval["eval_hard_budget"] = (
+        cfg.hard_budget if cfg.hard_budget is not None else float("nan")
+    )
 
     # Save CSV directly
     csv_path = Path(cfg.save_path) / "eval_data.csv"

@@ -145,9 +145,13 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
         reward_fn=reward_fn,
         device=device,
         batch_size=torch.Size((cfg.n_agents,)),
-        feature_size=n_features,
+        feature_shape=train_dataset.feature_shape,
+        n_selections=n_selections,
         n_classes=n_classes,
         hard_budget=cfg.hard_budget,
+        initialize_fn=initializer.initialize,
+        unmask_fn=unmasker.unmask,
+        seed=cfg.seed,
     )
     check_env_specs(train_env)
     log.info("Training environment created and validated")
