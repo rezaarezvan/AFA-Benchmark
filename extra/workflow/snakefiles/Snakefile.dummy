@@ -68,11 +68,11 @@ rule train_method:
     output:
         directory(
             "extra/trained_methods/{method}/"
-            "dataset-{dataset}+"
-            "instance_idx-{dataset_instance_idx}/"
-            "train_seed-{train_seed}+"
-            "train_hard_budget-{train_hard_budget}+"
-            "train_soft_budget_param-{train_soft_budget_param}"
+                "dataset-{dataset}+"
+                "instance_idx-{dataset_instance_idx}/"
+                    "train_seed-{train_seed}+"
+                    "train_hard_budget-{train_hard_budget}+"
+                    "train_soft_budget_param-{train_soft_budget_param}"
         ),
     params:
         unmasker=lambda wildcards: UNMASKER_PER_DATASET[wildcards.dataset],
@@ -108,33 +108,34 @@ rule train_method:
 rule eval_method:
     input:
         "extra/data/datasets/{dataset}/{dataset_instance_idx}",
+
         "extra/trained_methods/{method}/"
-        "dataset-{dataset}+"
-        "instance_idx-{dataset_instance_idx}/"
-        "train_seed-{train_seed}+"
-        "train_hard_budget-{hard_budget}+"
-        "train_soft_budget_param-{soft_budget_param}",
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+                "train_seed-{train_seed}+"
+                "train_hard_budget-{hard_budget}+"
+                "train_soft_budget_param-{soft_budget_param}",
         # "extra/trained_classifiers/masked_mlp_classifier/dataset-{dataset}+instance-{dataset_instance}",
     output:
         "extra/eval_results/{method}/"
-        "dataset-{dataset}+"
-        "instance_idx-{dataset_instance_idx}/"
-        "train_seed-{train_seed}+"
-        "train_hard_budget-{hard_budget}+"
-        "train_soft_budget_param-{soft_budget_param}/"
-        "eval_seed-{eval_seed}+"
-        "eval_hard_budget-{hard_budget}/"
-        "eval_data.csv",
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+                "train_seed-{train_seed}+"
+                "train_hard_budget-{hard_budget}+"
+                "train_soft_budget_param-{soft_budget_param}/"
+                    "eval_seed-{eval_seed}+"
+                    "eval_hard_budget-{hard_budget}/"
+                        "eval_data.csv",
     params:
         save_path=lambda wildcards: (
             f"extra/eval_results/{wildcards.method}/"
-            f"dataset-{wildcards.dataset}+"
-            f"instance_idx-{wildcards.dataset_instance_idx}/"
-            f"train_seed-{wildcards.train_seed}+"
-            f"train_hard_budget-{wildcards.hard_budget}+"
-            f"train_soft_budget_param-{wildcards.soft_budget_param}/"
-            f"eval_seed-{wildcards.eval_seed}+"
-            f"eval_hard_budget-{wildcards.hard_budget}"
+                f"dataset-{wildcards.dataset}+"
+                f"instance_idx-{wildcards.dataset_instance_idx}/"
+                    f"train_seed-{wildcards.train_seed}+"
+                    f"train_hard_budget-{wildcards.hard_budget}+"
+                    f"train_soft_budget_param-{wildcards.soft_budget_param}/"
+                        f"eval_seed-{wildcards.eval_seed}+"
+                        f"eval_hard_budget-{wildcards.hard_budget}"
         ),
         unmasker=lambda wildcards: UNMASKER_PER_DATASET[wildcards.dataset],
     shell:
@@ -159,24 +160,24 @@ rule eval_method:
 rule transform_eval:
     input:
         "extra/eval_results/{method}/"
-        "dataset-{dataset}+"
-        "instance_idx-{dataset_instance_idx}/"
-        "train_seed-{train_seed}+"
-        "train_hard_budget-{hard_budget}+"
-        "train_soft_budget_param-{soft_budget_param}/"
-        "eval_seed-{eval_seed}+"
-        "eval_hard_budget-{hard_budget}/"
-        "eval_data.csv",
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+                "train_seed-{train_seed}+"
+                "train_hard_budget-{hard_budget}+"
+                "train_soft_budget_param-{soft_budget_param}/"
+                    "eval_seed-{eval_seed}+"
+                    "eval_hard_budget-{hard_budget}/"
+                        "eval_data.csv",
     output:
         "extra/eval_results/{method}/"
-        "dataset-{dataset}+"
-        "instance_idx-{dataset_instance_idx}/"
-        "train_seed-{train_seed}+"
-        "train_hard_budget-{hard_budget}+"
-        "train_soft_budget_param-{soft_budget_param}/"
-        "eval_seed-{eval_seed}+"
-        "eval_hard_budget-{hard_budget}/"
-        "transformed_eval_data.csv",
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+                "train_seed-{train_seed}+"
+                "train_hard_budget-{hard_budget}+"
+                "train_soft_budget_param-{soft_budget_param}/"
+                    "eval_seed-{eval_seed}+"
+                    "eval_hard_budget-{hard_budget}/"
+                        "transformed_eval_data.csv",
     shell:
         """
         python scripts/misc/transform_eval_data.py {input} {output} {wildcards.method} \
@@ -193,14 +194,14 @@ rule merge_eval:
         [
             (
                 f"extra/eval_results/{method}/"
-                f"dataset-{dataset}+"
-                f"instance_idx-{dataset_instance_idx}/"
-                f"train_seed-{dataset_instance_idx}+"
-                f"train_hard_budget-{hard_budget}+"
-                f"train_soft_budget_param-{soft_budget_param}/"
-                f"eval_seed-{dataset_instance_idx}+"
-                f"eval_hard_budget-{hard_budget}/"
-                f"transformed_eval_data.csv"
+                    f"dataset-{dataset}+"
+                    f"instance_idx-{dataset_instance_idx}/"
+                        f"train_seed-{dataset_instance_idx}+"
+                        f"train_hard_budget-{hard_budget}+"
+                        f"train_soft_budget_param-{soft_budget_param}/"
+                            f"eval_seed-{dataset_instance_idx}+"
+                            f"eval_hard_budget-{hard_budget}/"
+                                f"transformed_eval_data.csv"
             )
             for method in METHODS
             for dataset in DATASETS
