@@ -1,12 +1,12 @@
 DATASETS = [
-    # "afa_context",
+    "afa_context",
     # "fashion_mnist",
     # "mnist",
     "synthetic_mnist",
     # "actg",
     # "bank_marketing",
     # "ckd",
-    # "cube",
+    "cube",
     # "diabetes",
     # "imagenette", # currently not working
     # "miniboone",

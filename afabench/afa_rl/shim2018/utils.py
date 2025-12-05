@@ -14,7 +14,7 @@ def get_shim2018_model_from_config(
     cfg: Shim2018PretrainConfig,
     n_features: int,
     n_classes: int,
-    class_probabiities: Float[Tensor, "n_classes"],
+    class_probabilities: Float[Tensor, "n_classes"],
 ) -> LitShim2018EmbedderClassifier:
     encoder = ReadProcessEncoder(
         set_element_size=n_features
@@ -33,7 +33,7 @@ def get_shim2018_model_from_config(
     lit_model = LitShim2018EmbedderClassifier(
         embedder=embedder,
         classifier=classifier,
-        class_probabilities=class_probabiities,
+        class_probabilities=class_probabilities,
         min_masking_probability=cfg.min_masking_probability,
         max_masking_probability=cfg.max_masking_probability,
         lr=cfg.lr,

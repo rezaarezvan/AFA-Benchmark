@@ -7,6 +7,7 @@ UNMASKER_PER_DATASET = {
 }
 EVAL_DATASET_SPLIT = "val"  # whether to use "val" or "test" during evaluation
 DEVICE = "cpu"
+USE_WANDB = False
 
 # Main parameters that we investigate
 # - hard budget
@@ -49,20 +50,26 @@ rule pretrain_model:
             "extra/pretrained_models/{method}/"
                 "dataset-{dataset}+"
                 "instance_idx-{dataset_instance_idx}/"
-                    "pretrain_seed-{pretrain_seed}+"
+                    "pretrain_seed-{pretrain_seed}"
         ),
-
+    shell:
+        """
+        python scripts/pretrain/{wildcards.method}.py \
+            dataset_artifact_path={input} \
+            save_path={output} \
+            device={DEVICE} \
+            seed={wildcards.pretrain_seed} \
+            use_wandb={USE_WANDB}
+        """
 
 rule train_method:
     input:
         "extra/data/datasets/{dataset}/{dataset_instance_idx}",
 
-        directory(
-            "extra/pretrained_models/{method}/"
-                "dataset-{dataset}+"
-                "instance_idx-{dataset_instance_idx}/"
-                    "pretrain_seed-{pretrain_seed}+"
-        ),
+        "extra/pretrained_models/{method}/"
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+                "pretrain_seed-{pretrain_seed}"
     output:
         directory(
             "extra/trained_methods/{method}/"
@@ -78,15 +85,16 @@ rule train_method:
     shell:
         """
         python scripts/train/{wildcards.method}.py \
-            dataset_artifact_path={input} \
+            dataset_artifact_path={input[0]} \
+            pretrained_model_artifact_path={input[1]} \
             save_path={output} \
             components/initializers@initializer={INITIALIZER} \
             components/unmaskers@unmasker={params.unmasker} \
-            train_hard_budget={wildcards.train_hard_budget} \
-            train_soft_budget_param={wildcards.train_soft_budget_param} \
+            hard_budget={wildcards.train_hard_budget} \
+            soft_budget_param={wildcards.train_soft_budget_param} \
             device={DEVICE} \
             seed={wildcards.train_seed} \
-            use_wandb=false
+            use_wandb={USE_WANDB}
         """
 
 
@@ -111,30 +119,33 @@ rule eval_method:
         "extra/trained_methods/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
-                "train_seed-{train_seed}+"
-                "train_hard_budget-{hard_budget}+"
-                "train_soft_budget_param-{soft_budget_param}",
+                "pretrain_seed-{pretrain_seed}/"
+                    "train_seed-{train_seed}+"
+                    "train_hard_budget-{train_hard_budget}+"
+                    "train_soft_budget_param-{train_soft_budget_param}",
         # "extra/trained_classifiers/masked_mlp_classifier/dataset-{dataset}+instance-{dataset_instance}",
     output:
         "extra/eval_results/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
-                "train_seed-{train_seed}+"
-                "train_hard_budget-{hard_budget}+"
-                "train_soft_budget_param-{soft_budget_param}/"
-                    "eval_seed-{eval_seed}+"
-                    "eval_hard_budget-{hard_budget}/"
-                        "eval_data.csv",
+                "pretrain_seed-{pretrain_seed}/"
+                    "train_seed-{train_seed}+"
+                    "train_hard_budget-{train_hard_budget}+"
+                    "train_soft_budget_param-{train_soft_budget_param}/"
+                        "eval_seed-{eval_seed}+"
+                        "eval_hard_budget-{eval_hard_budget}/"
+                            "eval_data.csv",
     params:
         save_path=lambda wildcards: (
             f"extra/eval_results/{wildcards.method}/"
                 f"dataset-{wildcards.dataset}+"
                 f"instance_idx-{wildcards.dataset_instance_idx}/"
-                    f"train_seed-{wildcards.train_seed}+"
-                    f"train_hard_budget-{wildcards.hard_budget}+"
-                    f"train_soft_budget_param-{wildcards.soft_budget_param}/"
-                        f"eval_seed-{wildcards.eval_seed}+"
-                        f"eval_hard_budget-{wildcards.hard_budget}"
+                    "pretrain_seed-{pretrain_seed}/"
+                        f"train_seed-{wildcards.train_seed}+"
+                        f"train_hard_budget-{wildcards.train_hard_budget}+"
+                        f"train_soft_budget_param-{wildcards.train_soft_budget_param}/"
+                            f"eval_seed-{wildcards.eval_seed}+"
+                            f"eval_hard_budget-{wildcards.eval_hard_budget}"
         ),
         unmasker=lambda wildcards: UNMASKER_PER_DATASET[wildcards.dataset],
     shell:
@@ -151,56 +162,228 @@ rule eval_method:
             device={DEVICE} \
             eval_only_n_samples=null \
             batch_size=1 \
-            hard_budget={wildcards.hard_budget} \
-            use_wandb=false
+            hard_budget={wildcards.eval_hard_budget} \
+            use_wandb={USE_WANDB}
         """
 
-
-rule transform_eval:
+# Add eval_soft_budget_param column. Not used by dummy methods, but kept for consistency.
+rule add_eval_metadata_to_eval_data:
     input:
         "extra/eval_results/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
-                "train_seed-{train_seed}+"
-                "train_hard_budget-{hard_budget}+"
-                "train_soft_budget_param-{soft_budget_param}/"
-                    "eval_seed-{eval_seed}+"
-                    "eval_hard_budget-{hard_budget}/"
-                        "eval_data.csv",
+                "pretrain_seed-{pretrain_seed}/"
+                    "train_seed-{train_seed}+"
+                    "train_hard_budget-{train_hard_budget}+"
+                    "train_soft_budget_param-{train_soft_budget_param}/"
+                        "eval_seed-{eval_seed}+"
+                        "eval_hard_budget-{eval_hard_budget}/"
+                            "eval_data.csv",
     output:
-        "extra/eval_results/{method}/"
+        "extra/eval_results2/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
-                "train_seed-{train_seed}+"
-                "train_hard_budget-{hard_budget}+"
-                "train_soft_budget_param-{soft_budget_param}/"
-                    "eval_seed-{eval_seed}+"
-                    "eval_hard_budget-{hard_budget}/"
-                        "transformed_eval_data.csv",
+                "pretrain_seed-{pretrain_seed}/"
+                    "train_seed-{train_seed}+"
+                    "train_hard_budget-{train_hard_budget}+"
+                    "train_soft_budget_param-{train_soft_budget_param}/"
+                        "eval_seed-{eval_seed}+"
+                        "eval_hard_budget-{eval_hard_budget}/"
+                            "eval_data.csv",
+    resources:
+        shell_exec="nu"
     shell:
         """
-        python scripts/misc/transform_eval_data.py {input} {output} {wildcards.method} \
-            --dataset {wildcards.dataset} \
-            --train_seed {wildcards.train_seed} \
-            --eval_seed {wildcards.eval_seed} \
-            --hard_budget {wildcards.hard_budget} \
-            --soft_budget_param {wildcards.soft_budget_param}
+        open {input} |
+            insert eval_soft_budget_param "" |
+                save {output}
         """
 
+# Convert the `prev_selections_performed` (list[int]) and `selection_performed` columns into `selections_performed` (int)
+rule count_selections:
+    input:
+        "extra/eval_results2/{method}/"
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+                "pretrain_seed-{pretrain_seed}/"
+                    "train_seed-{train_seed}+"
+                    "train_hard_budget-{train_hard_budget}+"
+                    "train_soft_budget_param-{train_soft_budget_param}/"
+                        "eval_seed-{eval_seed}+"
+                        "eval_hard_budget-{eval_hard_budget}/"
+                            "eval_data.csv",
+    output:
+        "extra/eval_results3/{method}/"
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+                "pretrain_seed-{pretrain_seed}/"
+                    "train_seed-{train_seed}+"
+                    "train_hard_budget-{train_hard_budget}+"
+                    "train_soft_budget_param-{train_soft_budget_param}/"
+                        "eval_seed-{eval_seed}+"
+                        "eval_hard_budget-{eval_hard_budget}/"
+                            "eval_data.csv",
+    resources:
+        shell_exec="nu"
+    shell:
+        """
+        open {input} |
+            insert selections_performed {{
+                get prev_selections_performed | each {{ |row| ($row | from json | length) + 1}}
+            }} |
+            reject prev_selections_performed selection_performed |
+                save {output}
+        """
+
+# Add some metadata columns from training
+rule add_train_metadata_to_eval_data:
+    input:
+        "extra/eval_results3/{method}/"
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+                "pretrain_seed-{pretrain_seed}/"
+                    "train_seed-{train_seed}+"
+                    "train_hard_budget-{train_hard_budget}+"
+                    "train_soft_budget_param-{train_soft_budget_param}/"
+                        "eval_seed-{eval_seed}+"
+                        "eval_hard_budget-{eval_hard_budget}/"
+                            "eval_data.csv",
+    output:
+        "extra/eval_results4/{method}/"
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+                "pretrain_seed-{pretrain_seed}/"
+                    "train_seed-{train_seed}+"
+                    "train_hard_budget-{train_hard_budget}+"
+                    "train_soft_budget_param-{train_soft_budget_param}/"
+                        "eval_seed-{eval_seed}+"
+                        "eval_hard_budget-{eval_hard_budget}/"
+                            "eval_data.csv",
+    resources:
+        shell_exec="nu"
+    shell:
+        """
+        open {input} |
+            insert afa_method {wildcards.method} |
+            insert dataset {wildcards.dataset} |
+            insert train_seed {wildcards.train_seed} |
+            insert train_hard_budget {wildcards.train_hard_budget} |
+            insert train_soft_budget_param {wildcards.train_soft_budget_param} |
+                save {output}
+        """
+
+# Make sure that train_hard_budget and eval_hard_budget are the same
+# Rename this to hard_budget
+# Make sure that only one of train_soft_budget_param and eval_soft_budget_param is set, if any
+# Rename this to soft_budget_param
+rule validate_hard_budget_and_soft_budget_param:
+    input:
+        "extra/eval_results4/{method}/"
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+                "pretrain_seed-{pretrain_seed}/"
+                    "train_seed-{train_seed}+"
+                    "train_hard_budget-{train_hard_budget}+"
+                    "train_soft_budget_param-{train_soft_budget_param}/"
+                        "eval_seed-{eval_seed}+"
+                        "eval_hard_budget-{eval_hard_budget}/"
+                            "eval_data.csv",
+    output:
+        "extra/eval_results5/{method}/"
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+                "pretrain_seed-{pretrain_seed}/"
+                    "train_seed-{train_seed}+"
+                    "train_hard_budget-{train_hard_budget}+"
+                    "train_soft_budget_param-{train_soft_budget_param}/"
+                        "eval_seed-{eval_seed}+"
+                        "eval_hard_budget-{eval_hard_budget}/"
+                            "eval_data.csv",
+    resources:
+        shell_exec="nu"
+    shell:
+        """
+        use std/assert
+        let df = open {input}
+        let hard_budget_columns_are_same = $df |
+            all {{|row| $row.train_hard_budget == $row.eval_hard_budget}}
+        assert $hard_budget_columns_are_same
+        let df = $df |
+            rename --column {{ train_hard_budget: hard_budget }} |
+            reject eval_hard_budget
+        let not_both_soft_budget_param_non_null = $df |
+            all {{|row|
+                let train_is_null = ($row.train_soft_budget_param == "")
+                let eval_is_null = ($row.eval_soft_budget_param == "")
+                $train_is_null or $eval_is_null
+            }}
+        assert $not_both_soft_budget_param_non_null
+        let df = $df |
+            insert soft_budget_param {{|row|
+                if $row.train_soft_budget_param != "" {{
+                    $row.train_soft_budget_param
+                }} else {{
+                    $row.eval_soft_budget_param
+                }}
+            }} |
+            reject train_soft_budget_param eval_soft_budget_param
+        $df | save {output}
+        """
+
+# Instead of two separate classifier columns, the plotting script expects tidy data
+rule pivot_long_classifier:
+    input:
+        "extra/eval_results5/{method}/"
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+                "pretrain_seed-{pretrain_seed}/"
+                    "train_seed-{train_seed}+"
+                    "train_hard_budget-{train_hard_budget}+"
+                    "train_soft_budget_param-{train_soft_budget_param}/"
+                        "eval_seed-{eval_seed}+"
+                        "eval_hard_budget-{eval_hard_budget}/"
+                            "eval_data.csv",
+    output:
+        "extra/eval_results6/{method}/"
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+                "pretrain_seed-{pretrain_seed}/"
+                    "train_seed-{train_seed}+"
+                    "train_hard_budget-{train_hard_budget}+"
+                    "train_soft_budget_param-{train_soft_budget_param}/"
+                        "eval_seed-{eval_seed}+"
+                        "eval_hard_budget-{eval_hard_budget}/"
+                            "eval_data.csv",
+    resources:
+        shell_exec="nu"
+    shell:
+        """
+        open {input} |
+            each {{ |row|
+                [
+                    ($row | insert classifier "builtin" | insert predicted_class $row.builtin_predicted_class),
+                    ($row | insert classifier "external" | insert predicted_class $row.external_predicted_class)
+                ]
+            }} |
+            flatten |
+            reject builtin_predicted_class external_predicted_class |
+                save {output}
+        """
 
 rule merge_eval:
     input:
         [
             (
-                f"extra/eval_results/{method}/"
+                f"extra/eval_results6/{method}/"
                     f"dataset-{dataset}+"
                     f"instance_idx-{dataset_instance_idx}/"
-                        f"train_seed-{dataset_instance_idx}+"
-                        f"train_hard_budget-{hard_budget}+"
-                        f"train_soft_budget_param-{soft_budget_param}/"
-                            f"eval_seed-{dataset_instance_idx}+"
-                            f"eval_hard_budget-{hard_budget}/"
-                                f"transformed_eval_data.csv"
+                        "pretrain_seed-{pretrain_seed}/"
+                            f"train_seed-{dataset_instance_idx}+"
+                            f"train_hard_budget-{hard_budget}+"
+                            f"train_soft_budget_param-{soft_budget_param}/"
+                                f"eval_seed-{dataset_instance_idx}+"
+                                f"eval_hard_budget-{hard_budget}/"
+                                    f"eval_data.csv"
             )
             for method in METHODS
             for dataset in DATASETS
@@ -213,7 +396,7 @@ rule merge_eval:
             ][dataset]
         ],
     output:
-        "extra/merged_eval_results/dummy.csv",
+        "extra/merged_eval_results/RL.csv",
     shell:
         """
             csvstack {input} > {output}
@@ -222,9 +405,9 @@ rule merge_eval:
 
 rule plot:
     input:
-        "extra/merged_eval_results/dummy.csv",
+        "extra/merged_eval_results/RL.csv",
     output:
-        directory("extra/plot_results/dummy"),
+        directory("extra/plot_results/RL"),
     shell:
         """
             Rscript scripts/plotting/plot_eval.R {input} {output}

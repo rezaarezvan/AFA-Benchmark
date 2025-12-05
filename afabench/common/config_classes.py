@@ -121,19 +121,22 @@ class Shim2018ClassifierConfig:
 
 @dataclass
 class Shim2018PretrainConfig:
-    dataset_artifact_name: str
+    dataset_artifact_path: str
+    save_path: str
+    device: str
+    seed: int | None
+
     batch_size: int  # batch size for dataloader
     epochs: int
     limit_train_batches: int | None
     limit_val_batches: int | None
-
-    device: str
-    seed: int
     lr: float
     min_masking_probability: float
     max_masking_probability: float
     encoder: Shim2018EncoderConfig
     classifier: Shim2018ClassifierConfig
+
+    use_wandb: bool = False
 
 
 cs.store(name="pretrain_shim2018", node=Shim2018PretrainConfig)

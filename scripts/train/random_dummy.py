@@ -1,12 +1,9 @@
 import gc
 import logging
 from pathlib import Path
-from typing import Any, cast
 
 import hydra
 import torch
-import wandb
-from omegaconf import OmegaConf
 
 from afabench.common.afa_methods import RandomDummyAFAMethod
 from afabench.common.config_classes import (
@@ -15,6 +12,7 @@ from afabench.common.config_classes import (
 from afabench.common.initializers.utils import get_afa_initializer_from_config
 from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
 from afabench.common.utils import (
+    initialize_wandb_run,
     load_dataset_artifact,
     save_method_artifact,
     set_seed,
@@ -35,17 +33,9 @@ def main(cfg: RandomDummyTrainConfig) -> None:
     torch.set_float32_matmul_precision("medium")
 
     if cfg.use_wandb:
-        run = wandb.init(
-            config=cast(
-                "dict[str, Any]", OmegaConf.to_container(cfg, resolve=True)
-            ),
-            job_type="training",
-            tags=["random_dummy"],
-            dir="extra/wandb",
+        run = initialize_wandb_run(
+            cfg=cfg, job_type="training", tags=["random_dummy"]
         )
-        # Log W&B run URL
-        log.info(f"W&B run initialized: {run.name} ({run.id})")
-        log.info(f"W&B run URL: {run.url}")
     else:
         run = None
 

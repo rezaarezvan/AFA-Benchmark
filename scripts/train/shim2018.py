@@ -2,12 +2,10 @@ import gc
 import logging
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING
 
 import hydra
 import torch
-import wandb
-from omegaconf import OmegaConf
 from torch import optim
 from torch.nn import functional as F
 from torchrl.collectors import SyncDataCollector
@@ -20,6 +18,7 @@ from afabench.afa_rl.afa_methods import RLAFAMethod
 from afabench.afa_rl.datasets import get_afa_dataset_fn
 from afabench.afa_rl.shim2018.agents import Shim2018Agent
 from afabench.afa_rl.shim2018.models import (
+    LitShim2018EmbedderClassifier,
     Shim2018AFAClassifier,
     Shim2018AFAPredictFn,
 )
@@ -36,6 +35,7 @@ from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
 from afabench.common.utils import (
     dict_with_prefix,
     get_class_frequencies,
+    initialize_wandb_run,
     load_dataset_artifact,
     set_seed,
 )
@@ -45,6 +45,13 @@ if TYPE_CHECKING:
 
 
 log = logging.getLogger(__name__)
+
+
+def load_pretrained_model_artifact(
+    path: Path,
+) -> LitShim2018EmbedderClassifier:
+    # TODO
+    pass
 
 
 @hydra.main(
@@ -59,17 +66,9 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
     device = torch.device(cfg.device)
 
     if cfg.use_wandb:
-        run = wandb.init(
-            config=cast(
-                "dict[str, Any]", OmegaConf.to_container(cfg, resolve=True)
-            ),
-            job_type="training",
-            tags=["shim2018"],
-            dir="extra/wandb",
+        run = initialize_wandb_run(
+            cfg=cfg, job_type="training", tags=["shim2018"]
         )
-        # Log W&B run URL
-        log.info(f"W&B run initialized: {run.name} ({run.id})")
-        log.info(f"W&B run URL: {run.url}")
     else:
         run = None
 

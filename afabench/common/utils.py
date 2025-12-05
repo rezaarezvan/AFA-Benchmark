@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import random
 import shutil
@@ -6,12 +7,15 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import torch
+from omegaconf import OmegaConf
 from torch import nn
+from wandb.sdk.wandb_run import Run
 
+import wandb
 from afabench.common.config_classes import InitializerConfig, UnmaskerConfig
 from afabench.common.custom_types import (
     AFAClassifier,
@@ -27,6 +31,8 @@ from afabench.common.registry import (
     get_afa_method_class,
 )
 from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
+
+logger = logging.getLogger(__name__)
 
 
 def set_seed(seed: int | None) -> int:
@@ -209,3 +215,22 @@ def load_eval_components(
         classifier_artifact_path=classifier_artifact_path, device=device
     )
     return (method, unmasker, initializer, dataset, classifier)
+
+
+def initialize_wandb_run(
+    cfg: Any,  # noqa: ANN401
+    job_type: str,
+    tags: list[str],
+) -> Run:
+    run = wandb.init(
+        config=cast(
+            "dict[str, Any]", OmegaConf.to_container(cfg, resolve=True)
+        ),
+        job_type=job_type,
+        tags=tags,
+        dir="extra/wandb",
+    )
+    # Log W&B run URL
+    logger.info(f"W&B run initialized: {run.name} ({run.id})")
+    logger.info(f"W&B run URL: {run.url}")
+    return run

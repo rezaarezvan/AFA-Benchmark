@@ -7,6 +7,7 @@ UNMASKER_PER_DATASET = {
 }
 EVAL_DATASET_SPLIT = "val"  # whether to use "val" or "test" during evaluation
 DEVICE = "cpu"
+USE_WANDB = False
 
 # Main parameters that we investigate
 # - hard budget
@@ -87,7 +88,7 @@ rule train_method:
             soft_budget_param={wildcards.train_soft_budget_param} \
             device={DEVICE} \
             seed={wildcards.train_seed} \
-            use_wandb=false
+            use_wandb={USE_WANDB}
         """
 
 
@@ -153,7 +154,7 @@ rule eval_method:
             eval_only_n_samples=null \
             batch_size=1 \
             hard_budget={wildcards.eval_hard_budget} \
-            use_wandb=false
+            use_wandb={USE_WANDB}
         """
 
 # Add eval_soft_budget_param column. Not used by dummy methods, but kept for consistency.

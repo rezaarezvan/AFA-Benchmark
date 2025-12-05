@@ -1,4 +1,5 @@
 import gc
+import json
 import logging
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -6,19 +7,17 @@ from tempfile import TemporaryDirectory
 import hydra
 import lightning as pl
 import torch
-import wandb
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import WandbLogger
 from omegaconf import OmegaConf
 
-from afabench import SAVE_PATH
 from afabench.afa_rl.datasets import DataModuleFromDatasets
 from afabench.afa_rl.shim2018.utils import get_shim2018_model_from_config
 from afabench.common.config_classes import Shim2018PretrainConfig
 from afabench.common.utils import (
     get_class_frequencies,
-    load_dataset,
-    save_artifact,
+    initialize_wandb_run,
+    load_dataset_artifact,
     set_seed,
 )
 
@@ -27,7 +26,7 @@ log = logging.getLogger(__name__)
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/pretrain/shim2018",
+    config_path="../../extra/conf/scripts/pretrain/shim2018",
     config_name="config",
 )
 def main(cfg: Shim2018PretrainConfig) -> None:
@@ -36,52 +35,48 @@ def main(cfg: Shim2018PretrainConfig) -> None:
     torch.cuda.empty_cache()
     torch.set_float32_matmul_precision("medium")
 
-    run = wandb.init(
-        group="pretrain_shim2018",
-        job_type="pretraining",
-        config=OmegaConf.to_container(cfg, resolve=True),
-        tags=["shim2018"],
-        dir="extra/wandb",
+    if cfg.use_wandb:
+        run = initialize_wandb_run(
+            cfg=cfg, job_type="pretraining", tags=["shim2018"]
+        )
+    else:
+        run = None
+
+    log.info("Loading datasets...")
+    train_dataset, train_dataset_metadata = load_dataset_artifact(
+        Path(cfg.dataset_artifact_path),
+        split="train",
     )
-
-    log.info(f"W&B run initialized: {run.name} ({run.id})")
-    log.info(f"W&B run URL: {run.url}")
-
-    # Load dataset from filesystem
-    train_dataset, val_dataset, _, dataset_metadata = load_dataset(
-        cfg.dataset_artifact_name
+    train_features, train_labels = train_dataset.get_all_data()
+    val_dataset, val_dataset_metadata = load_dataset_artifact(
+        Path(cfg.dataset_artifact_path),
+        split="val",
     )
-
     datamodule = DataModuleFromDatasets(
         train_dataset, val_dataset, batch_size=cfg.batch_size
     )
+    log.info("Loaded datasets.")
 
-    dataset_type = dataset_metadata["dataset_type"]
-    split = dataset_metadata["split_idx"]
-    n_features = train_dataset.features.shape[-1]
-    n_classes = train_dataset.labels.shape[-1]
-
-    log.info(f"Dataset: {dataset_type}, Split: {split}")
-    log.info(f"Features: {n_features}, Classes: {n_classes}")
-    log.info(f"Training samples: {len(train_dataset)}")
-
-    train_class_probabilities = get_class_frequencies(train_dataset.labels)
-    log.debug(
-        f"Class probabilities in training set: {train_class_probabilities}"
-    )
-
+    log.info("Creating model...")
+    train_class_probabilities = get_class_frequencies(train_labels)
+    assert len(train_dataset.feature_shape) == 1, "Only 1D features supported"
+    assert len(train_dataset.label_shape) == 1, "Only 1D label supported"
     lit_model = get_shim2018_model_from_config(
-        cfg, n_features, n_classes, train_class_probabilities
+        cfg,
+        n_features=train_dataset.feature_shape.numel(),
+        n_classes=train_dataset.label_shape.numel(),
+        class_probabilities=train_class_probabilities,
     )
     lit_model = lit_model.to(cfg.device)
+    log.info("Created model.")
 
+    log.info("Starting training...")
     checkpoint_callback = ModelCheckpoint(
         monitor="val_loss_many_observations",
         save_top_k=1,
         mode="min",
     )
-
-    logger = WandbLogger(save_dir="extra/wandb")
+    logger = WandbLogger(save_dir="extra/wandb") if cfg.use_wandb else False
     trainer = pl.Trainer(
         max_epochs=cfg.epochs,
         logger=logger,
@@ -97,41 +92,32 @@ def main(cfg: Shim2018PretrainConfig) -> None:
     except KeyboardInterrupt:
         pass
     finally:
-        best_checkpoint_path = Path(
-            trainer.checkpoint_callback.best_model_path
-        )
-        log.info(f"Best checkpoint: {best_checkpoint_path}")
+        log.info("Finished training.")
 
-        # Save as a local artifact in extra/result/shim2018/pretrain/...
+        log.info("Saving best model...")
+        best_checkpoint_path = Path(
+            trainer.checkpoint_callback.best_model_path  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
+        )
+
         with TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)
 
             ckpt = torch.load(best_checkpoint_path, map_location="cpu")
             torch.save(ckpt, tmp_path / "model.pt")
 
-            artifact_identifier = (
-                f"{dataset_type.lower()}_split_{split}_seed_{cfg.seed}"
-            )
-            artifact_dir = SAVE_PATH / artifact_identifier
-
             metadata = {
-                "model_type": "Shim2018EmbedderClassifier",
-                "dataset_type": dataset_type,
-                "dataset_artifact_name": cfg.dataset_artifact_name,
+                "model_class_name": "Shim2018EmbedderClassifier",
+                "dataset_class_name": train_dataset_metadata["class_name"],
+                "dataset_artifact_path": cfg.dataset_artifact_path,
                 "seed": cfg.seed,
-                "split_idx": split,
-                "pretrain_config": OmegaConf.to_container(cfg, resolve=True),
+                "config": OmegaConf.to_container(cfg, resolve=True),
             }
+            with (Path(cfg.save_path) / "metadata.json").open("w") as f:
+                json.dump(metadata, f, indent=4)
+        log.info("Saved best model.")
 
-            save_artifact(
-                artifact_dir=artifact_dir,
-                files={"model.pt": tmp_path / "model.pt"},
-                metadata=metadata,
-            )
-
-            log.info(f"Shim2018 pretrained model saved to: {artifact_dir}")
-
-        run.finish()
+        if run is not None:
+            run.finish()
 
         gc.collect()
         if torch.cuda.is_available():
