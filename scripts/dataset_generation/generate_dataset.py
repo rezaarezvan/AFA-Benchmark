@@ -64,9 +64,19 @@ def generate_and_save_split(
     val_path = save_path / "val.pt"
     test_path = save_path / "test.pt"
 
-    train_dataset.save(train_path)
-    val_dataset.save(val_path)
-    test_dataset.save(test_path)
+    for object, path in zip(
+        [train_dataset, val_dataset, test_dataset],
+        [train_path, val_path, test_path],
+    ):
+        save_artifact(
+            object=object,
+            path=path,
+            metadata=metadata_to_save
+            | {
+                "seed_for_split": seed_for_split,
+                "generated_at": datetime.now(UTC).isoformat(),
+            },
+        )
 
     # Prepare metadata
     metadata_to_save = metadata_to_save | {
@@ -104,7 +114,6 @@ def main(cfg: DatasetGenerationConfig) -> None:
             dataset_kwargs=dataset_kwargs,
             metadata_to_save={
                 "instance_idx": instance_idx,
-                "class_name": cfg.dataset.class_name,
             },
         )
 

@@ -118,3 +118,8 @@ def get_afa_initializer_class(class_name: str) -> type[AFAInitializer]:
     )
     module = __import__(module_name, fromlist=[class_name])
     return getattr(module, class_name)
+
+
+def get_class(class_name: str) -> type:
+    # TODO:
+    pass
