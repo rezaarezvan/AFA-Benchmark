@@ -345,7 +345,8 @@ class RandomClassificationAFAMethod(AFAMethod):
 
         # Sample one index per row
         sampled = torch.multinomial(probs, num_samples=1)
-        selection = sampled.squeeze(1)  # (B, 1) → (B,)
+        # selection = sampled.squeeze(1)  # (B, 1) → (B,)
+        selection = sampled + 1
 
         return selection.to(original_device)
 

@@ -9,7 +9,6 @@ from hydra.utils import to_absolute_path
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger
 
-from afabench import SAVE_PATH
 from afabench.afa_rl.datasets import DataModuleFromDatasets
 from afabench.common.afa_methods import RandomClassificationAFAMethod
 from afabench.common.classifiers import WrappedMaskedMLPClassifier
@@ -20,7 +19,9 @@ from afabench.common.utils import (
     load_dataset_splits,
     set_seed,
 )
-from afabench.eval.hard_budget import eval_afa_method
+from afabench.eval.eval import eval_afa_method
+from afabench.common.initializers.utils import get_afa_initializer_from_config
+from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
 from afabench.eval.utils import plot_metrics
 
 log = logging.getLogger(__name__)
@@ -71,7 +72,8 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
         mode="min",
     )
 
-    log_dir = SAVE_PATH / "logs"
+    log_dir = Path(cfg.save_path) / "logs"
+    log_dir.parent.mkdir(parents=True, exist_ok=True)
     logger = CSVLogger(
         save_dir=str(log_dir),
         name="masked_mlp_classifier",
@@ -108,6 +110,14 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
         wrapped_classifier = WrappedMaskedMLPClassifier(
             module=best_model, device=torch.device(cfg.device)
         )
+        initializer = get_afa_initializer_from_config(
+            cfg.initializer
+        )
+        initializer.set_seed(cfg.seed)
+        unmasker = get_afa_unmasker_from_config(
+            cfg.unmasker
+        )
+        unmasker.set_seed(cfg.seed)
 
         if cfg.evaluate_final_performance:
             log.info("Evaluating final performance...")
@@ -116,21 +126,30 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
             )
             metrics = eval_afa_method(
                 afa_select_fn=afa_method.select,
+                afa_unmask_fn=unmasker.unmask,
+                n_selection_choices=unmasker.get_n_selections(
+                    feature_shape=val_dataset.feature_shape
+                ),
+                afa_initialize_fn=initializer.initialize,
                 dataset=val_dataset,
-                budget=n_features,
-                afa_predict_fn=afa_method.predict,
+                builtin_afa_predict_fn=afa_method.predict,
+                selection_budget=n_features,
                 only_n_samples=cfg.eval_only_n_samples,
             )
-            fig = plot_metrics(metrics)
-            plots_dir = SAVE_PATH / "plots"
-            plots_dir.mkdir(parents=True, exist_ok=True)
-            dataset_name = dataset_dir.parent.name
-            dataset_instance = dataset_dir.name
-            classifier_name = f"masked_mlp_classifier-{dataset_name}_instance_{dataset_instance}"
-            fig_path = plots_dir / f"{classifier_name}_metrics.png"
-            fig.savefig(fig_path, bbox_inches="tight")
-            plt.close(fig)
-            log.info(f"Saved metrics plot to: {fig_path}")
+            csv_path = Path(cfg.save_path) / "eval_data.csv"
+            metrics.to_csv(csv_path, index=False)
+            log.info(f"Saved evaluation data to CSV at: {csv_path}")
+            # TODO test the visualization of saved evaluation results in the pipeline
+            # fig = plot_metrics(metrics)
+            # plots_dir = Path(cfg.save_path) / "plots"
+            # plots_dir.mkdir(parents=True, exist_ok=True)
+            # dataset_name = dataset_dir.parent.name
+            # dataset_instance = dataset_dir.name
+            # classifier_name = f"masked_mlp_classifier-{dataset_name}_instance_{dataset_instance}"
+            # fig_path = plots_dir / f"{classifier_name}_metrics.png"
+            # fig.savefig(fig_path, bbox_inches="tight")
+            # plt.close(fig)
+            # log.info(f"Saved metrics plot to: {fig_path}")
 
         # Save to local filesystem
         dataset_name = dataset_dir.parent.name
@@ -138,7 +157,7 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
         classifier_name = (
             f"masked_mlp_classifier-{dataset_name}_instance_{dataset_instance}"
         )
-        classifier_dir = SAVE_PATH / "classifiers" / classifier_name
+        classifier_dir = Path(cfg.save_path) / "classifiers" / classifier_name
         classifier_dir.mkdir(parents=True, exist_ok=True)
 
         # Save classifier
@@ -150,7 +169,7 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
         metadata = {
             "classifier_class_name": wrapped_classifier.__class__.__name__,
             "dataset_path": str(dataset_dir),
-            "dataset_type": dataset_metadata["dataset_type"],
+            "dataset_type": dataset_metadata["class_name"],
             "seed": cfg.seed,
             "num_cells": list(cfg.num_cells),
             "dropout": cfg.dropout,

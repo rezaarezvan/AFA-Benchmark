@@ -389,10 +389,6 @@ class Covert2023PretrainingConfig:
 
     hidden_units: list[int] = field(default_factory=lambda: [128, 128])
     dropout: float = 0.3
-    activations: str = "ReLU"
-    flag_drop_out: bool = True
-    flag_only_output_layer: bool = False
-    experiment_id: str | None = None
 
 
 cs.store(name="pretrain_covert2023", node=Covert2023PretrainingConfig)
@@ -421,7 +417,7 @@ cs.store(name="pretrain_covert2023", node=Covert2023Pretraining2DConfig)
 
 @dataclass
 class Covert2023TrainingConfig:
-    pretrained_model_artifact_name: str
+    pretrained_path: str
     batch_size: int = 128
     lr: float = 1e-3
     hard_budget: int = 20
@@ -461,8 +457,10 @@ cs.store(name="train_covert2023", node=Covert2023Training2DConfig)
 
 @dataclass
 class Gadgil2023PretrainingConfig:
-    dataset_artifact_name: str
-    output_artifact_aliases: list[str] = field(default_factory=list)
+    dataset_name: str
+    split_idx: int
+    dataset_base_path: str
+    output_dir: str
 
     batch_size: int = 128
     seed: int = 42
@@ -475,9 +473,6 @@ class Gadgil2023PretrainingConfig:
 
     hidden_units: list[int] = field(default_factory=lambda: [128, 128])
     dropout: float = 0.3
-    activations: str = "ReLU"
-    flag_drop_out: bool = True
-    flag_only_output_layer: bool = False
 
 
 cs.store(name="pretrain_gadgil2023", node=Gadgil2023PretrainingConfig)
@@ -816,6 +811,8 @@ class TrainMaskedMLPClassifierConfig:
     limit_val_batches: int | None
     min_masking_probability: float
     max_masking_probability: float
+    initializer: InitializerConfig
+    unmasker: UnmaskerConfig
     eval_only_n_samples: (
         int | None
     )  # if specified, only evaluate on this many samples
@@ -825,6 +822,7 @@ class TrainMaskedMLPClassifierConfig:
     num_cells: list[int]
     dropout: float
     evaluate_final_performance: bool
+    save_path: str
 
 
 cs.store(
