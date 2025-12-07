@@ -9,8 +9,8 @@ defaults:
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
 
-
-output_artifact_aliases: []
-
 device: "cuda"
 seed: 42
+initializer:
+  class_name: "ZeroInitializer"
+  kwargs: {}

@@ -1,4 +1,5 @@
-dataset_artifact_name: "cube/cube_split_1"
+dataset_name: "cube"
+split_idx: 1
 batch_size: 128
 lr: 0.001
 nepochs: 100
@@ -6,8 +7,5 @@ patience: 5
 
 hidden_units: [128,128]
 dropout: 0.3
-activations: 'ReLU'
-flag_drop_out: True
-flag_only_output_layer: False
 min_masking_probability: 0.0
 max_masking_probability: 0.9

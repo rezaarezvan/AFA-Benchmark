@@ -11,3 +11,6 @@ defaults:
 
 device: "cuda"
 seed: 42
+initializer:
+  class_name: "ZeroInitializer"
+  kwargs: {}

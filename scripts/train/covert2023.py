@@ -2,13 +2,12 @@ import gc
 import logging
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any, cast
 
 import hydra
 import torch
-import wandb
 from omegaconf import OmegaConf
 from torch import nn
+from torchrl.modules import MLP
 
 from afabench import SAVE_PATH
 from afabench.afa_discriminative.afa_methods import (
@@ -16,12 +15,13 @@ from afabench.afa_discriminative.afa_methods import (
     GreedyDynamicSelection,
 )
 from afabench.afa_discriminative.datasets import prepare_datasets
-from afabench.afa_discriminative.models import fc_Net
 from afabench.afa_discriminative.utils import MaskLayer
 from afabench.common.config_classes import Covert2023TrainingConfig
+from afabench.common.initializers.utils import get_afa_initializer_from_config
 from afabench.common.utils import (
     get_class_frequencies,
     load_pretrained_model,
+    load_dataset_splits,
     save_artifact,
     set_seed,
 )
@@ -31,84 +31,73 @@ log = logging.getLogger(__name__)
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/train/covert2023",
+    config_path="../../extra/conf/scripts/train/covert2023",
     config_name="config",
 )
 def main(cfg: Covert2023TrainingConfig):
     log.debug(cfg)
-
-    run = wandb.init(
-        config=cast(
-            "dict[str, Any]", OmegaConf.to_container(cfg, resolve=True)
-        ),
-        job_type="training",
-        tags=["covert2023", "GDFS"],
-        dir="extra/wandb",
-    )
-
+    print(OmegaConf.to_yaml(cfg))
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
 
-    # Load raw pretrained model checkpoint + dataset
     (
-        pretrained_ckpt_path,
-        metadata,
-        _,
-        train_dataset,
-        val_dataset,
-        _,
-        dataset_metadata,
+        model_path,
+        meta_data,
     ) = load_pretrained_model(
-        f"{cfg.pretrained_model_artifact_name}_seed_{cfg.seed}",
+        Path(cfg.pretrained_path),
         device=device,
     )
 
-    dataset_type = dataset_metadata["dataset_type"]
-    split = dataset_metadata["split_idx"]
+    dataset_name = meta_data["dataset_name"]
+    dataset_base_path = meta_data["dataset_base_path"]
+    dataset_split_idx = meta_data["dataset_split_idx"]
+
+    dataset_root = (
+        Path(dataset_base_path) / dataset_name / str(dataset_split_idx)
+    )
+    train_dataset, val_dataset, _, dataset_metadata = load_dataset_splits(
+        dataset_root
+    )
 
     # Prepare loaders
-    train_class_probabilities = get_class_frequencies(train_dataset.labels)
-    class_weights = (
-        len(train_class_probabilities)
-        / (len(train_class_probabilities) * train_class_probabilities)
-    ).to(device)
+    _, train_labels = train_dataset.get_all_data()
+    train_class_probabilities = get_class_frequencies(train_labels)
+    class_weights = len(train_class_probabilities) / (
+        len(train_class_probabilities) * train_class_probabilities
+    )
+    class_weights = class_weights.to(device)
 
     train_loader, val_loader, d_in, d_out = prepare_datasets(
         train_dataset, val_dataset, cfg.batch_size
     )
 
     # Predictor network
-    predictor = fc_Net(
-        input_dim=d_in * 2,
-        output_dim=d_out,
-        hidden_layer_num=len(cfg.hidden_units),
-        hidden_unit=cfg.hidden_units,
-        activations=cfg.activations,
-        drop_out_rate=cfg.dropout,
-        flag_drop_out=cfg.flag_drop_out,
-        flag_only_output_layer=cfg.flag_only_output_layer,
+    predictor = MLP(
+        in_features = d_in * 2,
+        out_features = d_out,
+        num_cells = cfg.hidden_units,   # hidden_units
+        activation_class = torch.nn.ReLU,
+        dropout = cfg.dropout,
     ).to(device)
 
     # Load pretrained predictor weights
-    ckpt = torch.load(pretrained_ckpt_path, map_location=device)
+    ckpt = torch.load(model_path, map_location=device)
     predictor.load_state_dict(ckpt["predictor_state_dict"])
 
-    # Fresh selector
-    selector = fc_Net(
-        input_dim=d_in * 2,
-        output_dim=d_in,
-        hidden_layer_num=len(cfg.hidden_units),
-        hidden_unit=cfg.hidden_units,
-        activations=cfg.activations,
-        drop_out_rate=cfg.dropout,
-        flag_drop_out=cfg.flag_drop_out,
-        flag_only_output_layer=cfg.flag_only_output_layer,
+    selector = MLP(
+        in_features=d_in * 2,
+        out_features=d_in,
+        num_cells=cfg.hidden_units,
+        activation_class=nn.ReLU,
+        dropout=cfg.dropout,
     ).to(device)
 
     # GDFS
     mask_layer = MaskLayer(append=True)
     gdfs = GreedyDynamicSelection(selector, predictor, mask_layer).to(device)
 
+    initializer = get_afa_initializer_from_config(cfg.initializer)
+    initializer.set_seed(cfg.seed)
     gdfs.fit(
         train_loader,
         val_loader,
@@ -119,6 +108,7 @@ def main(cfg: Covert2023TrainingConfig):
         patience=cfg.patience,
         verbose=True,
         feature_costs=train_dataset.get_feature_acquisition_costs().to(device),
+        initializer=initializer,
     )
 
     # Build final method
@@ -127,6 +117,8 @@ def main(cfg: Covert2023TrainingConfig):
         predictor=gdfs.predictor.cpu(),
         device=torch.device("cpu"),
         modality="tabular",
+        d_in=d_in,
+        d_out=d_out,
     )
 
     # Save locally
@@ -134,18 +126,20 @@ def main(cfg: Covert2023TrainingConfig):
         tmp_path = Path(tmp_dir)
         afa_method.save(tmp_path)
 
-        artifact_identifier = f"{dataset_type.lower()}_split_{split}_budget_{
+        artifact_identifier = f"{dataset_name.lower()}_split_{dataset_split_idx}_budget_{
             cfg.hard_budget
         }_seed_{cfg.seed}"
         artifact_dir = SAVE_PATH / artifact_identifier
 
         metadata_out = {
-            "method_type": afa_method.__class__.__name__,
-            "dataset_type": dataset_type,
-            "dataset_artifact_name": metadata["dataset_artifact_name"],
+            "method_class_name": afa_method.__class__.__name__,
+            "dataset_class_name": dataset_metadata["class_name"],
+            "dataset_base_path": dataset_base_path,
             "budget": cfg.hard_budget,
             "seed": cfg.seed,
-            "split_idx": split,
+            "split_idx": dataset_split_idx,
+            "initializer_name": cfg.initializer.class_name,
+            "initializer_config": OmegaConf.to_container(cfg.initializer.kwargs),
         }
 
         save_artifact(
@@ -155,8 +149,6 @@ def main(cfg: Covert2023TrainingConfig):
         )
 
         log.info(f"Covert2023 method saved to: {artifact_dir}")
-
-    run.finish()
 
     gc.collect()
     if torch.cuda.is_available():
