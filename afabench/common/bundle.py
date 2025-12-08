@@ -93,7 +93,7 @@ def save_bundle(obj: Saveable, path: Path, metadata: dict[str, Any]) -> None:
 
     # Save object to path/data/. Object decides what this data folder should contain
     data_path = path / "data"
-    data_path.mkdir(parents=True, exist_ok=True)
+    data_path.parent.mkdir(parents=True, exist_ok=True)
     obj.save(data_path)
 
     # Get class version (may be None)
@@ -101,7 +101,9 @@ def save_bundle(obj: Saveable, path: Path, metadata: dict[str, Any]) -> None:
 
     # Validate class version format if it exists
     if class_version is not None and not validate_class_version(class_version):
-        msg = f"Invalid class version format: {class_version}. Must be semantic versioning (major.minor.patch)"
+        msg = f"Invalid class version format: {
+            class_version
+        }. Must be semantic versioning (major.minor.patch)"
         raise ValueError(msg)
 
     with (path / "manifest.json").open("w") as f:

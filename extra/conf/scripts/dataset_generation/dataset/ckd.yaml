@@ -1,4 +1,3 @@
-# conf/dataset_generation/dataset/ckd.yaml
 class_name: "CKDDataset"
 kwargs:
-  data_path: "${data_dir}/ckd/chronic_kidney_disease.csv"
+  path: "extra/data/misc/chronic_kidney_disease.csv"

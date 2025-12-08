@@ -99,6 +99,7 @@ def generate_and_save_split(
     config_name="config",
 )
 def main(cfg: DatasetGenerationConfig) -> None:
+    log.info(f"Generating {cfg.dataset.class_name} to {cfg.save_path}")
     for instance_idx, seed in zip(
         cfg.instance_indices, cfg.seeds, strict=True
     ):
@@ -120,6 +121,11 @@ def main(cfg: DatasetGenerationConfig) -> None:
                 "instance_idx": instance_idx,
             },
         )
+    log.info(
+        f"Generated {len(cfg.instance_indices)} dataset instances to {
+            cfg.save_path
+        }"
+    )
 
 
 if __name__ == "__main__":
