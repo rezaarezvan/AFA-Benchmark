@@ -11,13 +11,12 @@ defaults:
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
 
-method_artifact_path: ???
+method_bundle_path: ???
 # unmasker set as component
 # initializer set as component
-dataset_artifact_path: ???
+dataset_bundle_path: ???
 save_path: ???
-dataset_split: "val"
-classifier_artifact_path: null
+classifier_bundle_path: null
 seed: null
 device: "cpu"
 eval_only_n_samples: null

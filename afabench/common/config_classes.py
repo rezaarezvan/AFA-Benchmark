@@ -608,7 +608,7 @@ cs.store(name="train_permutation", node=PermutationTrainingConfig)
 
 @dataclass
 class RandomDummyTrainConfig:
-    dataset_artifact_path: str
+    dataset_bundle_path: str
     save_path: str
     initializer: InitializerConfig
     unmasker: UnmaskerConfig
@@ -627,7 +627,7 @@ cs.store(name="train_random_dummy", node=RandomDummyTrainConfig)
 
 @dataclass
 class SequentialDummyTrainConfig:
-    dataset_artifact_path: str
+    dataset_bundle_path: str
     save_path: str
     initializer: InitializerConfig
     unmasker: UnmaskerConfig
@@ -863,19 +863,17 @@ cs.store(
 @dataclass
 class EvalConfig:
     # Which method to evaluate
-    method_artifact_path: str
+    method_bundle_path: str
     # Which unmasker to use
     unmasker: UnmaskerConfig
     # Which initializer to use
     initializer: InitializerConfig
     # Which dataset instance to use
-    dataset_artifact_path: str
+    dataset_bundle_path: str
     # Save path
     save_path: str
-    # Which split of the instance to use. Should be one of "train", "val" or "test"
-    dataset_split: str
     # Also save results for predictions using an external classifier
-    classifier_artifact_path: str | None
+    classifier_bundle_path: str | None
     seed: int | None
     device: str
     # Make it possible to only evaluate a subset of the dataset, for debugging purposes

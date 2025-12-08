@@ -13,7 +13,7 @@ from afabench.common.custom_types import (
     MaskedFeatures,
     SelectionMask,
 )
-from afabench.common.registry import get_afa_classifier_class
+from afabench.common.registry import get_class
 
 
 @final
@@ -386,7 +386,7 @@ class RandomClassificationAFAMethod(AFAMethod):
         with (path / "classifier_class_name.txt").open("r") as f:
             classifier_class_name = f.read()
 
-        afa_classifier = get_afa_classifier_class(classifier_class_name).load(
+        afa_classifier = get_class(classifier_class_name).load(
             path / "classifier.pt", device
         )
         return cls(afa_classifier, device)
@@ -514,7 +514,7 @@ class RandomPatchClassificationAFAMethod(AFAMethod):
         with (path / "classifier_class_name.txt").open("r") as f:
             classifier_class_name = f.read()
 
-        afa_classifier = get_afa_classifier_class(classifier_class_name).load(
+        afa_classifier = get_class(classifier_class_name).load(
             path / "classifier.pt", device
         )
         cfg = torch.load(path / "config.pt")
@@ -611,7 +611,7 @@ class SequentialClassificationAFAMethod(AFAMethod):
         with (path / "classifier_class_name.txt").open("r") as f:
             classifier_class_name = f.read()
 
-        afa_classifier = get_afa_classifier_class(classifier_class_name).load(
+        afa_classifier = get_class(classifier_class_name).load(
             path / "classifier.pt", device
         )
         return cls(afa_classifier, device)

@@ -92,7 +92,9 @@ def save_bundle(obj: Saveable, path: Path, metadata: dict[str, Any]) -> None:
     path.mkdir(parents=True, exist_ok=True)
 
     # Save object to path/data/. Object decides what this data folder should contain
-    obj.save(path / "data")
+    data_path = path / "data"
+    data_path.mkdir(parents=True, exist_ok=True)
+    obj.save(data_path)
 
     # Get class version (may be None)
     class_version = get_class_version(obj.__class__)
@@ -116,7 +118,8 @@ def save_bundle(obj: Saveable, path: Path, metadata: dict[str, Any]) -> None:
 
 
 def load_bundle(
-    path: Path, kwargs: dict[str, Any]
+    path: Path,
+    **kwargs: dict[str, Any],
 ) -> tuple[Loadeable, dict[str, Any]]:
     """
     Load a bundle from disk. `path` is required to end with the `.bundle` extension to make it clear that this is a bundle.

@@ -65,7 +65,7 @@ rule all:
 
 rule train_method:
     input:
-        "extra/data/datasets/{dataset}/{dataset_instance_idx}",
+        "extra/data/datasets/{dataset}/{dataset_instance_idx}/train.bundle",
     output:
         directory(
             "extra/trained_methods/{method}/"
@@ -73,14 +73,14 @@ rule train_method:
                 "instance_idx-{dataset_instance_idx}/"
                     "train_seed-{train_seed}+"
                     "train_hard_budget-{train_hard_budget}+"
-                    "train_soft_budget_param-{train_soft_budget_param}"
+                    "train_soft_budget_param-{train_soft_budget_param}.bundle"
         ),
     params:
         unmasker=lambda wildcards: UNMASKER_PER_DATASET[wildcards.dataset],
     shell:
         """
         python scripts/train/{wildcards.method}.py \
-            dataset_artifact_path={input} \
+            dataset_bundle_path={input} \
             save_path={output} \
             components/initializers@initializer={INITIALIZER} \
             components/unmaskers@unmasker={params.unmasker} \
@@ -108,14 +108,14 @@ rule train_method:
 
 rule eval_method:
     input:
-        "extra/data/datasets/{dataset}/{dataset_instance_idx}",
+        "extra/data/datasets/{dataset}/{dataset_instance_idx}/val.bundle",
 
         "extra/trained_methods/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "train_seed-{train_seed}+"
                 "train_hard_budget-{train_hard_budget}+"
-                "train_soft_budget_param-{train_soft_budget_param}",
+                "train_soft_budget_param-{train_soft_budget_param}.bundle",
         # "extra/trained_classifiers/masked_mlp_classifier/dataset-{dataset}+instance-{dataset_instance}",
     output:
         "extra/eval_results/{method}/"
@@ -128,27 +128,26 @@ rule eval_method:
                     "eval_hard_budget-{eval_hard_budget}/"
                         "eval_data.csv",
     params:
-        save_path=lambda wildcards: (
-            f"extra/eval_results/{wildcards.method}/"
-                f"dataset-{wildcards.dataset}+"
-                f"instance_idx-{wildcards.dataset_instance_idx}/"
-                    f"train_seed-{wildcards.train_seed}+"
-                    f"train_hard_budget-{wildcards.train_hard_budget}+"
-                    f"train_soft_budget_param-{wildcards.train_soft_budget_param}/"
-                        f"eval_seed-{wildcards.eval_seed}+"
-                        f"eval_hard_budget-{wildcards.eval_hard_budget}"
-        ),
+        # save_path=lambda wildcards: (
+        #     f"extra/eval_results/{wildcards.method}/"
+        #         f"dataset-{wildcards.dataset}+"
+        #         f"instance_idx-{wildcards.dataset_instance_idx}/"
+        #             f"train_seed-{wildcards.train_seed}+"
+        #             f"train_hard_budget-{wildcards.train_hard_budget}+"
+        #             f"train_soft_budget_param-{wildcards.train_soft_budget_param}/"
+        #                 f"eval_seed-{wildcards.eval_seed}+"
+        #                 f"eval_hard_budget-{wildcards.eval_hard_budget}"
+        # ),
         unmasker=lambda wildcards: UNMASKER_PER_DATASET[wildcards.dataset],
     shell:
         """
         python scripts/eval/eval_afa_method.py \
-            method_artifact_path={input[1]} \
+            method_bundle_path={input[1]} \
             components/initializers@initializer={INITIALIZER} \
             components/unmaskers@unmasker={params.unmasker} \
-            dataset_artifact_path={input[0]} \
-            save_path={params.save_path} \
-            dataset_split={EVAL_DATASET_SPLIT} \
-            classifier_artifact_path=null \
+            dataset_bundle_path={input[0]} \
+            save_path={output} \
+            classifier_bundle_path=null \
             seed={wildcards.eval_seed} \
             device={DEVICE} \
             eval_only_n_samples=null \
@@ -188,7 +187,7 @@ rule add_eval_metadata_to_eval_data:
                 save {output}
         """
 
-# Convert the `prev_selections_performed` (list[int]) and `selection_performed` columns into `selections_performed` (int)
+# Convert the `prev_selections_performed` (list[]) and `selection_performed` columns into `selections_performed` (int)
 rule count_selections:
     input:
         "extra/eval_results2/{method}/"

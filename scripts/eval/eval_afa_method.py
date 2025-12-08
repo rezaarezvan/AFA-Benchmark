@@ -8,6 +8,7 @@ import wandb
 from omegaconf import OmegaConf
 
 from afabench.afa_oracle.afa_methods import AACOAFAMethod
+from afabench.common.bundle import load_bundle
 from afabench.common.config_classes import (
     EvalConfig,
     InitializerConfig,
@@ -23,9 +24,6 @@ from afabench.common.custom_types import (
 from afabench.common.initializers.utils import get_afa_initializer_from_config
 from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
 from afabench.common.utils import (
-    load_classifier_artifact,
-    load_dataset_artifact,
-    load_method_artifact,
     set_seed,
 )
 from afabench.eval.eval import eval_afa_method
@@ -34,12 +32,11 @@ log = logging.getLogger(__name__)
 
 
 def load(
-    method_artifact_path: Path,
+    method_bundle_path: Path,
     unmasker_cfg: UnmaskerConfig,
     initializer_cfg: InitializerConfig,
-    dataset_artifact_path: Path,
-    dataset_split: str,
-    classifier_artifact_path: Path | None = None,
+    dataset_bundle_path: Path,
+    classifier_bundle_path: Path | None = None,
     device: torch.device | None = None,
 ) -> tuple[
     AFAMethod,
@@ -52,8 +49,9 @@ def load(
     dict[str, Any] | None,
 ]:
     # Load method
-    method, method_metadata = load_method_artifact(method_artifact_path)
-    log.info(f"Loaded AFA method from {method_artifact_path}")
+    method, method_manifest = load_bundle(method_bundle_path)
+    method = cast("AFAMethod", cast("object", method))
+    log.info(f"Loaded AFA method from {method_bundle_path}")
 
     # Load unmasker
     unmasker: AFAUnmasker = get_afa_unmasker_from_config(unmasker_cfg)
@@ -66,20 +64,20 @@ def load(
     log.info(f"Loaded {initializer_cfg.class_name} initializer")
 
     # Load dataset
-    dataset, dataset_metadata = load_dataset_artifact(
-        dataset_artifact_path, dataset_split
-    )
-    log.info(f"Loaded dataset from {dataset_artifact_path}")
+    dataset, dataset_manifest = load_bundle(dataset_bundle_path)
+    dataset = cast("AFADataset", cast("object", dataset))
+    log.info(f"Loaded dataset from {dataset_bundle_path}")
 
     # Load external classifier if specified
-    if classifier_artifact_path is not None:
+    if classifier_bundle_path is not None:
         device = torch.device("cpu") if device is None else device
-        classifier, classifier_metadata = load_classifier_artifact(
-            classifier_artifact_path, device=device
+        classifier, classifier_manifest = load_bundle(
+            classifier_bundle_path,
+            device=device,  # pyright: ignore[reportArgumentType]
         )
-        log.info(
-            f"Loaded external classifier from {classifier_artifact_path}."
-        )
+        classifier = cast("AFAClassifier", cast("object", classifier))
+        log.info(f"Loaded external classifier from {classifier_bundle_path}.")
+        classifier_metadata = classifier_manifest["metadata"]
     else:
         classifier = None
         classifier_metadata = None
@@ -91,8 +89,8 @@ def load(
         initializer,
         dataset,
         classifier,
-        method_metadata,
-        dataset_metadata,
+        method_manifest["metadata"],
+        dataset_manifest["metadata"],
         classifier_metadata,
     )
 
@@ -132,24 +130,16 @@ def main(cfg: EvalConfig) -> None:
         dataset_metadata,
         external_classifier_metadata,
     ) = load(
-        method_artifact_path=Path(cfg.method_artifact_path),
+        method_bundle_path=Path(cfg.method_bundle_path),
         unmasker_cfg=cfg.unmasker,
         initializer_cfg=cfg.initializer,
-        dataset_artifact_path=Path(cfg.dataset_artifact_path),
-        dataset_split=cfg.dataset_split,
-        classifier_artifact_path=(
-            Path(cfg.classifier_artifact_path)
-            if cfg.classifier_artifact_path is not None
+        dataset_bundle_path=Path(cfg.dataset_bundle_path),
+        classifier_bundle_path=(
+            Path(cfg.classifier_bundle_path)
+            if cfg.classifier_bundle_path is not None
             else None
         ),
         device=torch.device(cfg.device),
-    )
-
-    # We currently only allow validation on the same dataset (but not split) as the method was trained on.
-    assert (
-        method_metadata["dataset_class_name"] == dataset_metadata["class_name"]
-    ), (
-        f"Expected dataset class {dataset_metadata['class_name']} to match the dataset used during method training {method_metadata['dataset_class_name']}."
     )
 
     # Set the seed of everything
@@ -204,7 +194,7 @@ def main(cfg: EvalConfig) -> None:
     )
 
     # Save CSV directly
-    csv_path = Path(cfg.save_path) / "eval_data.csv"
+    csv_path = Path(cfg.save_path)
     csv_path.parent.mkdir(parents=True, exist_ok=True)
     df_eval.to_csv(csv_path, index=False)
     log.info(f"Saved evaluation data to CSV at: {csv_path}")

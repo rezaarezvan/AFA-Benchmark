@@ -17,7 +17,7 @@ from afabench.common.initializers.mutual_information_initializer import (
     MutualInformationInitializer,
 )
 from afabench.common.initializers.zero_initializer import ZeroInitializer
-from afabench.common.registry import get_afa_initializer_class
+from afabench.common.registry import get_class
 
 
 def get_afa_initializer_from_config(  # noqa: PLR0911
@@ -27,37 +27,37 @@ def get_afa_initializer_from_config(  # noqa: PLR0911
     if initializer_config.class_name == "ZeroInitializer":
         assert not initializer_config.kwargs
 
-        cls = get_afa_initializer_class(initializer_config.class_name)
+        cls = get_class(initializer_config.class_name)
         assert cls is ZeroInitializer
         return cls()
 
     if initializer_config.class_name == "FixedRandomInitializer":
-        cls = get_afa_initializer_class(initializer_config.class_name)
+        cls = get_class(initializer_config.class_name)
         assert cls is FixedRandomInitializer
         return cls(**initializer_config.kwargs)
 
     if initializer_config.class_name == "DynamicRandomInitializer":
-        cls = get_afa_initializer_class(initializer_config.class_name)
+        cls = get_class(initializer_config.class_name)
         assert cls is DynamicRandomInitializer
         return cls(**initializer_config.kwargs)
 
     if initializer_config.class_name == "ManualInitializer":
-        cls = get_afa_initializer_class(initializer_config.class_name)
+        cls = get_class(initializer_config.class_name)
         assert cls is ManualInitializer
         return cls(**initializer_config.kwargs)
 
     if initializer_config.class_name == "MutualInformationInitializer":
-        cls = get_afa_initializer_class(initializer_config.class_name)
+        cls = get_class(initializer_config.class_name)
         assert cls is MutualInformationInitializer
         return cls(**initializer_config.kwargs)
 
     if initializer_config.class_name == "LeastInformativeInitializer":
-        cls = get_afa_initializer_class(initializer_config.class_name)
+        cls = get_class(initializer_config.class_name)
         assert cls is LeastInformativeInitializer
         return cls(**initializer_config.kwargs)
 
     if initializer_config.class_name == "AACODefaultInitializer":
-        cls = get_afa_initializer_class(initializer_config.class_name)
+        cls = get_class(initializer_config.class_name)
         assert cls is AACODefaultInitializer
         return cls(**initializer_config.kwargs)
 

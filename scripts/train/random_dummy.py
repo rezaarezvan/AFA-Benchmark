@@ -1,11 +1,13 @@
 import gc
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING, cast
 
 import hydra
 import torch
 
 from afabench.common.afa_methods import RandomDummyAFAMethod
+from afabench.common.bundle import load_bundle, save_bundle
 from afabench.common.config_classes import (
     RandomDummyTrainConfig,
 )
@@ -13,11 +15,12 @@ from afabench.common.initializers.utils import get_afa_initializer_from_config
 from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
 from afabench.common.utils import (
     initialize_wandb_run,
-    load_dataset_artifact,
-    save_method_artifact,
     set_seed,
 )
 from afabench.eval.eval import eval_afa_method
+
+if TYPE_CHECKING:
+    from afabench.common.custom_types import AFADataset
 
 log = logging.getLogger(__name__)
 
@@ -39,10 +42,10 @@ def main(cfg: RandomDummyTrainConfig) -> None:
     else:
         run = None
 
-    train_dataset, dataset_metadata = load_dataset_artifact(
-        Path(cfg.dataset_artifact_path),
-        split="train",
+    train_dataset, dataset_manifest = load_bundle(
+        Path(cfg.dataset_bundle_path),
     )
+    train_dataset = cast("AFADataset", cast("object", train_dataset))
 
     assert len(train_dataset.label_shape) == 1, "Only 1D labels supported"
 
@@ -75,14 +78,13 @@ def main(cfg: RandomDummyTrainConfig) -> None:
         batch_size=10,
     )
 
-    # Save artifact to filesystem
-    save_method_artifact(
-        method=afa_method,
-        save_path=Path(cfg.save_path),
+    # Save method as a bundle
+    save_bundle(
+        obj=afa_method,
+        path=Path(cfg.save_path),
         metadata={
-            "method_class_name": "RandomDummyAFAMethod",
-            "dataset_class_name": dataset_metadata["class_name"],
-            "dataset_artifact_path": cfg.dataset_artifact_path,
+            "dataset_class_name": dataset_manifest["class_name"],
+            "dataset_bundle_path": cfg.dataset_bundle_path,
             # "split_idx": dataset_metadata["split_idx"],
             "seed": cfg.seed,
             "soft_budget_param": cfg.soft_budget_param,
