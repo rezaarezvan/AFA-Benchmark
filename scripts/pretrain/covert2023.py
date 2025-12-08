@@ -5,11 +5,11 @@ from tempfile import TemporaryDirectory
 
 import hydra
 import torch
+import wandb
 from omegaconf import OmegaConf
 from torch import nn
 from torchrl.modules import MLP
 
-import wandb
 from afabench import SAVE_PATH
 from afabench.afa_discriminative.datasets import prepare_datasets
 from afabench.afa_discriminative.models import MaskingPretrainer

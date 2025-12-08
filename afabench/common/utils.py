@@ -11,11 +11,11 @@ from typing import Any, cast
 
 import numpy as np
 import torch
+import wandb
 from omegaconf import OmegaConf
 from torch import nn
 from wandb.sdk.wandb_run import Run
 
-import wandb
 from afabench.common.config_classes import InitializerConfig, UnmaskerConfig
 from afabench.common.custom_types import (
     AFAClassifier,
