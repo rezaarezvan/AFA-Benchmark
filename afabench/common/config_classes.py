@@ -121,7 +121,8 @@ class Shim2018ClassifierConfig:
 
 @dataclass
 class Shim2018PretrainConfig:
-    dataset_artifact_path: str
+    train_dataset_bundle_path: str
+    val_dataset_bundle_path: str
     save_path: str
     device: str
     seed: int | None

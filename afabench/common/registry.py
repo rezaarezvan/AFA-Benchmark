@@ -49,6 +49,8 @@ REGISTERED_CLASSES = {
     "MutualInformationInitializer": "afabench.common.initializers.MutualInformationInitializer",
     "LeastInformativeInitializer": "afabench.common.initializers.LeastInformativeInitializer",
     "AACODefaultInitializer": "afabench.common.initializers.AACODefaultInitializer",
+    # General PyTorch Model Bundle
+    "TorchModelBundle": "afabench.common.torch_bundle.TorchModelBundle",
 }
 
 

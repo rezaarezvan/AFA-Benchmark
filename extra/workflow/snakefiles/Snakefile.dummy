@@ -108,7 +108,7 @@ rule train_method:
 
 rule eval_method:
     input:
-        "extra/data/datasets/{dataset}/{dataset_instance_idx}/val.bundle",
+        f"extra/data/datasets/{{dataset}}/{{dataset_instance_idx}}/{EVAL_DATASET_SPLIT}.bundle",
 
         "extra/trained_methods/{method}/"
             "dataset-{dataset}+"

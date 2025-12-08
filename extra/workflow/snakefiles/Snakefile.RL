@@ -44,13 +44,13 @@ rule all:
 
 rule pretrain_model:
     input:
-        "extra/data/datasets/{dataset}/{dataset_instance_idx}",
+        "extra/data/datasets/{dataset}/{dataset_instance_idx}/train.bundle",
     output:
         directory(
             "extra/pretrained_models/{method}/"
                 "dataset-{dataset}+"
                 "instance_idx-{dataset_instance_idx}/"
-                    "pretrain_seed-{pretrain_seed}"
+                    "pretrain_seed-{pretrain_seed}.bundle"
         ),
     shell:
         """
@@ -64,12 +64,12 @@ rule pretrain_model:
 
 rule train_method:
     input:
-        "extra/data/datasets/{dataset}/{dataset_instance_idx}",
+        "extra/data/datasets/{dataset}/{dataset_instance_idx}/train.bundle",
 
         "extra/pretrained_models/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
-                "pretrain_seed-{pretrain_seed}"
+                "pretrain_seed-{pretrain_seed}.bundle"
     output:
         directory(
             "extra/trained_methods/{method}/"
@@ -78,7 +78,7 @@ rule train_method:
                     "pretrain_seed-{pretrain_seed}/"
                         "train_seed-{train_seed}+"
                         "train_hard_budget-{train_hard_budget}+"
-                        "train_soft_budget_param-{train_soft_budget_param}"
+                        "train_soft_budget_param-{train_soft_budget_param}.bundle"
         ),
     params:
         unmasker=lambda wildcards: UNMASKER_PER_DATASET[wildcards.dataset],

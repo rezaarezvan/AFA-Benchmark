@@ -1,8 +1,7 @@
 import gc
-import json
 import logging
 from pathlib import Path
-from tempfile import TemporaryDirectory
+from typing import cast
 
 import hydra
 import lightning as pl
@@ -13,11 +12,13 @@ from omegaconf import OmegaConf
 
 from afabench.afa_rl.datasets import DataModuleFromDatasets
 from afabench.afa_rl.shim2018.utils import get_shim2018_model_from_config
+from afabench.common.bundle import load_bundle, save_bundle
 from afabench.common.config_classes import Shim2018PretrainConfig
+from afabench.common.custom_types import AFADataset
+from afabench.common.torch_bundle import TorchModelBundle
 from afabench.common.utils import (
     get_class_frequencies,
     initialize_wandb_run,
-    load_dataset_artifact,
     set_seed,
 )
 
@@ -43,15 +44,15 @@ def main(cfg: Shim2018PretrainConfig) -> None:
         run = None
 
     log.info("Loading datasets...")
-    train_dataset, train_dataset_metadata = load_dataset_artifact(
-        Path(cfg.dataset_artifact_path),
-        split="train",
+    train_dataset, train_dataset_manifest = load_bundle(
+        Path(cfg.train_dataset_bundle_path),
     )
+    train_dataset = cast("AFADataset", cast("object", train_dataset))
     train_features, train_labels = train_dataset.get_all_data()
-    val_dataset, val_dataset_metadata = load_dataset_artifact(
-        Path(cfg.dataset_artifact_path),
-        split="val",
+    val_dataset, val_dataset_metadata = load_bundle(
+        Path(cfg.val_dataset_bundle_path),
     )
+    val_dataset = cast("AFADataset", cast("object", val_dataset))
     datamodule = DataModuleFromDatasets(
         train_dataset, val_dataset, batch_size=cfg.batch_size
     )
@@ -99,22 +100,30 @@ def main(cfg: Shim2018PretrainConfig) -> None:
             trainer.checkpoint_callback.best_model_path  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
         )
 
-        with TemporaryDirectory() as tmp_dir:
-            tmp_path = Path(tmp_dir)
+        # Load the best model checkpoint
+        best_lit_model = type(lit_model).load_from_checkpoint(
+            best_checkpoint_path,
+            embedder=lit_model.embedder,
+            classifier=lit_model.classifier,
+            class_probabilities=train_class_probabilities,
+            map_location="cpu",
+        )
 
-            ckpt = torch.load(best_checkpoint_path, map_location="cpu")
-            torch.save(ckpt, tmp_path / "model.pt")
+        # Create general model bundle wrapper
+        model_bundle = TorchModelBundle(best_lit_model)
 
-            metadata = {
-                "model_class_name": "Shim2018EmbedderClassifier",
-                "dataset_class_name": train_dataset_metadata["class_name"],
-                "dataset_artifact_path": cfg.dataset_artifact_path,
-                "seed": cfg.seed,
-                "config": OmegaConf.to_container(cfg, resolve=True),
-            }
-            with (Path(cfg.save_path) / "metadata.json").open("w") as f:
-                json.dump(metadata, f, indent=4)
-        log.info("Saved best model.")
+        # Save using bundle format
+        bundle_path = Path(cfg.save_path)
+        if bundle_path.suffix != ".bundle":
+            bundle_path = bundle_path.with_suffix(".bundle")
+        metadata = {
+            "dataset_class_name": train_dataset_manifest["class_name"],
+            "train_dataset_bundle_path": cfg.train_dataset_bundle_path,
+            "seed": cfg.seed,
+            "config": OmegaConf.to_container(cfg, resolve=True),
+        }
+        save_bundle(model_bundle, bundle_path, metadata)
+        log.info(f"Saved best model to {bundle_path}")
 
         if run is not None:
             run.finish()
