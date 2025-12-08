@@ -167,7 +167,7 @@ class WrappedMaskedMLPClassifier(AFAClassifier):
 
     @override
     def save(self, path: Path) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
+        path.mkdir(parents=True, exist_ok=True)
         torch.save(
             {
                 "state_dict": self.module.state_dict(),
@@ -176,13 +176,14 @@ class WrappedMaskedMLPClassifier(AFAClassifier):
                 "num_cells": self.module.num_cells,
                 "dropout": self.module.dropout,
             },
-            path,
+            path / "model.pt",
         )
 
     @override
     @classmethod
     def load(cls, path: Path, device: torch.device) -> Self:
-        checkpoint = torch.load(path, map_location=device, weights_only=False)
+        checkpoint = torch.load(
+            path / "model.pt", map_location=device, weights_only=False)
         module = MaskedMLPClassifier(
             n_features=checkpoint["n_features"],
             n_classes=checkpoint["n_classes"],
@@ -244,7 +245,7 @@ class WrappedMaskedViTClassifier(AFAClassifier):
 
     @override
     def save(self, path: Path) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
+        path.mkdir(parents=True, exist_ok=True)
 
         checkpoint = {
             "state_dict": self.module.state_dict(),
@@ -253,12 +254,13 @@ class WrappedMaskedViTClassifier(AFAClassifier):
             "image_size": self.image_size,
             "patch_size": self.patch_size,
         }
-        torch.save(checkpoint, path)
+        torch.save(checkpoint, path / "model.pt")
 
     @override
     @classmethod
     def load(cls, path: Path, device: torch.device) -> Self:
-        checkpoint = torch.load(path, map_location=device, weights_only=False)
+        checkpoint = torch.load(
+            path / "model.pt", map_location=device, weights_only=False)
         name = checkpoint["pretrained_model_name"]
         num_classes = int(checkpoint["num_classes"])
         image_size = int(checkpoint["image_size"])

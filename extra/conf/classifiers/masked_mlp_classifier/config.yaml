@@ -9,23 +9,17 @@ defaults:
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
 
-dataset_path: extra/data/datasets/cube/0
-evaluate_final_performance: true
-batch_size: 128
+train_dataset_path: ???
+val_dataset_path: ???
+save_path: ???
+
 epochs: 100
+batch_size: 128
 limit_train_batches: null
 limit_val_batches: null
-
 min_masking_probability: 0.0
 max_masking_probability: 0.9
-eval_only_n_samples: null
-lr: 1e-3
-seed: 42
-device: "cuda"
-num_cells: [128, 128]
-dropout: 0.1
 
-save_path: "extra/result/masked_mlp_classifier"
 initializer:
   class_name: "ZeroInitializer"
   kwargs: {}
@@ -33,3 +27,13 @@ initializer:
 unmasker:
   class_name: "DirectUnmasker"
   kwargs: {}
+
+eval_only_n_samples: null
+
+
+lr: 1e-3
+num_cells: [128, 128]
+dropout: 0.1
+
+seed: 42
+device: "cuda"

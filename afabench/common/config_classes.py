@@ -807,25 +807,26 @@ class AACOTrainConfig:
 
 @dataclass
 class TrainMaskedMLPClassifierConfig:
-    dataset_path: str
-    batch_size: int
+    train_dataset_path: str
+    val_dataset_path: str
+    save_path: str
+
     epochs: int
+    batch_size: int
     limit_train_batches: int | None
     limit_val_batches: int | None
     min_masking_probability: float
     max_masking_probability: float
+
     initializer: InitializerConfig
     unmasker: UnmaskerConfig
-    eval_only_n_samples: (
-        int | None
-    )  # if specified, only evaluate on this many samples
+
     lr: float
-    seed: int
-    device: str
     num_cells: list[int]
     dropout: float
-    evaluate_final_performance: bool
-    save_path: str
+
+    seed: int
+    device: str
 
 
 cs.store(

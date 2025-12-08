@@ -1,33 +1,33 @@
-import logging
-
 import torch
+import logging
 import torch.nn.functional as F
 
+from afabench.common.utils import get_class_frequencies
 from afabench.afa_oracle.mask_generator import random_mask_generator
-from afabench.common.utils import (
-    get_class_frequencies,
-)
 
 log = logging.getLogger(__name__)
 
 
 def get_knn(
-    X_train,
-    X_query,
-    masks,
-    num_neighbors,
-    instance_idx=0,
-    exclude_instance=True,
-):
+    X_train: torch.Tensor,
+    X_query: torch.Tensor,
+    masks: torch.Tensor,
+    num_neighbors: int,
+    instance_idx: int = 0,
+    exclude_instance: bool = True,
+) -> torch.Tensor:
     """
-    Their exact K-NN implementation.
+    K-NN implementation from the AACO paper.
+
+    (https://github.com/lupalab/aaco/blob/3b2316661651699d11e904e9c5911c175e8b2fdc/src/aaco_rollout.py#L103C1-L103C4).
 
     Args:
         X_train: N x d Train Instances
         X_query: 1 x d Query Instances
         masks: d x R binary masks to try
         num_neighbors: Number of neighbors (k)
-
+        instance_idx: Index of current instance (for exclusion)
+        exclude_instance: Whether to exclude the query instance from results
     """
     X_train_squared = X_train**2
     X_query_squared = X_query**2
@@ -46,114 +46,132 @@ def get_knn(
     return torch.topk(dist_squared, num_neighbors, dim=0, largest=False)[1]
 
 
-def load_mask_generator(input_dim):
+def load_mask_generator(input_dim: int):
     """Their exact mask generator loading logic."""
     # Paper shows this works nearly as well as 10,000 (for MNIST)
     return random_mask_generator(100, input_dim, 100)
 
 
-def get_initial_feature(dataset_name, n_features):
-    """Their exact initial feature selection logic."""
-    dataset_name = dataset_name.lower()
-
-    if dataset_name == "cube":
-        return 6
-    if dataset_name in ["mnist", "fashionmnist"]:
-        return 100
-    # Default: select middle feature
-    return n_features // 2
-
-
 class AACOOracle:
+    """
+    Acquisition Conditioned Oracle for non-greedy active feature acquisition.
+
+    This oracle implements the AACO algorithm from Valancius et al. 2024.
+    (https://proceedings.mlr.press/v235/valancius24a.html)
+
+    It selects features by optimizing a non-greedy objective that considers
+    future acquisition costs.
+    """
+
     def __init__(
         self,
-        k_neighbors=5,
-        acquisition_cost=0.05,
-        hide_val=10.0,
-        dataset_name="cube",
-        split="1",
-        device=None,
+        k_neighbors: int = 5,
+        acquisition_cost: float = 0.05,
+        hide_val: float = 10.0,
+        device: torch.device | None = None,
     ):
         self.k_neighbors = k_neighbors
         self.acquisition_cost = acquisition_cost
         self.hide_val = hide_val
-        self.dataset_name = dataset_name
-        self.split = split
         self.classifier = None
         self.mask_generator = None
-        self.X_train = None
-        self.y_train = None
-        self.device = device
-        self.class_weights = None
+        self.X_train: torch.Tensor | None = None
+        self.y_train: torch.Tensor | None = None
+        self.device = device or torch.device("cpu")
+        self.class_weights: torch.Tensor | None = None
 
-    def fit(self, X_train, y_train):
-        """Fit the oracle on training data."""
+    def fit(self, X_train: torch.Tensor, y_train: torch.Tensor):
+        """
+        Fit the oracle on training data.
+
+        Args:
+            X_train: Training features (N x d)
+            y_train: Training labels (N x n_classes), one-hot encoded
+        """
         self.X_train = X_train.to(self.device)
         self.y_train = y_train.to(self.device)
+
         train_class_probabilities = get_class_frequencies(self.y_train)
         self.class_weights = len(train_class_probabilities) / (
             len(train_class_probabilities) * train_class_probabilities
         )
 
         input_dim = X_train.shape[1]
-
-        # Load exact mask generator
         self.mask_generator = load_mask_generator(input_dim)
 
-        log.info(f"AACO Oracle fitted for {self.dataset_name}")
         log.info(f"Training data: {X_train.shape}")
 
     def set_classifier(self, classifier):
         """Set the classifier model used by the oracle."""
         self.classifier = classifier
 
+    def to(self, device: torch.device) -> "AACOOracle":
+        """Move oracle to device."""
+        self.device = device
+        if self.X_train is not None:
+            self.X_train = self.X_train.to(device)
+        if self.y_train is not None:
+            self.y_train = self.y_train.to(device)
+        if self.class_weights is not None:
+            self.class_weights = self.class_weights.to(device)
+        return self
+
     def select_next_feature(
         self,
-        x_observed,
-        observed_mask,
-        instance_idx=0,
+        x_observed: torch.Tensor,
+        observed_mask: torch.Tensor,
+        instance_idx: int = 0,
         force_acquisition: bool = False,
-    ):
+    ) -> int | None:
         """
-        Feature selection logic.
+        Select the next feature to acquire.
 
         Args:
-            x_observed: 1D tensor of observed features
+            x_observed: 1D tensor of observed features (with unobserved = 0 or hide_val)
             observed_mask: 1D boolean tensor indicating which features are observed
-            instance_idx: index of current instance (for KNN exclusion)
-            force_acquisition: if True, must return a feature (hard budget mode)
+            instance_idx: Index of current instance (for KNN exclusion)
+
+            force_acquisition: If True, must return a feature (hard budget mode).
+                               If False, can return None to indicate stopping (soft budget).
 
         Returns:
-            next_feature: int index of next feature to acquire, or None if terminate
+            Index of next feature to acquire (0-indexed), or None if should stop.
+
+        Note:
+            This method assumes at least one feature is already observed.
+            Initial feature selection should be handled by an AFAInitializer.
         """
-        if self.classifier is None:
-            raise ValueError("Oracle must be fitted first")
+        assert self.classifier is not None, (
+            "Oracle must have a classifier set. Call set_classifier() first."
+        )
+
+        assert self.X_train is not None and self.y_train is not None, (
+            "Oracle must be fitted first. Call fit() first."
+        )
 
         feature_count = len(x_observed)
         mask_curr = observed_mask.float().unsqueeze(0)
 
-        # Cold start: if no features observed, use deterministic initial
-        if not observed_mask.any():
-            initial_feature = get_initial_feature(
-                self.dataset_name, feature_count
-            )
-            return initial_feature
+        assert observed_mask.any(), (
+            "No features observed. Use an AFAInitializer (e.g., "
+            "AACODefaultInitializer) to select the initial feature."
+        )
 
-        # Get nearest neighbors
+        # Get nearest neighbors based on currently observed features
         x_query = x_observed.unsqueeze(0).to(self.device)
         idx_nn = get_knn(
             self.X_train,
             x_query,
-            mask_curr.T,
+            mask_curr.T.to(self.device),
             self.k_neighbors,
             instance_idx,
-            True,
+            exclude_instance=True,
         ).squeeze()
 
-        # Generate candidate masks
+        #  Generate candidate masks for Monte Carlo approximation
         new_masks = self.mask_generator(mask_curr).to(self.device)
         mask = torch.maximum(
-            new_masks, mask_curr.repeat(new_masks.shape[0], 1)
+            new_masks, mask_curr.repeat(new_masks.shape[0], 1).to(self.device)
         )
 
         if not force_acquisition:
@@ -163,171 +181,90 @@ class AACOOracle:
 
         mask = mask.unique(dim=0)
 
-        # If force_acquisition and only current mask remains, pick greedy best
-        if (
-            force_acquisition
-            and mask.shape[0] == 1
-            and (mask[0] == mask_curr).all()
-        ):
-            unobserved = (~observed_mask).nonzero(as_tuple=True)[0]
-            if len(unobserved) > 0:
-                return self._select_greedy_feature(
-                    x_observed, observed_mask, unobserved, idx_nn
-                )
-            return None
+        # Compute expected loss for each candidate mask
+        n_masks = mask.shape[0]
+        X_nn = self.X_train[idx_nn]  # k x d
+        y_nn = self.y_train[idx_nn]  # k x n_classes
 
-        n_masks_updated = mask.shape[0]
+        # Prepare masked inputs for classifier
+        X_masked = X_nn.unsqueeze(0).repeat(n_masks, 1, 1)  # n_masks x k x d
+        mask_expanded = mask.unsqueeze(1).repeat(1, self.k_neighbors, 1)
 
-        # Predictions based on the classifier
-        x_rep = self.X_train[idx_nn].repeat(n_masks_updated, 1)
-        mask_rep = torch.repeat_interleave(mask, self.k_neighbors, 0)
-        idx_nn_rep = idx_nn.repeat(n_masks_updated)
+        # Apply masking
+        X_masked = X_masked * mask_expanded + \
+            self.hide_val * (1 - mask_expanded)
 
-        # Apply masking with hide_val
-        x_masked = torch.mul(x_rep, mask_rep) - (1 - mask_rep) * self.hide_val
-        x_with_mask = torch.cat([x_masked, mask_rep], -1)
+        # Get predictions for all masks and neighbors
+        X_flat = X_masked.view(-1, feature_count)
+        mask_flat = mask_expanded.view(-1, feature_count)
 
-        # Split x_with_mask back into features and mask
-        n_features = x_with_mask.shape[-1] // 2
-        x_masked_split = x_with_mask[..., :n_features]
-        mask_split = x_with_mask[..., n_features:]
+        with torch.no_grad():
+            logits = self.classifier(X_flat, mask_flat)
+            probs = F.softmax(logits, dim=-1)
 
-        y_pred = self.classifier(
-            masked_features=x_masked_split,
-            feature_mask=mask_split,
-            features=None,
-            label=None,
-        )
+        probs = probs.view(n_masks, self.k_neighbors, -1)
 
-        # Compute loss - ensure tensors are on same device
-        y_true_rep = self.y_train[idx_nn_rep]
-        if len(y_true_rep.shape) > 1 and y_true_rep.shape[1] > 1:
-            # One-hot encoded
-            y_true_labels = y_true_rep.argmax(dim=1)
-        else:
-            y_true_labels = y_true_rep
+        # Compute weighted cross-entropy loss
+        y_nn_expanded = y_nn.unsqueeze(0).repeat(n_masks, 1, 1)
+        losses = -torch.sum(y_nn_expanded * torch.log(probs + 1e-10), dim=-1)
 
-        # Ensure y_pred is on the correct device before loss computation
-        if hasattr(y_pred, "to"):
-            y_pred = y_pred.to(self.device)
-        else:
-            y_pred = torch.tensor(y_pred, device=self.device)
+        # Weight by class weights if available
+        if self.class_weights is not None:
+            class_indices = y_nn.argmax(dim=-1)
+            weights = self.class_weights[class_indices]
+            losses = losses * weights.unsqueeze(0)
 
-        # Ensure y_true_labels is on the correct device
-        y_true_labels = y_true_labels.to(self.device)
+        # Average over neighbors
+        expected_losses = losses.mean(dim=1)
 
-        loss = F.cross_entropy(
-            y_pred, y_true_labels, weight=self.class_weights, reduction="none"
-        )
+        # Add acquisition cost penalty
+        n_new_features = mask.sum(dim=1) - mask_curr.sum()
+        costs = expected_losses + self.acquisition_cost * \
+            n_new_features.to(self.device)
 
-        # Reshape loss to (n_masks, k_neighbors) and average over neighbors
-        loss = loss.view(n_masks_updated, self.k_neighbors)
-        avg_loss = loss.mean(dim=1)
+        # Select best mask
+        best_idx = costs.argmin().item()
+        best_mask = mask[best_idx]
 
-        # Add acquisition cost
-        mask_costs = torch.sum(mask, dim=1) - torch.sum(mask_curr)
-        total_cost = avg_loss + self.acquisition_cost * mask_costs
-
-        # Find the mask with minimum cost
-        best_mask_idx = total_cost.argmin()
-        best_mask = mask[best_mask_idx]
-
-        # REMOVED: termination check - always select best mask regardless of cost improvement
-        # Find which new features to acquire
-        new_features = (best_mask - mask_curr.squeeze()).nonzero(
+        # Find the new feature(s) to acquire
+        new_features = (best_mask.bool() & ~observed_mask.to(self.device)).nonzero(
             as_tuple=True
         )[0]
 
         if len(new_features) == 0:
-            if force_acquisition:
-                # Must acquire - pick greedy best from unobserved
-                unobserved = (~observed_mask).nonzero(as_tuple=True)[0]
-                if len(unobserved) > 0:
-                    return self._select_greedy_feature(
-                        x_observed, observed_mask, unobserved, idx_nn
-                    )
-            return None  # Stop action
+            # Best action is to stop (only possible if force_acquisition=False)
+            return None
 
-        if len(new_features) == 1:
-            return new_features[0].item()
-        if len(new_features) > 1:
-            individual_losses = []
-            for feat in new_features:
-                temp_mask = mask_curr.clone()
-                temp_mask[0, feat] = 1.0
-                # Compute loss for acquiring just this one feature
-                x_rep = self.X_train[idx_nn]
-                mask_rep = temp_mask.repeat(self.k_neighbors, 1)
-                x_masked = (
-                    torch.mul(x_rep, mask_rep) - (1 - mask_rep) * self.hide_val
-                )
-                x_with_mask = torch.cat([x_masked, mask_rep], -1)
-                n_features = x_with_mask.shape[-1] // 2
-                y_pred = self.classifier(
-                    masked_features=x_with_mask[..., :n_features],
-                    feature_mask=x_with_mask[..., n_features:],
-                    features=None,
-                    label=None,
-                )
-                feat_loss = F.cross_entropy(
-                    y_pred,
-                    y_true_labels[: self.k_neighbors],
-                    weight=self.class_weights,
-                    reduction="none",
-                )
-                individual_losses.append(feat_loss.mean())
-            best_feat_idx = torch.tensor(individual_losses).argmin()
-            return new_features[best_feat_idx].item()
+        # Return the first new feature to acquire
+        return int(new_features[0].item())
 
-    def _select_greedy_feature(
-        self, x_observed, observed_mask, unobserved_indices, idx_nn
-    ):
-        """Select best single feature greedily when forced to acquire."""
-        best_loss = float("inf")
-        best_feat = unobserved_indices[0].item()
+    def predict_with_mask(
+        self,
+        x_observed: torch.Tensor,
+        observed_mask: torch.Tensor,
+    ) -> torch.Tensor:
+        """
+        Make prediction given observed features.
 
-        for feat in unobserved_indices:
-            temp_mask = observed_mask.float().unsqueeze(0).clone()
-            temp_mask[0, feat] = 1.0
+        Args:
+            x_observed: 1D tensor of observed features
+            observed_mask: 1D boolean tensor indicating which features are observed
 
-            x_rep = self.X_train[idx_nn]
-            mask_rep = temp_mask.repeat(self.k_neighbors, 1)
-            x_masked = (
-                torch.mul(x_rep, mask_rep) - (1 - mask_rep) * self.hide_val
-            )
+        Returns:
+            Class probabilities (n_classes,)
+        """
+        if self.classifier is None:
+            msg = "Oracle must have a classifier set."
+            raise ValueError(msg)
 
-            n_features = x_masked.shape[-1]
-            y_pred = self.classifier(
-                masked_features=x_masked,
-                feature_mask=mask_rep,
-                features=None,
-                label=None,
-            )
+        x_masked = x_observed.unsqueeze(0).to(self.device)
+        mask = observed_mask.float().unsqueeze(0).to(self.device)
 
-            y_true = self.y_train[idx_nn]
-            if len(y_true.shape) > 1 and y_true.shape[1] > 1:
-                y_true_labels = y_true.argmax(dim=1)
-            else:
-                y_true_labels = y_true
+        # Apply masking
+        x_input = x_masked * mask + self.hide_val * (1 - mask)
 
-            loss = F.cross_entropy(
-                y_pred,
-                y_true_labels,
-                weight=self.class_weights,
-                reduction="mean",
-            )
+        with torch.no_grad():
+            logits = self.classifier(x_input, mask)
+            probs = F.softmax(logits, dim=-1)
 
-            if loss < best_loss:
-                best_loss = loss
-                best_feat = feat.item()
-
-        return best_feat
-
-    def to(self, device):
-        """Move oracle to device."""
-        self.device = device
-        if self.X_train is not None:
-            self.X_train = self.X_train.to(device)
-        if self.y_train is not None:
-            self.y_train = self.y_train.to(device)
-        return self
+        return probs.squeeze(0)

@@ -1,16 +1,13 @@
-import logging
-from pathlib import Path
-
 import hydra
 import torch
+import logging
 
+from pathlib import Path
+
+from afabench.common.utils import set_seed
 from afabench.afa_oracle import create_aaco_method
-from afabench.common.config_classes import AACOTrainConfig
-from afabench.common.utils import (
-    set_seed,
-)
-
 from afabench.common.bundle import load_bundle, save_bundle
+from afabench.common.config_classes import AACOTrainConfig
 
 log = logging.getLogger(__name__)
 
@@ -26,65 +23,63 @@ def main(cfg: AACOTrainConfig):
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
 
-    # run = wandb.init(
-    #     config=OmegaConf.to_container(cfg, resolve=True),
-    #     job_type="training",
-    #     tags=["aaco"],
-    #     dir="extra/wandb",
-    # )
+    # Load dataset bundle
+    dataset_obj, dataset_manifest = load_bundle(
+        Path(cfg.dataset_artifact_name))
+    dataset_name = dataset_manifest["class_name"].replace(
+        "Dataset", "").lower()
+    split = dataset_manifest["metadata"].get("split_idx", None)
 
-    # log.info(f"W&B run initialized: {run.name} ({run.id})")
-    # log.info(f"W&B run URL: {run.url}")
+    log.info(f"Dataset: {dataset_manifest['class_name']}, Split: {split}")
+    log.info(f"Training samples: {len(dataset_obj)}")
 
-    # Load dataset bundle from filesystem
-    dataset_obj, dataset_metadata = load_bundle(
-        Path(cfg.dataset_artifact_name)
-    )
-    train_dataset = dataset_obj  # bundle already contains the correct split
+    # Get training data (flatten if needed - AACO works on flat features)
+    X_train, y_train = dataset_obj.get_all_data()
+    feature_shape = dataset_obj.feature_shape
+    if len(feature_shape) > 1:
+        X_train = X_train.view(X_train.shape[0], -1)
+        log.info(f"Flattened features from {
+                 feature_shape} to {X_train.shape[1]}")
 
-    dataset_type = dataset_metadata["class_name"]
-    split = dataset_metadata["metadata"].get("split_idx", None)
+    X_train = X_train.to(device)
+    y_train = y_train.to(device)
 
-    log.info(f"Dataset: {dataset_type}, Split: {split}")
-    log.info(f"Training samples: {len(train_dataset)}")
+    # Determine cost parameter
+    cost = cfg.cost_param if cfg.cost_param is not None else cfg.aco.acquisition_cost
 
-    # Get cost parameter
-    cost = cfg.cost_param or cfg.aco.acquisition_cost
-
-    # Create and train AACO method
+    # Create AACO method
     aaco_method = create_aaco_method(
+        dataset_name=dataset_name,
         k_neighbors=cfg.aco.k_neighbors,
         acquisition_cost=cost,
         hide_val=cfg.aco.hide_val,
-        dataset_name=dataset_type.lower(),
-        split=split,
+        hard_budget=cfg.hard_budget,
         device=device,
     )
-    if cfg.hard_budget:
-        aaco_method.set_hard_budget(cfg.hard_budget)
 
+    # Fit oracle on training data
     log.info("Fitting AACO oracle on training data...")
-    X_train = train_dataset.features.to(device)
-    y_train = train_dataset.labels.to(device)
     aaco_method.aaco_oracle.fit(X_train, y_train)
-    log.info("AACO method fitted and ready for evaluation")
+    log.info("AACO oracle fitted (classifier must be set separately before use)")
 
+    # Save
     save_bundle(
         obj=aaco_method,
         path=Path(cfg.save_path),
         metadata={
             "dataset_artifact": cfg.dataset_artifact_name,
+            "dataset_name": dataset_name,
             "split_idx": split,
             "seed": cfg.seed,
             "cost_param": cost,
             "hard_budget": cfg.hard_budget,
+            "k_neighbors": cfg.aco.k_neighbors,
+            "hide_val": cfg.aco.hide_val,
+            "n_features": X_train.shape[1],
+            "n_train_samples": len(X_train),
         },
     )
-
     log.info(f"Saved AACO method to: {cfg.save_path}")
-
-    # if run:
-    #     run.finish()
 
 
 if __name__ == "__main__":
