@@ -1,20 +1,20 @@
 """Generate multiple instances of a dataset, see dataset_generation.md."""
 
-import json
 import logging
 import random
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import hydra
 
+from afabench.common.bundle import save_bundle
 from afabench.common.config_classes import (
     DatasetGenerationConfig,
     SplitRatioConfig,
 )
 from afabench.common.custom_types import AFADataset
-from afabench.common.registry import get_afa_dataset_class
+from afabench.common.registry import get_class
 
 log = logging.getLogger(__name__)
 
@@ -60,35 +60,37 @@ def generate_and_save_split(
 
     # Save splits
     save_path.mkdir(parents=True, exist_ok=True)
-    train_path = save_path / "train.pt"
-    val_path = save_path / "val.pt"
-    test_path = save_path / "test.pt"
+    train_path = save_path / "train.bundle"
+    val_path = save_path / "val.bundle"
+    test_path = save_path / "test.bundle"
 
-    for object, path in zip(
+    for obj, path in zip(
         [train_dataset, val_dataset, test_dataset],
         [train_path, val_path, test_path],
+        strict=True,
     ):
-        save_artifact(
-            object=object,
+        save_bundle(
+            obj=obj,
             path=path,
             metadata=metadata_to_save
             | {
                 "seed_for_split": seed_for_split,
                 "generated_at": datetime.now(UTC).isoformat(),
+                "kwargs": dataset_kwargs,
             },
         )
 
-    # Prepare metadata
-    metadata_to_save = metadata_to_save | {
-        "seed_for_split": seed_for_split,
-        "generated_at": datetime.now(UTC).isoformat(),
-    }
-    json_data = metadata_to_save | {
-        "kwargs": dataset_kwargs,
-    }
-    # Save metadata
-    with (save_path / "metadata.json").open("w") as f:
-        json.dump(json_data, f)
+    # # Prepare metadata
+    # metadata_to_save = metadata_to_save | {
+    #     "seed_for_split": seed_for_split,
+    #     "generated_at": datetime.now(UTC).isoformat(),
+    # }
+    # json_data = metadata_to_save | {
+    #     "kwargs": dataset_kwargs,
+    # }
+    # # Save metadata
+    # with (save_path / "metadata.json").open("w") as f:
+    #     json.dump(json_data, f)
 
 
 @hydra.main(
@@ -100,7 +102,9 @@ def main(cfg: DatasetGenerationConfig) -> None:
     for instance_idx, seed in zip(
         cfg.instance_indices, cfg.seeds, strict=True
     ):
-        dataset_class = get_afa_dataset_class(cfg.dataset.class_name)
+        dataset_class = cast(
+            "type[AFADataset]", get_class(cfg.dataset.class_name)
+        )
         if dataset_class.accepts_seed():
             dataset_kwargs = dict(cfg.dataset.kwargs) | {"seed": seed}
         else:

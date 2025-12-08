@@ -88,6 +88,9 @@ def save_bundle(obj: Saveable, path: Path, metadata: dict[str, Any]) -> None:
         "Bundle path must end with .bundle extension"
     )
 
+    # Create parent directory if it doesn't exist
+    path.mkdir(parents=True, exist_ok=True)
+
     # Save object to path/data/. Object decides what this data folder should contain
     obj.save(path / "data")
 
@@ -108,6 +111,7 @@ def save_bundle(obj: Saveable, path: Path, metadata: dict[str, Any]) -> None:
                 "metadata": metadata,
             },
             f,
+            indent=2,
         )
 
 
