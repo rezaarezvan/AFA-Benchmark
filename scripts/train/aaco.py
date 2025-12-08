@@ -7,17 +7,17 @@ import torch
 from afabench.afa_oracle import create_aaco_method
 from afabench.common.config_classes import AACOTrainConfig
 from afabench.common.utils import (
-    load_dataset_artifact,
-    save_method_artifact,
     set_seed,
 )
+
+from afabench.common.bundle import load_bundle, save_bundle
 
 log = logging.getLogger(__name__)
 
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/train/aaco",
+    config_path="../../extra/conf/scripts/train/aaco",
     config_name="config",
 )
 def main(cfg: AACOTrainConfig):
@@ -36,14 +36,14 @@ def main(cfg: AACOTrainConfig):
     # log.info(f"W&B run initialized: {run.name} ({run.id})")
     # log.info(f"W&B run URL: {run.url}")
 
-    # Load dataset from filesystem
-    train_dataset, dataset_metadata = load_dataset_artifact(
-        cfg.dataset_artifact_name,
-        split="train",
+    # Load dataset bundle from filesystem
+    dataset_obj, dataset_metadata = load_bundle(
+        Path(cfg.dataset_artifact_name)
     )
+    train_dataset = dataset_obj  # bundle already contains the correct split
 
-    dataset_type = dataset_metadata["dataset_type"]
-    split = dataset_metadata["split_idx"]
+    dataset_type = dataset_metadata["class_name"]
+    split = dataset_metadata["metadata"].get("split_idx", None)
 
     log.info(f"Dataset: {dataset_type}, Split: {split}")
     log.info(f"Training samples: {len(train_dataset)}")
@@ -69,22 +69,18 @@ def main(cfg: AACOTrainConfig):
     aaco_method.aaco_oracle.fit(X_train, y_train)
     log.info("AACO method fitted and ready for evaluation")
 
-    # One clean save call
-    save_method_artifact(
-        method=aaco_method,
-        save_path=Path(cfg.save_path),
+    save_bundle(
+        obj=aaco_method,
+        path=Path(cfg.save_path),
         metadata={
-            "method_type": aaco_method.__class__.__name__,
-            "dataset_type": dataset_type,
-            "dataset_artifact_path": cfg.dataset_artifact_name,
+            "dataset_artifact": cfg.dataset_artifact_name,
             "split_idx": split,
             "seed": cfg.seed,
             "cost_param": cost,
             "hard_budget": cfg.hard_budget,
-            "initializer_type": cfg.initializer_type,
-            "unmasker_type": cfg.unmasker_type,
         },
     )
+
     log.info(f"Saved AACO method to: {cfg.save_path}")
 
     # if run:

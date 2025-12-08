@@ -46,25 +46,10 @@ def get_knn(
     return torch.topk(dist_squared, num_neighbors, dim=0, largest=False)[1]
 
 
-def load_mask_generator(dataset_name, input_dim):
+def load_mask_generator(input_dim):
     """Their exact mask generator loading logic."""
-    dataset_name_lower = dataset_name.lower()
-
-    if dataset_name_lower in [
-        "cube",
-        "diabetes",
-        "mnist",
-        "fashionmnist",
-        "physionet",
-        "miniboone",
-        "afacontext",
-        "bank_marketing",
-        "ckd",
-        "actg",
-    ]:
-        # Paper shows this works nearly as well as 10,000 (for MNIST)
-        return random_mask_generator(100, input_dim, 100)
-    raise ValueError("Unsupported dataset for mask generation")
+    # Paper shows this works nearly as well as 10,000 (for MNIST)
+    return random_mask_generator(100, input_dim, 100)
 
 
 def get_initial_feature(dataset_name, n_features):
@@ -113,7 +98,7 @@ class AACOOracle:
         input_dim = X_train.shape[1]
 
         # Load exact mask generator
-        self.mask_generator = load_mask_generator(self.dataset_name, input_dim)
+        self.mask_generator = load_mask_generator(input_dim)
 
         log.info(f"AACO Oracle fitted for {self.dataset_name}")
         log.info(f"Training data: {X_train.shape}")
