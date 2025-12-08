@@ -93,7 +93,7 @@ def save_bundle(obj: Saveable, path: Path, metadata: dict[str, Any]) -> None:
 
     # Save object to path/data/. Object decides what this data folder should contain
     data_path = path / "data"
-    data_path.parent.mkdir(parents=True, exist_ok=True)
+    data_path.mkdir(parents=True, exist_ok=True)
     obj.save(data_path)
 
     # Get class version (may be None)
