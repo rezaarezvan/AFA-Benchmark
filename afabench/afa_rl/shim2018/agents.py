@@ -30,6 +30,7 @@ class Shim2018ActionValueModule(nn.Module):
         action_size: int,
         num_cells: tuple[int, ...],
         dropout: float,
+        n_feature_dims: int,
     ):
         super().__init__()
         self.embedder = embedder
@@ -37,6 +38,7 @@ class Shim2018ActionValueModule(nn.Module):
         self.action_size = action_size
         self.num_cells = num_cells
         self.dropout = dropout
+        self.n_feature_dims = n_feature_dims
 
         self.net = MLP(
             in_features=self.embedding_size,
@@ -55,8 +57,14 @@ class Shim2018ActionValueModule(nn.Module):
     ) -> Tensor:
         # We do not want to update the embedder weights using the Q-values, this is done separately in the training loop
         # FIX:
+        flat_masked_features = masked_features.flatten(
+            start_dim=-self.n_feature_dims
+        )
+        flat_feature_mask = feature_mask.flatten(
+            start_dim=-self.n_feature_dims
+        )
         with torch.no_grad():
-            embedding = self.embedder(masked_features, feature_mask)
+            embedding = self.embedder(flat_masked_features, flat_feature_mask)
         qvalues = self.net(embedding)
 
         # qvalues = self.net(torch.cat([masked_features, feature_mask], dim=-1))
@@ -76,6 +84,7 @@ class Shim2018Agent(Agent):
         action_mask_key: str,
         batch_size: int,  # expected batch size received in `process_batch`
         module_device: torch.device,  # device to place nn.Modules on
+        n_feature_dims: int,  # how many dimensions the feature shape needs. Used to flatten the features before they are passed to the embedder
     ):
         self.cfg = cfg
         self.embedder = embedder
@@ -84,6 +93,7 @@ class Shim2018Agent(Agent):
         self.action_mask_key = action_mask_key
         self.batch_size = batch_size
         self.module_device = module_device
+        self.n_feature_dims = n_feature_dims
 
         self.action_value_module = Shim2018ActionValueModule(
             embedder=self.embedder,
@@ -92,11 +102,12 @@ class Shim2018Agent(Agent):
             action_size=self.action_spec.n,  # pyright: ignore
             num_cells=tuple(self.cfg.action_value_num_cells),
             dropout=self.cfg.action_value_dropout,
+            n_feature_dims=self.n_feature_dims,
         ).to(self.module_device)
 
         self.action_value_tdmodule = TensorDictModule(
             module=self.action_value_module,
-            in_keys=["masked_features", "feature_mask", "action_mask"],
+            in_keys=["masked_features", "feature_mask", self.action_mask_key],
             out_keys=["action_value"],
         )
 

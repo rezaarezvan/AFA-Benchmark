@@ -11,6 +11,7 @@ from afabench.common.custom_types import (
     Features,
     Label,
     MaskedFeatures,
+    SelectionMask,
 )
 
 type State = Float[
@@ -75,11 +76,13 @@ type AFARewardFn = Callable[
     [
         MaskedFeatures,  # current masked features
         FeatureMask,  # current feature mask
+        SelectionMask,  # current selection mask
         MaskedFeatures,  # new masked features
         FeatureMask,  # new feature mask
-        AFASelection,
-        Features,
-        Label,
+        SelectionMask,  # new selection mask
+        AFASelection,  # which selection we made
+        Features,  # true features
+        Label,  # true label
         Bool[Tensor, "*batch 1"],  # done key
     ],
     AFAReward,

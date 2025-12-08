@@ -60,11 +60,10 @@ def main(cfg: Shim2018PretrainConfig) -> None:
 
     log.info("Creating model...")
     train_class_probabilities = get_class_frequencies(train_labels)
-    assert len(train_dataset.feature_shape) == 1, "Only 1D features supported"
     assert len(train_dataset.label_shape) == 1, "Only 1D label supported"
     lit_model = get_shim2018_model_from_config(
         cfg,
-        n_features=train_dataset.feature_shape.numel(),
+        feature_shape=train_dataset.feature_shape,
         n_classes=train_dataset.label_shape.numel(),
         class_probabilities=train_class_probabilities,
     )

@@ -14,6 +14,7 @@ from afabench.common.custom_types import (
     Features,
     Label,
     MaskedFeatures,
+    SelectionMask,
 )
 
 
@@ -26,23 +27,26 @@ def get_shim2018_reward_fn(
     Return the reward function for shim2018.
 
     The agent receives the negative classification loss as reward at the end of the episode, and also a fixed
-    negative reward for each feature selected, encouraging it to select fewer features.
+    negative reward for each selection made, encouraging it to select fewer features.
     """
 
     def f(
         _masked_features: MaskedFeatures,
-        feature_mask: FeatureMask,
+        _feature_mask: FeatureMask,
+        selection_mask: SelectionMask,
         new_masked_features: MaskedFeatures,
         new_feature_mask: FeatureMask,
+        new_selection_mask: SelectionMask,
         _afa_selection: AFASelection,
         features: Features,  # noqa: ARG001
         label: Label,
         done: Bool[Tensor, "*batch 1"],
     ) -> AFAReward:
-        # Acquisition cost per feature
-        newly_acquired = (new_feature_mask & ~feature_mask).to(torch.float32)
-        reward = -(newly_acquired * acquisition_costs).sum(dim=-1)
-        reward = reward.squeeze(-1)
+        # Acquisition cost per selection
+        newly_performed_selections = (new_selection_mask & ~selection_mask).to(
+            torch.float32
+        )
+        reward = -(newly_performed_selections * acquisition_costs).sum(dim=-1)
 
         done_mask = done.squeeze(-1)
 
@@ -54,6 +58,6 @@ def get_shim2018_reward_fn(
                 logits, label[done_mask], weight=weights
             )
 
-        return reward
+        return reward.unsqueeze(-1)
 
     return f

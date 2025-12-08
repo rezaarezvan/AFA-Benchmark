@@ -343,4 +343,4 @@ class TestTorchModelBundle:
         model_bundle = TorchModelBundle(model)
 
         assert hasattr(model_bundle, "_class_version")
-        assert model_bundle._class_version == "1.0.0"
+        assert model_bundle._class_version == "1.0.0"  # noqa: SLF001

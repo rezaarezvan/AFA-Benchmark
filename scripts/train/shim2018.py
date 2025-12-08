@@ -1,18 +1,18 @@
 import gc
 import logging
 from pathlib import Path
-from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 import hydra
 import torch
+from omegaconf.omegaconf import OmegaConf
+from rl_helpers import dict_with_prefix
 from torch import optim
 from torch.nn import functional as F
 from torchrl.collectors import SyncDataCollector
 from torchrl.envs import ExplorationType, check_env_specs, set_exploration_type
 from tqdm import tqdm
 
-from afabench import SAVE_PATH
 from afabench.afa_rl.afa_env import AFAEnv
 from afabench.afa_rl.afa_methods import RLAFAMethod
 from afabench.afa_rl.datasets import get_afa_dataset_fn
@@ -27,31 +27,32 @@ from afabench.afa_rl.utils import (
     get_eval_metrics,
     module_norm,
 )
+from afabench.common.bundle import load_bundle, save_bundle
 from afabench.common.config_classes import (
     Shim2018TrainConfig,
 )
 from afabench.common.initializers.utils import get_afa_initializer_from_config
 from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
 from afabench.common.utils import (
-    dict_with_prefix,
     get_class_frequencies,
     initialize_wandb_run,
-    load_dataset_artifact,
     set_seed,
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from afabench.afa_rl.agents import Agent
+    from afabench.common.custom_types import AFADataset
 
 
 log = logging.getLogger(__name__)
 
 
-def load_pretrained_model_artifact(
-    path: Path,
-) -> LitShim2018EmbedderClassifier:
-    # TODO
-    pass
+# def load_pretrained_model_artifact(
+#     path: Path,
+# ) -> LitShim2018EmbedderClassifier:
+#     pass
 
 
 @hydra.main(
@@ -65,29 +66,37 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
 
+    log_fn: Callable[[dict[str, Any]], None]
     if cfg.use_wandb:
         run = initialize_wandb_run(
             cfg=cfg, job_type="training", tags=["shim2018"]
         )
+        log_fn = run.log
     else:
         run = None
+        log_fn = lambda _d: None  # noqa: E731
 
     log.info("Loading datasets...")
-    train_dataset, train_dataset_metadata = load_dataset_artifact(
-        Path(cfg.dataset_artifact_path),
-        split="train",
+    train_dataset, train_dataset_manifest = load_bundle(
+        Path(cfg.train_dataset_bundle_path),
     )
+    train_dataset = cast("AFADataset", cast("object", train_dataset))
     train_features, train_labels = train_dataset.get_all_data()
-    val_dataset, val_dataset_metadata = load_dataset_artifact(
-        Path(cfg.dataset_artifact_path),
-        split="val",
+    val_dataset, val_dataset_manifest = load_bundle(
+        Path(cfg.val_dataset_bundle_path),
     )
+    val_dataset = cast("AFADataset", cast("object", val_dataset))
     val_features, val_labels = val_dataset.get_all_data()
     log.info("Datasets loaded.")
 
     log.info("Loading pretrained model...")
-    pretrained_model = load_pretrained_model_artifact(
-        Path(cfg.pretrained_model_artifact_path)
+    pretrained_model, _ = load_bundle(
+        Path(cfg.pretrained_model_bundle_path),
+        device=device,  # pyright: ignore[reportArgumentType]
+    )
+    pretrained_model = cast(
+        "LitShim2018EmbedderClassifier",
+        cast("object", pretrained_model.model),  # pyright: ignore[reportAttributeAccessIssue]
     )
     pretrained_model.eval()
     pretrained_model = pretrained_model.to(device)
@@ -109,18 +118,17 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
     # Create reward function, which depends on class probabilities and acquisition cost
     log.info("Constructing reward function...")
     train_class_probabilities = get_class_frequencies(train_labels)
+    n_classes = len(train_class_probabilities)
     class_weights = 1 / train_class_probabilities
     class_weights = (class_weights / class_weights.sum()).to(device)
     n_selections = unmasker.get_n_selections(train_dataset.feature_shape)
-    cost_per_feature = (
-        0
-        if cfg.train_soft_budget_param is None
-        else cfg.train_soft_budget_param
+    cost_per_selection = (
+        0 if cfg.soft_budget_param is None else cfg.soft_budget_param
     )
     reward_fn = get_shim2018_reward_fn(
         pretrained_model=pretrained_model,
         weights=class_weights,
-        acquisition_costs=cost_per_feature
+        acquisition_costs=cost_per_selection
         * torch.ones(
             (n_selections,),
             device=device,
@@ -152,6 +160,10 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
         unmask_fn=unmasker.unmask,
         seed=cfg.seed,
     )
+    # DEBUG start
+    td = train_env.reset()
+    td = train_env.rand_step(td)
+    # DEBUG end
     check_env_specs(train_env)
     log.info("Training environment created and validated")
 
@@ -160,10 +172,14 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
         dataset_fn=val_dataset_fn,
         reward_fn=reward_fn,
         device=device,
-        batch_size=torch.Size((1,)),
-        feature_size=n_features,
+        batch_size=torch.Size((cfg.n_agents,)),
+        feature_shape=val_dataset.feature_shape,
+        n_selections=n_selections,
         n_classes=n_classes,
         hard_budget=cfg.hard_budget,
+        initialize_fn=initializer.initialize,
+        unmask_fn=unmasker.unmask,
+        seed=cfg.seed,
     )
     log.info("Evaluation environment created")
 
@@ -171,11 +187,12 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
     agent: Agent = Shim2018Agent(
         cfg=cfg.agent,
         embedder=pretrained_model.embedder,
-        embedding_size=pretrained_model_config.encoder.output_size,
+        embedding_size=pretrained_model.embedder.encoder.output_size,
         action_spec=train_env.action_spec,
-        action_mask_key="action_mask",
+        action_mask_key="allowed_action_mask",
         batch_size=cfg.batch_size,
         module_device=torch.device(cfg.device),
+        n_feature_dims=len(train_dataset.feature_shape),
     )
     log.info("Agent created successfully")
 
@@ -225,7 +242,7 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
                 )
 
             # Log training info
-            run.log(
+            log_fn(
                 dict_with_prefix(
                     "train/",
                     loss_info
@@ -275,7 +292,7 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
                 metrics_eval = get_eval_metrics(
                     td_evals, Shim2018AFAPredictFn(pretrained_model)
                 )
-                run.log(
+                log_fn(
                     dict_with_prefix(
                         "eval/",
                         dict_with_prefix("agent_policy.", metrics_eval)
@@ -298,60 +315,26 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
         log.info("Training interrupted by user")
     finally:
         log.info("Training completed, starting cleanup and model saving")
-        log.info("Converting model to CPU and creating AFA method")
+        log.info("Converting model to CPU and creating AFA method...")
         pretrained_model = pretrained_model.to(torch.device("cpu"))
         afa_method = RLAFAMethod(
             agent.get_exploitative_policy().to("cpu"),
             Shim2018AFAClassifier(
                 pretrained_model, device=torch.device("cpu")
             ),
-            cfg.cost_param,
         )
-        log.info("AFA method created")
+        log.info("AFA method created.")
 
-        # Save locally
-        log.info("Saving method to local filesystem")
-        with TemporaryDirectory() as tmp_dir:
-            tmp_path = Path(tmp_dir)
-            afa_method.save(tmp_path)
+        log.info("Saving method to local filesystem...")
+        save_bundle(
+            obj=afa_method,
+            path=Path(cfg.save_path),
+            metadata={"config": OmegaConf.to_container(cfg, resolve=True)},
+        )
+        log.info("Saved trained method successfully.")
 
-            if cfg.cost_param is not None:
-                budget_str = f"costparam_{cfg.cost_param}"
-            else:
-                budget_str = f"budget_{cfg.hard_budget}"
-
-            split = dataset_metadata["split_idx"]
-            dataset_type = dataset_metadata["dataset_type"]
-
-            artifact_identifier = f"{dataset_type.lower()}_split_{split}_{
-                budget_str
-            }_seed_{cfg.seed}"
-            artifact_dir = SAVE_PATH / artifact_identifier
-
-            metadata_out = {
-                "method_type": "RLAFAMethod",
-                "dataset_type": dataset_type,
-                "dataset_artifact_name": metadata["dataset_artifact_name"],
-                "budget": cfg.hard_budget
-                if cfg.hard_budget is not None
-                else None,
-                "cost_param": cfg.cost_param
-                if cfg.cost_param is not None
-                else None,
-                "seed": cfg.seed,
-                "split_idx": split,
-            }
-
-            save_artifact(
-                artifact_dir=artifact_dir,
-                files={f.name: f for f in tmp_path.iterdir() if f.is_file()},
-                metadata=metadata_out,
-            )
-
-            log.info(f"Shim2018 method saved to: {artifact_dir}")
-
-        log.info("Finishing WandB run")
-        run.finish()
+        if run is not None:
+            run.finish()
 
         log.info("Running garbage collection and clearing CUDA cache")
         gc.collect()

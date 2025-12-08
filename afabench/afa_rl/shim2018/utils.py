@@ -1,3 +1,4 @@
+import torch
 from jaxtyping import Float
 from torch import Tensor
 
@@ -12,12 +13,12 @@ from afabench.common.config_classes import Shim2018PretrainConfig
 
 def get_shim2018_model_from_config(
     cfg: Shim2018PretrainConfig,
-    n_features: int,
+    feature_shape: torch.Size,
     n_classes: int,
-    class_probabilities: Float[Tensor, "n_classes"],
+    class_probabilities: Float[Tensor, "n_classes"],  # noqa: F821
 ) -> LitShim2018EmbedderClassifier:
     encoder = ReadProcessEncoder(
-        set_element_size=n_features
+        set_element_size=feature_shape.numel()
         + 1,  # state contains one value and one index
         output_size=cfg.encoder.output_size,
         reading_block_cells=tuple(cfg.encoder.reading_block_cells),
@@ -34,6 +35,7 @@ def get_shim2018_model_from_config(
         embedder=embedder,
         classifier=classifier,
         class_probabilities=class_probabilities,
+        n_feature_dims=len(feature_shape),
         min_masking_probability=cfg.min_masking_probability,
         max_masking_probability=cfg.max_masking_probability,
         lr=cfg.lr,

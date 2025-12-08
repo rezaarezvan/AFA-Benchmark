@@ -8,6 +8,7 @@ UNMASKER_PER_DATASET = {
 EVAL_DATASET_SPLIT = "val"  # whether to use "val" or "test" during evaluation
 DEVICE = "cpu"
 USE_WANDB = False
+SMOKE_TEST = True
 
 # Main parameters that we investigate
 # - hard budget
@@ -45,6 +46,7 @@ rule all:
 rule pretrain_model:
     input:
         "extra/data/datasets/{dataset}/{dataset_instance_idx}/train.bundle",
+        "extra/data/datasets/{dataset}/{dataset_instance_idx}/val.bundle",
     output:
         directory(
             "extra/pretrained_models/{method}/"
@@ -52,19 +54,24 @@ rule pretrain_model:
                 "instance_idx-{dataset_instance_idx}/"
                     "pretrain_seed-{pretrain_seed}.bundle"
         ),
+    params:
+        smoke_test_args="" if not SMOKE_TEST else "limit_train_batches=1 limit_val_batches=1 epochs=1 ",
     shell:
         """
         python scripts/pretrain/{wildcards.method}.py \
-            dataset_artifact_path={input} \
+            train_dataset_bundle_path={input[0]} \
+            val_dataset_bundle_path={input[1]} \
             save_path={output} \
             device={DEVICE} \
             seed={wildcards.pretrain_seed} \
-            use_wandb={USE_WANDB}
+            use_wandb={USE_WANDB} \
+            {params.smoke_test_args}
         """
 
 rule train_method:
     input:
         "extra/data/datasets/{dataset}/{dataset_instance_idx}/train.bundle",
+        "extra/data/datasets/{dataset}/{dataset_instance_idx}/val.bundle",
 
         "extra/pretrained_models/{method}/"
             "dataset-{dataset}+"
@@ -82,11 +89,13 @@ rule train_method:
         ),
     params:
         unmasker=lambda wildcards: UNMASKER_PER_DATASET[wildcards.dataset],
+        smoke_test_args="" if not SMOKE_TEST else "n_batches=2",
     shell:
         """
         python scripts/train/{wildcards.method}.py \
-            dataset_artifact_path={input[0]} \
-            pretrained_model_artifact_path={input[1]} \
+            train_dataset_bundle_path={input[0]} \
+            val_dataset_bundle_path={input[1]} \
+            pretrained_model_bundle_path={input[2]} \
             save_path={output} \
             components/initializers@initializer={INITIALIZER} \
             components/unmaskers@unmasker={params.unmasker} \
@@ -94,7 +103,8 @@ rule train_method:
             soft_budget_param={wildcards.train_soft_budget_param} \
             device={DEVICE} \
             seed={wildcards.train_seed} \
-            use_wandb={USE_WANDB}
+            use_wandb={USE_WANDB} \
+            {params.smoke_test_args}
         """
 
 
@@ -114,7 +124,7 @@ rule train_method:
 
 rule eval_method:
     input:
-        "extra/data/datasets/{dataset}/{dataset_instance_idx}",
+        f"extra/data/datasets/{{dataset}}/{{dataset_instance_idx}}/{EVAL_DATASET_SPLIT}.bundle",
 
         "extra/trained_methods/{method}/"
             "dataset-{dataset}+"
@@ -122,7 +132,7 @@ rule eval_method:
                 "pretrain_seed-{pretrain_seed}/"
                     "train_seed-{train_seed}+"
                     "train_hard_budget-{train_hard_budget}+"
-                    "train_soft_budget_param-{train_soft_budget_param}",
+                    "train_soft_budget_param-{train_soft_budget_param}.bundle",
         # "extra/trained_classifiers/masked_mlp_classifier/dataset-{dataset}+instance-{dataset_instance}",
     output:
         "extra/eval_results/{method}/"
@@ -136,34 +146,22 @@ rule eval_method:
                         "eval_hard_budget-{eval_hard_budget}/"
                             "eval_data.csv",
     params:
-        save_path=lambda wildcards: (
-            f"extra/eval_results/{wildcards.method}/"
-                f"dataset-{wildcards.dataset}+"
-                f"instance_idx-{wildcards.dataset_instance_idx}/"
-                    "pretrain_seed-{pretrain_seed}/"
-                        f"train_seed-{wildcards.train_seed}+"
-                        f"train_hard_budget-{wildcards.train_hard_budget}+"
-                        f"train_soft_budget_param-{wildcards.train_soft_budget_param}/"
-                            f"eval_seed-{wildcards.eval_seed}+"
-                            f"eval_hard_budget-{wildcards.eval_hard_budget}"
-        ),
         unmasker=lambda wildcards: UNMASKER_PER_DATASET[wildcards.dataset],
+        smoke_test_args="" if not SMOKE_TEST else "eval_only_n_samples=10 batch_size=2",
     shell:
         """
         python scripts/eval/eval_afa_method.py \
-            method_artifact_path={input[1]} \
+            method_bundle_path={input[1]} \
             components/initializers@initializer={INITIALIZER} \
             components/unmaskers@unmasker={params.unmasker} \
-            dataset_artifact_path={input[0]} \
-            save_path={params.save_path} \
-            dataset_split={EVAL_DATASET_SPLIT} \
-            classifier_artifact_path=null \
+            dataset_bundle_path={input[0]} \
+            save_path={output} \
+            classifier_bundle_path=null \
             seed={wildcards.eval_seed} \
             device={DEVICE} \
-            eval_only_n_samples=null \
-            batch_size=1 \
             hard_budget={wildcards.eval_hard_budget} \
-            use_wandb={USE_WANDB}
+            use_wandb={USE_WANDB} \
+            {params.smoke_test_args}
         """
 
 # Add eval_soft_budget_param column. Not used by dummy methods, but kept for consistency.
@@ -377,7 +375,7 @@ rule merge_eval:
                 f"extra/eval_results6/{method}/"
                     f"dataset-{dataset}+"
                     f"instance_idx-{dataset_instance_idx}/"
-                        "pretrain_seed-{pretrain_seed}/"
+                        f"pretrain_seed-{dataset_instance_idx}/"
                             f"train_seed-{dataset_instance_idx}+"
                             f"train_hard_budget-{hard_budget}+"
                             f"train_soft_budget_param-{soft_budget_param}/"

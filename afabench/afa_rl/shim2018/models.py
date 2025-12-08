@@ -209,7 +209,8 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
         self,
         embedder: Shim2018Embedder,
         classifier: Shim2018MLPClassifier,
-        class_probabilities: Float[Tensor, "n_classes"],
+        class_probabilities: Float[Tensor, "n_classes"],  # noqa: F821
+        n_feature_dims: int,  # how many of the last dimensions of the input are part of the feature shape and not batch shape
         min_masking_probability: float = 0.0,
         max_masking_probability: float = 1.0,
         lr: float = 1e-3,
@@ -217,6 +218,7 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters(ignore=["embedder", "classifier"])
         self.lr = lr
+        self.n_feature_dims = n_feature_dims
         self.embedder = embedder
         self.classifier = classifier
         self.class_weight = 1 / class_probabilities
@@ -239,12 +241,20 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
             logits: the output of the classifier
 
         """
-        embedding = self.embedder(masked_features, feature_mask)
+        # Both the embedder and classifier for this method take 1D features as input
+        flat_masked_features = masked_features.flatten(
+            start_dim=-self.n_feature_dims
+        )
+        flat_feature_mask = feature_mask.flatten(
+            start_dim=-self.n_feature_dims
+        )
+
+        embedding = self.embedder(flat_masked_features, flat_feature_mask)
         logits = self.classifier(embedding)
         return embedding, logits
 
     @override
-    def training_step(self, batch: tuple[Tensor, Tensor], batch_idx: int):
+    def training_step(self, batch: tuple[Tensor, Tensor], batch_idx: int):  # noqa: ANN201
         features: Features = batch[0]
         label: Label = batch[1]
 
@@ -281,7 +291,9 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
         return loss, acc
 
     @override
-    def validation_step(self, batch: tuple[Tensor, Tensor], batch_idx: int):
+    def validation_step(
+        self, batch: tuple[Tensor, Tensor], batch_idx: int
+    ) -> None:
         feature_values, y = batch
 
         # Mask features with minimum probability -> see many features (observations)
@@ -313,7 +325,7 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
         self.log("val_acc_few_observations", acc_few_observations)
 
     @override
-    def configure_optimizers(self):
+    def configure_optimizers(self):  # noqa: ANN201
         return torch.optim.Adam(self.parameters(), lr=self.lr)
 
 
@@ -330,8 +342,8 @@ class Shim2018AFAPredictFn(AFAPredictFn):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features | None,
-        label: Label | None,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> Label:
         _, logits = self.embedder_and_classifier(masked_features, feature_mask)
         return logits.softmax(dim=-1)
@@ -355,8 +367,8 @@ class Shim2018AFAClassifier(AFAClassifier):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features | None,
-        label: Label | None,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> Label:
         original_device = masked_features.device
 

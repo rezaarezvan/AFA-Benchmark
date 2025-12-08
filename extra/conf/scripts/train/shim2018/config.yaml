@@ -1,16 +1,55 @@
 hydra:
-    searchpath:
-        - file://extra/conf/global
+  searchpath:
+    - file://extra/conf
+    - file://extra/conf/global
 
 defaults:
-    - _self_
-    - dataset@_global_: cube
-    - override hydra/job_logging: colorlog
-    - override hydra/hydra_logging: colorlog
-    - override hydra/launcher: custom_slurm
+  - _self_
+  - components/initializers@initializer: ???
+  - components/unmaskers@unmasker: ???
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+  - override hydra/launcher: custom_slurm
 
+train_dataset_bundle_path: ???
+val_dataset_bundle_path: ???
+pretrained_model_bundle_path: ???
+save_path: ???
+# initializer set as component
+# unmasker set as component
+hard_budget: ???
+soft_budget_param: ???
+device: "cuda"
+seed: null
+
+n_agents: 1
 agent:
-    gamma: 1.0
-    lmbda: 0.75 # gives largest weight to 4-step return
-device: cuda
-seed: 42
+  eps_init: 1.0 # shim2018 paper
+  eps_end: 0.1 # shim2018 paper
+  eps_annealing_num_batches: 5000 # shim2018 paper
+
+  replay_buffer_batch_size: 128 # shim2018 paper
+
+  num_epochs: 1 # shim2018 paper
+  max_grad_norm: 9001 # not specified by shim2018 paper
+  lr: 1e-3
+  update_tau: 0.005
+
+  action_value_num_cells: [32, 32] # shim2018 paper
+  action_value_dropout: 0.0
+
+  loss_function: "l2" # shim2018 paper
+  delay_value: true # shim2018 paper
+  double_dqn: true # shim2018 paper
+
+  gamma: 1.0
+  lmbda: 0.95
+n_batches: 100
+batch_size: 10
+eval_every_n_batches: 10
+eval_max_steps: 9001
+n_eval_episodes: 10
+pretrained_model_lr: 1e-3
+activate_joint_training_after_n_batches: 5
+
+use_wandb: false

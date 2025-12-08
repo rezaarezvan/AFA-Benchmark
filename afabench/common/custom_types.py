@@ -92,7 +92,16 @@ class AFAMethod(Protocol):
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> AFASelection:
-        """Return an AFA selection based on observed features."""
+        """
+        Return an AFA selection based on observed features.
+
+        Args:
+            masked_features: The features with unobserved features masked out (set to zero).
+            feature_mask: A boolean mask indicating which features have been observed.
+            selection_mask: A boolean mask indicating which selections have already been performed.
+            label: The true label, if available (may be None during inference). We include this possibility to support "cheating" methods for benchmarking purposes.
+            feature_shape: The shape of the features excluding the batch dimension, if needed.
+        """
         ...
 
     def predict(
@@ -328,7 +337,7 @@ class AFAInitializeFn(Protocol):
 
         Args:
             features: The original features before masking.
-            label: The true label, if available (may be None during inference). We include this possibility to support "cheating" methods for benchmarking purposes.
+            label: The true label, if available (may be None during inference).
             feature_shape: The shape of the features excluding the batch dimension, if needed. Since both masked_features and label can have multiple batch dimensions, the feature shape cannot be inferred automatically.
         """
         ...

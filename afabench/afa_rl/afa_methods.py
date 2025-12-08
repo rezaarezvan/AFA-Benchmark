@@ -2,7 +2,7 @@ from dataclasses import (
     dataclass,
 )
 from pathlib import Path
-from typing import Self, final, override
+from typing import Self, cast, final, override
 
 import torch
 from tensordict import TensorDict
@@ -24,6 +24,7 @@ from afabench.common.custom_types import (
 def get_td_from_masked_features(
     masked_features: MaskedFeatures,
     feature_mask: FeatureMask,
+    selection_mask: SelectionMask,
 ) -> TensorDict:
     """
     Create a TensorDict suitable as input to AFA RL agents.
@@ -33,23 +34,22 @@ def get_td_from_masked_features(
     - "masked_features"
     - "feature_mask"
     """
-    # The action mask is almost the same as the negated feature mask but with one extra element (the stop action)
+    # The action mask is almost the same as the negated selection mask but with one extra element (the stop action)
     action_mask = torch.cat(
         [
             torch.ones(
-                feature_mask.shape[0],
-                1,
+                selection_mask.shape[:-1] + (1,),
                 dtype=feature_mask.dtype,
                 device=feature_mask.device,
             ),
-            ~feature_mask,
+            ~selection_mask,
         ],
         dim=-1,
     )
 
     td = TensorDict(
         {
-            "action_mask": action_mask,
+            "allowed_action_mask": action_mask,
             "masked_features": masked_features,
             "feature_mask": feature_mask,
         },
@@ -67,18 +67,12 @@ class RLAFAMethod(AFAMethod):
 
     policy_tdmodule: TensorDictModuleBase | ProbabilisticActor
     afa_classifier: AFAClassifier
-    acquisition_cost: float | None
     _device: torch.device = torch.device("cpu")  # noqa: RUF009
 
     def __post_init__(self):
         # Move policy and classifier to the specified device
         self.policy_tdmodule = self.policy_tdmodule.to(self._device)
         self.afa_classifier = self.afa_classifier.to(self._device)
-
-    @property
-    @override
-    def cost_param(self) -> float | None:
-        return self.acquisition_cost
 
     @property
     @override
@@ -99,7 +93,12 @@ class RLAFAMethod(AFAMethod):
         masked_features = masked_features.to(self._device)
         feature_mask = feature_mask.to(self._device)
 
-        td = get_td_from_masked_features(masked_features, feature_mask)
+        assert selection_mask is not None, (
+            "RLAFAMethod requires selection_mask"
+        )
+        td = get_td_from_masked_features(
+            masked_features, feature_mask, selection_mask
+        )
 
         # Apply the agent's policy to the tensordict
         with (
@@ -138,7 +137,6 @@ class RLAFAMethod(AFAMethod):
         self.afa_classifier.save(path / "classifier.pt")
         with (path / "classifier_class_name.txt").open("w") as f:
             f.write(self.afa_classifier.__class__.__name__)
-        torch.save(self.acquisition_cost, path / "acquisition_cost.pt")
 
     @classmethod
     @override
@@ -151,21 +149,16 @@ class RLAFAMethod(AFAMethod):
 
         with (path / "classifier_class_name.txt").open() as f:
             classifier_class_name = f.read()
-        from afabench.common.registry import get_afa_classifier_class
+        from afabench.common.registry import get_class
 
-        afa_classifier = get_afa_classifier_class(classifier_class_name).load(
+        afa_classifier = get_class(classifier_class_name).load(
             path / "classifier.pt", device=device
         )
-        acquisition_cost = torch.load(
-            path / "acquisition_cost.pt",
-            weights_only=True,
-            map_location=device,
-        )
+        afa_classifier = cast("AFAClassifier", cast("object", afa_classifier))
 
         return cls(
             policy_tdmodule=policy_tdmodule,
             afa_classifier=afa_classifier,
-            acquisition_cost=acquisition_cost,
             _device=device,
         )
 

@@ -271,8 +271,9 @@ class Shim2018AgentConfig:
 
 @dataclass
 class Shim2018TrainConfig:
-    dataset_artifact_path: str
-    pretrained_model_artifact_path: str
+    train_dataset_bundle_path: str
+    val_dataset_bundle_path: str
+    pretrained_model_bundle_path: str
     save_path: str
     initializer: InitializerConfig
     unmasker: UnmaskerConfig

@@ -13,10 +13,8 @@ from afabench.common.custom_types import AFAInitializeFn, AFAUnmaskFn
 
 if TYPE_CHECKING:
     from afabench.common.custom_types import (
-        FeatureMask,
         Features,
         Label,
-        MaskedFeatures,
     )
 
 
@@ -77,19 +75,26 @@ class AFAEnv(EnvBase):
 
     def _make_spec(self) -> None:
         self.observation_spec = Composite(
+            # For binary tensorspecs, torchrl now forces us to specify how large the last dimension is, I'm not sure why.
             feature_mask=Binary(
+                n=self.feature_shape[-1],
                 shape=self.batch_size + self.feature_shape,
                 dtype=torch.bool,
             ),
             performed_action_mask=Binary(
+                n=self.n_selections + 1,
                 shape=self.batch_size + torch.Size((self.n_selections + 1,)),
                 dtype=torch.bool,
             ),
+            # "action" does include the stop action
             allowed_action_mask=Binary(
+                n=self.n_selections + 1,
                 shape=self.batch_size + torch.Size((self.n_selections + 1,)),
                 dtype=torch.bool,
             ),
+            # "selections" does not include the stop action
             performed_selection_mask=Binary(
+                n=self.n_selections,
                 shape=self.batch_size + torch.Size((self.n_selections,)),
                 dtype=torch.bool,
             ),
@@ -118,7 +123,7 @@ class AFAEnv(EnvBase):
             shape=self.batch_size + torch.Size((1,)), dtype=torch.float32
         )
         self.done_spec = Binary(
-            shape=self.batch_size + torch.Size((1,)), dtype=torch.bool
+            n=1, shape=self.batch_size + torch.Size((1,)), dtype=torch.bool
         )
 
     @override
@@ -174,15 +179,10 @@ class AFAEnv(EnvBase):
 
     @override
     def _step(self, tensordict: TensorDictBase) -> TensorDictBase:
-        new_feature_mask: FeatureMask = tensordict["feature_mask"].clone()
-        new_masked_features: MaskedFeatures = tensordict[
-            "masked_features"
-        ].clone()
-        new_performed_action_mask = tensordict["performed_action_mask"].clone()
-        new_allowed_action_mask = tensordict["allowed_action_mask"].clone()
-        new_performed_selection_mask = tensordict[
-            "performed_selection_mask"
-        ].clone()
+        # new_feature_mask: FeatureMask = tensordict["feature_mask"].clone()
+        # new_masked_features: MaskedFeatures = tensordict[
+        #     "masked_features"
+        # ].clone()
 
         batch_numel = tensordict.batch_size.numel()
         batch_indices = torch.arange(batch_numel, device=tensordict.device)
@@ -192,7 +192,7 @@ class AFAEnv(EnvBase):
             masked_features=tensordict["masked_features"],
             feature_mask=tensordict["feature_mask"],
             features=tensordict["features"],
-            afa_selection=tensordict["action"],
+            afa_selection=tensordict["action"].unsqueeze(-1),
             selection_mask=tensordict["performed_selection_mask"],
             label=tensordict["label"],
             feature_shape=self.feature_shape,
@@ -203,7 +203,12 @@ class AFAEnv(EnvBase):
 
         # Update masks
         action_idx = tensordict["action"].squeeze(-1)
+        new_performed_action_mask = tensordict["performed_action_mask"].clone()
         new_performed_action_mask[batch_indices, action_idx] = True
+        new_allowed_action_mask = tensordict["allowed_action_mask"].clone()
+        new_performed_selection_mask = tensordict[
+            "performed_selection_mask"
+        ].clone()
 
         # For non-stop actions, update selection mask and disable that action
         non_stop_mask = action_idx > 0
@@ -236,15 +241,17 @@ class AFAEnv(EnvBase):
         reward = self.reward_fn(
             tensordict["masked_features"],
             tensordict["feature_mask"],
+            tensordict["performed_selection_mask"],
             new_masked_features,
             new_feature_mask,
+            new_performed_selection_mask,
             tensordict["action"],
             tensordict["features"],
             tensordict["label"],
             done,
         )
 
-        return TensorDict(
+        r = TensorDict(
             {
                 "performed_action_mask": new_performed_action_mask,
                 "allowed_action_mask": new_allowed_action_mask,
@@ -259,6 +266,7 @@ class AFAEnv(EnvBase):
             },
             batch_size=tensordict.batch_size,
         )
+        return r
 
     @override
     def _set_seed(self, seed: int | None) -> None:
