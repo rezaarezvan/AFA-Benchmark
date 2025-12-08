@@ -1,19 +1,14 @@
-import math
-from collections.abc import Sequence
-from typing import Self, final
+from typing import final, override
 
 import lightning as pl
 import torch
-from torch.nn import functional as F
-from torch.utils.data import DataLoader, Dataset, random_split
-from torchvision import datasets, transforms
+from torch.utils.data import DataLoader
+from torch.utils.data.dataset import Dataset
 
 from afabench.afa_rl.custom_types import AFADatasetFn
 from afabench.common.custom_types import (
-    FeatureMask,
     Features,
     Label,
-    MaskedFeatures,
 )
 
 
@@ -76,11 +71,12 @@ def get_afa_dataset_fn(
 class DataModuleFromDatasets(pl.LightningDataModule):
     def __init__(
         self,
-        train_dataset,
-        val_dataset,
-        batch_size=32,
-        num_workers=0,
-        persistent_workers=False,
+        train_dataset: Dataset[tuple[Features, Label]],
+        val_dataset: Dataset[tuple[Features, Label]],
+        batch_size: int = 32,
+        num_workers: int = 0,
+        *,
+        persistent_workers: bool = False,
     ):
         # TODO: does not work with num_workers > 1
         super().__init__()
@@ -90,13 +86,16 @@ class DataModuleFromDatasets(pl.LightningDataModule):
         self.num_workers = num_workers
         self.persistent_workers = persistent_workers
 
-    def prepare_data(self):
+    @override
+    def prepare_data(self) -> None:
         pass
 
-    def setup(self, stage: str):
+    @override
+    def setup(self, stage: str) -> None:
         pass
 
-    def train_dataloader(self):
+    @override
+    def train_dataloader(self) -> DataLoader[tuple[Features, Label]]:
         return DataLoader(
             self.train_dataset,
             batch_size=self.batch_size,
@@ -105,7 +104,8 @@ class DataModuleFromDatasets(pl.LightningDataModule):
             persistent_workers=self.persistent_workers,
         )
 
-    def val_dataloader(self):
+    @override
+    def val_dataloader(self) -> DataLoader[tuple[Features, Label]]:
         return DataLoader(
             self.val_dataset,
             batch_size=self.batch_size,
@@ -113,186 +113,12 @@ class DataModuleFromDatasets(pl.LightningDataModule):
             persistent_workers=self.persistent_workers,
         )
 
+    # def __getitem__(self, index: int):
+    #     img, label = self.dataset[index]
+    #     one_hot_label = F.one_hot(
+    #         torch.tensor(label), num_classes=self.num_classes
+    #     )
+    #     return img, one_hot_label
 
-class OneHotLabelWrapper(torch.utils.data.Dataset):
-    def __init__(self, dataset, num_classes):
-        self.dataset = dataset
-        self.num_classes = num_classes
-
-    def __getitem__(self, index):
-        img, label = self.dataset[index]
-        one_hot_label = F.one_hot(
-            torch.tensor(label), num_classes=self.num_classes
-        )
-        return img, one_hot_label
-
-    def __len__(self):
-        return len(self.dataset)
-
-
-class MNISTDataModule(pl.LightningDataModule):
-    def __init__(self, batch_size=128, transform=None):
-        super().__init__()
-        self.batch_size = batch_size
-        if transform is None:
-            self.transform = transforms.ToTensor()
-        else:
-            self.transform = transform
-
-    def prepare_data(self):
-        datasets.MNIST(root="extra/data/MNIST", train=True, download=True)
-        datasets.MNIST(root="extra/data/MNIST", train=False, download=True)
-
-    def setup(self, stage=None):
-        mnist_full = datasets.MNIST(
-            root="extra/data/MNIST", train=True, transform=self.transform
-        )
-        train_set, val_set = random_split(mnist_full, [55000, 5000])
-        self.train_set = OneHotLabelWrapper(train_set, num_classes=10)
-        self.val_set = OneHotLabelWrapper(val_set, num_classes=10)
-
-    def train_dataloader(self):
-        return DataLoader(
-            self.train_set, batch_size=self.batch_size, shuffle=True
-        )
-
-    def val_dataloader(self):
-        return DataLoader(self.val_set, batch_size=self.batch_size)
-
-
-class Zannone2019CubeDataset(Dataset):
-    """
-    The Cube dataset, as described in the paper "ODIN: Optimal Discovery of High-value INformation Using Model-based Deep Reinforcement Learning".
-
-    Implements the AFADataset protocol.
-    """
-
-    def __init__(
-        self,
-        n_features: int = 20,
-        data_points: int = 20000,
-        seed: int = 123,
-        non_informative_feature_mean: float = 0.5,
-        informative_feature_variance: float = 0.1,
-        non_informative_feature_variance: float = 0.3,
-    ):
-        super().__init__()
-        self.n_features = n_features
-        self.data_points = data_points
-        self.seed = seed
-        self.non_informative_feature_mean = non_informative_feature_mean
-        self.informative_feature_variance = informative_feature_variance
-        self.non_informative_feature_variance = (
-            non_informative_feature_variance
-        )
-
-        self._informative_feature_std = math.sqrt(informative_feature_variance)
-        self._non_informative_feature_std = math.sqrt(
-            self.non_informative_feature_variance
-        )
-
-        rng = torch.Generator()
-        rng.manual_seed(self.seed)
-        # Each coordinate is drawn from a Bernoulli distribution with p=0.5, which is the same as uniform
-        coords = torch.randint(
-            low=0,
-            high=2,
-            size=(self.data_points, 3),
-            dtype=torch.int64,
-            generator=rng,
-        )
-        # Each corner in the cube is a different label
-        labels = torch.einsum(
-            "bi,i->b", coords, torch.tensor([1, 2, 4], dtype=torch.int64)
-        )
-        # Coords have noise
-        coords = coords.float()
-        coords += (
-            torch.randn(
-                self.data_points, 3, dtype=torch.float32, generator=rng
-            )
-            * self._informative_feature_std
-        )
-        # The final features are the coordinates offset according to the labels, and some noise added
-        self.features = torch.zeros(
-            self.data_points, self.n_features, dtype=torch.float32
-        )
-        for i in range(self.data_points):
-            offset: int = labels[i].item()
-            self.features[i, offset : offset + 3] += coords[i]
-            # All other features have mean 0.5 and variance 0.3
-            self.features[i, :offset] = torch.normal(
-                mean=self.non_informative_feature_mean,
-                std=self._non_informative_feature_std,
-                size=(1, offset),
-                dtype=torch.float32,
-                generator=rng,
-            )
-            self.features[i, offset + 3 :] = torch.normal(
-                mean=self.non_informative_feature_mean,
-                std=self._non_informative_feature_std,
-                size=(1, self.n_features - offset - 3),
-                dtype=torch.float32,
-                generator=rng,
-            )
-        # Convert labels to one-hot encoding
-        self.labels = torch.nn.functional.one_hot(labels, num_classes=8)
-
-    def get_subset(self, indices: Sequence[int]) -> Self:
-        """Return a new dataset instance containing only the specified indices."""
-        import copy
-
-        # Create a deep copy of the dataset
-        subset = copy.deepcopy(self)
-
-        # Filter data to only include specified indices
-        indices_list = list(indices)
-        subset.features = subset.features[indices_list]
-        subset.labels = subset.labels[indices_list]
-        subset.data_points = len(indices)
-
-        return subset
-
-    def __getitem__(self, idx: int) -> tuple[MaskedFeatures, FeatureMask]:
-        return self.features[idx], self.labels[idx]
-
-    def __len__(self):
-        return len(self.features)
-
-    def get_all_data(self) -> tuple[MaskedFeatures, FeatureMask]:
-        return self.features, self.labels
-
-    def save(self, path: str) -> None:
-        torch.save(
-            {
-                "features": self.features,
-                "labels": self.labels,
-                "config": {
-                    "n_features": self.n_features,
-                    "data_points": self.data_points,
-                    "seed": self.seed,
-                },
-            },
-            path,
-        )
-
-    @staticmethod
-    def load(path: str) -> "Zannone2019CubeDataset":
-        data = torch.load(path)
-        # Create instance without calling __init__
-        obj = Zannone2019CubeDataset.__new__(Zannone2019CubeDataset)
-        obj.n_features = data["config"]["n_features"]
-        obj.data_points = data["config"]["data_points"]
-        obj.seed = data["config"]["seed"]
-        obj.non_informative_feature_mean = 0.5
-        obj.informative_feature_variance = 0.1
-        obj.non_informative_feature_variance = 0.3
-        obj._informative_feature_std = math.sqrt(
-            obj.informative_feature_variance
-        )
-        obj._non_informative_feature_std = math.sqrt(
-            obj.non_informative_feature_variance
-        )
-        obj.features = data["features"]
-        obj.labels = data["labels"]
-        return obj
+    # def __len__(self):
+    #     return len(self.dataset)

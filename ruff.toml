@@ -153,6 +153,8 @@ ignore = [
 
   # (F)
   "F722", # forward-annotation-syntax-error. Allows us to use jaxtyping to annotate shapes.
+
+  "PD901"
 ]
 
 extend-safe-fixes = [

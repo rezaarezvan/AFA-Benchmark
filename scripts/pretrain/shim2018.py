@@ -1,7 +1,7 @@
 import gc
 import logging
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import hydra
 import lightning as pl
@@ -14,13 +14,17 @@ from afabench.afa_rl.datasets import DataModuleFromDatasets
 from afabench.afa_rl.shim2018.utils import get_shim2018_model_from_config
 from afabench.common.bundle import load_bundle, save_bundle
 from afabench.common.config_classes import Shim2018PretrainConfig
-from afabench.common.custom_types import AFADataset
 from afabench.common.torch_bundle import TorchModelBundle
 from afabench.common.utils import (
     get_class_frequencies,
     initialize_wandb_run,
     set_seed,
 )
+
+if TYPE_CHECKING:
+    from torch.utils.data.dataset import Dataset
+
+    from afabench.common.custom_types import AFADataset, Features, Label
 
 log = logging.getLogger(__name__)
 
@@ -54,7 +58,13 @@ def main(cfg: Shim2018PretrainConfig) -> None:
     )
     val_dataset = cast("AFADataset", cast("object", val_dataset))
     datamodule = DataModuleFromDatasets(
-        train_dataset, val_dataset, batch_size=cfg.batch_size
+        train_dataset=cast(
+            "Dataset[tuple[Features, Label]]", cast("object", train_dataset)
+        ),
+        val_dataset=cast(
+            "Dataset[tuple[Features, Label]]", cast("object", val_dataset)
+        ),
+        batch_size=cfg.batch_size,
     )
     log.info("Loaded datasets.")
 
