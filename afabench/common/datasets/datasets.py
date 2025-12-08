@@ -156,13 +156,13 @@ class CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                     "informative_feature_std": self.informative_feature_std,
                 },
             },
-            path,
+            path / "dataset.pt",
         )
 
     @classmethod
     @override
     def load(cls, path: Path) -> Self:
-        data = torch.load(path)
+        data = torch.load(path / "dataset.pt")
         # Create instance without calling __init__
         obj = cls.__new__(cls)
         obj.seed = data["config"]["seed"]
@@ -339,13 +339,13 @@ class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                     "non_informative_feature_std": self.non_informative_feature_std,
                 },
             },
-            path,
+            path / "dataset.pt",
         )
 
     @classmethod
     @override
     def load(cls, path: Path) -> Self:
-        data = torch.load(path)
+        data = torch.load(path / "dataset.pt")
         # Create instance without calling __init__
         obj = cls.__new__(cls)
         obj.n_samples = data["config"]["n_samples"]
@@ -446,13 +446,13 @@ class MNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                     "root": self.root,
                 },
             },
-            path,
+            path / "dataset.pt",
         )
 
     @classmethod
     @override
     def load(cls, path: Path) -> Self:
-        data = torch.load(path)
+        data = torch.load(path / "dataset.pt")
         # Create instance without calling __init__
         obj = cls.__new__(cls)
         obj.train = data["config"]["train"]
@@ -543,13 +543,13 @@ class FashionMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                     "root": self.root,
                 },
             },
-            path,
+            path / "dataset.pt",
         )
 
     @classmethod
     @override
     def load(cls, path: Path) -> Self:
-        data = torch.load(path)
+        data = torch.load(path / "dataset.pt")
         # Create instance without calling __init__
         obj = cls.__new__(cls)
         obj.train = data["config"]["train"]
@@ -650,14 +650,14 @@ class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                     "root": self.root,
                 },
             },
-            path,
+            path / "dataset.pt",
         )
 
     @classmethod
     @override
     def load(cls, path: Path) -> Self:
         """Load a dataset from a file."""
-        data = torch.load(path)
+        data = torch.load(path / "dataset.pt")
         # Create instance without calling __init__
         obj = cls.__new__(cls)
         obj.root = data["config"]["root"]
@@ -755,13 +755,13 @@ class MiniBooNEDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                     "root": self.root,
                 },
             },
-            path,
+            path / "dataset.pt",
         )
 
     @classmethod
     @override
     def load(cls, path: Path) -> Self:
-        data = torch.load(path)
+        data = torch.load(path / "dataset.pt")
         # Create instance without calling __init__
         obj = cls.__new__(cls)
         obj.root = data["config"]["root"]
@@ -863,13 +863,13 @@ class PhysionetDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                     "root": self.root,
                 },
             },
-            path,
+            path / "dataset.pt",
         )
 
     @classmethod
     @override
     def load(cls, path: Path) -> Self:
-        data = torch.load(path)
+        data = torch.load(path / "dataset.pt")
         # Create instance without calling __init__
         obj = cls.__new__(cls)
         obj.root = data["config"]["root"]
@@ -958,13 +958,13 @@ class BankMarketingDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 "feature_names": self.feature_names,
                 "config": {"path": self.path},
             },
-            path,
+            path / "dataset.pt",
         )
 
     @classmethod
     @override
     def load(cls, path: Path) -> Self:
-        data = torch.load(path)
+        data = torch.load(path / "dataset.pt")
         obj = cls.__new__(cls)
         obj.path = data["config"]["path"]
         obj.features = data["features"]
@@ -1060,13 +1060,13 @@ class CKDDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 "feature_names": self.feature_names,
                 "config": {"path": self.path},
             },
-            path,
+            path / "dataset.pt",
         )
 
     @classmethod
     @override
     def load(cls, path: Path) -> Self:
-        data = torch.load(path)
+        data = torch.load(path / "dataset.pt")
         obj = cls.__new__(cls)
         obj.path = data["config"]["path"]
         obj.features = data["features"]
@@ -1159,13 +1159,13 @@ class ACTG175Dataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 "feature_names": self.feature_names,
                 "config": {"path": self.path},
             },
-            path,
+            path / "dataset.pt",
         )
 
     @classmethod
     @override
     def load(cls, path: Path) -> Self:
-        data = torch.load(path)
+        data = torch.load(path / "dataset.pt")
         obj = cls.__new__(cls)
         obj.path = data["config"]["path"]
         obj.features = data["features"]
@@ -1359,13 +1359,13 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                     "split_role": self.split_role,
                 },
             },
-            path,
+            path / "dataset.pt",
         )
 
     @classmethod
     @override
     def load(cls, path: Path) -> Self:
-        data = torch.load(path)
+        data = torch.load(path / "dataset.pt")
         cfg = data["config"]
         idx = data["indices"]
         if "split_role" not in cfg or cfg["split_role"] is None:
@@ -1595,13 +1595,13 @@ class SyntheticMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                     "pattern_intensity": self.pattern_intensity,
                 },
             },
-            path,
+            path / "dataset.pt",
         )
 
     @classmethod
     @override
     def load(cls, path: Path) -> Self:
-        data = torch.load(path)
+        data = torch.load(path / "dataset.pt")
         # Create instance without calling __init__
         obj = cls.__new__(cls)
         obj.seed = data["config"]["seed"]
