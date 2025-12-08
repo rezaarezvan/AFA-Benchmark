@@ -5,7 +5,7 @@ import torch
 from afabench.afa_rl.shim2018.models import ReadProcessEncoder
 
 
-def test_is_permutation_invariant():
+def test_is_permutation_invariant() -> None:
     """Tests whether the ReadProcessEncoder class is invariant to permutations."""
     # Create a ReadProcessEncoder instance
     encoder = ReadProcessEncoder(

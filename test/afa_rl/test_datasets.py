@@ -6,7 +6,7 @@ from afabench.afa_rl.datasets import get_wrapped_batch
 
 
 class TestDatasets(TestCase):
-    def test_get_wrapped_batch(self):
+    def test_get_wrapped_batch(self) -> None:
         t = torch.tensor([[1, 2], [3, 4], [5, 6]], dtype=torch.int64)
         torch.testing.assert_close(
             get_wrapped_batch(t, idx=1, numel=2),

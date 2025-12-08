@@ -1,7 +1,7 @@
 import torch
 
 from afabench.afa_rl.utils import (
-    get_1D_identity,
+    get_1d_identity,
     get_2d_identity,
     get_feature_set,
     get_image_feature_set,
@@ -9,7 +9,7 @@ from afabench.afa_rl.utils import (
 )
 
 
-def test_get_feature_set():
+def test_get_feature_set() -> None:
     # First case
     masked_features1 = torch.tensor([3, 0, 0, 2, 0], dtype=torch.float32)
     feature_mask1 = torch.tensor([1, 0, 0, 1, 0], dtype=torch.bool)
@@ -58,7 +58,7 @@ def test_get_feature_set():
     get_feature_set(masked_features, feature_mask)
 
 
-def test_get_1D_identity():
+def test_get_1d_identity() -> None:
     # First case
     feature_mask1 = torch.tensor([1, 0, 1], dtype=torch.bool)
     expected1 = torch.tensor(
@@ -75,11 +75,11 @@ def test_get_1D_identity():
     feature_mask = torch.stack([feature_mask1, feature_mask2])
     expected = torch.stack([expected1, expected2])
 
-    identity = get_1D_identity(feature_mask)
+    identity = get_1d_identity(feature_mask)
     assert torch.allclose(identity, expected)
 
 
-def test_get_image_feature_set():
+def test_get_image_feature_set() -> None:
     image_shape = (3, 3)
     # Example from docstring (batch size = 1)
     masked_image1 = torch.tensor([3, 0, 1, 2, 1, 0, 0, 2, 3]).float()
@@ -130,7 +130,7 @@ def test_get_image_feature_set():
     )
 
 
-def test_get_2D_identity():
+def test_get_2d_identity() -> None:
     image_shape = (3, 3)
 
     feature_mask1 = torch.tensor([1, 0, 1, 1, 1, 0, 1, 1, 1])
@@ -176,7 +176,7 @@ def test_get_2D_identity():
     )
 
 
-def test_resample_invalid_actions():
+def test_resample_invalid_actions() -> None:
     # Example action tensor (batch_size)
     actions = torch.tensor([2, 1, 1])
 
@@ -210,7 +210,7 @@ def test_resample_invalid_actions():
     assert torch.all(resampled_actions == expected_actions)
 
 
-def test_resample_invalid_actions_randomized():
+def test_resample_invalid_actions_randomized() -> None:
     batch_size = 1000
     num_actions = 10
 

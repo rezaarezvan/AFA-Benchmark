@@ -20,7 +20,7 @@ from afabench.common.custom_types import (
 )
 
 
-def remove_module_prefix(state_dict):
+def remove_module_prefix(state_dict: dict[str, Any]):  # noqa: ANN201
     return {k.replace("module.", ""): v for k, v in state_dict.items()}
 
 
@@ -65,7 +65,9 @@ def get_feature_set(
     return feature_set, lengths
 
 
-def shuffle_feature_set(feature_set: FeatureSet, lengths: Tensor):
+def shuffle_feature_set(
+    feature_set: FeatureSet, lengths: Tensor
+) -> FeatureSet:
     """Shuffle a feature set."""
     shuffled_feature_set = torch.zeros_like(
         feature_set, device=feature_set.device
@@ -117,7 +119,7 @@ def get_image_feature_set(
             dim=1,
         )
 
-        # Create a tensor of size (H×W, 3) by padding unobserved pixels with zeros
+        # Create a tensor of size (HxW, 3) by padding unobserved pixels with zeros
         padded_set = torch.zeros((h * w, 3), device=masked_image.device)
 
         # For unobserved pixels, set value=0 and row=col=0
@@ -161,7 +163,7 @@ def get_2d_identity(
             [obs_indices[:, 0].float(), obs_indices[:, 1].float()], dim=1
         )
 
-        # Create a tensor of size (H×W, 2) by padding unobserved pixels with zeros
+        # Create a tensor of size (HxW, 2) by padding unobserved pixels with zeros
         padded_set = torch.zeros((h * w, 2), device=feature_mask.device)
 
         # For unobserved pixels, set row=col=0
@@ -206,7 +208,7 @@ def get_2d_identity(
 #     return feature_set
 
 
-def get_1D_identity(
+def get_1d_identity(
     feature_mask: FeatureMask,
 ) -> Integer[Tensor, "*batch n_features n_features"]:
     """Convert a feature mask to a onehot representation for each feature, but with all zeros for unobserved features."""
@@ -227,16 +229,16 @@ def get_1D_identity(
     return feature_set
 
 
-def floatwrapfn(f: Callable[..., Any]):
+def floatwrapfn(f: Callable[..., Any]) -> Callable[..., Any]:
     """Wrap a function to convert all arguments to float before calling it."""
 
-    def wrapper(*args):
+    def wrapper(*args):  # noqa: ANN002, ANN202
         return f(*[arg.float() for arg in args])
 
     return wrapper
 
 
-def resample_invalid_actions(actions, action_mask, action_values):
+def resample_invalid_actions(actions, action_mask, action_values):  # noqa: ANN001, ANN201
     resampled_actions = actions.clone()
 
     # Find invalid actions
@@ -254,7 +256,7 @@ def resample_invalid_actions(actions, action_mask, action_values):
     return resampled_actions
 
 
-def get_sequential_module_norm(module: nn.Sequential):
+def get_sequential_module_norm(module: nn.Sequential):  # noqa: ANN201
     """Calculate the average norm of all the linear layers in a sequential module."""
     weight_norms = [
         layer.weight.norm() for layer in module if isinstance(layer, nn.Linear)
@@ -281,11 +283,11 @@ def mask_data(
     return masked_features, feature_mask, feature_mask.any(dim=-1)
 
 
-def recursive_defaultdict():
+def recursive_defaultdict():  # noqa: ANN201
     return defaultdict(recursive_defaultdict)
 
 
-def to_regular_dict(d) -> dict:
+def to_regular_dict(d: dict) -> dict:  # pyright: ignore[reportMissingTypeArgument]
     if isinstance(d, defaultdict):
         d = {k: to_regular_dict(v) for k, v in d.items()}
     return d
@@ -294,8 +296,8 @@ def to_regular_dict(d) -> dict:
 def check_masked_classifier_performance(
     afa_predict_fn: AFAPredictFn,
     dataset: AFADataset,
-    class_weights: Float[Tensor, "n_classes"],
-):
+    class_weights: Float[Tensor, "n_classes"],  # noqa: ARG001, F821
+) -> None:
     """Check that a masked classifier has decent performance on the dataset."""
     # model_device = next(masked_classifier.parameters()).device
     # Calculate average accuracy over the whole dataset
@@ -381,8 +383,8 @@ def afacontext_optimal_selection(
     case2_end_idx = case2_start_idx + 3
     for i in range(masked_features.size(0)):
         if case2_mask[i]:
-            start: int = case2_start_idx[i].item()
-            end: int = case2_end_idx[i].item()
+            start = int(case2_start_idx[i].item())
+            end = int(case2_end_idx[i].item())
 
             # Find the first unselected feature in the range
             for j in range(start, end):
@@ -401,7 +403,7 @@ def afacontext_optimal_selection(
     return selection
 
 
-def cubeSimple_optimal_selection(
+def cube_simple_optimal_selection(
     masked_features: MaskedFeatures, feature_mask: FeatureMask
 ) -> AFASelection:
     selection = torch.full(
@@ -421,14 +423,16 @@ def cubeSimple_optimal_selection(
     return selection
 
 
-def cubeSimple_optimal_selection_wrapper(td: TensorDictBase) -> TensorDictBase:
-    td["action"] = cubeSimple_optimal_selection(
+def cube_simple_optimal_selection_wrapper(
+    td: TensorDictBase,
+) -> TensorDictBase:
+    td["action"] = cube_simple_optimal_selection(
         td["masked_features"], td["feature_mask"]
     )
     return td
 
 
-def cubeSimple_worst_selection(
+def cube_simple_worst_selection(
     masked_features: MaskedFeatures, feature_mask: FeatureMask
 ) -> AFASelection:
     selection = torch.full(
@@ -448,8 +452,8 @@ def cubeSimple_worst_selection(
     return selection
 
 
-def cubeSimple_worst_selection_wrapper(td: TensorDictBase) -> TensorDictBase:
-    td["action"] = cubeSimple_worst_selection(
+def cube_simple_worst_selection_wrapper(td: TensorDictBase) -> TensorDictBase:
+    td["action"] = cube_simple_worst_selection(
         td["masked_features"], td["feature_mask"]
     )
     return td
@@ -499,7 +503,7 @@ def weighted_cross_entropy(
     reduction: str = "none",  # or 'none', 'sum'
 ) -> torch.Tensor:
     """
-    Computes weighted cross-entropy between predicted and target distributions.
+    Compute weighted cross-entropy between predicted and target distributions.
 
     Args:
         input_probs: (batch_size, num_classes), predicted class probabilities.
