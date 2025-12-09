@@ -28,8 +28,8 @@ coverage:
 #     rm -rf dist
 #     uv build
 
-pretrain_shim2018_cube:
-    python scripts/pretrain/shim2018.py \
+pretrain_shim2018_cube *extra_args='':
+    uv run scripts/pretrain/shim2018.py {{extra_args}} \
                     train_dataset_bundle_path=extra/data/datasets/cube/0/train.bundle/ \
                     val_dataset_bundle_path=extra/data/datasets/cube/0/val.bundle/ \
                     save_path=tmp/shim2018_pretrained_cube.bundle \
@@ -38,8 +38,8 @@ pretrain_shim2018_cube:
                     use_wandb=true \
                     +experiment@_global_=cube
 
-train_shim2018_cube_hard:
-    python scripts/train/shim2018.py \
+train_shim2018_cube_hard *extra_args='':
+    uv run scripts/train/shim2018.py {{extra_args}} \
         train_dataset_bundle_path=extra/data/datasets/cube/0/train.bundle \
         val_dataset_bundle_path=extra/data/datasets/cube/0/val.bundle \
         pretrained_model_bundle_path=tmp/shim2018_pretrained_cube.bundle \
@@ -51,11 +51,10 @@ train_shim2018_cube_hard:
         device=cpu \
         seed=42 \
         use_wandb=true \
-        eval_n_times=1000 \
         +experiment@_global_=cube
 
-train_shim2018_cube_soft:
-    python scripts/train/shim2018.py \
+train_shim2018_cube_soft *extra_args='':
+    uv run scripts/train/shim2018.py {{extra_args}} \
         train_dataset_bundle_path=extra/data/datasets/cube/0/train.bundle \
         val_dataset_bundle_path=extra/data/datasets/cube/0/val.bundle \
         pretrained_model_bundle_path=tmp/shim2018_pretrained_cube.bundle \
