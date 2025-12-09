@@ -35,7 +35,7 @@ class CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     @property
     @override
     def feature_shape(self) -> torch.Size:
-        return torch.Size([100])
+        return torch.Size([20])
 
     @property
     @override

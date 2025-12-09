@@ -179,6 +179,7 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
         hard_budget=cfg.hard_budget,
         initialize_fn=initializer.initialize,
         unmask_fn=unmasker.unmask,
+        force_hard_budget=cfg.force_hard_budget,
         seed=cfg.seed,
     )
     # DEBUG start
@@ -282,7 +283,9 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
                         .cpu()
                         .item(),
                         # Average number of features selected when we stop
-                        "avg stop time": td["feature_mask"][td["action"] == 0]
+                        "avg stop time": td["feature_mask"][
+                            td["next", "done"].squeeze(-1)
+                        ]
                         .sum(-1)
                         .float()
                         .mean()
