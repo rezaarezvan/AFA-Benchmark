@@ -125,7 +125,7 @@ def get_basic_agent_config() -> Shim2018AgentConfig:
         action_value_dropout=0.0,
         eps_init=1.0,
         eps_end=0.1,
-        eps_annealing_num_batches=10,
+        eps_annealing_fraction=0.8,  # 80% of training for annealing
         replay_buffer_batch_size=32,
         lr=1e-3,
         gamma=0.99,
@@ -154,8 +154,8 @@ def get_basic_train_config() -> Shim2018TrainConfig:
         hard_budget=3,
         soft_budget_param=None,
         pretrained_model_lr=1e-4,
-        activate_joint_training_after_n_batches=2,
-        eval_every_n_batches=None,
+        activate_joint_training_after_fraction=0.4,  # 40% through training
+        eval_n_times=2,  # Evaluate twice during training
         eval_max_steps=10,
         n_eval_episodes=2,
         agent=get_basic_agent_config(),

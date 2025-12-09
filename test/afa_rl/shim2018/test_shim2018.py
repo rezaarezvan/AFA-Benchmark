@@ -299,6 +299,7 @@ class TestShim2018Agent:
             batch_size=4,  # For processing batch
             module_device=device,
             n_feature_dims=len(feature_shape),
+            n_batches=10,  # Total number of batches for testing
         )
 
         # Test that agent was created successfully
@@ -600,6 +601,7 @@ class TestShim2018Integration:
             batch_size=4,
             module_device=device,
             n_feature_dims=len(feature_shape),
+            n_batches=10,  # Total number of batches for testing
         )
 
         # Test rollout
