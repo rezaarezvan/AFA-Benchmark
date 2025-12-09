@@ -111,7 +111,7 @@ def test_initializer_and_unmasker_integration() -> None:
     # Trust that features and labels are forwarded properly by the environment
 
     # Pick the second patch for the first sample and the third patch for the second sample
-    td["action"] = torch.tensor([[2], [3]], dtype=torch.int64)
+    td["action"] = torch.tensor([2, 3], dtype=torch.int64)
 
     # t = 1
     td = env.step(td)
@@ -207,7 +207,7 @@ def test_initializer_and_unmasker_integration() -> None:
     assert torch.allclose(td["masked_features"], expected_masked_features_t1)
 
     # Pick the first patch for the first sample and the fourth patch for the second sample
-    td["action"] = torch.tensor([[1], [4]], dtype=torch.int64)
+    td["action"] = torch.tensor([1, 4], dtype=torch.int64)
 
     # t = 2 (final step due to hard_budget=2)
     td = env.step(td)
@@ -324,7 +324,7 @@ def test_stop_due_to_hard_budget() -> None:
 
     # First selection - should not terminate
     td["action"] = torch.tensor(
-        [[1], [2]], dtype=torch.int64
+        [1, 2], dtype=torch.int64
     )  # Select features 1 and 2
     td = env.step(td)
     td = td["next"]
@@ -335,7 +335,7 @@ def test_stop_due_to_hard_budget() -> None:
 
     # Second selection - should terminate due to hard budget
     td["action"] = torch.tensor(
-        [[3], [4]], dtype=torch.int64
+        [3, 4], dtype=torch.int64
     )  # Select features 3 and 4
     td = env.step(td)
     td = td["next"]
@@ -384,7 +384,7 @@ def test_stop_due_to_no_more_actions() -> None:
 
     # First selection - should not terminate
     td["action"] = torch.tensor(
-        [[1], [1]], dtype=torch.int64
+        [1, 1], dtype=torch.int64
     )  # Select first feature
     td = env.step(td)
     td = td["next"]
@@ -395,7 +395,7 @@ def test_stop_due_to_no_more_actions() -> None:
 
     # Second selection - should terminate because no more selection actions available
     td["action"] = torch.tensor(
-        [[2], [2]], dtype=torch.int64
+        [2, 2], dtype=torch.int64
     )  # Select second feature
     td = env.step(td)
     td = td["next"]
@@ -444,7 +444,7 @@ def test_stop_due_to_stop_action() -> None:
 
     # Make one selection first - should not terminate
     td["action"] = torch.tensor(
-        [[1], [2]], dtype=torch.int64
+        [1, 2], dtype=torch.int64
     )  # Select features 1 and 2
     td = env.step(td)
     td = td["next"]
@@ -454,7 +454,7 @@ def test_stop_due_to_stop_action() -> None:
     )
 
     # Choose stop action (action 0) - should terminate
-    td["action"] = torch.tensor([[0], [0]], dtype=torch.int64)  # Stop action
+    td["action"] = torch.tensor([0, 0], dtype=torch.int64)  # Stop action
     td = env.step(td)
     td = td["next"]
 
@@ -504,7 +504,7 @@ def test_per_sample_termination_hard_budget() -> None:
     td = env.reset()
 
     # First step: Sample 1 makes selection, samples 2&3 choose stop
-    td["action"] = torch.tensor([[1], [0], [0]], dtype=torch.int64)
+    td["action"] = torch.tensor([1, 0, 0], dtype=torch.int64)
     td = env.step(td)
     td = td["next"]
 
@@ -515,7 +515,7 @@ def test_per_sample_termination_hard_budget() -> None:
     )
 
     # Second step: Sample 1 makes another selection (reaches hard budget)
-    td["action"] = torch.tensor([[2], [0], [0]], dtype=torch.int64)
+    td["action"] = torch.tensor([2, 0, 0], dtype=torch.int64)
     td = env.step(td)
     td = td["next"]
 
@@ -566,7 +566,7 @@ def test_per_sample_termination_no_more_actions() -> None:
     td = env.reset()
 
     # Step 1: Sample 1 makes first selection, sample 2 exhausts all selections, sample 3 makes first selection
-    td["action"] = torch.tensor([[1], [1], [1]], dtype=torch.int64)
+    td["action"] = torch.tensor([1, 1, 1], dtype=torch.int64)
     td = env.step(td)
     td = td["next"]
 
@@ -577,7 +577,7 @@ def test_per_sample_termination_no_more_actions() -> None:
     )
 
     # Step 2: Sample 1 stops, sample 2 makes second selection (should auto-terminate), sample 3 makes second selection (should auto-terminate)
-    td["action"] = torch.tensor([[0], [2], [2]], dtype=torch.int64)
+    td["action"] = torch.tensor([0, 2, 2], dtype=torch.int64)
     td = env.step(td)
     td = td["next"]
 
@@ -627,7 +627,7 @@ def test_per_sample_termination_stop_action() -> None:
     td = env.reset()
 
     # Step 1: Sample 1 chooses stop, others make selections
-    td["action"] = torch.tensor([[0], [1], [2]], dtype=torch.int64)
+    td["action"] = torch.tensor([0, 1, 2], dtype=torch.int64)
     td = env.step(td)
     td = td["next"]
 
@@ -638,7 +638,7 @@ def test_per_sample_termination_stop_action() -> None:
     )
 
     # Step 2: All remaining samples make selections
-    td["action"] = torch.tensor([[0], [3], [1]], dtype=torch.int64)
+    td["action"] = torch.tensor([0, 3, 1], dtype=torch.int64)
     td = env.step(td)
     td = td["next"]
 
@@ -649,7 +649,7 @@ def test_per_sample_termination_stop_action() -> None:
     )
 
     # Step 3: Sample 2 chooses stop, sample 3 makes selection
-    td["action"] = torch.tensor([[0], [0], [4]], dtype=torch.int64)
+    td["action"] = torch.tensor([0, 0, 4], dtype=torch.int64)
     td = env.step(td)
     td = td["next"]
 
@@ -660,7 +660,7 @@ def test_per_sample_termination_stop_action() -> None:
     )
 
     # Step 4: Sample 3 chooses stop
-    td["action"] = torch.tensor([[0], [0], [0]], dtype=torch.int64)
+    td["action"] = torch.tensor([0, 0, 0], dtype=torch.int64)
     td = env.step(td)
     td = td["next"]
 
@@ -705,14 +705,12 @@ def test_invalid_action_handling() -> None:
     td = env.reset()
 
     # First, perform a valid action to test re-selection
-    td["action"] = torch.tensor([[1], [2]], dtype=torch.int64)
+    td["action"] = torch.tensor([1, 2], dtype=torch.int64)
     td = env.step(td)
     td = td["next"]
 
     # Test trying to select the same action again (should be disallowed)
-    td["action"] = torch.tensor(
-        [[1], [1]], dtype=torch.int64
-    )  # Already performed
+    td["action"] = torch.tensor([1, 1], dtype=torch.int64)  # Already performed
     td_result = env.step(td)
     td_result = td_result["next"]
 
@@ -766,9 +764,9 @@ def test_mask_consistency() -> None:
 
     # Perform several actions and check mask consistency at each step
     actions_sequence = [
-        torch.tensor([[1], [2]], dtype=torch.int64),
-        torch.tensor([[3], [1]], dtype=torch.int64),
-        torch.tensor([[2], [4]], dtype=torch.int64),
+        torch.tensor([1, 2], dtype=torch.int64),
+        torch.tensor([3, 1], dtype=torch.int64),
+        torch.tensor([2, 4], dtype=torch.int64),
     ]
 
     for action in actions_sequence:
@@ -845,7 +843,7 @@ def test_reward_integration() -> None:
     td = env.reset()
 
     # Test reward for selection action (should be reward_otherwise)
-    td["action"] = torch.tensor([[1], [2]], dtype=torch.int64)
+    td["action"] = torch.tensor([1, 2], dtype=torch.int64)
     td = env.step(td)
     td = td["next"]
 
@@ -855,7 +853,7 @@ def test_reward_integration() -> None:
     )
 
     # Test reward for stop action (should be reward_for_stop)
-    td["action"] = torch.tensor([[0], [0]], dtype=torch.int64)
+    td["action"] = torch.tensor([0, 0], dtype=torch.int64)
     td = env.step(td)
     td = td["next"]
 
@@ -915,7 +913,7 @@ def test_state_immutability() -> None:
         original_tensors[key] = value.clone()
 
     # Perform an action
-    td["action"] = torch.tensor([[1], [2]], dtype=torch.int64)
+    td["action"] = torch.tensor([1, 2], dtype=torch.int64)
 
     # Store the action for comparison
     original_action = td["action"].clone()
@@ -983,7 +981,7 @@ def test_different_batch_sizes() -> None:
         "Single batch size should be [1]"
     )
 
-    td_single["action"] = torch.tensor([[1]], dtype=torch.int64)
+    td_single["action"] = torch.tensor([1], dtype=torch.int64)
     td_single = env_single.step(td_single)
     td_single = td_single["next"]
 
@@ -1016,7 +1014,7 @@ def test_different_batch_sizes() -> None:
         "Large batch size should be [4]"
     )
 
-    td_large["action"] = torch.tensor([[1], [2], [3], [4]], dtype=torch.int64)
+    td_large["action"] = torch.tensor([1, 2, 3, 4], dtype=torch.int64)
     td_large = env_large.step(td_large)
     td_large = td_large["next"]
 
@@ -1081,11 +1079,11 @@ def test_environment_reset_behavior() -> None:
     ), "Initial masked features should be all zero"
 
     # Perform some actions
-    td1["action"] = torch.tensor([[1], [2]], dtype=torch.int64)
+    td1["action"] = torch.tensor([1, 2], dtype=torch.int64)
     td1 = env.step(td1)
     td1 = td1["next"]
 
-    td1["action"] = torch.tensor([[3], [1]], dtype=torch.int64)
+    td1["action"] = torch.tensor([3, 1], dtype=torch.int64)
     td1 = env.step(td1)
     td1 = td1["next"]
 
@@ -1213,7 +1211,7 @@ def test_tensordict_structure_validation() -> None:
     )
 
     # Perform a step and check result structure
-    td["action"] = torch.tensor([[1], [2]], dtype=torch.int64)
+    td["action"] = torch.tensor([1, 2], dtype=torch.int64)
     result_td = env.step(td)
 
     # Check that result has "next" key
@@ -1321,7 +1319,7 @@ def test_initializer_application() -> None:
 
     # Test that we can still make selections after initialization
     td["action"] = torch.tensor(
-        [[2], [4]], dtype=torch.int64
+        [2, 4], dtype=torch.int64
     )  # Select features 2 and 4 (1-based)
     td = env.step(td)
     td = td["next"]

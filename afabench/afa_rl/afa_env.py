@@ -233,7 +233,7 @@ class AFAEnv(EnvBase):
         )
         done = (
             ((selections_taken >= self.hard_budget).unsqueeze(-1))
-            | (tensordict["action"] == 0)
+            | (tensordict["action"] == 0).unsqueeze(-1)
             | (~selection_actions_available).unsqueeze(-1)
         )
 
