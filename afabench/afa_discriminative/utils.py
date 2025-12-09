@@ -1,9 +1,11 @@
+from typing import override
+
 import torch
 from torch import nn
 from torch.distributions import Categorical, RelaxedOneHotCategorical
 
 
-def restore_parameters(model, best_model):
+def restore_parameters(model: nn.Module, best_model: nn.Module) -> None:
     """Move parameters from best model to current model."""
     for param, best_param in zip(
         model.parameters(), best_model.parameters(), strict=False
@@ -11,7 +13,7 @@ def restore_parameters(model, best_model):
         param.data = best_param
 
 
-def make_onehot(x):
+def make_onehot(x: torch.Tensor) -> torch.Tensor:
     """Make an approximately one-hot vector one-hot."""
     argmax = torch.argmax(x, dim=1)
     onehot = torch.zeros(x.shape, dtype=x.dtype, device=x.device)
@@ -19,12 +21,12 @@ def make_onehot(x):
     return onehot
 
 
-def get_entropy(pred):
+def get_entropy(pred: torch.Tensor) -> torch.Tensor:
     """Calculate entropy, assuming logit predictions."""
     return Categorical(logits=pred).entropy()
 
 
-def ind_to_onehot(inds, n):
+def ind_to_onehot(inds: torch.Tensor, n: int) -> torch.Tensor:
     """Convert index to one-hot encoding."""
     onehot = torch.zeros(len(inds), n, dtype=torch.float32, device=inds.device)
     onehot[torch.arange(len(inds)), inds] = 1
@@ -41,15 +43,16 @@ class MaskLayer(nn.Module):
 
     """
 
-    def __init__(self, append, mask_size=None):
+    def __init__(self, append: bool, mask_size: int | None = None):
         super().__init__()
-        self.append = append
-        self.mask_size = mask_size
+        self.append: bool = append
+        self.mask_size: int | None = mask_size
 
-    def forward(self, x, m):
+    @override
+    def forward(self, x: torch.Tensor, m: torch.Tensor) -> torch.Tensor:
         out = x * m
         if self.append:
-            out = torch.cat([out, m], dim=1)
+            out: torch.Tensor = torch.cat([out, m], dim=1)
         return out
 
 
@@ -64,22 +67,25 @@ class MaskLayer2d(nn.Module):
       append: whether to append mask to the output.
     """
 
-    def __init__(self, mask_width, patch_size, append=False):
+    def __init__(self, mask_width: int, patch_size: int, append: bool):
         super().__init__()
-        self.append = append
-        self.mask_width = mask_width
-        self.mask_size = mask_width**2
+        self.append: bool = append
+        self.mask_width: int = mask_width
+        self.mask_size: int = mask_width**2
 
         # Set up upsampling.
-        self.patch_size = patch_size
+        self.patch_size: int = patch_size
+        self.upsample: nn.Module
         if patch_size == 1:
             self.upsample = nn.Identity()
         elif patch_size > 1:
             self.upsample = nn.Upsample(scale_factor=patch_size)
         else:
-            raise ValueError("patch_size should be int >= 1")
+            msg = "patch_size should be int >= 1"
+            raise ValueError(msg)
 
-    def forward(self, x, mask):
+    @override
+    def forward(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         # Reshape if necessary.
         if len(mask.shape) == 2:
             mask = mask.reshape(-1, 1, self.mask_width, self.mask_width)
@@ -100,13 +106,18 @@ class MaskLayer2d(nn.Module):
 class ConcreteSelector(nn.Module):
     """Output layer for selector models."""
 
-    def __init__(self, gamma=0.2):
+    def __init__(self, gamma: float = 0.2) -> None:
         super().__init__()
-        self.gamma = gamma
+        self.gamma: float = gamma
 
-    def forward(self, logits, temp, deterministic=False):
+    @override
+    def forward(
+        self,
+        logits: torch.Tensor,
+        temp: float,
+        deterministic: bool = False,
+    ) -> torch.Tensor:
         if deterministic:
-            # TODO this is somewhat untested, but seems like best way to preserve argmax
             return torch.softmax(logits / (self.gamma * temp), dim=-1)
         dist = RelaxedOneHotCategorical(temp, logits=logits / self.gamma)
         return dist.rsample()

@@ -1,10 +1,12 @@
-import os
+import math
 from copy import deepcopy
 from pathlib import Path
+from typing import Any, Self, override
 
 import numpy as np
 import torch
 from torch import nn, optim
+from torch.utils.data import DataLoader
 from torchrl.modules import MLP
 
 from afabench.afa_discriminative.models import (
@@ -15,18 +17,21 @@ from afabench.afa_discriminative.models import (
 )
 from afabench.afa_discriminative.utils import (
     ConcreteSelector,
+    MaskLayer,
+    MaskLayer2d,
     get_entropy,
     ind_to_onehot,
     make_onehot,
     restore_parameters,
 )
 from afabench.common.custom_types import (
+    AFAInitializer,
     AFAMethod,
     AFASelection,
-    AFAInitializer,
     FeatureMask,
     Label,
     MaskedFeatures,
+    SelectionMask,
 )
 
 
@@ -42,48 +47,52 @@ class GreedyDynamicSelection(nn.Module):
 
     """
 
-    def __init__(self, selector, predictor, mask_layer):
+    def __init__(
+        self,
+        selector: nn.Module,
+        predictor: nn.Module,
+        mask_layer: MaskLayer | MaskLayer2d,
+    ) -> None:
         super().__init__()
 
         # Set up models and mask layer.
-        self.selector = selector
-        self.predictor = predictor
-        self.mask_layer = mask_layer
+        self.selector: nn.Module = selector
+        self.predictor: nn.Module = predictor
+        self.mask_layer: MaskLayer | MaskLayer2d = mask_layer
 
         # Set up selector layer.
-        self.selector_layer = ConcreteSelector()
+        self.selector_layer: nn.Module = ConcreteSelector()
 
-    def fit(
+    def fit(  # noqa: PLR0915, PLR0912, C901
         self,
-        train_loader,
-        val_loader,
-        lr,
-        nepochs,
-        max_features,
-        loss_fn,
-        val_loss_fn=None,
-        val_loss_mode=None,
-        factor=0.2,
-        patience=2,
-        min_lr=1e-5,
-        early_stopping_epochs=None,
-        start_temp=1.0,
-        end_temp=0.1,
-        temp_steps=5,
-        argmax=False,
-        verbose=True,
-        feature_costs=None,
+        train_loader: DataLoader[tuple[torch.Tensor, torch.Tensor]],
+        val_loader: DataLoader[tuple[torch.Tensor, torch.Tensor]],
+        lr: float,
+        nepochs: int,
+        max_features: int,
+        loss_fn: nn.Module,
+        val_loss_fn: nn.Module | None = None,
+        val_loss_mode: str | None = None,
+        factor: float = 0.2,
+        patience: int = 2,
+        min_lr: float = 1e-5,
+        early_stopping_epochs: int | None = None,
+        start_temp: float = 1.0,
+        end_temp: float = 0.1,
+        temp_steps: int = 5,
+        argmax: bool = False,  # noqa: FBT002
+        verbose: bool = True,  # noqa: FBT002
+        feature_costs: torch.Tensor | None = None,
         initializer: AFAInitializer | None = None,
-    ):
+    ) -> None:
         """Train model to perform greedy adaptive feature selection."""
         # Verify arguments.
         if val_loss_fn is None:
             val_loss_fn = loss_fn
             val_loss_mode = "min"
         elif val_loss_mode is None:
-            raise ValueError(
-                "must specify val_loss_mode (min or max) when validation_loss_fn is specified"
-            )
+            msg = "must specify val_loss_mode (min or max) when validation_loss_fn is specified"
+            raise ValueError(msg)
         if early_stopping_epochs is None:
             early_stopping_epochs = patience + 1
 
@@ -96,10 +105,8 @@ class GreedyDynamicSelection(nn.Module):
         val_loss_fn.to(device)
 
         # Determine mask size.
-        if hasattr(mask_layer, "mask_size") and (
-            mask_layer.mask_size is not None
-        ):
-            mask_size = mask_layer.mask_size
+        if mask_layer.mask_size is not None:
+            mask_size = int(mask_layer.mask_size)
         else:
             # Must be tabular (1d data).
             x, y = next(iter(val_loader))
@@ -130,7 +137,7 @@ class GreedyDynamicSelection(nn.Module):
             )
             scheduler = optim.lr_scheduler.ReduceLROnPlateau(
                 opt,
-                mode=val_loss_mode,
+                mode=val_loss_mode,  # pyright: ignore[reportArgumentType]
                 factor=factor,
                 patience=patience,
                 min_lr=min_lr,
@@ -147,10 +154,10 @@ class GreedyDynamicSelection(nn.Module):
                 selector.train()
                 predictor.train()
                 epoch_train_loss = 0.0
-                for x, y in train_loader:
+                for x_batch, y_batch in train_loader:
                     # Move to device.
-                    x = x.to(device)
-                    y = y.to(device)
+                    x = x_batch.to(device)
+                    y = y_batch.to(device)
 
                     # Setup.
                     if initializer is None:
@@ -205,7 +212,7 @@ class GreedyDynamicSelection(nn.Module):
                     # Take gradient step.
                     opt.step()
 
-                avg_train = epoch_train_loss / len(train_loader)
+                # avg_train = epoch_train_loss / len(train_loader)
 
                 # Calculate validation loss.
                 selector.eval()
@@ -216,10 +223,10 @@ class GreedyDynamicSelection(nn.Module):
                     hard_pred_list = []
                     label_list = []
 
-                    for x, y in val_loader:
+                    for x_batch, y_batch in val_loader:
                         # Move to device.
-                        x = x.to(device)
-                        y = y.to(device)
+                        x = x_batch.to(device)
+                        y = y_batch.to(device)
 
                         # Setup.
                         if initializer is None:
@@ -325,11 +332,18 @@ class GreedyDynamicSelection(nn.Module):
             restore_parameters(predictor, best_predictor)
 
         # Copy parameters from best model with zero temperature.
+        assert best_zerotemp_selector is not None
+        assert best_zerotemp_predictor is not None
         restore_parameters(selector, best_zerotemp_selector)
         restore_parameters(predictor, best_zerotemp_predictor)
 
-    # TODO need to add feature costs here if we want to evaluate manually
-    def forward(self, x, max_features, argmax=True):
+    @override
+    def forward(
+        self,
+        x: torch.Tensor,
+        max_features: int,
+        argmax: bool = True,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Make predictions using selected features."""
         # Setup.
         selector = self.selector
@@ -339,10 +353,8 @@ class GreedyDynamicSelection(nn.Module):
         device = next(predictor.parameters()).device
 
         # Determine mask size.
-        if hasattr(mask_layer, "mask_size") and (
-            mask_layer.mask_size is not None
-        ):
-            mask_size = self.mask_layer.mask_size
+        if mask_layer.mask_size is not None:
+            mask_size = int(self.mask_layer.mask_size)  # pyright: ignore[reportArgumentType]
         else:
             # Must be tabular (1d data).
             assert len(x.shape) == 2
@@ -366,47 +378,14 @@ class GreedyDynamicSelection(nn.Module):
         pred = predictor(x_masked)
         return pred, x_masked, m
 
-    def evaluate(self, loader, max_features, metric, argmax=True):
-        """Evaluate mean performance across a dataset."""
-        # Setup.
-        self.selector.eval()
-        self.predictor.eval()
-        device = next(self.predictor.parameters()).device
-
-        # For calculating mean loss.
-        pred_list = []
-        label_list = []
-
-        with torch.no_grad():
-            for x, y in loader:
-                # Move to GPU.
-                x = x.to(device)
-
-                # Calculate loss.
-                pred, _, _ = self.forward(x, max_features, argmax)
-                pred_list.append(pred.cpu())
-                label_list.append(y.cpu())
-
-            # Calculate metric(s).
-            y = torch.cat(label_list, 0)
-            pred = torch.cat(pred_list, 0)
-            if isinstance(metric, (tuple, list)):
-                score = [m(pred, y).item() for m in metric]
-            elif isinstance(metric, dict):
-                score = {name: m(pred, y).item() for name, m in metric.items()}
-            else:
-                score = metric(pred, y).item()
-
-        return score
-
 
 class Covert2023AFAMethod(AFAMethod):
     def __init__(
         self,
-        selector,
-        predictor,
-        device=torch.device("cpu"),
-        lambda_threshold: float = -float("inf"),
+        selector: nn.Module,
+        predictor: nn.Module,
+        device: torch.device,
+        lambda_threshold: float | None = None,
         feature_costs: torch.Tensor | None = None,
         modality: str | None = "tabular",
         n_patches: int | None = None,
@@ -416,21 +395,26 @@ class Covert2023AFAMethod(AFAMethod):
         super().__init__()
 
         # Set up models and mask layer.
-        self.selector = selector
-        self.predictor = predictor
+        self.selector: nn.Module = selector
+        self.predictor: nn.Module = predictor
         self._device: torch.device = device
-        self.lambda_threshold = lambda_threshold
-        self._feature_costs = feature_costs
-        self.modality = modality
+        if lambda_threshold is None:
+            self.lambda_threshold: float = -math.inf
+        else:
+            self.lambda_threshold = lambda_threshold
+        self._feature_costs: torch.Tensor | None = feature_costs
+        self.modality: str | None = modality
         # for image selection
-        self.n_patches = n_patches
-        self.d_in = d_in
-        self.d_out = d_out
+        self.n_patches: int | None = n_patches
+        self.d_in: int | None = d_in
+        self.d_out: int | None = d_out
         self.image_size: int | None = None
         self.patch_size: int | None = None
         self.mask_width: int | None = None
 
-    def _flat_mask_to_patch_mask(self, feature_mask: torch.Tensor):
+    def _flat_mask_to_patch_mask(
+        self, feature_mask: torch.Tensor
+    ) -> torch.Tensor:
         assert feature_mask.dim() == 4
         B, C, H, W = feature_mask.shape
         ps = self.patch_size
@@ -441,12 +425,13 @@ class Covert2023AFAMethod(AFAMethod):
         patch_revealed = fm.any(dim=(1, 3, 5))
         return patch_revealed.reshape(B, ph * pw)
 
+    @override
     def predict(
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        label=None,
-        feature_shape=None,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> Label:
         if self.modality == "tabular":
             x_masked = torch.cat([masked_features, feature_mask], dim=1)
@@ -455,13 +440,14 @@ class Covert2023AFAMethod(AFAMethod):
             pred = self.predictor(masked_features)
         return pred.softmax(dim=-1)
 
+    @override
     def select(
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        selection_mask=None,
-        label=None,
-        feature_shape=None,
+        selection_mask: SelectionMask | None = None,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> AFASelection:
         if self.modality == "tabular":
             x_masked = torch.cat([masked_features, feature_mask], dim=1)
@@ -496,10 +482,9 @@ class Covert2023AFAMethod(AFAMethod):
         # return next_feature_idx
 
     @classmethod
-    def load(cls, path, device="cpu"):
-        checkpoint = torch.load(
-            os.path.join(path, "model.pt"), map_location=device
-        )
+    @override
+    def load(cls, path: Path, device: torch.device) -> Self:
+        checkpoint = torch.load(path / "model.pt", map_location=device)
         arch = checkpoint["architecture"]
         # tabular
         if "predictor_hidden_layers" in arch:
@@ -555,10 +540,12 @@ class Covert2023AFAMethod(AFAMethod):
             model.selector.eval()
             model.predictor.eval()
             return model.to(device)
-        raise ValueError("Unrecognized checkpoint format")
+        msg = "Unrecognized checkpoint format"
+        raise ValueError(msg)
 
-    def save(self, path: Path):
-        os.makedirs(path, exist_ok=True)
+    @override
+    def save(self, path: Path) -> None:
+        path.mkdir(parents=True, exist_ok=True)
         if self.modality == "tabular":
             arch = {
                 "d_in": self.d_in,
@@ -569,7 +556,7 @@ class Covert2023AFAMethod(AFAMethod):
                 "model_type": "tabular",
             }
         else:
-            # TODO pass self.predictor.fc.out_features as d_out here
+            # TODO: pass self.predictor.fc.out_features as d_out here
             arch = {
                 "backbone": "resnet18",
                 "image_size": getattr(self, "image_size", 224),
@@ -583,41 +570,31 @@ class Covert2023AFAMethod(AFAMethod):
             "predictor_state_dict": self.predictor.state_dict(),
             "architecture": arch,
         }
-        torch.save(payload, os.path.join(path, "model.pt"))
+        torch.save(payload, Path(path) / "model.pt")
 
-        # torch.save(
-        #     {
-        #         "selector_state_dict": self.selector.state_dict(),
-        #         "predictor_state_dict": self.predictor.state_dict(),
-        #         "architecture": {
-        #             "d_in": self.selector.output_dim,
-        #             "d_out": self.predictor.output_dim,
-        #             "selector_hidden_layers": [128, 128],
-        #             "predictor_hidden_layers": [128, 128],
-        #             "dropout": 0.3,
-        #         },
-        #     },
-        #     os.path.join(path, "model.pt"),
-        # )
-
-    def to(self, device):
+    @override
+    def to(self, device: torch.device) -> Self:
         self.selector = self.selector.to(device)
         self.predictor = self.predictor.to(device)
         self._device = device
         return self
 
     @property
+    @override
     def device(self) -> torch.device:
         return self._device
 
     @property
+    @override
     def has_builtin_classifier(self) -> bool:
         return True
 
     @property
+    @override
     def cost_param(self) -> float | None:
         return float(self.lambda_threshold)
 
+    @override
     def set_cost_param(self, cost_param: float) -> None:
         self.lambda_threshold = cost_param
 
@@ -625,59 +602,60 @@ class Covert2023AFAMethod(AFAMethod):
 class CMIEstimator(nn.Module):
     """Greedy CMI estimation module."""
 
-    def __init__(self, value_network, predictor, mask_layer):
+    def __init__(
+        self,
+        value_network: nn.Module,
+        predictor: nn.Module,
+        mask_layer: MaskLayer | MaskLayer2d,
+    ):
         super().__init__()
 
         # Save network modules.
-        self.value_network = value_network
-        self.predictor = predictor
-        self.mask_layer = mask_layer
+        self.value_network: nn.Module = value_network
+        self.predictor: nn.Module = predictor
+        self.mask_layer: MaskLayer | MaskLayer2d = mask_layer
 
-    def fit(
+    def fit(  # noqa: PLR0915, PLR0912, C901
         self,
-        train_loader,
-        val_loader,
-        lr,
-        nepochs,
-        max_features,
-        eps,
-        loss_fn,
-        val_loss_fn,
-        val_loss_mode,
-        factor=0.2,
-        patience=2,
-        min_lr=1e-6,
-        early_stopping_epochs=None,
-        eps_decay=0.2,
-        eps_steps=1,
-        feature_costs=None,
-        cmi_scaling="bounded",
-        verbose=True,
+        train_loader: DataLoader[tuple[torch.Tensor, torch.Tensor]],
+        val_loader: DataLoader[tuple[torch.Tensor, torch.Tensor]],
+        lr: float,
+        nepochs: int,
+        max_features: int,
+        eps: float,
+        loss_fn: nn.Module,
+        val_loss_fn: nn.Module | None,
+        val_loss_mode: str | None,
+        factor: float = 0.2,
+        patience: int = 2,
+        min_lr: float = 1e-6,
+        early_stopping_epochs: int | None = None,
+        eps_decay: float = 0.2,
+        eps_steps: int = 1,
+        feature_costs: torch.Tensor | None = None,
+        cmi_scaling: str = "bounded",
+        verbose: bool = True,  # noqa: FBT002
         initializer: AFAInitializer | None = None,
-    ):
-        user_supplied_val_metric = val_loss_fn is not None
+    ) -> None:
         if val_loss_fn is None:
             val_loss_fn = loss_fn
             val_loss_mode = "min"
         elif val_loss_mode is None:
-            raise ValueError(
-                "must specify val_loss_mode (min or max) when validation_loss_fn is specified"
-            )
+            msg = "must specify val_loss_mode (min or max) when validation_loss_fn is specified"
+            raise ValueError(msg)
         if early_stopping_epochs is None:
             early_stopping_epochs = patience + 1
 
-        value_network = self.value_network
-        predictor = self.predictor
-        mask_layer = self.mask_layer
+        value_network: nn.Module = self.value_network
+        predictor: nn.Module = self.predictor
+        mask_layer: MaskLayer | MaskLayer2d = self.mask_layer
 
         device = next(predictor.parameters()).device
         val_loss_fn = val_loss_fn.to(device)
         value_network = value_network.to(device)
 
-        if hasattr(mask_layer, "mask_size") and (
-            mask_layer.mask_size is not None
-        ):
-            mask_size = mask_layer.mask_size
+        if mask_layer.mask_size is not None:
+            mask_size = int(mask_layer.mask_size)
         else:
             # Must be tabular (1d data).
             x, y = next(iter(val_loader))
@@ -712,7 +690,7 @@ class CMIEstimator(nn.Module):
         )
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(
             opt,
-            mode=val_loss_mode,
+            mode=val_loss_mode,  # pyright: ignore[reportArgumentType]
             factor=factor,
             patience=patience,
             min_lr=min_lr,
@@ -732,10 +710,10 @@ class CMIEstimator(nn.Module):
             pred_losses = []
             total_loss = 0
 
-            for x, y in train_loader:
+            for x_batch, y_batch in train_loader:
                 # Move to device.
-                x = x.to(device)
-                y = y.to(device)
+                x = x_batch.to(device)
+                y = y_batch.to(device)
 
                 # Setup.
                 if initializer is None:
@@ -785,8 +763,9 @@ class CMIEstimator(nn.Module):
                         pred_cmi = value_network(x_masked)
 
                     best = torch.argmax(pred_cmi / feature_costs, dim=1)
+                    rng = np.random.default_rng()
                     random = torch.tensor(
-                        np.random.choice(mask_size, size=len(x)),
+                        rng.choice(mask_size, size=len(x)),
                         device=x.device,
                     )
                     exploit = (torch.rand(len(x), device=x.device) > eps).int()
@@ -833,10 +812,10 @@ class CMIEstimator(nn.Module):
             val_targets = []
 
             with torch.no_grad():
-                for x, y in val_loader:
+                for x_batch, y_batch in val_loader:
                     # Move to device.
-                    x = x.to(device)
-                    y = y.to(device)
+                    x = x_batch.to(device)
+                    y = y_batch.to(device)
 
                     # Setup.
                     if initializer is None:
@@ -957,10 +936,10 @@ class CMIEstimator(nn.Module):
 class Gadgil2023AFAMethod(AFAMethod):
     def __init__(
         self,
-        value_network,
-        predictor,
-        device=torch.device("cpu"),
-        lambda_threshold: float = -float("inf"),
+        value_network: nn.Module,
+        predictor: nn.Module,
+        device: torch.device,
+        lambda_threshold: float | None = None,
         feature_costs: torch.Tensor | None = None,
         modality: str | None = "tabular",
         n_patches: int | None = None,
@@ -970,20 +949,25 @@ class Gadgil2023AFAMethod(AFAMethod):
         super().__init__()
 
         # Save network modules.
-        self.value_network = value_network
-        self.predictor = predictor
+        self.value_network: nn.Module = value_network
+        self.predictor: nn.Module = predictor
         self._device: torch.device = device
-        self.lambda_threshold = lambda_threshold
-        self._feature_costs = feature_costs
-        self.modality = modality
-        self.n_patches = n_patches
-        self.d_in = d_in
-        self.d_out = d_out
+        if lambda_threshold is None:
+            self.lambda_threshold: float = -math.inf
+        else:
+            self.lambda_threshold = lambda_threshold
+        self._feature_costs: torch.Tensor | None = feature_costs
+        self.modality: str | None = modality
+        self.n_patches: int | None = n_patches
+        self.d_in: int | None = d_in
+        self.d_out: int | None = d_out
         self.image_size: int | None = None
         self.patch_size: int | None = None
         self.mask_width: int | None = None
 
-    def _flat_mask_to_patch_mask(self, feature_mask: torch.Tensor):
+    def _flat_mask_to_patch_mask(
+        self, feature_mask: torch.Tensor
+    ) -> AFASelection:
         assert feature_mask.dim() == 4
         B, C, H, W = feature_mask.shape
         ps = self.patch_size
@@ -994,12 +978,13 @@ class Gadgil2023AFAMethod(AFAMethod):
         patch_revealed = fm.any(dim=(1, 3, 5))
         return patch_revealed.reshape(B, ph * pw)
 
+    @override
     def predict(
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        label=None,
-        feature_shape=None,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> Label:
         if self.modality == "tabular":
             x_masked = torch.cat([masked_features, feature_mask], dim=1)
@@ -1008,13 +993,14 @@ class Gadgil2023AFAMethod(AFAMethod):
             pred = self.predictor(masked_features)
         return pred.softmax(dim=-1)
 
+    @override
     def select(
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        selection_mask=None,
-        label=None,
-        feature_shape=None,
+        selection_mask: SelectionMask | None = None,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> AFASelection:
         if self.modality == "tabular":
             x_masked = torch.cat([masked_features, feature_mask], dim=1)
@@ -1048,7 +1034,8 @@ class Gadgil2023AFAMethod(AFAMethod):
         # return next_feature_idx
 
     @classmethod
-    def load(cls, path, device="cpu"):
+    @override
+    def load(cls, path: Path, device: torch.device) -> Self:
         checkpoint = torch.load(path / "model.pt", map_location=device)
         arch = checkpoint["architecture"]
         if "predictor_hidden_layers" in arch:
@@ -1075,9 +1062,13 @@ class Gadgil2023AFAMethod(AFAMethod):
             # value_network.hidden[0] = predictor.hidden[0]
             # value_network.hidden[1] = predictor.hidden[1]
             pred_linears = [m for m in predictor if isinstance(m, nn.Linear)]
-            value_linears = [m for m in value_network if isinstance(m, nn.Linear)]
+            value_linears = [
+                m for m in value_network if isinstance(m, nn.Linear)
+            ]
 
-            assert len(value_network_hidden_layers) == len(predictor_hidden_layers)
+            assert len(value_network_hidden_layers) == len(
+                predictor_hidden_layers
+            )
             for i in range(len(value_network_hidden_layers)):
                 value_linears[i].weight = pred_linears[i].weight
                 value_linears[i].bias = pred_linears[i].bias
@@ -1117,10 +1108,12 @@ class Gadgil2023AFAMethod(AFAMethod):
             model.value_network.eval()
             model.predictor.eval()
             return model.to(device)
-        raise ValueError("Unrecognized checkpoint format")
+        msg = "Unrecognized checkpoint format"
+        raise ValueError(msg)
 
-    def save(self, path: Path):
-        os.makedirs(path, exist_ok=True)
+    @override
+    def save(self, path: Path) -> None:
+        path.mkdir(parents=True, exist_ok=True)
         if self.modality == "tabular":
             arch = {
                 "d_in": self.d_in,
@@ -1144,39 +1137,75 @@ class Gadgil2023AFAMethod(AFAMethod):
             "predictor_state_dict": self.predictor.state_dict(),
             "architecture": arch,
         }
-        torch.save(payload, os.path.join(path, "model.pt"))
-        # torch.save(
-        #     {
-        #         "value_network_state_dict": self.value_network.state_dict(),
-        #         "predictor_state_dict": self.predictor.state_dict(),
-        #         "architecture": {
-        #             "d_in": self.value_network.output_dim,
-        #             "d_out": self.predictor.output_dim,
-        #             "value_network_hidden_layers": [128, 128],
-        #             "predictor_hidden_layers": [128, 128],
-        #             "dropout": 0.3,
-        #         },
-        #     },
-        #     os.path.join(path, "model.pt"),
-        # )
+        torch.save(payload, Path(path) / "model.pt")
 
-    def to(self, device):
+    @override
+    def to(self, device: torch.device) -> Self:
         self.value_network = self.value_network.to(device)
         self.predictor = self.predictor.to(device)
         self._device = device
         return self
 
     @property
+    @override
     def device(self) -> torch.device:
         return self._device
 
     @property
+    @override
     def has_builtin_classifier(self) -> bool:
         return True
 
     @property
+    @override
     def cost_param(self) -> float | None:
         return float(self.lambda_threshold)
 
+    @override
     def set_cost_param(self, cost_param: float) -> None:
         self.lambda_threshold = cost_param
+
+
+class PredictorBundle:
+    def __init__(
+        self,
+        predictor: nn.Module,
+        architecture: dict[str, Any],
+        device: torch.device,
+    ):
+        self.predictor: nn.Module = predictor.to(device)
+        self.predictor.eval()
+        self.architecture: dict[str, Any] = architecture
+        self._device: torch.device = device
+
+    def save(self, path: Path) -> None:
+        """Save all necessary files into the given path."""
+        path.mkdir(parents=True, exist_ok=True)
+        torch.save(
+            {
+                "predictor_state_dict": self.predictor.state_dict(),
+                "architecture": self.architecture,
+            },
+            path / "model.pt",
+        )
+
+    @classmethod
+    def load(
+        cls,
+        path: Path,
+        map_location: torch.device,
+    ) -> Self:
+        checkpoint = torch.load(path / "model.pt", map_location=map_location)
+        arch = checkpoint["architecture"]
+        state_dict = checkpoint["predictor_state_dict"]
+        predictor = MLP(
+            in_features=arch["in_features"],
+            out_features=arch["out_features"],
+            num_cells=arch["hidden_units"],
+            activation_class=getattr(nn, arch["activation"]),
+            dropout=arch["dropout"],
+        )
+        predictor.load_state_dict(state_dict)
+        predictor.eval()
+
+        return cls(predictor=predictor, architecture=arch, device=map_location)
