@@ -85,6 +85,7 @@ class Shim2018Agent(Agent):
         batch_size: int,  # expected batch size received in `process_batch`
         module_device: torch.device,  # device to place nn.Modules on
         n_feature_dims: int,  # how many dimensions the feature shape needs. Used to flatten the features before they are passed to the embedder
+        n_batches: int,  # total number of batches expected during training
     ):
         self.cfg = cfg
         self.embedder = embedder
@@ -122,11 +123,14 @@ class Shim2018Agent(Agent):
             [self.action_value_tdmodule, self.greedy_tdmodule]
         )
 
+        eps_annealing_num_steps = int(
+            n_batches * self.cfg.eps_annealing_fraction
+        )
         self.egreedy_tdmodule = EGreedyModule(
             spec=self.action_spec,
             action_key="action",
             action_mask_key=self.action_mask_key,
-            annealing_num_steps=self.cfg.eps_annealing_num_batches,
+            annealing_num_steps=eps_annealing_num_steps,
             eps_init=self.cfg.eps_init,
             eps_end=self.cfg.eps_end,
         ).to(self.module_device)

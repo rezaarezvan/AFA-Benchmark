@@ -244,7 +244,9 @@ class Shim2018AgentConfig:
     # epsilon-greedy parameters
     eps_init: float
     eps_end: float
-    eps_annealing_num_batches: int
+    eps_annealing_fraction: (
+        float  # fraction of total number of expected batches
+    )
 
     # How large batches should be sampled from replay buffer
     replay_buffer_batch_size: int
@@ -287,13 +289,15 @@ class Shim2018TrainConfig:
     agent: Shim2018AgentConfig
     n_batches: int  # how many batches to train the agent
     batch_size: int  # batch size for collector
-    eval_every_n_batches: int | None  # how often to evaluate the agent
+    # eval_every_n_batches: int | None  # how often to evaluate the agent
+    eval_n_times: int | None  # how many times to evaluate agent
     eval_max_steps: (
         int  # maximum allowed number of steps in an evaluation episode
     )
     n_eval_episodes: int  # how many episodes to average over in evaluation
     pretrained_model_lr: float
-    activate_joint_training_after_n_batches: int
+    # activate_joint_training_after_n_batches: int
+    activate_joint_training_after_fraction: float
 
     use_wandb: bool = False
 

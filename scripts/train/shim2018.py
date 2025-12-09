@@ -49,6 +49,27 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
+def should_evaluate_at_batch(
+    batch_idx: int, n_batches: int, eval_n_times: int | None
+) -> bool:
+    """
+    Determine if evaluation should be performed at the current batch.
+
+    Args:
+        batch_idx: Current batch index (0-based)
+        n_batches: Total number of batches in training
+        eval_n_times: Total number of evaluations desired across training
+
+    Returns:
+        True if evaluation should be performed at this batch, False otherwise
+    """
+    if eval_n_times is None or eval_n_times <= 0 or batch_idx == 0:
+        return False
+
+    eval_interval = n_batches // eval_n_times
+    return eval_interval > 0 and batch_idx % eval_interval == 0
+
+
 # def load_pretrained_model_artifact(
 #     path: Path,
 # ) -> LitShim2018EmbedderClassifier:
@@ -193,6 +214,7 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
         batch_size=cfg.batch_size,
         module_device=torch.device(cfg.device),
         n_feature_dims=len(train_dataset.feature_shape),
+        n_batches=cfg.n_batches,
     )
     log.info("Agent created successfully")
 
@@ -205,6 +227,7 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
         device=device,
     )
     log.info("Data collector created")
+
     # Training loop
     log.info(f"Starting training loop for {cfg.n_batches} batches")
     try:
@@ -218,8 +241,11 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
             loss_info = agent.process_batch(td)
 
             # Train classifier and embedder jointly if we have reached the correct batch
-            if batch_idx >= cfg.activate_joint_training_after_n_batches:
-                if batch_idx == cfg.activate_joint_training_after_n_batches:
+            activate_joint_training_after_batch = int(
+                cfg.n_batches * cfg.activate_joint_training_after_fraction
+            )
+            if batch_idx >= activate_joint_training_after_batch:
+                if batch_idx == activate_joint_training_after_batch:
                     log.info(
                         "Activating joint training of classifier and embedder"
                     )
@@ -267,10 +293,8 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
                 )
             )
 
-            if (
-                batch_idx != 0
-                and cfg.eval_every_n_batches is not None
-                and batch_idx % cfg.eval_every_n_batches == 0
+            if should_evaluate_at_batch(
+                batch_idx, cfg.n_batches, cfg.eval_n_times
             ):
                 log.info(f"Running evaluation at batch {batch_idx}")
                 with (
