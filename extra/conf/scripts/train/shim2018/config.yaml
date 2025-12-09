@@ -2,6 +2,7 @@ hydra:
   searchpath:
     - file://extra/conf
     - file://extra/conf/global
+    - file://extra/conf/scripts/train/shim2018
 
 defaults:
   - _self_
@@ -22,11 +23,11 @@ soft_budget_param: ???
 device: "cuda"
 seed: null
 
-n_agents: 1
+n_agents: 128 # shim2018 paper
 agent:
   eps_init: 1.0 # shim2018 paper
   eps_end: 0.1 # shim2018 paper
-  eps_annealing_num_batches: 5000 # shim2018 paper
+  eps_annealing_fraction: 0.5
 
   replay_buffer_batch_size: 128 # shim2018 paper
 
@@ -44,12 +45,12 @@ agent:
 
   gamma: 1.0
   lmbda: 0.95
-n_batches: 100
-batch_size: 10
-eval_every_n_batches: 10
+n_batches: ???
+batch_size: 512 # shim2018 paper
+eval_n_times: 10
 eval_max_steps: 9001
 n_eval_episodes: 10
 pretrained_model_lr: 1e-3
-activate_joint_training_after_n_batches: 5
+activate_joint_training_after_fraction: 0.5
 
 use_wandb: false

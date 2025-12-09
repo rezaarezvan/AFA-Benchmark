@@ -65,6 +65,7 @@ rule pretrain_model:
             device={DEVICE} \
             seed={wildcards.pretrain_seed} \
             use_wandb={USE_WANDB} \
+            +dataset_override@_global_={wildcards.dataset} \
             {params.smoke_test_args}
         """
 
@@ -104,6 +105,7 @@ rule train_method:
             device={DEVICE} \
             seed={wildcards.train_seed} \
             use_wandb={USE_WANDB} \
+            +dataset_override@_global_={wildcards.dataset} \
             {params.smoke_test_args}
         """
 
