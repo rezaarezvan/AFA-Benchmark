@@ -49,6 +49,8 @@ class AFAEnv(EnvBase):
         | None,  # how many selections can be performed before the episode ends. If None, no limit.
         initialize_fn: AFAInitializeFn,
         unmask_fn: AFAUnmaskFn,
+        *,
+        force_hard_budget: bool = False,  # if True and hard_budget is set, never allow the stop action
         seed: int | None = None,
     ):
         # Do not allow empty batch sizes
@@ -63,8 +65,11 @@ class AFAEnv(EnvBase):
         self.n_classes = n_classes
         if hard_budget is None:
             self.hard_budget = self.n_selections
+            self.allow_stop_action = True
         else:
             self.hard_budget = hard_budget
+            self.allow_stop_action = not force_hard_budget
+        self.force_hard_budget = force_hard_budget
         self.initialize_fn = initialize_fn
         self.unmask_fn = unmask_fn
         self.seed = seed
@@ -175,6 +180,11 @@ class AFAEnv(EnvBase):
             batch_size=tensordict.batch_size,
             device=tensordict.device,
         )
+
+        # If stop action is not allowed, disable it in the action mask
+        if not self.allow_stop_action:
+            td["allowed_action_mask"][:, 0] = False
+
         return td
 
     @override
@@ -223,6 +233,10 @@ class AFAEnv(EnvBase):
             new_allowed_action_mask[
                 non_stop_indices, action_idx[non_stop_mask]
             ] = False
+
+        # If stop action is not allowed, ensure it stays disabled
+        if not self.allow_stop_action:
+            new_allowed_action_mask[:, 0] = False
 
         # Done if we exceed the hard budget, have chosen all the actions, choose to stop (action 0),
         # or all selection actions are exhausted

@@ -200,6 +200,7 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
         hard_budget=cfg.hard_budget,
         initialize_fn=initializer.initialize,
         unmask_fn=unmasker.unmask,
+        force_hard_budget=cfg.force_hard_budget,
         seed=cfg.seed,
     )
     log.info("Evaluation environment created")

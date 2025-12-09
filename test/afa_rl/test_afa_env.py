@@ -1244,6 +1244,479 @@ def test_tensordict_structure_validation() -> None:
             )
 
 
+def test_allow_stop_action_true() -> None:
+    """Test that when allow_stop_action=True, the stop action (index 0) is allowed."""
+    device = torch.device("cpu")
+    batch_size = torch.Size((2,))
+    feature_shape = torch.Size((2, 4, 4))
+    n_selections = 8
+    n_classes = 10
+
+    # Create dummy data
+    features = torch.randn(batch_size + feature_shape)
+    labels = torch.randn(batch_size + (n_classes,))
+
+    def dummy_dataset_fn(
+        batch_size: torch.Size,
+        *,
+        move_on: bool = True,  # noqa: ARG001
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        return features[: batch_size[0]], labels[: batch_size[0]]
+
+    # Create environment with allow_stop_action=True (hard_budget=None)
+    env = AFAEnv(
+        dataset_fn=dummy_dataset_fn,
+        reward_fn=get_fixed_reward_reward_fn(
+            reward_for_stop=0.0, reward_otherwise=-1.0
+        ),
+        device=device,
+        batch_size=batch_size,
+        feature_shape=feature_shape,
+        n_selections=n_selections,
+        n_classes=n_classes,
+        hard_budget=None,  # This should set allow_stop_action=True
+        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        unmask_fn=DirectUnmasker().unmask,
+        seed=123,
+    )
+
+    # Reset environment
+    td = env.reset()
+
+    # Check that stop action (index 0) is allowed
+    assert td["allowed_action_mask"][:, 0].all(), (
+        "Stop action should be allowed when allow_stop_action=True"
+    )
+
+    # Take a non-stop action
+    action_td = td.clone()
+    action_td["action"] = torch.tensor(
+        [1, 2], dtype=torch.int64
+    )  # Non-stop actions
+    td_next = env.step(action_td)
+
+    # Check that stop action is still allowed after step
+    assert td_next["allowed_action_mask"][:, 0].all(), (
+        "Stop action should remain allowed after step when allow_stop_action=True"
+    )
+
+
+def test_force_hard_budget_false_default() -> None:
+    """Test that when force_hard_budget=False (default) and hard_budget is set, the stop action (index 0) is still allowed."""
+    device = torch.device("cpu")
+    batch_size = torch.Size((2,))
+    feature_shape = torch.Size((2, 4, 4))
+    n_selections = 8
+    n_classes = 10
+
+    # Create dummy data
+    features = torch.randn(batch_size + feature_shape)
+    labels = torch.randn(batch_size + (n_classes,))
+
+    def dummy_dataset_fn(
+        batch_size: torch.Size,
+        *,
+        move_on: bool = True,  # noqa: ARG001
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        return features[: batch_size[0]], labels[: batch_size[0]]
+
+    # Create environment with allow_stop_action=True (hard_budget set but force_hard_budget=False by default)
+    env = AFAEnv(
+        dataset_fn=dummy_dataset_fn,
+        reward_fn=get_fixed_reward_reward_fn(
+            reward_for_stop=0.0, reward_otherwise=-1.0
+        ),
+        device=device,
+        batch_size=batch_size,
+        feature_shape=feature_shape,
+        n_selections=n_selections,
+        n_classes=n_classes,
+        hard_budget=5,  # With force_hard_budget=False (default), stop action should be allowed
+        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        unmask_fn=DirectUnmasker().unmask,
+        seed=123,
+    )
+
+    # Reset environment
+    td = env.reset()
+
+    # Check that stop action (index 0) is allowed
+    assert td["allowed_action_mask"][:, 0].all(), (
+        "Stop action should be allowed when force_hard_budget=False (default)"
+    )
+
+    # Take a non-stop action
+    action_td = td.clone()
+    action_td["action"] = torch.tensor(
+        [1, 2], dtype=torch.int64
+    )  # Non-stop actions
+    td_next = env.step(action_td)
+
+    # Check that stop action is still allowed after step
+    assert td_next["allowed_action_mask"][:, 0].all(), (
+        "Stop action should remain allowed after step when force_hard_budget=False"
+    )
+
+
+def test_force_hard_budget_true() -> None:
+    """Test that when force_hard_budget=True and hard_budget is set, the stop action (index 0) is not allowed."""
+    device = torch.device("cpu")
+    batch_size = torch.Size((2,))
+    feature_shape = torch.Size((2, 4, 4))
+    n_selections = 8
+    n_classes = 10
+
+    # Create dummy data
+    features = torch.randn(batch_size + feature_shape)
+    labels = torch.randn(batch_size + (n_classes,))
+
+    def dummy_dataset_fn(
+        batch_size: torch.Size,
+        *,
+        move_on: bool = True,  # noqa: ARG001
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        return features[: batch_size[0]], labels[: batch_size[0]]
+
+    # Create environment with force_hard_budget=True
+    env = AFAEnv(
+        dataset_fn=dummy_dataset_fn,
+        reward_fn=get_fixed_reward_reward_fn(
+            reward_for_stop=0.0, reward_otherwise=-1.0
+        ),
+        device=device,
+        batch_size=batch_size,
+        feature_shape=feature_shape,
+        n_selections=n_selections,
+        n_classes=n_classes,
+        hard_budget=5,
+        force_hard_budget=True,  # This should set allow_stop_action=False
+        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        unmask_fn=DirectUnmasker().unmask,
+        seed=123,
+    )
+
+    # Reset environment
+    td = env.reset()
+
+    # Check that stop action (index 0) is not allowed
+    assert not td["allowed_action_mask"][:, 0].any(), (
+        "Stop action should not be allowed when force_hard_budget=True"
+    )
+
+    # Take a non-stop action
+    action_td = td.clone()
+    action_td["action"] = torch.tensor(
+        [1, 2], dtype=torch.int64
+    )  # Non-stop actions
+    td_next = env.step(action_td)
+
+    # Check that stop action is still not allowed after step
+    assert not td_next["allowed_action_mask"][:, 0].any(), (
+        "Stop action should remain disallowed after step when force_hard_budget=True"
+    )
+
+
+def test_force_hard_budget_true_consistency_across_steps() -> None:
+    """Test that force_hard_budget=True behavior is consistent across multiple steps."""
+    device = torch.device("cpu")
+    batch_size = torch.Size((1,))
+    feature_shape = torch.Size((2, 4, 4))
+    n_selections = 8
+    n_classes = 10
+
+    # Create dummy data
+    features = torch.randn(batch_size + feature_shape)
+    labels = torch.randn(batch_size + (n_classes,))
+
+    def dummy_dataset_fn(
+        batch_size: torch.Size,
+        *,
+        move_on: bool = True,  # noqa: ARG001
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        return features[: batch_size[0]], labels[: batch_size[0]]
+
+    # Test with force_hard_budget=True
+    env = AFAEnv(
+        dataset_fn=dummy_dataset_fn,
+        reward_fn=get_fixed_reward_reward_fn(
+            reward_for_stop=0.0, reward_otherwise=-1.0
+        ),
+        device=device,
+        batch_size=batch_size,
+        feature_shape=feature_shape,
+        n_selections=n_selections,
+        n_classes=n_classes,
+        hard_budget=3,
+        force_hard_budget=True,  # This should set allow_stop_action=False
+        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        unmask_fn=DirectUnmasker().unmask,
+        seed=123,
+    )
+
+    td = env.reset()
+
+    # Take multiple steps and ensure stop action stays disabled
+    for i in range(3):  # Take 3 steps (up to hard_budget)
+        # Verify stop action is disabled
+        assert not td["allowed_action_mask"][:, 0].any(), (
+            f"Stop action should be disabled at step {i}"
+        )
+
+        # Find an available non-stop action
+        available_actions = torch.nonzero(
+            td["allowed_action_mask"][0, 1:], as_tuple=False
+        )
+        if len(available_actions) == 0:
+            break  # No more actions available
+
+        action = (
+            available_actions[0].item() + 1
+        )  # +1 because we're looking at indices 1:
+        action_td = td.clone()
+        action_td["action"] = torch.tensor([action], dtype=torch.int64)
+        td = env.step(action_td)
+
+
+def test_force_hard_budget_false_consistency_across_steps() -> None:
+    """Test that force_hard_budget=False allows stop action even with hard_budget set."""
+    device = torch.device("cpu")
+    batch_size = torch.Size((1,))
+    feature_shape = torch.Size((2, 4, 4))
+    n_selections = 8
+    n_classes = 10
+
+    # Create dummy data
+    features = torch.randn(batch_size + feature_shape)
+    labels = torch.randn(batch_size + (n_classes,))
+
+    def dummy_dataset_fn(
+        batch_size: torch.Size,
+        *,
+        move_on: bool = True,  # noqa: ARG001
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        return features[: batch_size[0]], labels[: batch_size[0]]
+
+    # Test with force_hard_budget=False (default)
+    env = AFAEnv(
+        dataset_fn=dummy_dataset_fn,
+        reward_fn=get_fixed_reward_reward_fn(
+            reward_for_stop=0.0, reward_otherwise=-1.0
+        ),
+        device=device,
+        batch_size=batch_size,
+        feature_shape=feature_shape,
+        n_selections=n_selections,
+        n_classes=n_classes,
+        hard_budget=3,
+        force_hard_budget=False,  # Stop action should be allowed
+        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        unmask_fn=DirectUnmasker().unmask,
+        seed=123,
+    )
+
+    td = env.reset()
+
+    # Take multiple steps and ensure stop action stays enabled
+    for i in range(3):  # Take 3 steps (up to hard_budget)
+        # Verify stop action is enabled
+        assert td["allowed_action_mask"][:, 0].all(), (
+            f"Stop action should be enabled at step {i} when force_hard_budget=False"
+        )
+
+        # Find an available non-stop action
+        available_actions = torch.nonzero(
+            td["allowed_action_mask"][0, 1:], as_tuple=False
+        )
+        if len(available_actions) == 0:
+            break  # No more actions available
+
+        action = (
+            available_actions[0].item() + 1
+        )  # +1 because we're looking at indices 1:
+        action_td = td.clone()
+        action_td["action"] = torch.tensor([action], dtype=torch.int64)
+        td = env.step(action_td)
+
+
+def test_force_hard_budget_with_different_settings() -> None:
+    """Test force_hard_budget behavior with different settings."""
+    device = torch.device("cpu")
+    batch_size = torch.Size((1,))
+    feature_shape = torch.Size((2, 4, 4))
+    n_selections = 8
+    n_classes = 10
+
+    # Create dummy data
+    features = torch.randn(batch_size + feature_shape)
+    labels = torch.randn(batch_size + (n_classes,))
+
+    def dummy_dataset_fn(
+        batch_size: torch.Size,
+        *,
+        move_on: bool = True,  # noqa: ARG001
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        return features[: batch_size[0]], labels[: batch_size[0]]
+
+    # Test case 1: hard_budget=None should allow stop action
+    env1 = AFAEnv(
+        dataset_fn=dummy_dataset_fn,
+        reward_fn=get_fixed_reward_reward_fn(
+            reward_for_stop=0.0, reward_otherwise=-1.0
+        ),
+        device=device,
+        batch_size=batch_size,
+        feature_shape=feature_shape,
+        n_selections=n_selections,
+        n_classes=n_classes,
+        hard_budget=None,
+        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        unmask_fn=DirectUnmasker().unmask,
+        seed=123,
+    )
+
+    assert env1.allow_stop_action, (
+        "allow_stop_action should be True when hard_budget=None"
+    )
+    td1 = env1.reset()
+    assert td1["allowed_action_mask"][:, 0].all(), (
+        "Stop action should be allowed when hard_budget=None"
+    )
+
+    # Test case 2: hard_budget=1 with force_hard_budget=False should allow stop action
+    env2 = AFAEnv(
+        dataset_fn=dummy_dataset_fn,
+        reward_fn=get_fixed_reward_reward_fn(
+            reward_for_stop=0.0, reward_otherwise=-1.0
+        ),
+        device=device,
+        batch_size=batch_size,
+        feature_shape=feature_shape,
+        n_selections=n_selections,
+        n_classes=n_classes,
+        hard_budget=1,
+        force_hard_budget=False,  # Default value
+        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        unmask_fn=DirectUnmasker().unmask,
+        seed=123,
+    )
+
+    assert env2.allow_stop_action, (
+        "allow_stop_action should be True when force_hard_budget=False"
+    )
+    td2 = env2.reset()
+    assert td2["allowed_action_mask"][:, 0].all(), (
+        "Stop action should be allowed when force_hard_budget=False"
+    )
+
+    # Test case 3: hard_budget=1 with force_hard_budget=True should not allow stop action
+    env3 = AFAEnv(
+        dataset_fn=dummy_dataset_fn,
+        reward_fn=get_fixed_reward_reward_fn(
+            reward_for_stop=0.0, reward_otherwise=-1.0
+        ),
+        device=device,
+        batch_size=batch_size,
+        feature_shape=feature_shape,
+        n_selections=n_selections,
+        n_classes=n_classes,
+        hard_budget=1,
+        force_hard_budget=True,
+        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        unmask_fn=DirectUnmasker().unmask,
+        seed=123,
+    )
+
+    assert not env3.allow_stop_action, (
+        "allow_stop_action should be False when force_hard_budget=True"
+    )
+    td3 = env3.reset()
+    assert not td3["allowed_action_mask"][:, 0].any(), (
+        "Stop action should not be allowed when force_hard_budget=True"
+    )
+
+
+def test_force_hard_budget_comprehensive() -> None:
+    """Comprehensive test demonstrating all force_hard_budget behaviors."""
+    device = torch.device("cpu")
+    batch_size = torch.Size((1,))
+    feature_shape = torch.Size((2, 4, 4))
+    n_selections = 4
+    n_classes = 3
+
+    # Create dummy data
+    features = torch.randn(batch_size + feature_shape)
+    labels = torch.randn(batch_size + (n_classes,))
+
+    def dummy_dataset_fn(
+        batch_size: torch.Size,
+        *,
+        move_on: bool = True,  # noqa: ARG001
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        return features[: batch_size[0]], labels[: batch_size[0]]
+
+    # Test 1: hard_budget=None - stop action always allowed
+    env1 = AFAEnv(
+        dataset_fn=dummy_dataset_fn,
+        reward_fn=get_fixed_reward_reward_fn(
+            reward_for_stop=0.0, reward_otherwise=-1.0
+        ),
+        device=device,
+        batch_size=batch_size,
+        feature_shape=feature_shape,
+        n_selections=n_selections,
+        n_classes=n_classes,
+        hard_budget=None,
+        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        unmask_fn=DirectUnmasker().unmask,
+        seed=123,
+    )
+    assert env1.allow_stop_action
+    td1 = env1.reset()
+    assert td1["allowed_action_mask"][:, 0].all()
+
+    # Test 2: hard_budget=2, force_hard_budget=False (default) - stop action allowed
+    env2 = AFAEnv(
+        dataset_fn=dummy_dataset_fn,
+        reward_fn=get_fixed_reward_reward_fn(
+            reward_for_stop=0.0, reward_otherwise=-1.0
+        ),
+        device=device,
+        batch_size=batch_size,
+        feature_shape=feature_shape,
+        n_selections=n_selections,
+        n_classes=n_classes,
+        hard_budget=2,
+        force_hard_budget=False,
+        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        unmask_fn=DirectUnmasker().unmask,
+        seed=123,
+    )
+    assert env2.allow_stop_action
+    td2 = env2.reset()
+    assert td2["allowed_action_mask"][:, 0].all()
+
+    # Test 3: hard_budget=2, force_hard_budget=True - stop action disabled
+    env3 = AFAEnv(
+        dataset_fn=dummy_dataset_fn,
+        reward_fn=get_fixed_reward_reward_fn(
+            reward_for_stop=0.0, reward_otherwise=-1.0
+        ),
+        device=device,
+        batch_size=batch_size,
+        feature_shape=feature_shape,
+        n_selections=n_selections,
+        n_classes=n_classes,
+        hard_budget=2,
+        force_hard_budget=True,
+        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        unmask_fn=DirectUnmasker().unmask,
+        seed=123,
+    )
+    assert not env3.allow_stop_action
+    td3 = env3.reset()
+    assert not td3["allowed_action_mask"][:, 0].any()
+
+
 def test_initializer_application() -> None:
     """Test that initializer is correctly applied to set initial features."""
     # Use simple 1D features for easy testing

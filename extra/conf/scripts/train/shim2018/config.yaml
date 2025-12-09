@@ -21,6 +21,7 @@ save_path: ???
 hard_budget: ???
 soft_budget_param: ???
 device: "cuda"
+force_hard_budget: true
 seed: null
 
 n_agents: 128 # shim2018 paper

@@ -280,6 +280,7 @@ class Shim2018TrainConfig:
     initializer: InitializerConfig
     unmasker: UnmaskerConfig
     hard_budget: int | None
+    force_hard_budget: bool
     soft_budget_param: float | None
     device: str
     seed: int | None
