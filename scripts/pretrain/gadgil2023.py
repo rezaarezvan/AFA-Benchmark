@@ -1,24 +1,26 @@
 import gc
 import logging
 from pathlib import Path
-from tempfile import TemporaryDirectory
+from typing import Any
 
 import hydra
 import torch
 from omegaconf import OmegaConf
 from torch import nn
-from torchrl.modules import MLP
 from torchmetrics import Accuracy
+from torchrl.modules import MLP
 
-from afabench import SAVE_PATH
+from afabench.afa_discriminative.afa_methods import PredictorBundle
 from afabench.afa_discriminative.datasets import prepare_datasets
 from afabench.afa_discriminative.models import MaskingPretrainer
 from afabench.afa_discriminative.utils import MaskLayer
+from afabench.common.bundle import (
+    load_bundle,
+    save_bundle,
+)
 from afabench.common.config_classes import Gadgil2023PretrainingConfig
 from afabench.common.utils import (
     get_class_frequencies,
-    load_dataset_splits,
-    save_artifact,
     set_seed,
 )
 
@@ -30,20 +32,17 @@ log = logging.getLogger(__name__)
     config_path="../../extra/conf/pretrain/gadgil2023",
     config_name="config",
 )
-def main(cfg: Gadgil2023PretrainingConfig):
+def main(cfg: Gadgil2023PretrainingConfig) -> None:
     log.debug(cfg)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
 
-    dataset_root = (
-        Path(cfg.dataset_base_path) / cfg.dataset_name / str(cfg.split_idx)
-    )
-    train_dataset, val_dataset, _, dataset_metadata = load_dataset_splits(
-        dataset_root
-    )
+    train_dataset, train_manifest = load_bundle(Path(cfg.train_dataset_path))
+    val_dataset, _ = load_bundle(Path(cfg.val_dataset_path))
 
-    _, train_labels = train_dataset.get_all_data()
+    dataset_name = train_manifest["class_name"].replace("Dataset", "").lower()
+    _, train_labels = train_dataset.get_all_data()  # pyright: ignore[reportAttributeAccessIssue]
     train_class_probabilities = get_class_frequencies(train_labels)
     class_weights = len(train_class_probabilities) / (
         len(train_class_probabilities) * train_class_probabilities
@@ -54,13 +53,26 @@ def main(cfg: Gadgil2023PretrainingConfig):
         train_dataset, val_dataset, cfg.batch_size
     )
 
+    in_features: int = int(d_in * 2)
+    out_features: int = int(d_out)
+    hidden_units = cfg.hidden_units
+    activation_name: str = cfg.activation
+    dropout: float = float(cfg.dropout)
+
     predictor = MLP(
-        in_features = d_in * 2,
-        out_features = d_out,
-        num_cells = cfg.hidden_units,
-        activation_class = torch.nn.ReLU,
-        dropout = cfg.dropout,
+        in_features=in_features,
+        out_features=out_features,
+        num_cells=hidden_units,
+        activation_class=getattr(nn, activation_name),
+        dropout=dropout,
     )
+    architecture: dict[str, Any] = {
+        "in_features": in_features,
+        "out_features": out_features,
+        "hidden_units": hidden_units,
+        "activation": activation_name,
+        "dropout": dropout,
+    }
 
     mask_layer = MaskLayer(append=True)
     print("Pretraining predictor")
@@ -80,30 +92,23 @@ def main(cfg: Gadgil2023PretrainingConfig):
         max_mask=cfg.max_masking_probability,
     )
 
-    artifact_dir = Path(cfg.output_dir) / cfg.dataset_name / str(cfg.split_idx)
+    metadata = {
+        "model_type": "Gadgil2023Predictor",
+        "dataset_name": dataset_name,
+        "pretrain_config": OmegaConf.to_container(cfg),
+    }
+    bundle_obj = PredictorBundle(
+        predictor=predictor,
+        architecture=architecture,
+        device=torch.device("cpu"),
+    )
+    save_bundle(
+        obj=bundle_obj,
+        path=Path(cfg.save_path),
+        metadata=metadata,
+    )
 
-    with TemporaryDirectory() as tmp:
-        tmp_path = Path(tmp)
-        torch.save(
-            {"predictor_state_dict": predictor.state_dict()},
-            tmp_path / "model.pt",
-        )
-
-        metadata = {
-            "model_type": "Gadgil2023Predictor",
-            "dataset_name": cfg.dataset_name,
-            "dataset_split_idx": cfg.split_idx,
-            "seed": cfg.seed,
-            "pretrain_config": OmegaConf.to_container(cfg),
-        }
-
-        save_artifact(
-            artifact_dir=artifact_dir,
-            files={"model.pt": tmp_path / "model.pt"},
-            metadata=metadata,
-        )
-
-    log.info(f"Gadgil2023 pretrained model saved to: {artifact_dir}")
+    log.info(f"Gadgil2023 pretrained model saved to: {cfg.save_path}")
 
     gc.collect()
     if torch.cuda.is_available():

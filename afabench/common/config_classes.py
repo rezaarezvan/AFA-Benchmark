@@ -387,9 +387,9 @@ cs.store(name="train_ma2018", node=Ma2018TrainingConfig)
 
 @dataclass
 class Covert2023PretrainingConfig:
-    dataset_name: str
-    split_idx: int
-    dataset_base_path: str
+    train_dataset_path: str
+    val_dataset_path: str
+    save_path: str
     output_dir: str
 
     batch_size: int
@@ -398,6 +398,7 @@ class Covert2023PretrainingConfig:
     lr: float
     nepochs: int
     patience: int
+    activation: str
     min_masking_probability: float
     max_masking_probability: float
 
@@ -468,7 +469,9 @@ cs.store(name="train_covert2023", node=Covert2023Training2DConfig)
 
 @dataclass
 class Gadgil2023PretrainingConfig:
-    dataset_name: str
+    train_dataset_path: str
+    val_dataset_path: str
+    save_path: str
     split_idx: int
     dataset_base_path: str
     output_dir: str
@@ -479,6 +482,7 @@ class Gadgil2023PretrainingConfig:
     lr: float
     nepochs: int
     patience: int
+    activation: str
     min_masking_probability: float
     max_masking_probability: float
 
