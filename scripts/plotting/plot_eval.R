@@ -48,7 +48,6 @@ dataset_with_metric_labeller <- function(x) {
 }
 
 
-
 read_csv_safe <- function(path) {
   df <- read_csv(path, col_types = list(
     afa_method = col_factor(),
@@ -86,7 +85,6 @@ generate_dummy_data <- function(n = 100) {
   n_features <- 15
 
 
-
   df <- tibble(
     afa_method = factor(sample(methods, n, replace = TRUE)),
     classifier = factor(sample(classifiers, n, replace = TRUE)),
@@ -120,7 +118,6 @@ if (length(args) == 0) {
 } else {
   stop("Usage: Rscript plot.R [eval_results.csv] output_folder")
 }
-
 
 
 class_metrics <- metric_set(
@@ -305,7 +302,7 @@ soft_budget_plot <- df_soft_budget %>%
   ggplot(aes(x = selections_performed_mean, y = estimate_mean, color = afa_method, fill = afa_method)) +
   geom_line() +
   geom_errorbar(aes(ymin = estimate_mean - estimate_sd, ymax = estimate_mean + estimate_sd), alpha = 0.5) +
-  geom_errorbarh(aes(xmin = selections_performed_mean - selections_performed_sd, xmax = selections_performed_mean + selections_performed_sd), alpha = 0.5) +
+  geom_errorbar(aes(xmin = selections_performed_mean - selections_performed_sd, xmax = selections_performed_mean + selections_performed_sd), alpha = 0.5) +
   facet_wrap(vars(dataset), scales = "free", labeller = as_labeller(dataset_with_metric_labeller)) +
   labs(
     x = "Selection budget",
@@ -330,7 +327,7 @@ soft_budget_kappa_plot <- df_soft_budget %>%
   ggplot(aes(x = selections_performed_mean, y = estimate_mean, color = afa_method, fill = afa_method)) +
   geom_line() +
   geom_errorbar(aes(ymin = estimate_mean - estimate_sd, ymax = estimate_mean + estimate_sd), alpha = 0.5) +
-  geom_errorbarh(aes(xmin = selections_performed_mean - selections_performed_sd, xmax = selections_performed_mean + selections_performed_sd), alpha = 0.5) +
+  geom_errorbar(aes(xmin = selections_performed_mean - selections_performed_sd, xmax = selections_performed_mean + selections_performed_sd), alpha = 0.5) +
   facet_wrap(vars(dataset), scales = "free", labeller = as_labeller(function(x) {
     dataset_name_mapping[x]
   })) +
