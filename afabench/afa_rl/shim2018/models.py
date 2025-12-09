@@ -241,16 +241,24 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
             logits: the output of the classifier
 
         """
-        # Both the embedder and classifier for this method take 1D features as input
+        # Both the embedder and classifier for this method take 1D features as input, and a single batch dimension. Flatten them separately
         flat_masked_features = masked_features.flatten(
             start_dim=-self.n_feature_dims
-        )
+        ).flatten(end_dim=-self.n_feature_dims - 1)
         flat_feature_mask = feature_mask.flatten(
             start_dim=-self.n_feature_dims
-        )
+        ).flatten(end_dim=-self.n_feature_dims - 1)
 
         embedding = self.embedder(flat_masked_features, flat_feature_mask)
         logits = self.classifier(embedding)
+
+        # Unflatten batch size
+        embedding = embedding.unflatten(
+            0, masked_features.shape[: -self.n_feature_dims]
+        )
+        logits = logits.unflatten(
+            0, masked_features.shape[: -self.n_feature_dims]
+        )
         return embedding, logits
 
     @override
