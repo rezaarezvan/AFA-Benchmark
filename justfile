@@ -28,22 +28,22 @@ coverage:
 #     rm -rf dist
 #     uv build
 
-pretrain_shim2018_cube *extra_args='':
+pretrain_shim2018_cube_without_noise *extra_args='':
     uv run scripts/pretrain/shim2018.py {{extra_args}} \
-                    train_dataset_bundle_path=extra/data/datasets/cube/0/train.bundle/ \
-                    val_dataset_bundle_path=extra/data/datasets/cube/0/val.bundle/ \
-                    save_path=tmp/shim2018_pretrained_cube.bundle \
+                    train_dataset_bundle_path=extra/data/datasets/cube_without_noise/0/train.bundle/ \
+                    val_dataset_bundle_path=extra/data/datasets/cube_without_noise/0/val.bundle/ \
+                    save_path=tmp/shim2018_pretrained_cube_without_noise.bundle \
                     device=cpu \
                     seed=42 \
                     use_wandb=true \
                     +experiment@_global_=cube
 
-train_shim2018_cube_hard *extra_args='':
+train_shim2018_cube_without_noise_hard *extra_args='':
     uv run scripts/train/shim2018.py {{extra_args}} \
-        train_dataset_bundle_path=extra/data/datasets/cube/0/train.bundle \
-        val_dataset_bundle_path=extra/data/datasets/cube/0/val.bundle \
-        pretrained_model_bundle_path=tmp/shim2018_pretrained_cube.bundle \
-        save_path=tmp/shim2018_trained_cube_hard.bundle \
+        train_dataset_bundle_path=extra/data/datasets/cube_without_noise/0/train.bundle \
+        val_dataset_bundle_path=extra/data/datasets/cube_without_noise/0/val.bundle \
+        pretrained_model_bundle_path=tmp/shim2018_pretrained_cube_without_noise.bundle \
+        save_path=tmp/shim2018_trained_cube_without_noise_hard.bundle \
         components/initializers@initializer=cold \
         components/unmaskers@unmasker=direct \
         hard_budget=5 \
@@ -53,12 +53,12 @@ train_shim2018_cube_hard *extra_args='':
         use_wandb=true \
         +experiment@_global_=cube
 
-train_shim2018_cube_soft *extra_args='':
+train_shim2018_cube_without_noise_soft *extra_args='':
     uv run scripts/train/shim2018.py {{extra_args}} \
-        train_dataset_bundle_path=extra/data/datasets/cube/0/train.bundle \
-        val_dataset_bundle_path=extra/data/datasets/cube/0/val.bundle \
-        pretrained_model_bundle_path=tmp/shim2018_pretrained_cube.bundle \
-        save_path=tmp/shim2018_trained_cube_soft.bundle \
+        train_dataset_bundle_path=extra/data/datasets/cube_without_noise/0/train.bundle \
+        val_dataset_bundle_path=extra/data/datasets/cube_without_noise/0/val.bundle \
+        pretrained_model_bundle_path=tmp/shim2018_pretrained_cube_without_noise.bundle \
+        save_path=tmp/shim2018_trained_cube_without_noise_soft.bundle \
         components/initializers@initializer=cold \
         components/unmaskers@unmasker=direct \
         hard_budget=null \
