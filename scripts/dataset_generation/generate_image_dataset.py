@@ -1,20 +1,20 @@
-import json
 import logging
 import random
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import hydra
 import torch
 from omegaconf import OmegaConf
 
+from afabench.common.bundle import save_bundle
 from afabench.common.config_classes import (
     DatasetGenerationConfig,
     SplitRatioConfig,
 )
 from afabench.common.custom_types import AFADataset
-from afabench.common.registry import get_afa_dataset_class
+from afabench.common.registry import get_class
 
 log = logging.getLogger(__name__)
 
@@ -63,27 +63,32 @@ def generate_and_save_image_split(
 
     # Create dataset directory
     save_path.mkdir(parents=True, exist_ok=True)
-    train_path = save_path / "train.pt"
-    val_path = save_path / "val.pt"
-    test_path = save_path / "test.pt"
-
-    # Save splits locally
-    train_dataset.save(train_path)
-    val_dataset.save(val_path)
-    test_dataset.save(test_path)
+    train_path = save_path / "train.bundle"
+    val_path = save_path / "val.bundle"
+    test_path = save_path / "test.bundle"
 
     # Prepare metadata
-    metadata_to_save = metadata_to_save | {
+    base_metadata = metadata_to_save | {
         "seed_for_split": seed_for_split,
         "generated_at": datetime.now(UTC).isoformat(),
-    }
-    json_data = metadata_to_save | {
         "dataset_kwargs": dataset_kwargs,
     }
-    # Save metadata
-    print(f"Saving metadata to {save_path / 'metadata.json'}")
-    with (save_path / "metadata.json").open("w") as f:
-        json.dump(json_data, f, indent=2)
+    # Save splits and metadata
+    save_bundle(
+        obj=train_dataset,
+        path=train_path,
+        metadata=base_metadata | {"split": "train"},
+    )
+    save_bundle(
+        obj=val_dataset,
+        path=val_path,
+        metadata=base_metadata | {"split": "val"},
+    )
+    save_bundle(
+        obj=test_dataset,
+        path=test_path,
+        metadata=base_metadata | {"split": "test"},
+    )
 
 
 @hydra.main(
@@ -92,14 +97,13 @@ def generate_and_save_image_split(
     config_name="config",
 )
 def main(cfg: DatasetGenerationConfig) -> None:
-    dataset_class = get_afa_dataset_class(cfg.dataset.class_name)
+    dataset_class = get_class(cfg.dataset.class_name)
 
     for instance_idx, seed in zip(
         cfg.instance_indices, cfg.seeds, strict=True
     ):
-        base_kwargs: dict[str, Any] = OmegaConf.to_container(
-            cfg.dataset.kwargs, resolve=True
-        )  # type: ignore[assignment]
+        raw_kwargs = OmegaConf.to_container(cfg.dataset.kwargs, resolve=True)
+        base_kwargs = cast("dict[str, Any]", raw_kwargs)
         if dataset_class.accepts_seed():
             dataset_kwargs: dict[str, Any] = base_kwargs | {"seed": seed}
         else:

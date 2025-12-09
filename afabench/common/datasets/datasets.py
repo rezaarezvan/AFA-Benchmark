@@ -1347,7 +1347,6 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     @override
     def save(self, path: Path) -> None:
         """Save only the split indices and the dataset config reconstruct later from raw files on load."""
-        path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(
             {
                 "indices": self.indices,
