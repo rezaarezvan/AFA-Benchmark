@@ -474,6 +474,7 @@ def get_eval_metrics(
     eval_metrics["reward_sum"] = 0.0
     eval_metrics["actions"] = []
     n_correct_samples = 0
+    total_samples = 0
     for td in eval_tds:
         eval_metrics["reward_sum"] += td["next", "reward"].sum()
         eval_metrics["actions"].extend(td["action"].tolist())
@@ -485,13 +486,17 @@ def get_eval_metrics(
             label=None,
             feature_shape=None,
         )
-        if probs.argmax(dim=-1) == td_end["label"].argmax(dim=-1):
-            n_correct_samples += 1
+        # Handle multiple batch dimensions by flattening and counting all samples
+        pred_labels = probs.argmax(dim=-1)
+        true_labels = td_end["label"].argmax(dim=-1)
+        correct_predictions = (pred_labels == true_labels).sum().item()
+        n_correct_samples += correct_predictions
+        total_samples += pred_labels.numel()
     eval_metrics["reward_sum"] /= len(eval_tds)
     eval_metrics["actions"] = wandb.Histogram(
         eval_metrics["actions"], num_bins=20
     )
-    eval_metrics["accuracy"] = n_correct_samples / len(eval_tds)
+    eval_metrics["accuracy"] = n_correct_samples / total_samples
     return eval_metrics
 
 
