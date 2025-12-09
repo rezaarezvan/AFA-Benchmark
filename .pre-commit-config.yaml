@@ -19,6 +19,15 @@ repos:
       # Run the formatter.
       - id: ruff-format
 
+  - repo: local
+    hooks:
+      - id: sync-excludes
+        name: Sync exclude patterns from ruff.toml to pyrightconfig.json
+        entry: python scripts/dev/sync_excludes.py
+        language: system
+        files: ^(ruff\.toml|pyrightconfig\.json)$
+        pass_filenames: false
+
   - repo: https://github.com/DetachHead/basedpyright-prek-mirror
     rev: 1.35.0
     hooks:
