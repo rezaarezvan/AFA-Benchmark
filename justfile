@@ -7,11 +7,11 @@ qa:
     # Format
     uv run ruff format .
 
-    # Linting and fixing easy stuff, but don't error
-    uv run ruff check . --fix --exit-zero
+    # Linting
+    uv run ruff check . --fix
 
-    # Type checking
-    # uv run ty check .
+    # LSP checks
+    pre-commit run basedpyright --all-files
 
     # Testing
     uv run pytest . --tb=no

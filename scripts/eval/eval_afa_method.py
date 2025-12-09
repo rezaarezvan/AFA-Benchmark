@@ -52,7 +52,7 @@ def load(
     device = torch.device("cpu") if device is None else device
     method, method_manifest = load_bundle(
         method_bundle_path,
-        device=device,  # pyright: ignore[reportArgumentType]
+        device=device,
     )
     method = cast("AFAMethod", cast("object", method))
     log.info(f"Loaded AFA method from {method_bundle_path}")
@@ -76,7 +76,7 @@ def load(
     if classifier_bundle_path is not None:
         classifier, classifier_manifest = load_bundle(
             classifier_bundle_path,
-            device=device,  # pyright: ignore[reportArgumentType]
+            device=device,
         )
         classifier = cast("AFAClassifier", cast("object", classifier))
         log.info(f"Loaded external classifier from {classifier_bundle_path}.")

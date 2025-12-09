@@ -152,6 +152,7 @@ def get_basic_train_config() -> Shim2018TrainConfig:
         batch_size=4,
         n_batches=5,
         hard_budget=3,
+        force_hard_budget=False,
         soft_budget_param=None,
         pretrained_model_lr=1e-4,
         activate_joint_training_after_fraction=0.4,  # 40% through training

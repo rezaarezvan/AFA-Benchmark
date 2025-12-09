@@ -68,10 +68,9 @@ class TestTorchModelBundle:
             # Load model back
             loaded_bundle, loaded_metadata = load_bundle(
                 bundle_path,
-                # pyright: ignore[reportArgumentType]
                 device=torch.device("cpu"),
             )
-            # pyright: ignore[reportAttributeAccessIssue]
+            assert isinstance(loaded_bundle, TorchModelBundle)
             loaded_model = loaded_bundle.model
 
             # Test that loaded model produces same output
@@ -106,10 +105,9 @@ class TestTorchModelBundle:
             # Load model back
             loaded_bundle, loaded_manifest = load_bundle(
                 bundle_path,
-                # pyright: ignore[reportArgumentType]
                 device=torch.device("cpu"),
             )
-            # pyright: ignore[reportAttributeAccessIssue]
+            assert isinstance(loaded_bundle, TorchModelBundle)
             loaded_model = loaded_bundle.model
             loaded_model.eval()  # Ensure eval mode
 
@@ -155,10 +153,9 @@ class TestTorchModelBundle:
             # Load model back
             loaded_bundle, loaded_manifest = load_bundle(
                 bundle_path,
-                # pyright: ignore[reportArgumentType]
                 device=torch.device("cpu"),
             )
-            # pyright: ignore[reportAttributeAccessIssue]
+            assert isinstance(loaded_bundle, TorchModelBundle)
             loaded_model = loaded_bundle.model
             loaded_model.eval()
 
@@ -208,12 +205,11 @@ class TestTorchModelBundle:
             save_bundle(model_bundle, bundle_path, metadata)
 
             # Load model back on CPU
-            loaded_bundle, _ = load_bundle(
+            loaded_bundle, loaded_metadata = load_bundle(
                 bundle_path,
-                # pyright: ignore[reportArgumentType]
                 device=torch.device("cpu"),
             )
-            # pyright: ignore[reportAttributeAccessIssue]
+            assert isinstance(loaded_bundle, TorchModelBundle)
             loaded_model = loaded_bundle.model
 
             # Test with CPU input
@@ -245,12 +241,11 @@ class TestTorchModelBundle:
             model_bundle = TorchModelBundle(model)
             save_bundle(model_bundle, bundle_path, {"test": "parameters"})
 
-            loaded_bundle, _ = load_bundle(
+            loaded_bundle, loaded_metadata = load_bundle(
                 bundle_path,
-                # pyright: ignore[reportArgumentType]
                 device=torch.device("cpu"),
             )
-            # pyright: ignore[reportAttributeAccessIssue]
+            assert isinstance(loaded_bundle, TorchModelBundle)
             loaded_model = loaded_bundle.model
 
             # Check that parameters match
@@ -272,12 +267,11 @@ class TestTorchModelBundle:
             save_bundle(model_bundle, bundle_path, {"state": "eval"})
 
             # Load model
-            loaded_bundle, _ = load_bundle(
+            loaded_bundle, loaded_metadata = load_bundle(
                 bundle_path,
-                # pyright: ignore[reportArgumentType]
                 device=torch.device("cpu"),
             )
-            # pyright: ignore[reportAttributeAccessIssue]
+            assert isinstance(loaded_bundle, TorchModelBundle)
             loaded_model = loaded_bundle.model
 
             # Check that eval mode is preserved
@@ -288,12 +282,11 @@ class TestTorchModelBundle:
             model_bundle = TorchModelBundle(model)
             save_bundle(model_bundle, bundle_path, {"state": "train"})
 
-            loaded_bundle, _ = load_bundle(
+            loaded_bundle, loaded_metadata = load_bundle(
                 bundle_path,
-                # pyright: ignore[reportArgumentType]
                 device=torch.device("cpu"),
             )
-            # pyright: ignore[reportAttributeAccessIssue]
+            assert isinstance(loaded_bundle, TorchModelBundle)
             loaded_model = loaded_bundle.model
 
             # Check that train mode is preserved
@@ -320,7 +313,6 @@ class TestTorchModelBundle:
             # Load and verify manifest
             loaded_bundle, loaded_manifest = load_bundle(
                 bundle_path,
-                # pyright: ignore[reportArgumentType]
                 device=torch.device("cpu"),
             )
 

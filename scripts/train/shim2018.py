@@ -113,7 +113,7 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
     log.info("Loading pretrained model...")
     pretrained_model, _ = load_bundle(
         Path(cfg.pretrained_model_bundle_path),
-        device=device,  # pyright: ignore[reportArgumentType]
+        device=device,
     )
     pretrained_model = cast(
         "LitShim2018EmbedderClassifier",

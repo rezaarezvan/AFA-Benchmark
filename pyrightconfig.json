@@ -1,5 +1,8 @@
 {
-  "include": ["afabench", "scripts"],
+  "include": [
+    "afabench",
+    "scripts"
+  ],
   "exclude": [
     "**/node_modules",
     "**/__pycache__",

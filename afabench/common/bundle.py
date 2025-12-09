@@ -37,7 +37,14 @@ class Loadeable(Protocol):
     """
 
     @classmethod
-    def load(cls, path: Path, **kwargs: dict[str, Any]) -> Self: ...
+    def load(cls, path: Path, **kwargs: Any) -> Self:  # noqa: ANN401
+        """
+        Load from path with arbitrary kwargs.
+
+        Uses Any for kwargs because this is a generic protocol that must
+        support any type of underlying object with unknown loading parameters.
+        """
+        ...
 
 
 def get_class_version(cls: type) -> str | None:
@@ -121,10 +128,15 @@ def save_bundle(obj: Saveable, path: Path, metadata: dict[str, Any]) -> None:
 
 def load_bundle(
     path: Path,
-    **kwargs: dict[str, Any],
+    **kwargs: Any,  # noqa: ANN401
 ) -> tuple[Loadeable, dict[str, Any]]:
     """
     Load a bundle from disk. `path` is required to end with the `.bundle` extension to make it clear that this is a bundle.
+
+    Args:
+        path: Path to the bundle file
+        **kwargs: Arbitrary keyword arguments forwarded to the object's load method.
+                 Uses Any because we must support any underlying object type.
 
     Returns:
         A tuple of the loaded object and the manifest dictionary.

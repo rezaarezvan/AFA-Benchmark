@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Sync exclude patterns from ruff.toml to pyrightconfig.json.
 
@@ -7,7 +6,7 @@ maintaining consistency without manual duplication.
 
 Usage:
     # Manual sync (run from project root)
-    python scripts/sync_excludes.py
+    python scripts/dev/sync_excludes.py
 
     # Automatic sync via pre-commit hook
     # The sync runs automatically when ruff.toml or pyrightconfig.json are modified
@@ -18,18 +17,14 @@ Usage:
 
 import json
 import sys
+import tomllib
 from pathlib import Path
-
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib
 
 
 def load_ruff_excludes(ruff_config_path: Path) -> list[str]:
     """Load exclude patterns from ruff.toml."""
     try:
-        with open(ruff_config_path, "rb") as f:
+        with ruff_config_path.open("rb") as f:
             ruff_config = tomllib.load(f)
 
         excludes = ruff_config.get("exclude", [])
@@ -38,13 +33,13 @@ def load_ruff_excludes(ruff_config_path: Path) -> list[str]:
                 f"Error: exclude patterns in {ruff_config_path} is not a list"
             )
             sys.exit(1)
-
-        return excludes
+        else:
+            return excludes
 
     except FileNotFoundError:
         print(f"Error: {ruff_config_path} not found")
         sys.exit(1)
-    except Exception as e:
+    except (OSError, tomllib.TOMLDecodeError) as e:
         print(f"Error reading {ruff_config_path}: {e}")
         sys.exit(1)
 
@@ -55,7 +50,7 @@ def update_pyright_config(
     """Update pyrightconfig.json with the exclude patterns."""
     try:
         # Load existing config
-        with open(pyright_config_path) as f:
+        with pyright_config_path.open() as f:
             pyright_config = json.load(f)
 
         # Preserve existing excludes that aren't from ruff (like node_modules, __pycache__)
@@ -82,7 +77,7 @@ def update_pyright_config(
         pyright_config["exclude"] = deduped_excludes
 
         # Write back with nice formatting
-        with open(pyright_config_path, "w") as f:
+        with pyright_config_path.open("w") as f:
             json.dump(pyright_config, f, indent=2)
 
         print(
@@ -92,16 +87,16 @@ def update_pyright_config(
     except FileNotFoundError:
         print(f"Error: {pyright_config_path} not found")
         sys.exit(1)
-    except Exception as e:
+    except (OSError, json.JSONDecodeError) as e:
         print(f"Error updating {pyright_config_path}: {e}")
         sys.exit(1)
 
 
 def main() -> None:
-    """Main function to sync exclude patterns."""
+    """Sync exclude patterns from ruff.toml to pyrightconfig.json."""
     # Get script directory and project root
     script_dir = Path(__file__).parent
-    project_root = script_dir.parent
+    project_root = script_dir.parent.parent
 
     ruff_config_path = project_root / "ruff.toml"
     pyright_config_path = project_root / "pyrightconfig.json"
